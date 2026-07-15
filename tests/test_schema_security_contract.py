@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = (ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
+
+
+def test_report_domain_has_independent_statuses_and_concurrency_fields() -> None:
+    for marker in (
+        "report_workflow_status",
+        "report_timeliness_status",
+        "report_publication_status",
+        "version integer not null",
+        "idempotency_key uuid",
+    ):
+        assert marker in SCHEMA
+
+
+def test_public_projection_is_published_and_excludes_ct14() -> None:
+    view = SCHEMA.split("create view public.published_report_summary", 1)[1].split(
+        "comment on view public.published_report_summary", 1
+    )[0]
+    assert "publication_status = 'published'" in view
+    assert "'CT01', 'CT02', 'CT09', 'CT12', 'CT13'" in view
+    assert "CT14" not in view
+    assert "revoke all on public.published_report_summary from anon" in SCHEMA
+
+
+def test_atomic_rpcs_and_leader_read_only_policy_exist() -> None:
+    assert "create function public.create_report_period" in SCHEMA
+    assert "create function public.save_report_submission" in SCHEMA
+    assert "raise exception 'leadership is read-only'" in SCHEMA
+    assert "public.profile_role() = 'admin_xa'" in SCHEMA
+
+
+def test_citizens_are_not_an_authenticated_role() -> None:
+    role_definition = SCHEMA.split("create type public.user_role", 1)[1].split(");", 1)[0]
+    assert "'dan'" not in role_definition
+
+
+def test_operations_tables_are_rls_protected_and_audited() -> None:
+    for marker in (
+        "alter table public.action_items enable row level security",
+        "alter table public.digital_maturity_assessments enable row level security",
+        "alter table public.innovation_initiatives enable row level security",
+        "alter table public.ai_action_drafts enable row level security",
+        "create function public.audit_operations_change",
+        "create trigger ai_drafts_audit",
+    ):
+        assert marker in SCHEMA
+
+
+def test_ordered_upgrade_chain_is_present() -> None:
+    names = [path.name for path in sorted((ROOT / "migrations").glob("*.sql"))]
+    assert names == [
+        "20260713_0001_security_domain_upgrade.sql",
+        "20260713_0002_atomic_workflows.sql",
+        "20260714_0003_production_operations.sql",
+    ]

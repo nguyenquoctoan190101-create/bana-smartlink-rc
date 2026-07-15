@@ -1,0 +1,54 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+
+# Node/Vite
+node_modules/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Local databases and generated exports
+*.db
+*.sqlite
+*.sqlite3
+exports/*
+!exports/.gitkeep
+scratch/
+
+# Keep only the non-personal official village reference in source control.
+DU_LIEU_CHINH_THUC/*
+!DU_LIEU_CHINH_THUC/village_merge_map_CHINH_THUC.json
+
+# Release archives are generated outside the source tree
+*.zip
+*.tar
+*.tar.gz
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log

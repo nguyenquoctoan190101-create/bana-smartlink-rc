@@ -1,0 +1,42 @@
+{
+  "source": "DU_LIEU_CHINH_THUC/village_merge_map_CHINH_THUC.json",
+  "updated_at": "2026-07-10",
+  "new_villages": [
+    {"id": "298f286f-d63d-4959-aa14-71afe97ec73b", "canonical_id": "thach_nham_dong", "name": "Thôn Thạch Nham Đông"},
+    {"id": "7b69dd9a-2d94-45df-9ff2-5f63317c35fc", "canonical_id": "thach_nham_tay", "name": "Thôn Thạch Nham Tây"},
+    {"id": "eb8ee816-5c81-4e23-99af-ac0832dfc7e7", "canonical_id": "phuoc_hung", "name": "Thôn Phước Hưng"},
+    {"id": "9c05f71b-2b1d-4a1c-9ee1-b719a944ae10", "canonical_id": "phu_hoa", "name": "Thôn Phú Hòa"},
+    {"id": "bb840e1c-f53c-4e1c-a1ee-2bef21e54901", "canonical_id": "thai_lai", "name": "Thôn Thái Lai"},
+    {"id": "75ad3216-d91a-437c-bb3f-39f62ca262a3", "canonical_id": "phuoc_khuong", "name": "Thôn Phước Khương"},
+    {"id": "f8a77ae0-827f-4a9a-ac0d-2f2016748185", "canonical_id": "hoa_nhon", "name": "Thôn Hòa Nhơn"},
+    {"id": "fc1337bc-3617-45d9-be15-c27809306bde", "canonical_id": "son_phuoc", "name": "Thôn Sơn Phước"},
+    {"id": "afc4c322-1bc4-4237-a720-4bb59f27881a", "canonical_id": "hoa_ninh", "name": "Thôn Hòa Ninh"},
+    {"id": "730f312b-6451-451b-a9f7-a66577dfea4c", "canonical_id": "an_son", "name": "Thôn An Sơn"}
+  ],
+  "old_villages": [
+    {"id": "thach_nham_dong", "name": "Thôn Thạch Nham Đông", "target_new_id": "298f286f-d63d-4959-aa14-71afe97ec73b"},
+    {"id": "thach_nham_tay", "name": "Thôn Thạch Nham Tây", "target_new_id": "7b69dd9a-2d94-45df-9ff2-5f63317c35fc"},
+    {"id": "phuoc_hung", "name": "Thôn Phước Hưng", "target_new_id": "eb8ee816-5c81-4e23-99af-ac0832dfc7e7"},
+    {"id": "phu_hoa_1", "name": "Thôn Phú Hòa 1", "target_new_id": "9c05f71b-2b1d-4a1c-9ee1-b719a944ae10"},
+    {"id": "phu_hoa_2", "name": "Thôn Phú Hòa 2", "target_new_id": "9c05f71b-2b1d-4a1c-9ee1-b719a944ae10"},
+    {"id": "phuoc_thai", "name": "Thôn Phước Thái", "target_new_id": "bb840e1c-f53c-4e1c-a1ee-2bef21e54901"},
+    {"id": "phuoc_hung_nam", "name": "Thôn Phước Hưng Nam", "target_new_id": "bb840e1c-f53c-4e1c-a1ee-2bef21e54901"},
+    {"id": "thai_lai", "name": "Thôn Thái Lai", "target_new_id": "bb840e1c-f53c-4e1c-a1ee-2bef21e54901"},
+    {"id": "hoa_khuong_dong", "name": "Thôn Hòa Khương Đông", "target_new_id": "75ad3216-d91a-437c-bb3f-39f62ca262a3"},
+    {"id": "hoa_khuong_tay", "name": "Thôn Hòa Khương Tây", "target_new_id": "75ad3216-d91a-437c-bb3f-39f62ca262a3"},
+    {"id": "phuoc_thuan_phuoc_hau", "name": "Thôn Phước Thuận - Phước Hậu", "target_new_id": "75ad3216-d91a-437c-bb3f-39f62ca262a3"},
+    {"id": "ninh_an", "name": "Thôn Ninh An", "target_new_id": "f8a77ae0-827f-4a9a-ac0d-2f2016748185"},
+    {"id": "truoc_dong", "name": "Thôn Trước Đông", "target_new_id": "f8a77ae0-827f-4a9a-ac0d-2f2016748185"},
+    {"id": "dieu_phong", "name": "Thôn Diêu Phong", "target_new_id": "f8a77ae0-827f-4a9a-ac0d-2f2016748185"},
+    {"id": "son_phuoc", "name": "Thôn Sơn Phước", "target_new_id": "fc1337bc-3617-45d9-be15-c27809306bde"},
+    {"id": "my_son", "name": "Thôn Mỹ Sơn", "target_new_id": "fc1337bc-3617-45d9-be15-c27809306bde"},
+    {"id": "thon_nam", "name": "Thôn Năm", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
+    {"id": "hoa_trung", "name": "Thôn Hòa Trung", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
+    {"id": "thon_mot", "name": "Thôn Một", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
+    {"id": "trung_nghia", "name": "Thôn Trung Nghĩa", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
+    {"id": "dong_son", "name": "Thôn Đông Sơn", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a", "mapping_status": "pending_official_decision"},
+    {"id": "an_son", "name": "Thôn An Sơn", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"},
+    {"id": "khu_tdc_2", "name": "Khu tái định cư số 2", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"},
+    {"id": "khu_tdc_3", "name": "Khu tái định cư số 3", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"}
+  ]
+}

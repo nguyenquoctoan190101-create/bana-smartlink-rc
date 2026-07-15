@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "nguon": "Infographic 'PHUONG AN SAP XEP THON TREN DIA BAN XA BA NA' do xa cung cap",
+    "ngay_cap_nhat": "2026-07-10",
+    "ghi_chu_quan_trong": [
+      "Tong cong doi chieu duoc 24 don vi cu trong khi infographic ghi '22 thon hien co' - chenh lech 2 don vi vi 'Khu tai dinh cu so 2' va 'Khu tai dinh cu so 3' (thuoc An Son) la khu tai dinh cu, khong phai thon goc trong 22 thon ban dau.",
+      "Thon Dong Son cu bi TACH DOI theo infographic (chi ghi '+ phia Bac Dong Son' vao Hoa Ninh) nhung du lieu bao cao mau (BC_T20_Thon_Dong_Son.xlsx) chi co 1 ban ghi duy nhat cho toan bo thon Dong Son, khong tach theo khu vuc. CAN HOI LAI XA: du lieu bao cao hien co cua Dong Son tinh het vao Hoa Ninh, hay can xa cung cap them so lieu tach theo khu vuc?",
+      "3 thon 'giu nguyen' (Thach Nham Dong, Thach Nham Tay, Phuoc Hung) van map 1-1 vao chinh no, KHONG bo qua buoc tra bang nay, de logic tong hop luon di qua dung 1 con duong duy nhat."
+    ]
+  },
+  "villages_moi": [
+    {"id": "thach_nham_dong", "ten": "Thôn Thạch Nham Đông", "quy_mo_ho_du_kien": 553, "loai": "giu_nguyen"},
+    {"id": "thach_nham_tay", "ten": "Thôn Thạch Nham Tây", "quy_mo_ho_du_kien": 533, "loai": "giu_nguyen"},
+    {"id": "phuoc_hung", "ten": "Thôn Phước Hưng", "quy_mo_ho_du_kien": 571, "loai": "giu_nguyen"},
+    {"id": "phu_hoa", "ten": "Thôn Phú Hòa", "quy_mo_ho_du_kien": 899, "loai": "sap_nhap"},
+    {"id": "thai_lai", "ten": "Thôn Thái Lai", "quy_mo_ho_du_kien": 546, "loai": "sap_nhap"},
+    {"id": "phuoc_khuong", "ten": "Thôn Phước Khương", "quy_mo_ho_du_kien": 856, "loai": "sap_nhap"},
+    {"id": "hoa_nhon", "ten": "Thôn Hòa Nhơn", "quy_mo_ho_du_kien": 726, "loai": "sap_nhap"},
+    {"id": "son_phuoc", "ten": "Thôn Sơn Phước", "quy_mo_ho_du_kien": 672, "loai": "sap_nhap"},
+    {
+      "id": "hoa_ninh",
+      "ten": "Thôn Hòa Ninh",
+      "quy_mo_ho_du_kien": 911,
+      "loai": "sap_nhap",
+      "canh_bao_bien_dong": "Du kien GIAM con 543 ho sau giai toa Khu cong nghiep - dung household_count JSONB versioned theo thoi gian, KHONG luu 1 so co dinh."
+    },
+    {
+      "id": "an_son",
+      "ten": "Thôn An Sơn",
+      "quy_mo_ho_du_kien": 300,
+      "loai": "sap_nhap",
+      "canh_bao_bien_dong": "Du kien TANG len 668 ho sau bo tri tai dinh cu - dung household_count JSONB versioned theo thoi gian, KHONG luu 1 so co dinh."
+    }
+  ],
+  "anh_xa_thon_cu": [
+    {"ten_thon_cu": "Thôn Thạch Nham Đông", "quy_mo_ho_cu": 553, "new_village_id": "thach_nham_dong"},
+    {"ten_thon_cu": "Thôn Thạch Nham Tây", "quy_mo_ho_cu": 533, "new_village_id": "thach_nham_tay", "ghi_chu": "Khong co trong bo bao cao mau - 1 trong 3 case 'chua nop' co y cua BTC."},
+    {"ten_thon_cu": "Thôn Phước Hưng", "quy_mo_ho_cu": 571, "new_village_id": "phuoc_hung"},
+
+    {"ten_thon_cu": "Thôn Phú Hòa 1", "quy_mo_ho_cu": 471, "new_village_id": "phu_hoa"},
+    {"ten_thon_cu": "Thôn Phú Hòa 2", "quy_mo_ho_cu": 428, "new_village_id": "phu_hoa"},
+
+    {"ten_thon_cu": "Thôn Phước Thái", "quy_mo_ho_cu": 203, "new_village_id": "thai_lai"},
+    {"ten_thon_cu": "Thôn Phước Hưng Nam", "quy_mo_ho_cu": 146, "new_village_id": "thai_lai"},
+    {"ten_thon_cu": "Thôn Thái Lai", "quy_mo_ho_cu": 197, "new_village_id": "thai_lai"},
+
+    {"ten_thon_cu": "Thôn Hòa Khương Đông", "quy_mo_ho_cu": 293, "new_village_id": "phuoc_khuong"},
+    {"ten_thon_cu": "Thôn Hòa Khương Tây", "quy_mo_ho_cu": 214, "new_village_id": "phuoc_khuong"},
+    {"ten_thon_cu": "Thôn Phước Thuận - Phước Hậu", "quy_mo_ho_cu": 349, "new_village_id": "phuoc_khuong"},
+
+    {"ten_thon_cu": "Thôn Ninh An", "quy_mo_ho_cu": 188, "new_village_id": "hoa_nhon", "ghi_chu": "Khong co trong bo bao cao mau - 1 trong 3 case 'chua nop' co y cua BTC."},
+    {"ten_thon_cu": "Thôn Trước Đông", "quy_mo_ho_cu": 301, "new_village_id": "hoa_nhon"},
+    {"ten_thon_cu": "Thôn Diêu Phong", "quy_mo_ho_cu": 237, "new_village_id": "hoa_nhon"},
+
+    {"ten_thon_cu": "Thôn Sơn Phước", "quy_mo_ho_cu": 491, "new_village_id": "son_phuoc", "ghi_chu": "Khong co trong bo bao cao mau - 1 trong 3 case 'chua nop' co y cua BTC (trung ten voi thon moi, can than dung nham)."},
+    {"ten_thon_cu": "Thôn Mỹ Sơn", "quy_mo_ho_cu": 181, "new_village_id": "son_phuoc"},
+
+    {"ten_thon_cu": "Thôn Năm", "quy_mo_ho_cu": null, "new_village_id": "hoa_ninh", "ghi_chu": "= 'Thon 5' trong infographic, ten that trong du lieu bao cao la 'Thon Nam'."},
+    {"ten_thon_cu": "Thôn Hòa Trung", "quy_mo_ho_cu": null, "new_village_id": "hoa_ninh"},
+    {"ten_thon_cu": "Thôn Một", "quy_mo_ho_cu": null, "new_village_id": "hoa_ninh", "ghi_chu": "= 'Thon 1' trong infographic, ten that trong du lieu bao cao la 'Thon Mot'."},
+    {"ten_thon_cu": "Thôn Trung Nghĩa", "quy_mo_ho_cu": null, "new_village_id": "hoa_ninh"},
+    {
+      "ten_thon_cu": "Thôn Đông Sơn",
+      "quy_mo_ho_cu": null,
+      "new_village_id": "hoa_ninh",
+      "ghi_chu": "CHUA CHAC CHAN: infographic ghi chi '+ phia Bac Dong Son' nhap vao Hoa Ninh (tach doi thon), nhung du lieu mau chi co 1 ban ghi bao cao duy nhat cho toan bo Dong Son - tam map toan bo vao Hoa Ninh, DANH DAU CAN HOI LAI XA."
+    },
+
+    {"ten_thon_cu": "Thôn An Sơn", "quy_mo_ho_cu": null, "new_village_id": "an_son"},
+    {"ten_thon_cu": "Khu tái định cư số 2", "quy_mo_ho_cu": null, "new_village_id": "an_son", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."},
+    {"ten_thon_cu": "Khu tái định cư số 3", "quy_mo_ho_cu": null, "new_village_id": "an_son", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."}
+  ]
+}

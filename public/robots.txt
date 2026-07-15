@@ -1,0 +1,8 @@
+# Ba Na SmartLink - Search Engine Indexing Policy
+User-agent: *
+Disallow: /admin
+Disallow: /login
+Disallow: /api/
+Disallow: /pending-updates
+
+Sitemap: /sitemap.xml

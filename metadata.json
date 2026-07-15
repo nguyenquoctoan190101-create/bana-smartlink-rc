@@ -1,0 +1,6 @@
+{
+  "name": "Ba Na SmartLink",
+  "description": "Nền tảng báo cáo số liệu Văn hóa - Xã hội từ thôn lên xã cho Xã Bà Nà (Đà Nẵng)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

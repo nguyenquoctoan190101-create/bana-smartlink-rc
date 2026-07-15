@@ -1,0 +1,50 @@
+{
+  "name": "bana-smartlink",
+  "private": true,
+  "version": "1.0.0-rc.1",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:web": "vite --host 127.0.0.1 --port 5173",
+    "build": "vite build",
+    "budget": "node scripts/check_bundle_budget.mjs",
+    "start": "python -m uvicorn main:app --host 0.0.0.0 --port 8000",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "clean": "rimraf dist coverage .pytest_cache htmlcov",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "openapi:generate": "python scripts/export_openapi.py && openapi-typescript docs/openapi.json -o src/generated/openapi.ts",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@fontsource/noto-sans": "^5.2.8",
+    "@supabase/supabase-js": "^2.110.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "axe-core": "^4.10.3",
+    "concurrently": "^9.1.2",
+    "jsdom": "^26.1.0",
+    "openapi-typescript": "7.13.0",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "vitest": "^3.2.4"
+  }
+}

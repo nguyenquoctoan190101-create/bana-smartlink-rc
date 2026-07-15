@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: bana-smartlink-rc-toan-2026
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/live
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: ALLOWED_ORIGINS
+        value: https://bana-smartlink-rc-toan-2026.onrender.com
+      - key: BANA_COMMUNE_ID
+        value: ba_na
+      - key: VITE_API_BASE_URL
+        value: ""
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false

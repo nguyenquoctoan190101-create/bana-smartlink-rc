@@ -1,0 +1,5492 @@
+{
+  "components": {
+    "schemas": {
+      "AcceptedReportItem": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_id",
+          "report_id",
+          "version"
+        ],
+        "title": "AcceptedReportItem",
+        "type": "object"
+      },
+      "ActionCreateRequest": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "period_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Id"
+          },
+          "priority": {
+            "default": "normal",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "critical"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_type": {
+            "default": "manual",
+            "enum": [
+              "manual",
+              "trend_alert",
+              "ai_draft",
+              "maturity",
+              "initiative",
+              "proposal"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 180,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          },
+          "village_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "ActionCreateRequest",
+        "type": "object"
+      },
+      "ActionUpdateRequest": {
+        "properties": {
+          "outcome": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ActionUpdateRequest",
+        "type": "object"
+      },
+      "AiDraftCreateRequest": {
+        "properties": {
+          "kind": {
+            "const": "period_brief",
+            "default": "period_brief",
+            "title": "Kind",
+            "type": "string"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_id"
+        ],
+        "title": "AiDraftCreateRequest",
+        "type": "object"
+      },
+      "AiDraftReviewRequest": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "AiDraftReviewRequest",
+        "type": "object"
+      },
+      "ApproveReportRequest": {
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "lock"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version"
+        ],
+        "title": "ApproveReportRequest",
+        "type": "object"
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "table_name": {
+            "title": "Table Name",
+            "type": "string"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "table_name",
+          "record_id",
+          "user_id",
+          "details",
+          "created_at"
+        ],
+        "title": "AuditLogResponse",
+        "type": "object"
+      },
+      "Body_excel_preview_reports_excel_preview_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_excel_preview_reports_excel_preview_post",
+        "type": "object"
+      },
+      "Body_normalize_report_excel_reports_normalize_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_normalize_report_excel_reports_normalize_post",
+        "type": "object"
+      },
+      "Body_ocr_photo_preview_reports_ocr_preview_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_ocr_photo_preview_reports_ocr_preview_post",
+        "type": "object"
+      },
+      "Body_upload_report_file_reports_upload_post": {
+        "properties": {
+          "assisted_by_cnscd": {
+            "default": false,
+            "title": "Assisted By Cnscd",
+            "type": "boolean"
+          },
+          "assisted_member_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assisted Member Name"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "source_confirmed": {
+            "default": false,
+            "title": "Source Confirmed",
+            "type": "boolean"
+          },
+          "submitted_by_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Submitted By Name",
+            "type": "string"
+          },
+          "submitted_by_phone": {
+            "maxLength": 20,
+            "minLength": 10,
+            "title": "Submitted By Phone",
+            "type": "string"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "period_id",
+          "submitted_by_name",
+          "submitted_by_phone",
+          "file"
+        ],
+        "title": "Body_upload_report_file_reports_upload_post",
+        "type": "object"
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "new_password"
+        ],
+        "title": "ChangePasswordRequest",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "xa_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xa Id"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "intent": {
+            "title": "Intent",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "rows_retrieved": {
+            "title": "Rows Retrieved",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "intent",
+          "rows_retrieved"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
+      "CitizenPendingUpdateRequest": {
+        "properties": {
+          "ct_code": {
+            "maxLength": 8,
+            "minLength": 1,
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "privacy_consent": {
+            "const": true,
+            "title": "Privacy Consent",
+            "type": "boolean"
+          },
+          "proposed_by_phone": {
+            "title": "Proposed By Phone",
+            "type": "string"
+          },
+          "proposed_value": {
+            "title": "Proposed Value",
+            "type": "integer"
+          },
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "submitter_address": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitter Address"
+          },
+          "submitter_household": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitter Household"
+          },
+          "submitter_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitter Name"
+          },
+          "submitter_relation": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitter Relation"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "report_id",
+          "ct_code",
+          "proposed_value",
+          "proposed_by_phone",
+          "privacy_consent"
+        ],
+        "title": "CitizenPendingUpdateRequest",
+        "type": "object"
+      },
+      "CitizenPendingUpdateResponse": {
+        "properties": {
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "proposed_value": {
+            "title": "Proposed Value",
+            "type": "integer"
+          },
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tracking_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Code"
+          }
+        },
+        "required": [
+          "id",
+          "report_id",
+          "ct_code",
+          "proposed_value",
+          "status"
+        ],
+        "title": "CitizenPendingUpdateResponse",
+        "type": "object"
+      },
+      "CitizenProposalTrackingResponse": {
+        "properties": {
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "tracking_code": {
+            "title": "Tracking Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tracking_code",
+          "status",
+          "ct_code",
+          "submitted_at",
+          "message"
+        ],
+        "title": "CitizenProposalTrackingResponse",
+        "type": "object"
+      },
+      "CnscdImpactResponse": {
+        "properties": {
+          "absolute_difference": {
+            "title": "Absolute Difference",
+            "type": "integer"
+          },
+          "assisted_report_count": {
+            "title": "Assisted Report Count",
+            "type": "integer"
+          },
+          "ct13_total": {
+            "title": "Ct13 Total",
+            "type": "integer"
+          },
+          "difference": {
+            "title": "Difference",
+            "type": "integer"
+          },
+          "interpretation": {
+            "title": "Interpretation",
+            "type": "string"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "period_name": {
+            "title": "Period Name",
+            "type": "string"
+          },
+          "submitted_report_count": {
+            "title": "Submitted Report Count",
+            "type": "integer"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/VillageCnscdImpactResponse"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "period_id",
+          "period_name",
+          "submitted_report_count",
+          "assisted_report_count",
+          "ct13_total",
+          "difference",
+          "absolute_difference",
+          "villages",
+          "interpretation"
+        ],
+        "title": "CnscdImpactResponse",
+        "type": "object"
+      },
+      "CreateReportPeriodRequest": {
+        "properties": {
+          "due_date": {
+            "format": "date-time",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "template_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Name"
+          },
+          "village_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Village Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "due_date",
+          "village_ids"
+        ],
+        "title": "CreateReportPeriodRequest",
+        "type": "object"
+      },
+      "CreateStaffAccountRequest": {
+        "properties": {
+          "display_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "role": {
+            "enum": [
+              "can_bo_thon",
+              "to_cnscd"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "display_name",
+          "role",
+          "village_id"
+        ],
+        "title": "CreateStaffAccountRequest",
+        "type": "object"
+      },
+      "CreateStaffAccountResponse": {
+        "properties": {
+          "force_password_reset": {
+            "title": "Force Password Reset",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "can_bo_thon",
+              "to_cnscd"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "temporary_password": {
+            "title": "Temporary Password",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "role",
+          "village_id",
+          "force_password_reset",
+          "temporary_password"
+        ],
+        "title": "CreateStaffAccountResponse",
+        "type": "object"
+      },
+      "CurrentUserResponse": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "force_password_reset": {
+            "title": "Force Password Reset",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "village_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "village_id",
+          "display_name",
+          "phone",
+          "is_active",
+          "force_password_reset"
+        ],
+        "title": "CurrentUserResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InitiativeCreateRequest": {
+        "properties": {
+          "data_risk": {
+            "default": "low",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Data Risk",
+            "type": "string"
+          },
+          "effort": {
+            "default": "M",
+            "enum": [
+              "S",
+              "M",
+              "L"
+            ],
+            "title": "Effort",
+            "type": "string"
+          },
+          "kpi_baseline": {
+            "additionalProperties": true,
+            "title": "Kpi Baseline",
+            "type": "object"
+          },
+          "kpi_target": {
+            "additionalProperties": true,
+            "title": "Kpi Target",
+            "type": "object"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "problem_statement": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Problem Statement",
+            "type": "string"
+          },
+          "status": {
+            "default": "idea",
+            "enum": [
+              "idea",
+              "pilot",
+              "active",
+              "paused",
+              "stopped",
+              "scaled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 180,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          },
+          "value_hypothesis": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Value Hypothesis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "problem_statement",
+          "value_hypothesis"
+        ],
+        "title": "InitiativeCreateRequest",
+        "type": "object"
+      },
+      "MaturityCreateRequest": {
+        "properties": {
+          "action_plan": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Plan"
+          },
+          "evidence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "object"
+          },
+          "quarter_start": {
+            "format": "date",
+            "title": "Quarter Start",
+            "type": "string"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Scores",
+            "type": "object"
+          },
+          "status": {
+            "default": "draft",
+            "enum": [
+              "draft",
+              "submitted"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "quarter_start",
+          "scores"
+        ],
+        "title": "MaturityCreateRequest",
+        "type": "object"
+      },
+      "NotifyVillagesRequest": {
+        "properties": {
+          "deadline": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Deadline",
+            "type": "string"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "period_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Period Name",
+            "type": "string"
+          },
+          "template_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Name"
+          },
+          "villages": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "villages",
+          "period_name",
+          "deadline"
+        ],
+        "title": "NotifyVillagesRequest",
+        "type": "object"
+      },
+      "OcrPreviewResponse": {
+        "description": "Returned by /reports/ocr-preview for human review BEFORE saving.\n\nThe staff member (can bo) MUST review and confirm these values.\nThis endpoint never persists data automatically.",
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/OcrValidationFlag"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "null_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Null Codes",
+            "type": "array"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values",
+          "flags",
+          "null_codes",
+          "filename",
+          "size_bytes"
+        ],
+        "title": "OcrPreviewResponse",
+        "type": "object"
+      },
+      "OcrValidationFlag": {
+        "properties": {
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "error_type": {
+            "title": "Error Type",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ct_code",
+          "error_type",
+          "message"
+        ],
+        "title": "OcrValidationFlag",
+        "type": "object"
+      },
+      "OfficerResponse": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "last_login": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "village_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "role",
+          "village_id",
+          "is_active",
+          "last_login"
+        ],
+        "title": "OfficerResponse",
+        "type": "object"
+      },
+      "OfflineReportItem": {
+        "properties": {
+          "CT01": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct01"
+          },
+          "CT02": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct02"
+          },
+          "CT03": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct03"
+          },
+          "CT04": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct04"
+          },
+          "CT05": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct05"
+          },
+          "CT06": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct06"
+          },
+          "CT07": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct07"
+          },
+          "CT08": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct08"
+          },
+          "CT09": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct09"
+          },
+          "CT10": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct10"
+          },
+          "CT11": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct11"
+          },
+          "CT12": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct12"
+          },
+          "CT13": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct13"
+          },
+          "CT14": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct14"
+          },
+          "assisted_by_cnscd": {
+            "default": false,
+            "title": "Assisted By Cnscd",
+            "type": "boolean"
+          },
+          "assisted_member_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assisted Member Name"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "period_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Id"
+          },
+          "raw_source": {
+            "default": "web_form",
+            "title": "Raw Source",
+            "type": "string"
+          },
+          "report_period": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Period"
+          },
+          "reporter_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Reporter Name",
+            "type": "string"
+          },
+          "reporter_phone": {
+            "maxLength": 20,
+            "minLength": 10,
+            "title": "Reporter Phone",
+            "type": "string"
+          },
+          "source_confirmed": {
+            "default": false,
+            "title": "Source Confirmed",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "village_id",
+          "reporter_name",
+          "reporter_phone",
+          "updated_at"
+        ],
+        "title": "OfflineReportItem",
+        "type": "object"
+      },
+      "PolicyMetricResponse": {
+        "properties": {
+          "denominator": {
+            "title": "Denominator",
+            "type": "integer"
+          },
+          "numerator": {
+            "title": "Numerator",
+            "type": "integer"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "numerator",
+          "denominator",
+          "percent"
+        ],
+        "title": "PolicyMetricResponse",
+        "type": "object"
+      },
+      "PolicyScorecardResponse": {
+        "properties": {
+          "electronic_profile_rate": {
+            "$ref": "#/components/schemas/PolicyMetricResponse"
+          },
+          "interpretation": {
+            "title": "Interpretation",
+            "type": "string"
+          },
+          "once_only_score": {
+            "$ref": "#/components/schemas/PolicyMetricResponse"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "period_name": {
+            "title": "Period Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_id",
+          "period_name",
+          "electronic_profile_rate",
+          "once_only_score",
+          "interpretation"
+        ],
+        "title": "PolicyScorecardResponse",
+        "type": "object"
+      },
+      "ProposalActionRequest": {
+        "properties": {
+          "action": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ProposalActionRequest",
+        "type": "object"
+      },
+      "ProposalResponse": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "proposed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed By"
+          },
+          "proposed_value": {
+            "title": "Proposed Value",
+            "type": "integer"
+          },
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "sla_due_at": {
+            "title": "Sla Due At",
+            "type": "string"
+          },
+          "sla_status": {
+            "enum": [
+              "on_track",
+              "overdue",
+              "closed"
+            ],
+            "title": "Sla Status",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "report_id",
+          "ct_code",
+          "proposed_value",
+          "proposed_by",
+          "status",
+          "reviewed_by",
+          "reviewed_at",
+          "created_at",
+          "sla_due_at",
+          "sla_status"
+        ],
+        "title": "ProposalResponse",
+        "type": "object"
+      },
+      "RejectedReportItem": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_id",
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "RejectedReportItem",
+        "type": "object"
+      },
+      "ReportSubmitRequest": {
+        "properties": {
+          "assisted_by_cnscd": {
+            "default": false,
+            "title": "Assisted By Cnscd",
+            "type": "boolean"
+          },
+          "assisted_member_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assisted Member Name"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "raw_source": {
+            "default": "web_form",
+            "title": "Raw Source",
+            "type": "string"
+          },
+          "source_confirmed": {
+            "default": false,
+            "title": "Source Confirmed",
+            "type": "boolean"
+          },
+          "submitted_by_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Submitted By Name",
+            "type": "string"
+          },
+          "submitted_by_phone": {
+            "maxLength": 20,
+            "minLength": 10,
+            "title": "Submitted By Phone",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "period_id",
+          "submitted_by_name",
+          "submitted_by_phone",
+          "values"
+        ],
+        "title": "ReportSubmitRequest",
+        "type": "object"
+      },
+      "ReportSubmitResponse": {
+        "properties": {
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "replayed": {
+            "default": false,
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timeliness_status": {
+            "title": "Timeliness Status",
+            "type": "string"
+          },
+          "validation_flags": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorResponse"
+            },
+            "title": "Validation Flags",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          },
+          "workflow_status": {
+            "title": "Workflow Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_id",
+          "village_id",
+          "period_id",
+          "status",
+          "workflow_status",
+          "timeliness_status",
+          "version"
+        ],
+        "title": "ReportSubmitResponse",
+        "type": "object"
+      },
+      "ReportUploadResponse": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "replayed": {
+            "default": false,
+            "title": "Replayed",
+            "type": "boolean"
+          },
+          "report_id": {
+            "format": "uuid",
+            "title": "Report Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timeliness_status": {
+            "title": "Timeliness Status",
+            "type": "string"
+          },
+          "validation_flags": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorResponse"
+            },
+            "title": "Validation Flags",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          },
+          "workflow_status": {
+            "title": "Workflow Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_id",
+          "village_id",
+          "period_id",
+          "status",
+          "workflow_status",
+          "timeliness_status",
+          "version",
+          "filename",
+          "size_bytes"
+        ],
+        "title": "ReportUploadResponse",
+        "type": "object"
+      },
+      "ReportValueResponse": {
+        "properties": {
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "report_id",
+          "ct_code",
+          "value",
+          "note"
+        ],
+        "title": "ReportValueResponse",
+        "type": "object"
+      },
+      "ReportsStatusResponse": {
+        "properties": {
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/VillageStatusResponse"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "period_id",
+          "villages"
+        ],
+        "title": "ReportsStatusResponse",
+        "type": "object"
+      },
+      "ResetPasswordResponse": {
+        "properties": {
+          "temporary_password": {
+            "title": "Temporary Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "temporary_password"
+        ],
+        "title": "ResetPasswordResponse",
+        "type": "object"
+      },
+      "SyncReportsRequest": {
+        "properties": {
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineReportItem"
+            },
+            "title": "Reports",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reports"
+        ],
+        "title": "SyncReportsRequest",
+        "type": "object"
+      },
+      "SyncReportsResponse": {
+        "properties": {
+          "accepted": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptedReportItem"
+            },
+            "title": "Accepted",
+            "type": "array"
+          },
+          "rejected": {
+            "items": {
+              "$ref": "#/components/schemas/RejectedReportItem"
+            },
+            "title": "Rejected",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "rejected"
+        ],
+        "title": "SyncReportsResponse",
+        "type": "object"
+      },
+      "TestPushRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "title",
+          "body"
+        ],
+        "title": "TestPushRequest",
+        "type": "object"
+      },
+      "TrendAlertResponse": {
+        "properties": {
+          "change_pct": {
+            "title": "Change Pct",
+            "type": "number"
+          },
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "curr_value": {
+            "title": "Curr Value",
+            "type": "integer"
+          },
+          "indicator_name": {
+            "title": "Indicator Name",
+            "type": "string"
+          },
+          "prev_value": {
+            "title": "Prev Value",
+            "type": "integer"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          },
+          "village_name": {
+            "title": "Village Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "village_name",
+          "ct_code",
+          "indicator_name",
+          "prev_value",
+          "curr_value",
+          "change_pct"
+        ],
+        "title": "TrendAlertResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "ValidationErrorResponse": {
+        "properties": {
+          "ct_code": {
+            "title": "Ct Code",
+            "type": "string"
+          },
+          "error_type": {
+            "title": "Error Type",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ct_code",
+          "error_type",
+          "message"
+        ],
+        "title": "ValidationErrorResponse",
+        "type": "object"
+      },
+      "VillageCnscdImpactResponse": {
+        "properties": {
+          "absolute_difference": {
+            "title": "Absolute Difference",
+            "type": "integer"
+          },
+          "assisted_report_count": {
+            "title": "Assisted Report Count",
+            "type": "integer"
+          },
+          "ct13_value": {
+            "title": "Ct13 Value",
+            "type": "integer"
+          },
+          "difference": {
+            "title": "Difference",
+            "type": "integer"
+          },
+          "report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Id"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          },
+          "village_name": {
+            "title": "Village Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "village_name",
+          "report_id",
+          "assisted_report_count",
+          "ct13_value",
+          "difference",
+          "absolute_difference"
+        ],
+        "title": "VillageCnscdImpactResponse",
+        "type": "object"
+      },
+      "VillageStatusResponse": {
+        "properties": {
+          "dashboard_color": {
+            "title": "Dashboard Color",
+            "type": "string"
+          },
+          "days_late": {
+            "title": "Days Late",
+            "type": "integer"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "old_village_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Old Village Names",
+            "type": "array"
+          },
+          "report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          },
+          "village_name": {
+            "title": "Village Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "village_name",
+          "old_village_names",
+          "report_id",
+          "submitted_at",
+          "due_date",
+          "days_late",
+          "status",
+          "dashboard_color"
+        ],
+        "title": "VillageStatusResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Ba Na SmartLink API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/ai/chat": {
+      "post": {
+        "description": "Tra loi cau hoi tieng Viet bang du lieu PostgreSQL + Gemini.\n\nTat ca so lieu tu PostgreSQL; Gemini chi dien giai.\nKhong bao gio gui PII (ten/SDT nguoi dan) vao prompt.",
+        "operationId": "chat_ai_chat_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/api/cnscd-impact": {
+      "get": {
+        "description": "Compare assisted submissions with self-declared CT13 for a period.",
+        "operationId": "get_cnscd_impact_api_cnscd_impact_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CnscdImpactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Cnscd Impact",
+        "tags": [
+          "cnscd-impact"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "operationId": "list_notifications_api_notifications_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Notifications Api Notifications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "mark_notification_as_read_api_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Mark Notification As Read Api Notifications  Notification Id  Read Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Notification As Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/operations/actions": {
+      "get": {
+        "operationId": "list_actions_api_operations_actions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Period Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Actions Api Operations Actions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Actions",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "create_action_api_operations_actions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Action Api Operations Actions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Action",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/actions/{action_id}": {
+      "patch": {
+        "operationId": "update_action_api_operations_actions__action_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Action Api Operations Actions  Action Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Action",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/ai-drafts": {
+      "get": {
+        "operationId": "list_ai_drafts_api_operations_ai_drafts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Ai Drafts Api Operations Ai Drafts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ai Drafts",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "create_ai_draft_api_operations_ai_drafts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiDraftCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Ai Draft Api Operations Ai Drafts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Ai Draft",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/ai-drafts/{draft_id}/review": {
+      "post": {
+        "operationId": "review_ai_draft_api_operations_ai_drafts__draft_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiDraftReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Review Ai Draft Api Operations Ai Drafts  Draft Id  Review Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Ai Draft",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/initiatives": {
+      "get": {
+        "operationId": "list_initiatives_api_operations_initiatives_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Initiatives Api Operations Initiatives Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Initiatives",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "create_initiative_api_operations_initiatives_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitiativeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Initiative Api Operations Initiatives Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Initiative",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/maturity": {
+      "get": {
+        "operationId": "list_maturity_api_operations_maturity_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Maturity Api Operations Maturity Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Maturity",
+        "tags": [
+          "operations"
+        ]
+      },
+      "post": {
+        "operationId": "create_maturity_api_operations_maturity_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaturityCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Maturity Api Operations Maturity Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Maturity",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/maturity/{assessment_id}/approve": {
+      "post": {
+        "operationId": "approve_maturity_api_operations_maturity__assessment_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Maturity Api Operations Maturity  Assessment Id  Approve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Maturity",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/operations/quality": {
+      "get": {
+        "operationId": "get_quality_center_api_operations_quality_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Quality Center Api Operations Quality Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Quality Center",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/policy-scorecard": {
+      "get": {
+        "description": "Return policy scorecard metrics calculated from existing DB data.",
+        "operationId": "get_policy_scorecard_api_policy_scorecard_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyScorecardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Policy Scorecard",
+        "tags": [
+          "policy-scorecard"
+        ]
+      }
+    },
+    "/api/push/notify-villages": {
+      "post": {
+        "description": "Queue in-app/Web Push delivery for officers in selected villages.",
+        "operationId": "notify_villages_api_push_notify_villages_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyVillagesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Notify Villages Api Push Notify Villages Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notify Villages",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/send-test": {
+      "post": {
+        "operationId": "send_test_push_api_push_send_test_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Send Test Push Api Push Send Test Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Test Push",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/auth/audit-logs": {
+      "get": {
+        "operationId": "list_audit_logs_auth_audit_logs_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditLogResponse"
+                  },
+                  "title": "Response List Audit Logs Auth Audit Logs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Audit Logs",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "description": "Change the caller's password, including first-login forced resets.",
+        "operationId": "change_password_auth_change_password_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/citizen/pending-updates": {
+      "post": {
+        "description": "Insert one citizen proposal directly.",
+        "operationId": "submit_citizen_pending_update_auth_citizen_pending_updates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CitizenPendingUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitizenPendingUpdateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Citizen Pending Update",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/citizen/pending-updates/{tracking_code}": {
+      "get": {
+        "description": "Look up a proposal using a high-entropy capability code, never returning PII.",
+        "operationId": "get_citizen_pending_update_status_auth_citizen_pending_updates__tracking_code__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tracking_code",
+            "required": true,
+            "schema": {
+              "title": "Tracking Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitizenProposalTrackingResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Citizen Pending Update Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "Return the canonical profile without allowing business mutations.",
+        "operationId": "get_current_user_auth_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Current User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/officers": {
+      "get": {
+        "operationId": "list_officers_auth_officers_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OfficerResponse"
+                  },
+                  "title": "Response List Officers Auth Officers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Officers",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/officers/{id}/toggle-active": {
+      "post": {
+        "operationId": "toggle_active_officer_auth_officers__id__toggle_active_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Toggle Active Officer",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/officers/{user_id}/reset-password": {
+      "post": {
+        "description": "Reset an officer's password and force them to change it on next login.",
+        "operationId": "reset_officer_password_auth_officers__user_id__reset_password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetPasswordResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Officer Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/proposals": {
+      "get": {
+        "operationId": "list_proposals_auth_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "village_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Village Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalResponse"
+                  },
+                  "title": "Response List Proposals Auth Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Proposals",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/proposals/{proposal_id}/action": {
+      "post": {
+        "operationId": "action_proposal_auth_proposals__proposal_id__action_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Action Proposal",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/report-values": {
+      "get": {
+        "operationId": "list_report_values_auth_report_values_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "village_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Village Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportValueResponse"
+                  },
+                  "title": "Response List Report Values Auth Report Values Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Report Values",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/staff-users": {
+      "post": {
+        "description": "Create village staff accounts through Supabase Auth Admin API.",
+        "operationId": "create_staff_account_auth_staff_users_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStaffAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateStaffAccountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Staff Account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Live Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Live",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Ready Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Ready",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/report-periods": {
+      "get": {
+        "operationId": "list_report_periods_report_periods_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Report Periods Report Periods Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Report Periods",
+        "tags": [
+          "report-periods"
+        ]
+      },
+      "post": {
+        "operationId": "create_report_period_report_periods_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportPeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Report Period Report Periods Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Report Period",
+        "tags": [
+          "report-periods"
+        ]
+      }
+    },
+    "/reports": {
+      "get": {
+        "description": "List reports visible to the JWT caller without duplicated profile PII.",
+        "operationId": "list_reports_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Period Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "village_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Village Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Reports Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Reports",
+        "tags": [
+          "reports"
+        ]
+      },
+      "post": {
+        "description": "Submit a village report from JSON after validation.",
+        "operationId": "submit_report_reports_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportSubmitResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/confirm-synonym": {
+      "post": {
+        "operationId": "confirm_field_synonym_reports_confirm_synonym_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Confirm Field Synonym Reports Confirm Synonym Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Field Synonym",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/excel-preview": {
+      "post": {
+        "description": "Parse an official Excel template and return a preview for human review.\n\nThis endpoint NEVER saves data. It only parses and returns values so\nthe can_bo can review before submitting via POST /reports.",
+        "operationId": "excel_preview_reports_excel_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_excel_preview_reports_excel_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Excel Preview",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/export/{file_format}": {
+      "get": {
+        "operationId": "export_reports_reports_export__file_format__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_format",
+            "required": true,
+            "schema": {
+              "title": "File Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/normalize": {
+      "post": {
+        "operationId": "normalize_report_excel_reports_normalize_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_normalize_report_excel_reports_normalize_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Normalize Report Excel Reports Normalize Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Normalize Report Excel",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/ocr-preview": {
+      "post": {
+        "description": "OCR a photo of a paper report form and return a preview for human review.\n\nPrivacy guarantee\n-----------------\nThe personal-data header (reporter name, phone) is cropped off BEFORE\nany data is sent to Gemini.  Only the CT01-CT14 data table is transmitted.\n\nConfirmation requirement (AI does-not-decide principle)\n-------------------------------------------------------\nThis endpoint NEVER saves data automatically.  It returns an OcrPreview\nso the can bo can review, correct, and then explicitly call POST /reports\nto confirm and persist.  The UI MUST present the values for review before\nallowing submission.",
+        "operationId": "ocr_photo_preview_reports_ocr_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ocr_photo_preview_reports_ocr_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ocr Photo Preview",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/periods": {
+      "get": {
+        "description": "Return all report periods.",
+        "operationId": "get_report_periods_reports_periods_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Periods",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/preview/{file_format}": {
+      "get": {
+        "operationId": "preview_reports_reports_preview__file_format__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_format",
+            "required": true,
+            "schema": {
+              "title": "File Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/public": {
+      "get": {
+        "description": "Return public reports for citizens (filtering sensitive CT codes).",
+        "operationId": "get_public_reports_reports_public_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/status": {
+      "get": {
+        "description": "Return submission status for all current villages in one period.",
+        "operationId": "get_reports_status_reports_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportsStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Reports Status",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/sync": {
+      "post": {
+        "description": "Sync multiple reports without deleting client items that were rejected.",
+        "operationId": "sync_reports_reports_sync_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncReportsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncReportsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/trend-alerts": {
+      "get": {
+        "description": "Compare reports from two periods and return indicators with >20% changes.",
+        "operationId": "get_trend_alerts_reports_trend_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "curr_period_id",
+            "required": true,
+            "schema": {
+              "title": "Curr Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "prev_period_id",
+            "required": true,
+            "schema": {
+              "title": "Prev Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrendAlertResponse"
+                  },
+                  "title": "Response Get Trend Alerts Reports Trend Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Trend Alerts",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/upload": {
+      "post": {
+        "description": "Parse the official Excel template and submit through the same validator.",
+        "operationId": "upload_report_file_reports_upload_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_report_file_reports_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportUploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Report File",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/village/{village_id}/export/{file_format}": {
+      "get": {
+        "operationId": "export_village_report_reports_village__village_id__export__file_format__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "village_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Village Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "file_format",
+            "required": true,
+            "schema": {
+              "title": "File Format",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Village Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/villages": {
+      "get": {
+        "description": "Return the active canonical village catalogue from the database.",
+        "operationId": "get_villages_reports_villages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Villages",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/{report_id}": {
+      "delete": {
+        "description": "Delete an own-village draft, or any report as admin, version-safely.",
+        "operationId": "delete_report_reports__report_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/{report_id}/approve": {
+      "patch": {
+        "description": "Approve or lock a report as admin_xa using optimistic locking.",
+        "operationId": "approve_or_lock_report_reports__report_id__approve_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Approve Or Lock Report Reports  Report Id  Approve Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Or Lock Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/{report_id}/publish": {
+      "patch": {
+        "operationId": "publish_report_reports__report_id__publish_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Publish Report Reports  Report Id  Publish Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    }
+  }
+}

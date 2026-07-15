@@ -1,0 +1,120 @@
+{
+  "version": "2026-07",
+  "trend_alert_threshold_pct": 20,
+  "indicators": [
+    {
+      "code": "CT01",
+      "name": "Tổng số hộ dân",
+      "unit": "Hộ",
+      "type": "integer",
+      "min": 0
+    },
+    {
+      "code": "CT02",
+      "name": "Tổng số nhân khẩu",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0,
+      "ratio_check": {
+        "ref": "CT01",
+        "min_ratio": 3,
+        "max_ratio": 4.5,
+        "severity": "warning"
+      }
+    },
+    {
+      "code": "CT03",
+      "name": "Số hộ nghèo",
+      "unit": "Hộ",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT01"
+    },
+    {
+      "code": "CT04",
+      "name": "Số hộ cận nghèo",
+      "unit": "Hộ",
+      "type": "integer",
+      "min": 0,
+      "sum_max_ref": {
+        "refs": ["CT03", "CT04"],
+        "max_ref": "CT01"
+      }
+    },
+    {
+      "code": "CT05",
+      "name": "Số người có công với cách mạng",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0
+    },
+    {
+      "code": "CT06",
+      "name": "Số đối tượng bảo trợ xã hội đang hưởng trợ cấp",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0
+    },
+    {
+      "code": "CT07",
+      "name": "Số trẻ em dưới 16 tuổi",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT02"
+    },
+    {
+      "code": "CT08",
+      "name": "Số trẻ em có hoàn cảnh đặc biệt",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT07"
+    },
+    {
+      "code": "CT09",
+      "name": "Số hộ đạt \"Gia đình văn hóa\"",
+      "unit": "Hộ",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT01"
+    },
+    {
+      "code": "CT10",
+      "name": "Số người trong độ tuổi lao động",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT02"
+    },
+    {
+      "code": "CT11",
+      "name": "Số người tham gia BHYT",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0,
+      "max_ref": "CT02"
+    },
+    {
+      "code": "CT12",
+      "name": "Số thành viên Tổ công nghệ số cộng đồng",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0
+    },
+    {
+      "code": "CT13",
+      "name": "Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ",
+      "unit": "Người",
+      "type": "integer",
+      "min": 0
+    },
+    {
+      "code": "CT14",
+      "name": "Số vụ bạo lực gia đình ghi nhận trong kỳ",
+      "unit": "Vụ",
+      "type": "integer",
+      "min": 0
+    }
+  ]
+}

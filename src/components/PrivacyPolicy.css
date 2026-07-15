@@ -1,0 +1,200 @@
+/* ───────────────────────── PrivacyPolicy.css ───────────────────────── */
+.privacy-policy-footer {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 40px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.privacy-policy-footer__link {
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.privacy-policy-footer__link:hover {
+  color: #0f5a48;
+}
+
+/* Modal Overlay styling */
+.privacy-policy-modal {
+  align-items: center;
+  background: rgba(23, 32, 27, 0.6);
+  backdrop-filter: blur(4px);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2000;
+}
+
+.privacy-policy-modal--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Modal Body container */
+.privacy-policy-modal__container {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  max-width: 680px;
+  padding: 0;
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+  width: 90%;
+}
+
+.privacy-policy-modal--visible .privacy-policy-modal__container {
+  transform: translateY(0);
+}
+
+/* Modal Header styling */
+.privacy-policy-modal__header {
+  align-items: center;
+  border-bottom: 1px solid #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.privacy-policy-modal__title {
+  color: #0f172a;
+  font-size: 1.2rem;
+  font-weight: 750;
+  margin: 0;
+}
+
+.privacy-policy-modal__close-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.privacy-policy-modal__close-btn:hover {
+  color: #0f172a;
+}
+
+.privacy-policy-modal__close-btn svg {
+  height: 24px;
+  width: 24px;
+}
+
+/* Modal Content area */
+.privacy-policy-modal__content {
+  color: #334155;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.privacy-policy-modal__content h3 {
+  color: #0f5a48;
+  font-size: 1.05rem;
+  margin: 20px 0 10px;
+}
+
+.privacy-policy-modal__content h3:first-of-type {
+  margin-top: 0;
+}
+
+.privacy-policy-modal__content p {
+  margin: 0 0 12px;
+}
+
+.privacy-policy-modal__law-tag {
+  background-color: #f8fafc;
+  border-left: 4px solid #10b981;
+  color: #047857;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+}
+
+/* Indicators layout styling */
+.privacy-policy-modal__indicators {
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.privacy-policy-modal__indicator-item {
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.privacy-policy-modal__indicator-item strong {
+  color: #047857;
+}
+
+/* Roles permissions details styling */
+.privacy-policy-modal__roles {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+}
+
+.privacy-policy-modal__roles th,
+.privacy-policy-modal__roles td {
+  border: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.privacy-policy-modal__roles th {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+.privacy-policy-modal__contact-box {
+  background: #fffcf5;
+  border: 1px dashed #f1c36d;
+  border-radius: 8px;
+  margin-top: 16px;
+  padding: 12px;
+}
+
+.privacy-policy-modal__contact-box strong {
+  color: #b25e00;
+}
+
+/* High contrast support */
+html.large-text-accessibility .privacy-policy-modal__container {
+  max-width: 760px;
+}
+
+html.large-text-accessibility .privacy-policy-footer__link {
+  font-size: 1rem !important;
+}
+
+@media (max-width: 600px) {
+  .privacy-policy-modal__indicators {
+    grid-template-columns: 1fr;
+  }
+}

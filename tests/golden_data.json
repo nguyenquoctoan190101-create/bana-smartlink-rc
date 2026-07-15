@@ -1,0 +1,86 @@
+[
+  [
+    "DANH SÁCH LỖI CỐ Ý CÀI VÀO DỮ LIỆU (ĐÁP ÁN ĐỂ KIỂM THỬ AI)",
+    null,
+    null,
+    null
+  ],
+  [
+    "Dùng để chấm: AI phải tự phát hiện các lỗi sau khi tổng hợp.",
+    null,
+    null,
+    null
+  ],
+  [
+    null,
+    null,
+    null,
+    null
+  ],
+  [
+    "Thôn",
+    "Chỉ tiêu",
+    "Loại lỗi",
+    "Mô tả / Kỳ vọng AI phát hiện"
+  ],
+  [
+    "Thôn Phước Thái",
+    "CT04",
+    "BLANK",
+    "Bỏ trống 'Số hộ cận nghèo' -> AI phải báo THIẾU dữ liệu"
+  ],
+  [
+    "Thôn Hòa Khương Tây",
+    "CT07",
+    "TEXT",
+    "Nhập chữ 'Một nghìn hai trăm' thay vì số -> SAI ĐỊNH DẠNG"
+  ],
+  [
+    "Thôn Phước Hưng",
+    "CT02",
+    "SEP",
+    "Nhập '2.450' (dấu phân tách) dạng chuỗi -> SAI ĐỊNH DẠNG/khó cộng"
+  ],
+  [
+    "Thôn Trước Đông",
+    "CT02",
+    "OUTLIER",
+    "Nhân khẩu = 25000 (gõ nhầm) -> BẤT THƯỜNG (outlier)"
+  ],
+  [
+    "Thôn Mỹ Sơn",
+    "CT03",
+    "LOGIC",
+    "Số hộ nghèo > Tổng số hộ -> MÂU THUẪN logic"
+  ],
+  [
+    "Thôn Một",
+    "CT11",
+    "LOGIC",
+    "Số người BHYT > Tổng nhân khẩu -> MÂU THUẪN logic"
+  ],
+  [
+    "Thôn Đông Sơn",
+    "PHONE",
+    "BADPHONE",
+    "Số điện thoại sai định dạng '09x-abc' -> SAI ĐỊNH DẠNG"
+  ],
+  [
+    "Thôn Ninh An",
+    "-",
+    "CHƯA NỘP",
+    "Không có file -> tracker phải báo 'Chưa nộp / quá hạn'"
+  ],
+  [
+    "Thôn Sơn Phước",
+    "-",
+    "CHƯA NỘP",
+    "Không có file -> tracker phải báo 'Chưa nộp / quá hạn'"
+  ],
+  [
+    "Thôn Thạch Nham Tây",
+    "-",
+    "CHƯA NỘP",
+    "Không có file -> tracker phải báo 'Chưa nộp / quá hạn'"
+  ]
+]

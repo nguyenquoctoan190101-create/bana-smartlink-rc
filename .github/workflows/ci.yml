@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: python -m pip install --requirement requirements.txt
+      - run: npm ci --ignore-scripts
+      - name: Python static checks
+        run: python -m ruff check --select E9,F63,F7,F82 main.py migrate.py routers services scripts tests
+      - name: Backend tests
+        run: python -m pytest tests -q --cov=routers --cov=services --cov-report=term-missing
+      - name: Security-critical branch coverage
+        run: python -m pytest tests/test_security_critical_units.py -q --cov=services.validator --cov=services.security --cov=services.settings --cov=services.upload_validator --cov-branch --cov-fail-under=100
+      - name: Regenerate OpenAPI and TypeScript contract
+        run: npm run openapi:generate
+      - name: Reject contract drift
+        run: git diff --exit-code -- docs/openapi.json src/generated/openapi.ts
+      - name: Frontend typecheck and tests
+        run: npm run typecheck && npm test
+      - name: Production build
+        run: npm run build
+      - name: Bundle budget
+        run: npm run budget
+      - name: Release hygiene
+        run: python scripts/release_check.py
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: python -m pip install pip-audit bandit cyclonedx-bom
+      - run: python -m pip_audit --requirement requirements.txt
+      - name: Python SAST (high severity)
+        run: bandit -r main.py routers services scripts -lll -q
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - name: Secret scan including archives
+        run: python scripts/release_check.py && python scripts/scan_archives.py .
+      - name: Generate Node SBOM
+        run: npx --yes @cyclonedx/cyclonedx-npm --output-file node-sbom.json
+      - name: Generate Python SBOM
+        run: cyclonedx-py requirements requirements.txt --output-file python-sbom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            node-sbom.json
+            python-sbom.json
+
+  database-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bana_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bana_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap Supabase-compatible roles
+        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_test_bootstrap.sql
+      - name: Migrate a blank database
+        run: psql -h 127.0.0.1 -U postgres -d bana_test -f db/schema.sql
+      - name: Execute real PostgreSQL RLS matrix
+        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/rls_matrix.sql

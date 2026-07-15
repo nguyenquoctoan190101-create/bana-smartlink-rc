@@ -1,0 +1,104 @@
+{
+  "CT01": {
+    "name": "Tổng số hộ dân",
+    "unit": "Hộ",
+    "type": "integer",
+    "min": 0
+  },
+  "CT02": {
+    "name": "Tổng số nhân khẩu",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0,
+    "warning_multiplier_min": 3.0,
+    "warning_multiplier_max": 4.5,
+    "warning_message": "Cảnh báo: Tổng số nhân khẩu (CT02) bất thường so với số hộ dân (phải nằm trong khoảng 3 đến 4.5 lần Tổng số hộ dân - CT01)"
+  },
+  "CT03": {
+    "name": "Số hộ nghèo",
+    "unit": "Hộ",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT01",
+    "error_message": "Lỗi: Số hộ nghèo (CT03) không được vượt quá Tổng số hộ dân (CT01)"
+  },
+  "CT04": {
+    "name": "Số hộ cận nghèo",
+    "unit": "Hộ",
+    "type": "integer",
+    "min": 0,
+    "sum_max_ref": ["CT03", "CT04"],
+    "max_limit_ref": "CT01",
+    "error_message": "Lỗi: Tổng số hộ nghèo và cận nghèo (CT03 + CT04) không được vượt quá Tổng số hộ dân (CT01)"
+  },
+  "CT05": {
+    "name": "Số người có công với cách mạng",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0
+  },
+  "CT06": {
+    "name": "Số đối tượng bảo trợ xã hội đang hưởng trợ cấp",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0
+  },
+  "CT07": {
+    "name": "Số trẻ em dưới 16 tuổi",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT02",
+    "error_message": "Lỗi: Số trẻ em dưới 16 tuổi (CT07) không được vượt quá Tổng số nhân khẩu (CT02)"
+  },
+  "CT08": {
+    "name": "Số trẻ em có hoàn cảnh đặc biệt",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT07",
+    "error_message": "Lỗi: Số trẻ em có hoàn cảnh đặc biệt (CT08) không được vượt quá Số trẻ em dưới 16 tuổi (CT07)"
+  },
+  "CT09": {
+    "name": "Số hộ đạt \"Gia đình văn hóa\"",
+    "unit": "Hộ",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT01",
+    "error_message": "Lỗi: Số hộ đạt \"Gia đình văn hóa\" (CT09) không được vượt quá Tổng số hộ dân (CT01)"
+  },
+  "CT10": {
+    "name": "Số người trong độ tuổi lao động",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT02",
+    "error_message": "Lỗi: Số người trong độ tuổi lao động (CT10) không được vượt quá Tổng số nhân khẩu (CT02)"
+  },
+  "CT11": {
+    "name": "Số người tham gia BHYT",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0,
+    "max_ref": "CT02",
+    "error_message": "Lỗi: Số người tham gia BHYT (CT11) không được vượt quá Tổng số nhân khẩu (CT02)"
+  },
+  "CT12": {
+    "name": "Số thành viên Tổ công nghệ số cộng đồng",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0
+  },
+  "CT13": {
+    "name": "Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ",
+    "unit": "Người",
+    "type": "integer",
+    "min": 0
+  },
+  "CT14": {
+    "name": "Số vụ bạo lực gia đình ghi nhận trong kỳ",
+    "unit": "Vụ",
+    "type": "integer",
+    "min": 0
+  }
+}

@@ -1,0 +1,1621 @@
+from __future__ import annotations
+
+import html
+import io
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Annotated, Literal
+from urllib.parse import quote
+from uuid import UUID
+
+import docx
+from docx.enum.section import WD_ORIENT
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile, status
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from routers.auth import (
+    get_settings,
+    get_supabase_admin,
+    require_admin_or_leader,
+    require_admin_xa,
+    require_authenticated_user,
+)
+from services.excel_report_parser import ExcelReportParseError, parse_official_report_excel
+from services.export_service import generate_summary_xlsx_file, generate_village_xlsx_file
+from services.ocr_report import OcrError, ocr_report_async
+from services.rate_limit import limiter
+from services.report_repository import ReportRepository, VillageSubmissionStatus
+from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
+from services.settings import Settings
+from services.upload_validator import UploadValidationError, validate_report_upload
+from services.validator import (
+    BLOCKING_ERROR_TYPES,
+    ValidationError,
+    validate_phone,
+    validate_report,
+)
+
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/reports", tags=["reports"])
+period_router = APIRouter(prefix="/report-periods", tags=["report-periods"])
+RULES_PATH = Path(__file__).resolve().parents[1] / "config" / "validation_rules.json"
+REPORT_SOURCE_MAP = {
+    "web_form": "manual",
+    "manual": "manual",
+    "excel_upload": "excel",
+    "excel": "excel",
+    "photo_upload": "photo_ocr",
+    "photo_ocr": "photo_ocr",
+    "direct_api": "direct_api",
+}
+
+class OfflineReportItem(BaseModel):
+    id: UUID
+    village_id: UUID
+    reporter_name: str = Field(min_length=1, max_length=120)
+    reporter_phone: str = Field(min_length=10, max_length=20)
+    period_id: UUID | None = None
+    report_period: str | None = Field(default=None, min_length=1, max_length=120)
+    # Kept only for backwards compatibility with older offline queues.  The
+    # canonical workflow/timeliness/publication fields are computed server-side.
+    status: str | None = None
+    updated_at: str
+    CT01: int | None = None
+    CT02: int | None = None
+    CT03: int | None = None
+    CT04: int | None = None
+    CT05: int | None = None
+    CT06: int | None = None
+    CT07: int | None = None
+    CT08: int | None = None
+    CT09: int | None = None
+    CT10: int | None = None
+    CT11: int | None = None
+    CT12: int | None = None
+    CT13: int | None = None
+    CT14: int | None = None
+    assisted_by_cnscd: bool = False
+    assisted_member_name: str | None = None
+    raw_source: str = "web_form"
+    source_confirmed: bool = False
+    expected_version: int | None = Field(default=None, ge=1)
+    idempotency_key: UUID | None = None
+
+class SyncReportsRequest(BaseModel):
+    reports: list[OfflineReportItem]
+
+class AcceptedReportItem(BaseModel):
+    client_id: UUID
+    report_id: UUID
+    version: int
+
+
+class RejectedReportItem(BaseModel):
+    client_id: UUID
+    code: str
+    message: str
+    retryable: bool
+
+class SyncReportsResponse(BaseModel):
+    accepted: list[AcceptedReportItem]
+    rejected: list[RejectedReportItem]
+
+
+
+class ReportSubmitRequest(BaseModel):
+    village_id: UUID
+    period_id: UUID
+    submitted_by_name: str = Field(min_length=1, max_length=120)
+    submitted_by_phone: str = Field(min_length=10, max_length=20)
+    assisted_by_cnscd: bool = False
+    assisted_member_name: str | None = Field(default=None, max_length=120)
+    values: dict[str, Any]
+    raw_source: str = "web_form"
+    source_confirmed: bool = False
+    expected_version: int | None = Field(default=None, ge=1)
+    idempotency_key: UUID | None = None
+
+
+class ValidationErrorResponse(BaseModel):
+    ct_code: str
+    error_type: str
+    message: str
+
+
+class ReportSubmitResponse(BaseModel):
+    report_id: UUID
+    village_id: UUID
+    period_id: UUID
+    status: str
+    workflow_status: str
+    timeliness_status: str
+    version: int
+    replayed: bool = False
+    validation_flags: list[ValidationErrorResponse] = Field(default_factory=list)
+
+
+class ReportUploadResponse(ReportSubmitResponse):
+    filename: str
+    size_bytes: int
+
+
+class VillageStatusResponse(BaseModel):
+    village_id: UUID
+    village_name: str
+    old_village_names: list[str]
+    report_id: UUID | None
+    submitted_at: str | None
+    due_date: str | None
+    days_late: int
+    status: str
+    dashboard_color: str
+
+
+class ReportsStatusResponse(BaseModel):
+    period_id: UUID
+    villages: list[VillageStatusResponse]
+
+
+class CreateReportPeriodRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    due_date: datetime
+    village_ids: list[UUID] = Field(min_length=1, max_length=100)
+    template_name: str | None = Field(default=None, max_length=255)
+
+
+class OcrValidationFlag(BaseModel):
+    ct_code: str
+    error_type: str
+    message: str
+
+
+class OcrPreviewResponse(BaseModel):
+    """Returned by /reports/ocr-preview for human review BEFORE saving.
+
+    The staff member (can bo) MUST review and confirm these values.
+    This endpoint never persists data automatically.
+    """
+
+    values: dict[str, int | None]
+    flags: list[OcrValidationFlag]
+    null_codes: list[str]
+    filename: str
+    size_bytes: int
+    # raw_gemini_text is intentionally excluded from the response model
+    # to prevent the AI-generated text from reaching the frontend.
+
+
+def get_report_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> ReportRepository:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Expected Bearer token")
+    return ReportRepository(SupabaseAdminClient(settings, access_token=token))
+
+
+@period_router.get("")
+async def list_report_periods(
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> list[dict[str, Any]]:
+    try:
+        return await repository._supabase._rest_request(
+            "GET",
+            (
+                "/rest/v1/report_periods"
+                "?select=id,name,due_date,template_name,template_path,created_at"
+                "&order=due_date.desc"
+            ),
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to load report periods") from exc
+
+
+@period_router.post("", status_code=status.HTTP_201_CREATED)
+async def create_report_period(
+    payload: CreateReportPeriodRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> dict[str, Any]:
+    try:
+        rows = await repository._supabase._rest_request(
+            "POST",
+            "/rest/v1/rpc/create_report_period",
+            {
+                "p_name": payload.name.strip(),
+                "p_due_date": payload.due_date.isoformat(),
+                "p_village_ids": [str(item) for item in payload.village_ids],
+                "p_template_name": payload.template_name.strip() if payload.template_name else None,
+            },
+        )
+    except SupabaseAdminError as exc:
+        if exc.error_code == "42501" or exc.status_code == 403:
+            raise HTTPException(status_code=403, detail="Only admin can create periods") from exc
+        if exc.error_code == "23505" or exc.status_code == 409:
+            raise HTTPException(status_code=409, detail="Report period already exists") from exc
+        if exc.error_code == "22023" or exc.status_code == 422:
+            raise HTTPException(status_code=422, detail="Invalid report period") from exc
+        raise HTTPException(status_code=502, detail="Unable to create report period") from exc
+    if not rows:
+        raise HTTPException(status_code=502, detail="Report period creation returned no result")
+    return rows[0]
+
+
+@router.get("")
+async def list_reports(
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+    period_id: UUID | None = None,
+    village_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """List reports visible to the JWT caller without duplicated profile PII."""
+    if village_id is not None:
+        _authorize_village_read(current_user, village_id)
+    target_village = village_id
+    if current_user.role in {"can_bo_thon", "to_cnscd"}:
+        if not current_user.village_id:
+            raise HTTPException(status_code=403, detail="User has no village assignment")
+        target_village = UUID(current_user.village_id)
+
+    query = (
+        "/rest/v1/reports"
+        "?select=id,village_id,period_id,workflow_status,timeliness_status,"
+        "publication_status,report_source,version,submitted_at,"
+        "report_values(ct_code,value,note)"
+        "&order=submitted_at.desc.nullslast,created_at.desc"
+    )
+    if period_id is not None:
+        query += f"&period_id=eq.{period_id}"
+    if target_village is not None:
+        query += f"&village_id=eq.{target_village}"
+    try:
+        rows = await repository._supabase._rest_request("GET", query)
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to load reports") from exc
+
+    result: list[dict[str, Any]] = []
+    known_codes = set(_indicator_codes())
+    for row in rows:
+        item = {key: value for key, value in row.items() if key != "report_values"}
+        item["values"] = {
+            str(value["ct_code"]): value.get("value")
+            for value in row.get("report_values", [])
+            if isinstance(value, dict) and value.get("ct_code") in known_codes
+        }
+        result.append(item)
+    return result
+
+
+@router.post("", response_model=ReportSubmitResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
+async def submit_report(
+    request: Request,
+    payload: ReportSubmitRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> ReportSubmitResponse:
+    """Submit a village report from JSON after validation."""
+    _authorize_report_write(current_user, payload.village_id)
+    source = _canonical_report_source(payload.raw_source)
+    if source in ("photo_ocr", "excel") and not payload.source_confirmed:
+        raise HTTPException(
+            status_code=422,
+            detail="Dữ liệu từ OCR hoặc Excel bắt buộc phải có xác nhận thủ công (source_confirmed=true)",
+        )
+
+    return await _submit_report_values(
+        repository=repository,
+        village_id=payload.village_id,
+        period_id=payload.period_id,
+        submitted_by_name=payload.submitted_by_name,
+        submitted_by_phone=payload.submitted_by_phone,
+        values=payload.values,
+        notes=None,
+        raw_source=source,
+        assisted_by_cnscd=payload.assisted_by_cnscd,
+        assisted_member_name=payload.assisted_member_name,
+        expected_version=payload.expected_version,
+        idempotency_key=payload.idempotency_key,
+    )
+
+
+@router.post("/sync", response_model=SyncReportsResponse)
+@limiter.limit("5/minute")
+async def sync_reports(
+    request: Request,
+    payload: SyncReportsRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> SyncReportsResponse:
+    """Sync multiple reports without deleting client items that were rejected."""
+    accepted: list[AcceptedReportItem] = []
+    rejected: list[RejectedReportItem] = []
+
+    for report in payload.reports:
+        try:
+            _authorize_report_write(current_user, report.village_id)
+        except HTTPException as exc:
+            rejected.append(RejectedReportItem(
+                client_id=report.id,
+                code="FORBIDDEN",
+                message=str(exc.detail),
+                retryable=False,
+            ))
+            continue
+
+        period_id = str(report.period_id) if report.period_id else None
+        if period_id is None and report.report_period:
+            try:
+                period_id = await repository.get_period_id_by_name(report.report_period)
+            except SupabaseAdminError:
+                rejected.append(RejectedReportItem(
+                    client_id=report.id,
+                    code="UPSTREAM_UNAVAILABLE",
+                    message="Unable to resolve report period",
+                    retryable=True,
+                ))
+                continue
+        if period_id is None:
+            rejected.append(RejectedReportItem(
+                client_id=report.id,
+                code="PERIOD_NOT_FOUND",
+                message="Report period does not exist",
+                retryable=False,
+            ))
+            continue
+
+        values = {
+            f"CT{i:02d}": getattr(report, f"CT{i:02d}")
+            for i in range(1, 15)
+            if getattr(report, f"CT{i:02d}") is not None
+        }
+        try:
+            source = _canonical_report_source(report.raw_source)
+            if source in {"excel", "photo_ocr"} and not report.source_confirmed:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Imported data requires explicit human confirmation",
+                )
+            submitted = await _submit_report_values(
+                repository=repository,
+                village_id=report.village_id,
+                period_id=UUID(period_id),
+                submitted_by_name=report.reporter_name,
+                submitted_by_phone=report.reporter_phone,
+                values=values,
+                notes=None,
+                raw_source=source,
+                assisted_by_cnscd=report.assisted_by_cnscd,
+                assisted_member_name=report.assisted_member_name,
+                report_id=report.id,
+                expected_version=report.expected_version,
+                idempotency_key=report.idempotency_key or report.id,
+            )
+            accepted.append(AcceptedReportItem(
+                client_id=report.id,
+                report_id=submitted.report_id,
+                version=submitted.version,
+            ))
+        except HTTPException as exc:
+            rejected.append(_sync_rejection(report.id, exc))
+        except Exception:
+            logger.exception("Unexpected offline sync failure")
+            rejected.append(RejectedReportItem(
+                client_id=report.id,
+                code="INTERNAL_ERROR",
+                message="Unable to sync report",
+                retryable=True,
+            ))
+
+    return SyncReportsResponse(accepted=accepted, rejected=rejected)
+
+
+@router.delete(
+    "/{report_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def delete_report(
+    report_id: UUID,
+    expected_version: int,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> Response:
+    """Delete an own-village draft, or any report as admin, version-safely."""
+    try:
+        rows = await repository._supabase._rest_request(
+            "GET",
+            (
+                f"/rest/v1/reports?id=eq.{report_id}"
+                "&select=id,village_id,workflow_status,version"
+            ),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="Report not found")
+        report = rows[0]
+        _authorize_report_write(current_user, UUID(str(report["village_id"])))
+        if int(report["version"]) != expected_version:
+            raise HTTPException(status_code=409, detail="Report version conflict")
+        if current_user.role != "admin_xa" and report["workflow_status"] != "draft":
+            raise HTTPException(status_code=409, detail="Only draft reports can be deleted")
+
+        path = f"/rest/v1/reports?id=eq.{report_id}&version=eq.{expected_version}"
+        if current_user.role != "admin_xa":
+            path += "&workflow_status=eq.draft"
+        deleted = await repository._supabase._rest_request(
+            "DELETE",
+            path,
+            prefer="return=representation",
+        )
+        if not deleted:
+            raise HTTPException(status_code=409, detail="Report changed before deletion")
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to delete report") from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/normalize")
+@limiter.limit("15/minute")
+async def normalize_report_excel(
+    request: Request,
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+    file: UploadFile = File(...),
+) -> dict:
+    _ = current_user
+    try:
+        content = await validate_report_upload(file)
+        from services.form_normalizer import normalize_excel
+        normalized = normalize_excel(content)
+        return {"success": True, "normalized_data": normalized}
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("Excel normalization failed")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to normalize Excel workbook",
+        )
+
+
+@router.post("/confirm-synonym")
+@limiter.limit("30/minute")
+async def confirm_field_synonym(
+    request: Request,
+    payload: dict,
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> dict:
+    original_name = payload.get("original_name")
+    ct_code = payload.get("ct_code")
+    if not isinstance(original_name, str) or not original_name.strip() or ct_code not in _indicator_codes():
+        raise HTTPException(status_code=400, detail="Thiếu original_name hoặc ct_code")
+    
+    from services.form_normalizer import save_synonym
+    save_synonym(original_name, ct_code)
+    return {"success": True}
+
+
+@router.post("/upload", response_model=ReportUploadResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+async def upload_report_file(
+    request: Request,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+    village_id: Annotated[UUID, Form()],
+    period_id: Annotated[UUID, Form()],
+    submitted_by_name: Annotated[str, Form(min_length=1, max_length=120)],
+    submitted_by_phone: Annotated[str, Form(min_length=10, max_length=20)],
+    assisted_by_cnscd: Annotated[bool, Form()] = False,
+    assisted_member_name: Annotated[str | None, Form(max_length=120)] = None,
+    source_confirmed: Annotated[bool, Form()] = False,
+    file: UploadFile = File(...),
+) -> ReportUploadResponse:
+    """Parse the official Excel template and submit through the same validator."""
+    _ = request
+    _authorize_report_write(current_user, village_id)
+    if not source_confirmed:
+        raise HTTPException(
+            status_code=422,
+            detail="Excel data requires explicit human confirmation",
+        )
+    try:
+        content = await validate_report_upload(file)
+    except UploadValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    if Path(file.filename or "").suffix.lower() != ".xlsx":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload báo cáo chỉ nhận file .xlsx.",
+        )
+
+    try:
+        parsed_report = parse_official_report_excel(content)
+    except ExcelReportParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    submitted = await _submit_report_values(
+        repository=repository,
+        village_id=village_id,
+        period_id=period_id,
+        submitted_by_name=submitted_by_name,
+        submitted_by_phone=submitted_by_phone,
+        values=parsed_report["values"],
+        notes=parsed_report["notes"],
+        raw_source="excel",
+        assisted_by_cnscd=assisted_by_cnscd,
+        assisted_member_name=assisted_member_name,
+    )
+    return ReportUploadResponse(
+        report_id=submitted.report_id,
+        village_id=submitted.village_id,
+        period_id=submitted.period_id,
+        status=submitted.status,
+        workflow_status=submitted.workflow_status,
+        timeliness_status=submitted.timeliness_status,
+        version=submitted.version,
+        replayed=submitted.replayed,
+        validation_flags=submitted.validation_flags,
+        filename=file.filename or "upload.xlsx",
+        size_bytes=len(content),
+    )
+
+
+@router.post("/ocr-preview", response_model=OcrPreviewResponse)
+@limiter.limit("10/minute")
+async def ocr_photo_preview(
+    request: Request,
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    file: UploadFile = File(...),
+) -> OcrPreviewResponse:
+    """OCR a photo of a paper report form and return a preview for human review.
+
+    Privacy guarantee
+    -----------------
+    The personal-data header (reporter name, phone) is cropped off BEFORE
+    any data is sent to Gemini.  Only the CT01-CT14 data table is transmitted.
+
+    Confirmation requirement (AI does-not-decide principle)
+    -------------------------------------------------------
+    This endpoint NEVER saves data automatically.  It returns an OcrPreview
+    so the can bo can review, correct, and then explicitly call POST /reports
+    to confirm and persist.  The UI MUST present the values for review before
+    allowing submission.
+    """
+    _ = request
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OCR chi nhan anh .jpg hoac .png.",
+        )
+
+    try:
+        content = await validate_report_upload(file)
+    except UploadValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        preview = await ocr_report_async(content)
+    except OcrError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="OCR processing failed",
+        ) from exc
+
+    return OcrPreviewResponse(
+        values=preview.values,
+        flags=[
+            OcrValidationFlag(
+                ct_code=f["ct_code"],
+                error_type=f["error_type"],
+                message=f["message"],
+            )
+            for f in preview.flags
+        ],
+        null_codes=preview.null_codes,
+        filename=file.filename or "upload.jpg",
+        size_bytes=len(content),
+        # raw_gemini_text deliberately omitted from response
+    )
+
+
+@router.post("/excel-preview", response_model=OcrPreviewResponse)
+@limiter.limit("20/minute")
+async def excel_preview(
+    request: Request,
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    file: UploadFile = File(...),
+) -> OcrPreviewResponse:
+    """Parse an official Excel template and return a preview for human review.
+
+    This endpoint NEVER saves data. It only parses and returns values so
+    the can_bo can review before submitting via POST /reports.
+    """
+    _ = request
+    if Path(file.filename or "").suffix.lower() != ".xlsx":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Excel preview chỉ nhận file .xlsx.",
+        )
+
+    try:
+        content = await validate_report_upload(file)
+    except UploadValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        parsed = parse_official_report_excel(content)
+    except ExcelReportParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    # Identify which codes have null values
+    null_codes = [k for k, v in parsed["values"].items() if v is None]
+
+    return OcrPreviewResponse(
+        values=parsed["values"],
+        flags=[],
+        null_codes=null_codes,
+        filename=file.filename or "upload.xlsx",
+        size_bytes=len(content),
+    )
+
+
+@router.get("/periods")
+async def get_report_periods(
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+):
+    """Return all report periods."""
+    try:
+        return await supabase._rest_request(
+            "GET",
+            "/rest/v1/report_periods?select=id,name,due_date&order=due_date.desc",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lấy được danh sách kỳ báo cáo.",
+        ) from exc
+
+
+@router.get("/villages")
+async def get_villages(
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+):
+    """Return the active canonical village catalogue from the database."""
+    try:
+        return await supabase._rest_request(
+            "GET",
+            "/rest/v1/villages?is_active=eq.true&select=id,name&order=name.asc",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lấy được danh mục thôn.",
+        ) from exc
+
+
+@router.get("/public")
+async def get_public_reports(
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+):
+    """Return public reports for citizens (filtering sensitive CT codes)."""
+    try:
+        public_codes = {"CT01", "CT02", "CT09", "CT12", "CT13"}
+        codes_filter = ",".join(sorted(public_codes))
+        reports = await supabase._rest_request(
+            "GET",
+            (
+                "/rest/v1/reports?publication_status=eq.published"
+                "&select=id,village_id,published_at,report_periods!inner(name),"
+                "report_values!inner(ct_code,value)"
+                f"&report_values.ct_code=in.({codes_filter})"
+                "&order=published_at.desc"
+            ),
+        )
+        
+        # Format response
+        result = []
+        for r in reports:
+            values_dict = {
+                v["ct_code"]: v["value"] 
+                for v in r.get("report_values", []) 
+                if v["ct_code"] in public_codes
+            }
+            
+            result.append({
+                "id": r["id"],
+                "village_id": r["village_id"],
+                "report_period": r.get("report_periods", {}).get("name", "Unknown"),
+                "published_at": r.get("published_at"),
+                "values": values_dict
+            })
+        return result
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lấy được dữ liệu công khai.",
+        ) from exc
+
+
+@router.get("/status", response_model=ReportsStatusResponse)
+async def get_reports_status(
+    period_id: str,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> ReportsStatusResponse:
+    """Return submission status for all current villages in one period."""
+    resolved_uuid, _ = await safe_resolve_period(repository._supabase, period_id)
+    try:
+        statuses = await repository.submission_statuses(str(resolved_uuid))
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lấy được trạng thái nộp báo cáo.",
+        ) from exc
+
+    return ReportsStatusResponse(
+        period_id=resolved_uuid,
+        villages=[_status_response(item) for item in statuses],
+    )
+
+
+class TrendAlertResponse(BaseModel):
+    village_id: UUID
+    village_name: str
+    ct_code: str
+    indicator_name: str
+    prev_value: int
+    curr_value: int
+    change_pct: float
+
+
+@router.get("/trend-alerts", response_model=list[TrendAlertResponse])
+async def get_trend_alerts(
+    curr_period_id: str,
+    prev_period_id: str,
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+) -> list[TrendAlertResponse]:
+    """Compare reports from two periods and return indicators with >20% changes."""
+    from services.trend_alert import get_trend_alerts_async  # noqa: PLC0415
+    curr_uuid, _ = await safe_resolve_period(supabase, curr_period_id)
+    prev_uuid, _ = await safe_resolve_period(supabase, prev_period_id)
+    try:
+        alerts = await get_trend_alerts_async(
+            supabase=supabase,
+            prev_period_id=str(prev_uuid),
+            curr_period_id=str(curr_uuid),
+        )
+    except Exception as exc:
+        logger.exception("Trend analysis failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to analyze report trends",
+        ) from exc
+
+    return [
+        TrendAlertResponse(
+            village_id=UUID(a["village_id"]),
+            village_name=a["village_name"],
+            ct_code=a["ct_code"],
+            indicator_name=a["indicator_name"],
+            prev_value=a["prev_value"],
+            curr_value=a["curr_value"],
+            change_pct=a["change_pct"],
+        )
+        for a in alerts
+    ]
+
+
+async def _submit_report_values(
+    repository: ReportRepository,
+    village_id: UUID,
+    period_id: UUID,
+    submitted_by_name: str,
+    submitted_by_phone: str,
+    values: dict[str, Any],
+    notes: dict[str, str | None] | None,
+    raw_source: str,
+    assisted_by_cnscd: bool = False,
+    assisted_member_name: str | None = None,
+    report_id: UUID | None = None,
+    expected_version: int | None = None,
+    idempotency_key: UUID | None = None,
+) -> ReportSubmitResponse:
+    unknown_codes = sorted(set(values) - set(_indicator_codes()))
+    if unknown_codes:
+        raise HTTPException(
+            status_code=422,
+            detail={"errors": [{
+                "ct_code": code,
+                "error_type": "TEXT",
+                "message": f"Unknown indicator code: {code}",
+            } for code in unknown_codes]},
+        )
+    known_values = _known_report_values(values)
+    validation_errors = validate_report(known_values)
+    phone_error = validate_phone(submitted_by_phone)
+    if phone_error is not None:
+        validation_errors.append(phone_error)
+
+    if _has_blocking_errors(validation_errors):
+        raise HTTPException(
+            status_code=422,
+            detail={"errors": validation_errors},
+        )
+
+    storage_values = {
+        ct_code: _coerce_storage_value(value)
+        for ct_code, value in known_values.items()
+    }
+    non_blocking_flags = [
+        error for error in validation_errors if error["error_type"] not in BLOCKING_ERROR_TYPES
+    ]
+
+    try:
+        saved_report = await repository.save_report(
+            village_id=str(village_id),
+            period_id=str(period_id),
+            submitted_by_name=submitted_by_name.strip(),
+            submitted_by_phone=submitted_by_phone.strip(),
+            values=storage_values,
+            flags=non_blocking_flags,
+            raw_source=raw_source,  # type: ignore[arg-type]
+            notes=notes,
+            assisted_by_cnscd=assisted_by_cnscd,
+            assisted_member_name=assisted_member_name,
+            report_id=str(report_id) if report_id else None,
+            expected_version=expected_version,
+            idempotency_key=str(idempotency_key) if idempotency_key else None,
+        )
+    except SupabaseAdminError as exc:
+        if exc.error_code == "40001" or exc.status_code == 409:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Report version conflict",
+            ) from exc
+        if exc.error_code == "42501" or exc.status_code == 403:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to modify this report",
+            ) from exc
+        if exc.error_code == "22023" or exc.status_code == 422:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid report submission",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Không lưu được báo cáo.",
+        ) from exc
+
+    return ReportSubmitResponse(
+        report_id=UUID(saved_report.id),
+        village_id=UUID(saved_report.village_id),
+        period_id=UUID(saved_report.period_id),
+        status=saved_report.workflow_status,
+        workflow_status=saved_report.workflow_status,
+        timeliness_status=saved_report.timeliness_status,
+        version=saved_report.version,
+        replayed=saved_report.replayed,
+        validation_flags=non_blocking_flags,
+    )
+
+
+def _canonical_report_source(raw_source: str) -> str:
+    source = REPORT_SOURCE_MAP.get(raw_source.strip().lower())
+    if source is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Unsupported report source",
+        )
+    return source
+
+
+def _authorize_report_write(user: UserProfile, village_id: UUID) -> None:
+    if user.role == "lanh_dao":
+        raise HTTPException(status_code=403, detail="Leadership role is read-only")
+    if user.role not in {"admin_xa", "can_bo_thon", "to_cnscd"}:
+        raise HTTPException(status_code=403, detail="Role cannot modify reports")
+    if user.role in {"can_bo_thon", "to_cnscd"}:
+        if not user.village_id or str(user.village_id) != str(village_id):
+            raise HTTPException(status_code=403, detail="Cannot modify another village")
+
+
+def _authorize_village_read(user: UserProfile, village_id: UUID) -> None:
+    if user.role in {"admin_xa", "lanh_dao"}:
+        return
+    if user.role in {"can_bo_thon", "to_cnscd"} and str(user.village_id) == str(village_id):
+        return
+    raise HTTPException(status_code=403, detail="Cannot read another village")
+
+
+def _sync_rejection(client_id: UUID, exc: HTTPException) -> RejectedReportItem:
+    code = {
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        409: "VERSION_CONFLICT",
+        422: "VALIDATION_ERROR",
+        502: "UPSTREAM_UNAVAILABLE",
+        503: "UPSTREAM_UNAVAILABLE",
+    }.get(exc.status_code, "SYNC_ERROR")
+    detail = exc.detail
+    if isinstance(detail, dict) and isinstance(detail.get("errors"), list):
+        messages = [
+            str(item.get("message"))
+            for item in detail["errors"]
+            if isinstance(item, dict) and item.get("message")
+        ]
+        message = "; ".join(messages) or "Report validation failed"
+    elif isinstance(detail, str):
+        message = detail
+    else:
+        message = "Unable to sync report"
+    return RejectedReportItem(
+        client_id=client_id,
+        code=code,
+        message=message,
+        retryable=exc.status_code in {500, 502, 503, 504},
+    )
+
+
+def _known_report_values(values: dict[str, Any]) -> dict[str, Any]:
+    return {code: values.get(code) for code in _indicator_codes()}
+
+
+def _indicator_codes() -> list[str]:
+    with RULES_PATH.open("r", encoding="utf-8") as rules_file:
+        payload = json.load(rules_file)
+
+    indicators = payload.get("indicators", [])
+    if not isinstance(indicators, list):
+        raise ValueError("validation_rules.json must contain an indicators list")
+
+    return [
+        str(indicator["code"])
+        for indicator in indicators
+        if isinstance(indicator, dict) and indicator.get("code")
+    ]
+
+
+def _format_export_value(value: Any) -> str:
+    """Keep missing data blank; never misrepresent it as zero in exports."""
+    return "" if value is None else _safe_document_text(value)
+
+
+def _safe_document_text(value: Any) -> str:
+    """Strip control characters that are illegal in XML/DOCX/PDF text."""
+    return "".join(
+        character
+        for character in str(value)
+        if character in "\t\n\r" or ord(character) >= 32
+    )
+
+
+def _export_matrix(
+    reports_data: list[dict[str, Any]],
+    villages_map: dict[str, str],
+) -> list[list[str]]:
+    """Build the authoritative CT01-CT14 matrix shared by DOCX/PDF/HTML."""
+    indicator_codes = _indicator_codes()
+    matrix = [["Thôn", *indicator_codes]]
+    for report in reports_data:
+        village_id = str(report.get("village_id", ""))
+        village_name = villages_map.get(village_id, village_id)
+        values = report.get("values")
+        safe_values = values if isinstance(values, dict) else {}
+        matrix.append([
+            _safe_document_text(village_name),
+            *[_format_export_value(safe_values.get(code)) for code in indicator_codes],
+        ])
+    return matrix
+
+
+def _set_docx_run_font(run: Any, *, size: int = 8, bold: bool = False) -> None:
+    run.font.name = "Times New Roman"
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    run_properties = run._element.get_or_add_rPr()
+    run_properties.get_or_add_rFonts().set(qn("w:eastAsia"), "Times New Roman")
+
+
+def _has_blocking_errors(errors: list[ValidationError]) -> bool:
+    return any(error["error_type"] in BLOCKING_ERROR_TYPES for error in errors)
+
+
+def _coerce_storage_value(value: Any) -> int | None:
+    if value is None:
+        return None
+
+    if isinstance(value, bool):
+        return None
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, str):
+        stripped_value = value.strip()
+        return int(stripped_value) if stripped_value.lstrip("-").isdigit() else None
+
+    return None
+
+
+def _status_response(item: VillageSubmissionStatus) -> VillageStatusResponse:
+    return VillageStatusResponse(
+        village_id=UUID(item.village_id),
+        village_name=item.village_name,
+        old_village_names=item.old_village_names,
+        report_id=UUID(item.report_id) if item.report_id is not None else None,
+        submitted_at=item.submitted_at,
+        due_date=item.due_date,
+        days_late=item.days_late,
+        status=item.status,
+        dashboard_color=item.dashboard_color,
+    )
+
+
+# Export & Preview Helpers
+async def safe_resolve_period(supabase: SupabaseAdminClient, period_id_or_name: str) -> tuple[UUID, str]:
+    try:
+        uuid_val = UUID(period_id_or_name)
+        rows = await supabase._rest_request(
+            "GET",
+            f"/rest/v1/report_periods?id=eq.{uuid_val}&select=id,name"
+        )
+        if rows:
+            return UUID(rows[0]["id"]), str(rows[0]["name"])
+    except ValueError:
+        rows = await supabase._rest_request(
+            "GET",
+            f"/rest/v1/report_periods?name=eq.{quote(period_id_or_name, safe='')}&select=id,name"
+        )
+        if rows:
+            return UUID(rows[0]["id"]), str(rows[0]["name"])
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Không tìm thấy kỳ báo cáo '{period_id_or_name}'."
+    )
+
+
+async def resolve_period(supabase: SupabaseAdminClient, period_id_or_name: str) -> tuple[str, str]:
+    period_id, period_name = await safe_resolve_period(supabase, period_id_or_name)
+    return str(period_id), period_name
+
+
+async def get_villages_map(supabase: SupabaseAdminClient) -> dict[str, str]:
+    rows = await supabase._rest_request("GET", "/rest/v1/villages?select=id,name")
+    return {str(r["id"]): str(r["name"]) for r in rows}
+
+
+async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str) -> list[dict]:
+    reports = await supabase._rest_request(
+        "GET",
+        (
+            f"/rest/v1/reports?period_id=eq.{period_id}"
+            "&workflow_status=in.(submitted,approved,locked)"
+            "&select=id,village_id,workflow_status,timeliness_status,submitted_at"
+        )
+    )
+    if not reports:
+        return []
+        
+    report_ids = [r["id"] for r in reports]
+    quoted_ids = ",".join(f'"{r_id}"' for r_id in report_ids)
+    values = await supabase._rest_request(
+        "GET",
+        f"/rest/v1/report_values?report_id=in.({quoted_ids})&select=report_id,ct_code,value"
+    )
+    
+    indicator_codes = _indicator_codes()
+    indicator_code_set = set(indicator_codes)
+    vals_map: dict[str, dict[str, int | None]] = {}
+    for val in values:
+        code = str(val.get("ct_code", ""))
+        if code not in indicator_code_set:
+            continue
+        r_id = str(val["report_id"])
+        if r_id not in vals_map:
+            vals_map[r_id] = {}
+        raw_value = val.get("value")
+        vals_map[r_id][code] = int(raw_value) if raw_value is not None else None
+        
+    result = []
+    for raw_report in reports:
+        report = dict(raw_report)
+        r_vals = vals_map.get(str(report["id"]), {})
+        for code in indicator_codes:
+            if code not in r_vals:
+                r_vals[code] = None
+        report["values"] = r_vals
+        result.append(report)
+        
+    return result
+
+def generate_docx_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
+    doc = docx.Document()
+
+    section = doc.sections[0]
+    section.orientation = WD_ORIENT.LANDSCAPE
+    section.page_width, section.page_height = section.page_height, section.page_width
+    section.left_margin = section.right_margin = Inches(0.35)
+    normal_style = doc.styles["Normal"]
+    normal_style.font.name = "Times New Roman"
+    normal_style.font.size = Pt(8)
+    normal_fonts = normal_style.element.get_or_add_rPr().get_or_add_rFonts()
+    normal_fonts.set(qn("w:eastAsia"), "Times New Roman")
+    heading_style = doc.styles["Heading 1"]
+    heading_style.font.name = "Times New Roman"
+    heading_style.font.size = Pt(14)
+    heading_style.font.bold = True
+    heading_style.element.get_or_add_rPr().get_or_add_rFonts().set(
+        qn("w:eastAsia"), "Times New Roman"
+    )
+
+    doc.add_heading("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", level=1)
+    doc.add_paragraph(f"Kỳ báo cáo: {_safe_document_text(period_name)}")
+    
+    if not reports_data:
+        doc.add_paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.")
+    else:
+        matrix = _export_matrix(reports_data, villages_map)
+        table = doc.add_table(rows=0, cols=len(matrix[0]))
+        table.style = "Light Shading Accent 1"
+        table.autofit = False
+        column_widths = [Inches(1.8), *[Inches(0.60) for _ in _indicator_codes()]]
+        for row_index, matrix_row in enumerate(matrix):
+            row_cells = table.add_row().cells
+            for column_index, cell_text in enumerate(matrix_row):
+                cell = row_cells[column_index]
+                cell.width = column_widths[column_index]
+                cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                cell.text = cell_text
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        _set_docx_run_font(run, bold=row_index == 0)
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_pdf_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
+    from matplotlib import font_manager
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    buffer = io.BytesIO()
+    regular_font = font_manager.findfont("DejaVu Sans")
+    bold_font = font_manager.findfont(
+        font_manager.FontProperties(family="DejaVu Sans", weight="bold")
+    )
+    registered_fonts = set(pdfmetrics.getRegisteredFontNames())
+    if "BaNaUnicode" not in registered_fonts:
+        pdfmetrics.registerFont(TTFont("BaNaUnicode", regular_font))
+    if "BaNaUnicode-Bold" not in registered_fonts:
+        pdfmetrics.registerFont(TTFont("BaNaUnicode-Bold", bold_font))
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=20,
+        leftMargin=20,
+        topMargin=24,
+        bottomMargin=24,
+    )
+    story = []
+    
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontName='BaNaUnicode-Bold',
+        fontSize=18,
+        textColor=colors.HexColor('#1E293B'),
+        spaceAfter=15,
+        alignment=1
+    )
+    
+    body_style = ParagraphStyle(
+        'BodyTextCustom',
+        parent=styles['BodyText'],
+        fontName='BaNaUnicode',
+        fontSize=10,
+        textColor=colors.HexColor('#334155'),
+        spaceAfter=8
+    )
+    
+    story.append(Paragraph("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", title_style))
+    story.append(Paragraph(f"Kỳ báo cáo: {html.escape(_safe_document_text(period_name))}", ParagraphStyle('Sub', parent=title_style, fontSize=12, spaceAfter=20)))
+    story.append(Spacer(1, 10))
+    
+    if not reports_data:
+        story.append(Paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.", body_style))
+    else:
+        matrix = _export_matrix(reports_data, villages_map)
+        header_cell_style = ParagraphStyle(
+            "ExportHeaderCell",
+            fontName="BaNaUnicode-Bold",
+            fontSize=6,
+            leading=7,
+            alignment=1,
+        )
+        body_cell_style = ParagraphStyle(
+            "ExportBodyCell",
+            fontName="BaNaUnicode",
+            fontSize=6,
+            leading=7,
+            alignment=1,
+        )
+        table_data = [
+            [
+                Paragraph(html.escape(cell), header_cell_style if row_index == 0 else body_cell_style)
+                for cell in row
+            ]
+            for row_index, row in enumerate(matrix)
+        ]
+        usable_width = landscape(A4)[0] - 40
+        village_width = 105
+        indicator_width = (usable_width - village_width) / len(_indicator_codes())
+        t = Table(
+            table_data,
+            colWidths=[village_width, *[indicator_width for _ in _indicator_codes()]],
+            repeatRows=1,
+            splitByRow=1,
+        )
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0F172A')),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('FONTNAME', (0,0), (-1,0), 'BaNaUnicode-Bold'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+            ('FONTNAME', (0,1), (-1,-1), 'BaNaUnicode'),
+            ('FONTSIZE', (0,0), (-1,-1), 6),
+            ('ALIGN', (0,1), (0,-1), 'LEFT'),
+            ('LEFTPADDING', (0,0), (-1,-1), 3),
+            ('RIGHTPADDING', (0,0), (-1,-1), 3),
+        ]))
+        story.append(t)
+        
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def generate_preview_html(period_name: str, reports_data: list, villages_map: dict) -> str:
+    indicator_codes = _indicator_codes()
+    table_headers_html = "".join(f"<th>{html.escape(code)}</th>" for code in indicator_codes)
+    if not reports_data:
+        table_rows_html = f"""
+        <tr>
+            <td colspan="{len(indicator_codes) + 1}" style="text-align: center; padding: 30px; color: #64748b; font-style: italic;">
+                Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.
+            </td>
+        </tr>
+        """
+    else:
+        matrix = _export_matrix(reports_data, villages_map)
+        table_rows_html = "".join(
+            "<tr style=\"border-bottom: 1px solid #e2e8f0;\">"
+            f"<td style=\"padding: 12px 16px; font-weight: 500; color: #0f172a;\">{html.escape(row[0])}</td>"
+            + "".join(
+                f"<td style=\"padding: 12px 16px; text-align: center;\">{html.escape(value)}</td>"
+                for value in row[1:]
+            )
+            + "</tr>"
+            for row in matrix[1:]
+        )
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <title>Xem trước báo cáo - Ba Na SmartLink</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                background-color: #f8fafc;
+                margin: 0;
+                padding: 40px 20px;
+                color: #334155;
+            }}
+            .container {{
+                max-width: 1400px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 16px;
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+                padding: 40px;
+                border: 1px solid #e2e8f0;
+            }}
+            .header {{
+                text-align: center;
+                margin-bottom: 30px;
+                border-bottom: 2px solid #f1f5f9;
+                padding-bottom: 20px;
+            }}
+            .header h1 {{
+                color: #0f172a;
+                font-size: 24px;
+                margin: 0 0 10px 0;
+                font-weight: 700;
+                letter-spacing: -0.025em;
+            }}
+            .header p {{
+                color: #64748b;
+                margin: 0;
+                font-size: 14px;
+            }}
+            .badge {{
+                display: inline-block;
+                padding: 4px 12px;
+                background-color: #3b82f6;
+                color: white;
+                border-radius: 9999px;
+                font-weight: 500;
+                font-size: 12px;
+                margin-top: 8px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }}
+            .table-wrap {{ overflow-x: auto; }}
+            th {{
+                background-color: #f1f5f9;
+                color: #475569;
+                font-weight: 600;
+                text-align: center;
+                padding: 12px 16px;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+            th:first-child {{
+                text-align: left;
+                border-top-left-radius: 8px;
+                border-bottom-left-radius: 8px;
+            }}
+            th:last-child {{
+                border-top-right-radius: 8px;
+                border-bottom-right-radius: 8px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ</h1>
+                <p>Hệ thống Quản lý và Số hóa Dữ liệu Đồng bộ Ba Na SmartLink</p>
+                <span class="badge">Kỳ báo cáo: {html.escape(_safe_document_text(period_name))}</span>
+            </div>
+            <div class="table-wrap"><table>
+                <thead>
+                    <tr>
+                        <th>Thôn</th>
+                        {table_headers_html}
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows_html}
+                </tbody>
+            </table></div>
+        </div>
+    </body>
+    </html>
+    """
+
+
+class ApproveReportRequest(BaseModel):
+    action: Literal["approve", "lock"]
+    expected_version: int = Field(ge=1)
+
+
+@router.patch("/{report_id}/approve")
+async def approve_or_lock_report(
+    report_id: UUID,
+    payload: ApproveReportRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> dict:
+    """Approve or lock a report as admin_xa using optimistic locking."""
+    new_status = "approved" if payload.action == "approve" else "locked"
+    now = datetime.now().astimezone().isoformat()
+    update: dict[str, Any] = {
+        "workflow_status": new_status,
+        "version": payload.expected_version + 1,
+    }
+    if payload.action == "approve":
+        update.update({"approved_by": admin.id, "approved_at": now})
+    else:
+        update.update({"locked_by": admin.id, "locked_at": now})
+    try:
+        rows = await repository._supabase._rest_request(
+            "PATCH",
+            (
+                f"/rest/v1/reports?id=eq.{report_id}"
+                f"&version=eq.{payload.expected_version}"
+            ),
+            payload=update,
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        if exc.error_code == "42501" or exc.status_code == 403:
+            raise HTTPException(status_code=403, detail="Only admin can approve reports") from exc
+        raise HTTPException(status_code=502, detail="Unable to update report") from exc
+
+    if not rows:
+        raise HTTPException(status_code=409, detail="Report version or state conflict")
+
+    return {
+        "report_id": str(report_id),
+        "workflow_status": new_status,
+        "version": payload.expected_version + 1,
+    }
+
+
+@router.patch("/{report_id}/publish")
+async def publish_report(
+    report_id: UUID,
+    expected_version: int,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> dict[str, Any]:
+    try:
+        rows = await repository._supabase._rest_request(
+            "PATCH",
+            (
+                f"/rest/v1/reports?id=eq.{report_id}"
+                f"&version=eq.{expected_version}"
+                "&workflow_status=in.(approved,locked)"
+            ),
+            {
+                "publication_status": "published",
+                "published_by": admin.id,
+                "published_at": datetime.now().astimezone().isoformat(),
+                "version": expected_version + 1,
+            },
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to publish report") from exc
+    if not rows:
+        raise HTTPException(status_code=409, detail="Report must be approved and unchanged")
+    return {
+        "report_id": str(report_id),
+        "publication_status": "published",
+        "version": expected_version + 1,
+    }
+
+
+@router.get("/export/{file_format}")
+async def export_reports(
+    file_format: str,
+    period_id: str,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_admin_or_leader)],
+):
+    supabase = repository._supabase
+    period_uuid, period_name = await resolve_period(supabase, period_id)
+    villages_map = await get_villages_map(supabase)
+    reports_data = await get_period_reports_data(supabase, period_uuid)
+    
+    if file_format == "xlsx":
+        file_bytes = generate_summary_xlsx_file(period_name, reports_data, villages_map)
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        filename = f"Bang_tong_hop_Bana_SmartLink_{period_name}.xlsx"
+    elif file_format == "docx":
+        file_bytes = generate_docx_file(period_name, reports_data, villages_map)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename = f"Bao_cao_Bana_SmartLink_{period_name}.docx"
+    elif file_format == "pdf":
+        file_bytes = generate_pdf_file(period_name, reports_data, villages_map)
+        media_type = "application/pdf"
+        filename = f"Bao_cao_Bana_SmartLink_{period_name}.pdf"
+    else:
+        raise HTTPException(status_code=400, detail="Định dạng xuất bản không hỗ trợ. Chỉ hỗ trợ xlsx, docx, pdf.")
+        
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": _content_disposition(filename)}
+    )
+
+@router.get("/village/{village_id}/export/{file_format}")
+async def export_village_report(
+    village_id: UUID,
+    file_format: str,
+    period_id: str,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+):
+    _authorize_village_read(current_user, village_id)
+    supabase = repository._supabase
+    if file_format != "xlsx":
+        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xuất báo cáo thôn dạng xlsx.")
+        
+    period_uuid, period_name = await resolve_period(supabase, period_id)
+    villages_map = await get_villages_map(supabase)
+    village_id_text = str(village_id)
+    village_name = villages_map.get(village_id_text, f"Thôn {village_id_text}")
+    
+    reports_data = await get_period_reports_data(supabase, period_uuid)
+    
+    # Find the report for this village
+    village_report = next((r for r in reports_data if r["village_id"] == village_id_text), None)
+    if not village_report:
+        raise HTTPException(status_code=404, detail="Không tìm thấy báo cáo của thôn trong kỳ này.")
+        
+    file_bytes = generate_village_xlsx_file(period_name, village_report, village_name)
+    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    filename = f"Phieu_bao_cao_{village_name}_{period_name}.xlsx".replace(" ", "_")
+    
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers={"Content-Disposition": _content_disposition(filename)}
+    )
+
+
+@router.get("/preview/{file_format}", response_class=HTMLResponse)
+async def preview_reports(
+    file_format: str,
+    period_id: str,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+):
+    _ = current_user
+    supabase = repository._supabase
+    period_uuid, period_name = await resolve_period(supabase, period_id)
+    villages_map = await get_villages_map(supabase)
+    reports_data = await get_period_reports_data(supabase, period_uuid)
+    
+    html_content = generate_preview_html(period_name, reports_data, villages_map)
+    return HTMLResponse(content=html_content)
+
+
+def _content_disposition(filename: str) -> str:
+    safe_ascii = "".join(
+        character if character.isascii() and (character.isalnum() or character in "._-") else "_"
+        for character in filename
+    )
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{quote(filename, safe='')}"
+
+
+__all__ = ["period_router", "router"]

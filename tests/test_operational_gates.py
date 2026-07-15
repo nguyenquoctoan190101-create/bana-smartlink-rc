@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from scripts import backup_restore_smoke, performance_smoke, production_gate, staging_release_gate
+
+
+def test_staging_gate_rejects_primary_or_unmarked_database() -> None:
+    primary = "postgresql://db.example.test/production"
+
+    assert not staging_release_gate.is_safe_staging_database_url(primary, primary)
+    assert not staging_release_gate.is_safe_staging_database_url(
+        "postgresql://db.example.test/bana_production", primary
+    )
+    assert staging_release_gate.is_safe_staging_database_url(
+        "postgresql://db.example.test/bana_staging", primary
+    )
+
+
+def test_restore_target_must_be_distinct_and_explicitly_non_production() -> None:
+    source = "postgresql://db.example.test/bana_staging"
+
+    assert not backup_restore_smoke.safe_restore_target(source, source)
+    assert not backup_restore_smoke.safe_restore_target(
+        "postgresql://db.example.test/bana_production", source
+    )
+    assert backup_restore_smoke.safe_restore_target(
+        "postgresql://db.example.test/bana_restore", source
+    )
+
+
+def test_database_urls_are_mapped_to_libpq_environment_not_command_arguments() -> None:
+    url = "postgresql://operator@db.example.test:6543/bana_staging?sslmode=require"
+    environment = staging_release_gate.postgres_environment(url)
+
+    assert environment["PGHOST"] == "db.example.test"
+    assert environment["PGDATABASE"] == "bana_staging"
+    assert environment["PGUSER"] == "operator"
+    assert "PGPASSWORD" not in environment
+    assert environment["PGPORT"] == "6543"
+    assert environment["PGSSLMODE"] == "require"
+    assert backup_restore_smoke.postgres_environment(url)["PGDATABASE"] == "bana_staging"
+
+
+def test_performance_smoke_rejects_credentialed_or_non_http_origin() -> None:
+    assert performance_smoke.safe_base_url("https://api.example.test/") == "https://api.example.test"
+    for value in ("https://user:password@example.test", "file:///tmp/api", "example.test"):
+        try:
+            performance_smoke.safe_base_url(value)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"unsafe base URL accepted: {value}")
+
+
+def test_percentile_uses_nearest_rank() -> None:
+    assert performance_smoke.percentile([10.0, 20.0, 30.0, 40.0], 95) == 40.0
+    assert performance_smoke.percentile([10.0, 20.0, 30.0, 40.0], 50) == 20.0
+
+
+def _complete_attestation(completed_at: str) -> dict[str, object]:
+    return {
+        "controls": {
+            name: {
+                "status": "passed",
+                "owner": "release owner",
+                "evidence": "ticket://example/123",
+                "completed_at": completed_at,
+            }
+            for name in production_gate.REQUIRED_CONTROLS
+        }
+    }
+
+
+def test_production_gate_requires_all_recent_owner_evidence() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    payload = _complete_attestation("2026-07-10T12:00:00Z")
+
+    assert production_gate.validate_attestations(payload, now) == []
+    payload["controls"].pop("uat_four_roles")  # type: ignore[index]
+    assert "uat_four_roles: missing" in production_gate.validate_attestations(payload, now)
+
+
+def test_production_gate_rejects_stale_or_naive_timestamp() -> None:
+    now = datetime(2026, 7, 14, tzinfo=UTC)
+    stale = _complete_attestation((now - timedelta(days=91)).isoformat())
+    stale_errors = production_gate.validate_attestations(stale, now)
+    assert any("outside the permitted age window" in error for error in stale_errors)
+
+    naive = _complete_attestation("2026-07-10T12:00:00")
+    naive_errors = production_gate.validate_attestations(naive, now)
+    assert any("timezone-aware" in error for error in naive_errors)
