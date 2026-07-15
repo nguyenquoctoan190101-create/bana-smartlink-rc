@@ -20,6 +20,18 @@ export function formatPublicIndicatorValue(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("vi-VN") : "—";
 }
 
+export function extractPublishedPeriods(reports: unknown[]): string[] {
+  const periodNames = reports
+    .map((report) => {
+      if (!report || typeof report !== "object") return null;
+      const value = (report as { report_period?: unknown }).report_period;
+      return typeof value === "string" && value.trim() ? value.trim() : null;
+    })
+    .filter((value): value is string => value !== null);
+
+  return [...new Set(periodNames)];
+}
+
 interface PublicVillagePageProps {
   onGoToLogin?: () => void;
   reports?: unknown;
@@ -59,18 +71,16 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
       setIsLoading(true);
       setDataError(null);
       try {
-        const [villageData, reportData, periodData] = await Promise.all([
+        const [villageData, reportData] = await Promise.all([
           loadVillages(),
           apiJson<unknown[]>("/reports/public"),
-          apiJson<Array<{ name?: string }>>("/reports/periods"),
         ]);
         if (!active) return;
         const safeVillages = Array.isArray(villageData) ? villageData : [];
         const safeReports = Array.isArray(reportData) ? reportData : [];
-        const safePeriods = Array.isArray(periodData) ? periodData : [];
         setVillages(safeVillages);
         setReports(safeReports);
-        setPeriods(safePeriods.map((item) => item?.name).filter((name): name is string => Boolean(name)));
+        setPeriods(extractPublishedPeriods(safeReports));
         setSelectedVillageId((current) => current || safeVillages[0]?.id || "");
       } catch {
         if (active) setDataError("Dịch vụ dữ liệu công khai chưa sẵn sàng. Bạn vẫn có thể xem cấu trúc cổng và thử lại sau.");
