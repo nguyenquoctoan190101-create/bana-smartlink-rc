@@ -106,3 +106,7 @@ jobs:
         run: psql -h 127.0.0.1 -U postgres -d bana_test -f db/schema.sql
       - name: Execute real PostgreSQL RLS matrix
         run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/rls_matrix.sql
+      - name: Seed synthetic demo dataset
+        run: psql -h 127.0.0.1 -U postgres -d bana_test -f db/demo_synthetic_seed.sql
+      - name: Verify synthetic demo dataset
+        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/demo_seed_verify.sql
