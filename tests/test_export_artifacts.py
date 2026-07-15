@@ -69,3 +69,35 @@ def test_internal_html_preview_escapes_untrusted_cells_and_shows_all_indicators(
     assert "&lt;b&gt;period&lt;/b&gt;" in preview
     assert preview.count("<th>CT") == 14
     assert "<td style=\"padding: 12px 16px; text-align: center;\"></td>" in preview
+
+
+def test_summary_export_keeps_submitted_report_that_needs_revision() -> None:
+    reports = [
+        {
+            "village_id": "village-1",
+            "workflow_status": "needs_revision",
+            "timeliness_status": "on_time",
+            "submitted_at": "2026-07-15T10:00:00Z",
+            "values": {
+                code: 320 if code == "CT01" else 1
+                for code in (f"CT{i:02d}" for i in range(1, 15))
+            },
+        }
+    ]
+
+    workbook = openpyxl.load_workbook(
+        BytesIO(
+            generate_summary_xlsx_file(
+                "Tháng 7/2026", reports, {"village-1": "Thôn An Sơn"}
+            )
+        )
+    )
+    summary = workbook["Bảng tổng hợp"]
+    progress = workbook["Theo dõi tiến độ"]
+
+    assert summary["C5"].value == 320
+    assert summary["Q5"].value == "Cần chỉnh sửa · Đúng hạn"
+    assert summary["C6"].value == 320
+    assert summary["Q6"].value == "1/1"
+    assert progress["E5"].value == "15/07/2026 10:00"
+    assert progress["F5"].value == "Cần chỉnh sửa · Đúng hạn"

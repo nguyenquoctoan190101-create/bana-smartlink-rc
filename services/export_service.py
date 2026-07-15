@@ -73,7 +73,14 @@ def _format_submitted_at(value: object | None) -> str:
 
 
 def _submission_status_label(report: dict[str, Any]) -> str:
+    workflow = str(report.get("workflow_status") or "")
     timeliness = report.get("timeliness_status")
+    if workflow == "needs_revision":
+        suffix = {
+            "on_time": "Đúng hạn",
+            "late": "Trễ hạn",
+        }.get(str(timeliness), "Đã nộp")
+        return f"Cần chỉnh sửa · {suffix}"
     if timeliness == "on_time":
         return "Đúng hạn"
     if timeliness == "late":
@@ -84,7 +91,7 @@ def _submission_status_label(report: dict[str, Any]) -> str:
         "needs_revision": "Cần chỉnh sửa",
         "approved": "Đã duyệt",
         "locked": "Đã khóa",
-    }.get(str(report.get("workflow_status") or ""), "Đã nộp")
+    }.get(workflow, "Đã nộp")
 
 def generate_village_xlsx_file(period_name: str, report_data: dict, village_name: str) -> bytes:
     """Generates the Single Village Report exactly matching Page 1 format."""

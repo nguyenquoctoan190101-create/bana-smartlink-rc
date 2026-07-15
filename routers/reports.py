@@ -1123,7 +1123,11 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
         "GET",
         (
             f"/rest/v1/reports?period_id=eq.{period_id}"
-            "&workflow_status=in.(submitted,approved,locked)"
+            # Timeliness records whether a report has ever been submitted. A
+            # previously submitted report can move to needs_revision after an
+            # approved citizen proposal and must remain part of the internal
+            # snapshot/export while publication stays private.
+            "&timeliness_status=in.(on_time,late)"
             "&select=id,village_id,workflow_status,timeliness_status,submitted_at"
         )
     )

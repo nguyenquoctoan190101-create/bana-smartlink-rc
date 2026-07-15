@@ -145,3 +145,39 @@ def test_export_preview_with_data(client: TestClient) -> None:
     response = client.get("/reports/export/pdf?period_id=Quý III/2026")
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+async def test_period_export_query_keeps_previously_submitted_needs_revision_report() -> None:
+    from routers.reports import get_period_reports_data
+
+    report_uuid = str(uuid4())
+    village_uuid = str(uuid4())
+    requested_paths: list[str] = []
+
+    async def mock_rest_request(method, path, body=None, prefer=None):
+        requested_paths.append(path)
+        if "/rest/v1/reports?" in path:
+            return [
+                {
+                    "id": report_uuid,
+                    "village_id": village_uuid,
+                    "workflow_status": "needs_revision",
+                    "timeliness_status": "on_time",
+                    "submitted_at": "2026-07-15T10:00:00Z",
+                }
+            ]
+        if "/rest/v1/report_values?" in path:
+            return [{"report_id": report_uuid, "ct_code": "CT01", "value": 320}]
+        return []
+
+    fake_supabase = MagicMock()
+    fake_supabase._rest_request = AsyncMock(side_effect=mock_rest_request)
+
+    result = await get_period_reports_data(fake_supabase, str(uuid4()))
+
+    report_path = next(path for path in requested_paths if "/rest/v1/reports?" in path)
+    assert "timeliness_status=in.(on_time,late)" in report_path
+    assert "workflow_status=in." not in report_path
+    assert result[0]["workflow_status"] == "needs_revision"
+    assert result[0]["values"]["CT01"] == 320
