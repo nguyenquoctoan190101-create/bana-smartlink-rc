@@ -247,7 +247,47 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
 
             {proposalStep === 1 && <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Thôn<select className="mt-1.5" value={selectedVillageId} onChange={(event) => setSelectedVillageId(event.target.value)}>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Kỳ báo cáo<select className="mt-1.5" value={selectedPeriod} onChange={(event) => setSelectedPeriod(event.target.value)}><option value="all_time">Bản mới nhất</option>{periods.map((period) => <option key={period}>{period}</option>)}</select></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Chỉ tiêu cần điều chỉnh<select className="mt-1.5" value={selectedIndicator} onChange={(event) => setSelectedIndicator(event.target.value)}>{PUBLIC_INDICATORS.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Giá trị đề xuất<input className="mt-1.5" type="number" min={0} required value={suggestedValue} onChange={(event) => setSuggestedValue(event.target.value)} /></label></div><label className="block text-sm font-semibold text-slate-700">Lý do cần điều chỉnh<textarea className="mt-1.5" rows={4} required value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Mô tả ngắn gọn nguồn thông tin và nội dung cần cán bộ kiểm tra…" /></label><div className="flex justify-end"><Button type="button" onClick={() => goToProposalStep(2)}>Tiếp tục<ArrowRight /></Button></div></div>}
 
-            {proposalStep === 2 && <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Họ và tên<input className="mt-1.5" required value={submitterName} onChange={(event) => setSubmitterName(event.target.value)} autoComplete="name" /></label><label className="text-sm font-semibold text-slate-700">Số điện thoại<div className="relative mt-1.5"><Phone className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input className="pl-10!" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" /></div></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Số nhà / hộ<input className="mt-1.5" required value={submitterHousehold} onChange={(event) => setSubmitterHousehold(event.target.value)} /></label><label className="text-sm font-semibold text-slate-700">Vai trò trong hộ<select className="mt-1.5" value={submitterRelation} onChange={(event) => setSubmitterRelation(event.target.value)}><option>Chủ hộ</option><option>Vợ/Chồng</option><option>Con cái</option><option>Khác</option></select></label></div><label className="block text-sm font-semibold text-slate-700">Địa chỉ chi tiết<input className="mt-1.5" required value={submitterAddress} onChange={(event) => setSubmitterAddress(event.target.value)} autoComplete="street-address" /></label><div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => goToProposalStep(1)}><ArrowLeft />Quay lại</Button><Button type="button" onClick={() => goToProposalStep(3)}>Tiếp tục<ArrowRight /></Button></div></div>}
+            {proposalStep === 2 && (
+              <div className="space-y-6">
+                <section aria-labelledby="public-proposal-contact-heading" className="rounded-xl border border-slate-200 bg-slate-25 p-4 sm:p-5">
+                  <h3 id="public-proposal-contact-heading" className="text-sm font-bold text-slate-900">Thông tin người gửi</h3>
+                  <p className="mt-1 text-xs text-slate-500">Các trường có dấu * là bắt buộc để cán bộ liên hệ đối chiếu.</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <label htmlFor="public-proposal-name" className="block text-sm font-semibold text-slate-700">
+                      Họ và tên <span aria-hidden="true" className="text-rose-700">*</span>
+                      <input id="public-proposal-name" className="mt-1.5 w-full" type="text" required value={submitterName} onChange={(event) => setSubmitterName(event.target.value)} autoComplete="name" placeholder="Ví dụ: Nguyễn Văn A" />
+                    </label>
+                    <label htmlFor="public-proposal-phone" className="block text-sm font-semibold text-slate-700">
+                      Số điện thoại <span aria-hidden="true" className="text-rose-700">*</span>
+                      <span className="relative mt-1.5 block">
+                        <Phone className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
+                        <input id="public-proposal-phone" className="w-full pl-10!" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" inputMode="tel" placeholder="Ví dụ: 0901 234 567" />
+                      </span>
+                    </label>
+                  </div>
+                </section>
+
+                <section aria-labelledby="public-proposal-address-heading" className="rounded-xl border border-slate-200 bg-slate-25 p-4 sm:p-5">
+                  <h3 id="public-proposal-address-heading" className="text-sm font-bold text-slate-900">Địa chỉ liên hệ</h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <label htmlFor="public-proposal-household" className="block text-sm font-semibold text-slate-700">
+                      Số nhà / hộ <span aria-hidden="true" className="text-rose-700">*</span>
+                      <input id="public-proposal-household" className="mt-1.5 w-full" type="text" required value={submitterHousehold} onChange={(event) => setSubmitterHousehold(event.target.value)} autoComplete="address-line2" placeholder="Ví dụ: Hộ 123" />
+                    </label>
+                    <label htmlFor="public-proposal-relation" className="block text-sm font-semibold text-slate-700">
+                      Vai trò trong hộ
+                      <select id="public-proposal-relation" className="mt-1.5 w-full" value={submitterRelation} onChange={(event) => setSubmitterRelation(event.target.value)}><option>Chủ hộ</option><option>Vợ/Chồng</option><option>Con cái</option><option>Khác</option></select>
+                    </label>
+                  </div>
+                  <label htmlFor="public-proposal-address" className="mt-4 block text-sm font-semibold text-slate-700">
+                    Địa chỉ chi tiết <span aria-hidden="true" className="text-rose-700">*</span>
+                    <input id="public-proposal-address" className="mt-1.5 w-full" type="text" required value={submitterAddress} onChange={(event) => setSubmitterAddress(event.target.value)} autoComplete="street-address" placeholder="Tên đường, tổ dân cư hoặc địa điểm nhận biết" />
+                  </label>
+                </section>
+
+                <div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => goToProposalStep(1)}><ArrowLeft />Quay lại</Button><Button type="button" onClick={() => goToProposalStep(3)}>Tiếp tục<ArrowRight /></Button></div>
+              </div>
+            )}
 
             {proposalStep === 3 && <div className="space-y-5"><div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><h3 className="font-bold text-slate-900">Kiểm tra trước khi gửi</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">Phạm vi</dt><dd className="font-semibold text-slate-900">{villageName} · {periodLabel}</dd></div><div><dt className="text-slate-500">Chỉ tiêu</dt><dd className="font-semibold text-slate-900">{selectedIndicator} · {suggestedValue}</dd></div><div className="sm:col-span-2"><dt className="text-slate-500">Lý do</dt><dd className="font-semibold text-slate-900">{explanation}</dd></div></dl></div><label className="flex min-h-14 items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm text-slate-700"><input type="checkbox" className="mt-0.5 h-5! min-h-5! w-5!" checked={privacyConsent} onChange={(event) => setPrivacyConsent(event.target.checked)} required /><span>Tôi đồng ý gửi thông tin liên hệ và nội dung kiến nghị để UBND xã Bà Nà xử lý theo thông báo quyền riêng tư.</span></label><div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => goToProposalStep(2)}><ArrowLeft />Quay lại</Button><Button type="submit" disabled={isSending || !privacyConsent}>{isSending ? <RefreshCw className="animate-spin" /> : <ClipboardCheck />}Gửi kiến nghị</Button></div></div>}
 
