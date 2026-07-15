@@ -63,8 +63,15 @@ const statusMap: Record<string, { label: string; tone: string; icon: ReactNode }
   locked: { label: "Đã khóa", tone: "neutral", icon: <CheckCircle2 /> },
   published: { label: "Đã công bố", tone: "success", icon: <CheckCircle2 /> },
   pending: { label: "Chờ nhận", tone: "warning", icon: <CircleAlert /> },
+  pending_review: { label: "Chờ duyệt", tone: "warning", icon: <CircleAlert /> },
   in_progress: { label: "Đang xử lý", tone: "info", icon: <RotateCw /> },
   completed: { label: "Hoàn tất", tone: "success", icon: <CheckCircle2 /> },
+  accepted: { label: "Đã chấp nhận", tone: "success", icon: <CheckCircle2 /> },
+  rejected: { label: "Đã từ chối", tone: "danger", icon: <AlertTriangle /> },
+  ready: { label: "Đạt", tone: "success", icon: <CheckCircle2 /> },
+  needs_review: { label: "Cần rà soát", tone: "warning", icon: <AlertTriangle /> },
+  blocked: { label: "Bị chặn", tone: "danger", icon: <AlertTriangle /> },
+  cancelled: { label: "Đã hủy", tone: "neutral", icon: <CircleAlert /> },
   overdue: { label: "Quá hạn", tone: "danger", icon: <AlertTriangle /> },
 };
 

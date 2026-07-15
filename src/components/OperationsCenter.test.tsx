@@ -45,4 +45,23 @@ describe("OperationsCenter", () => {
     expect(screen.getByText("Chưa tải được brief")).toBeInTheDocument();
     expect(screen.queryByText(/Không tải được dữ liệu điều hành/)).not.toBeInTheDocument();
   });
+
+  it("shows Vietnamese status and source labels", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) return Promise.resolve({
+        average_quality_score: 100,
+        rule_version: "2026-07-14",
+        reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", quality_score: 100, quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
+      });
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", status: "accepted", content: "Brief mẫu", confidence: 0.9 }]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+    await waitFor(() => expect(screen.getByText("Đã chấp nhận")).toBeInTheDocument());
+    expect(screen.getByText("Đạt")).toBeInTheDocument();
+    expect(screen.getByText("API trực tiếp · phiên bản 2")).toBeInTheDocument();
+    expect(screen.queryByText("accepted")).not.toBeInTheDocument();
+    expect(screen.queryByText("ready")).not.toBeInTheDocument();
+  });
 });
