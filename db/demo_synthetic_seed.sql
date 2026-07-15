@@ -22,7 +22,7 @@ with demo_villages (name, households, population, ct13) as (
 upsert_villages as (
   insert into public.villages (commune_id, name, household_count, mapping_status)
   select
-    'ba_na_demo',
+    'ba_na',
     name,
     jsonb_build_object('2026-07', households),
     'confirmed'
@@ -36,7 +36,7 @@ upsert_villages as (
 upsert_period as (
   insert into public.report_periods (commune_id, name, due_date, template_name)
   values (
-    'ba_na_demo',
+    'ba_na',
     'Bản công bố minh họa — Tháng 7/2026',
     '2026-07-31T16:59:59+07:00',
     'demo-synthetic'
