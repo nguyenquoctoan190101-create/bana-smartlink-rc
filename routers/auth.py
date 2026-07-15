@@ -656,7 +656,7 @@ async def list_proposals(
             proposed_value=int(r["proposed_value"]),
             proposed_by=r["proposed_by"],
             status=str(r["status"]),
-            reviewed_by=r["reviewed_by"],
+            reviewed_by=str(r["reviewed_by"]) if r["reviewed_by"] else None,
             reviewed_at=r["reviewed_at"],
             created_at=r["created_at"],
             sla_due_at=r["sla_due_at"],
@@ -723,7 +723,7 @@ async def list_audit_logs(
             action=str(r["action"]),
             table_name=str(r["table_name"]),
             record_id=str(r["record_id"]),
-            user_id=r["user_id"],
+            user_id=str(r["user_id"]) if r["user_id"] else None,
             details=r["details"],
             created_at=r["created_at"]
         ) for r in rows

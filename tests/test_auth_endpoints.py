@@ -177,12 +177,49 @@ def test_list_audit_logs_admin_only(client, mock_get_user_profile, mock_db_conn)
 
 def test_list_audit_logs_success(client, mock_get_user_profile, mock_db_conn):
     sub = str(uuid4())
+    audit_id = uuid4()
     token = _make_jwt(sub=sub)
     mock_get_user_profile.return_value = UserProfile(id=sub, role="admin_xa", village_id=None, force_password_reset=False)
-    
-    mock_db_conn.fetch.return_value = []
+
+    mock_db_conn.fetch.return_value = [{
+        "id": audit_id,
+        "action": "PROPOSAL_APPROVE",
+        "table_name": "pending_updates",
+        "record_id": str(uuid4()),
+        "user_id": UUID(sub),
+        "details": '{"ct_code":"CT01"}',
+        "created_at": "2026-07-15T18:46:10+07:00",
+    }]
     res = client.get("/auth/audit-logs", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
+    assert res.json()[0]["user_id"] == sub
+
+
+def test_list_approved_proposal_serializes_reviewer_uuid(client, mock_get_user_profile, mock_db_conn):
+    sub = str(uuid4())
+    proposal_id = uuid4()
+    report_id = uuid4()
+    token = _make_jwt(sub=sub)
+    mock_get_user_profile.return_value = UserProfile(id=sub, role="admin_xa", village_id=None, force_password_reset=False)
+    mock_db_conn.fetch.return_value = [{
+        "id": proposal_id,
+        "report_id": report_id,
+        "ct_code": "CT01",
+        "proposed_value": 320,
+        "proposed_by": "0900000000",
+        "status": "approved",
+        "reviewed_by": UUID(sub),
+        "reviewed_at": "2026-07-15T18:46:10+07:00",
+        "created_at": "2026-07-15T18:45:00+07:00",
+        "sla_due_at": "2026-07-18T18:45:00+07:00",
+        "sla_status": "closed",
+    }]
+
+    res = client.get("/auth/proposals", headers={"Authorization": f"Bearer {token}"})
+
+    assert res.status_code == 200
+    assert res.json()[0]["reviewed_by"] == sub
+    assert res.json()[0]["status"] == "approved"
 
 
 # 6. POST /auth/proposals/{id}/action
