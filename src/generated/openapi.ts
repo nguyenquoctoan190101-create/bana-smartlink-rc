@@ -1501,6 +1501,8 @@ export interface components {
             ct_code: string;
             /** Id */
             id: string;
+            /** Previous Value */
+            previous_value?: number | null;
             /** Proposed By */
             proposed_by: string | null;
             /** Proposed Value */
@@ -1520,6 +1522,8 @@ export interface components {
             sla_status: "on_track" | "overdue" | "closed";
             /** Status */
             status: string;
+            /** Village Id */
+            village_id: string;
         };
         /** RejectedReportItem */
         RejectedReportItem: {
