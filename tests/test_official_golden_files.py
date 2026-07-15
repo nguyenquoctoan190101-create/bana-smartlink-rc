@@ -13,9 +13,9 @@ from services.validator import validate_phone, validate_report
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORT_ROOT = (
     PROJECT_ROOT
-    / "DU_LIEU_CHINH_THUC"
-    / "DỮ LIỆU MẪU - BaNa Smartlink"
-    / "02_Bao_cao_tung_thon"
+    / "tests"
+    / "fixtures"
+    / "xlsx"
 )
 
 
@@ -62,4 +62,3 @@ def test_three_expected_missing_villages_have_no_report_file() -> None:
     assert "Ninh_An" not in filenames
     assert "Sơn_Phước" not in filenames
     assert "Thạch_Nham_Tây" not in filenames
-

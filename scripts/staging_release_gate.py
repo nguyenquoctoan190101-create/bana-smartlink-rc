@@ -24,6 +24,14 @@ RLS_BOOTSTRAP = ROOT / "tests" / "sql" / "supabase_test_bootstrap.sql"
 RLS_MATRIX = ROOT / "tests" / "sql" / "rls_matrix.sql"
 SCHEMA = ROOT / "db" / "schema.sql"
 SAFE_DATABASE_MARKERS = ("stage", "staging", "test", "restore", "sandbox")
+LIBPQ_CONNECTION_VARIABLES = (
+    "PGHOST",
+    "PGDATABASE",
+    "PGUSER",
+    "PGPASSWORD",
+    "PGPORT",
+    "PGSSLMODE",
+)
 
 
 def _result(name: str, passed: bool, detail: str) -> None:
@@ -47,6 +55,10 @@ def postgres_environment(database_url: str) -> dict[str, str]:
     """Convert a libpq URL into environment variables, keeping it out of argv."""
     parsed = urllib.parse.urlparse(database_url)
     environment = os.environ.copy()
+    # Never let credentials or connection details from the operator's shell
+    # bleed into a different staging target when a URL omits that component.
+    for variable in LIBPQ_CONNECTION_VARIABLES:
+        environment.pop(variable, None)
     environment["PGHOST"] = parsed.hostname or ""
     environment["PGDATABASE"] = unquote(parsed.path.lstrip("/"))
     if parsed.username:

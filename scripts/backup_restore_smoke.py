@@ -14,6 +14,14 @@ from pathlib import Path
 
 
 SAFE_DATABASE_MARKERS = ("stage", "staging", "test", "restore", "sandbox")
+LIBPQ_CONNECTION_VARIABLES = (
+    "PGHOST",
+    "PGDATABASE",
+    "PGUSER",
+    "PGPASSWORD",
+    "PGPORT",
+    "PGSSLMODE",
+)
 
 
 def safe_restore_target(value: str, source: str) -> bool:
@@ -34,6 +42,10 @@ def postgres_environment(database_url: str) -> dict[str, str]:
     """Keep a connection URL/password out of pg_dump/pg_restore argv."""
     parsed = urllib.parse.urlparse(database_url)
     environment = os.environ.copy()
+    # A restore URL must be self-contained. Inherited libpq variables could
+    # otherwise reuse a password or silently redirect the destructive target.
+    for variable in LIBPQ_CONNECTION_VARIABLES:
+        environment.pop(variable, None)
     environment["PGHOST"] = parsed.hostname or ""
     environment["PGDATABASE"] = unquote(parsed.path.lstrip("/"))
     if parsed.username:

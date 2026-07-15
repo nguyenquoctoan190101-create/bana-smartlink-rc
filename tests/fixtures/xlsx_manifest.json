@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "classification": "synthetic-test-data",
+  "contains_pii": false,
+  "files": [
+    {
+      "name": "00_BIEU_MAU_TRONG_xa_gui_thon.xlsx",
+      "sha256": "a8b44269f4bbd04c7d3761ff4d10c84239fb38245ad1c194ea869957f75d929b",
+      "size": 6051
+    },
+    {
+      "name": "BC_T01_Thôn_Phú_Hòa_1.xlsx",
+      "sha256": "c9d40ef7b6821b01fbde206dcbe9f47c54e8c0afb936580cfd38ff7252c82a02",
+      "size": 6132
+    },
+    {
+      "name": "BC_T02_Thôn_Phú_Hòa_2.xlsx",
+      "sha256": "c87736db0066c6e42cf0c13f44132da98b5718097d0d6136dd8064588bb0f92c",
+      "size": 6132
+    },
+    {
+      "name": "BC_T03_Thôn_Thạch_Nham_Đông.xlsx",
+      "sha256": "7af37ebc9474bc2aa6f4f98393e2a11a2843ff9736088f39a427b633f14d37f2",
+      "size": 6136
+    },
+    {
+      "name": "BC_T04_Thôn_Phước_Thái.xlsx",
+      "sha256": "4749ce7c6f438370fdf215b766023ea8986cb0d4e16c4bc8e72318b8c04e9a8c",
+      "size": 6152
+    },
+    {
+      "name": "BC_T05_Thôn_Thái_Lai.xlsx",
+      "sha256": "7da8bdb143e150c177b999b267c88f2174117b3fcc7ff13309be52b90a7ac966",
+      "size": 6126
+    },
+    {
+      "name": "BC_T06_Thôn_Hòa_Khương_Đông.xlsx",
+      "sha256": "998ec773c7e574f7c6c833da9ba4d390edc985b3bc5ac08686c6ef64a390ae20",
+      "size": 6138
+    },
+    {
+      "name": "BC_T07_Thôn_Hòa_Khương_Tây.xlsx",
+      "sha256": "9b363eb4fcccabac244cad3b059966ecffa51e5e69a03edfb083a0a7a4f1bd31",
+      "size": 6167
+    },
+    {
+      "name": "BC_T08_Thôn_Phước_Thuận_-_Phước_Hậu.xlsx",
+      "sha256": "5f0257a380d8b5eaef2ef8d8f612a0003165bc99d418e33cbb200959788bd4d1",
+      "size": 6136
+    },
+    {
+      "name": "BC_T09_Thôn_Phước_Hưng.xlsx",
+      "sha256": "ab455dafe6b52541c0457e639e676a9bab75d2c24f3c8bd1d710289b6898d451",
+      "size": 6161
+    },
+    {
+      "name": "BC_T10_Thôn_Phước_Hưng_Nam.xlsx",
+      "sha256": "a09ccc45494184e62d3a9b015e9c87c27047426571cdb469adae52ea13409a61",
+      "size": 6134
+    },
+    {
+      "name": "BC_T12_Thôn_Trước_Đông.xlsx",
+      "sha256": "6b46dc04dc91930352b1bc94c9d619736c0fb7b33075adddaedf2d7b6359a319",
+      "size": 6163
+    },
+    {
+      "name": "BC_T13_Thôn_Diêu_Phong.xlsx",
+      "sha256": "82b75ebbbe440fbd385bb6d8bace7273d4760d690f387e339ee3775c3f2548fb",
+      "size": 6132
+    },
+    {
+      "name": "BC_T15_Thôn_Mỹ_Sơn.xlsx",
+      "sha256": "1985683092c0dd34ebc171308a5b761f635cdc1ab35ddb71ed89414347e31f5d",
+      "size": 6162
+    },
+    {
+      "name": "BC_T16_Thôn_Năm.xlsx",
+      "sha256": "6c360988fa940f47448e2db2d16f60715ac83a5437119344c76e86f71ddcd80b",
+      "size": 6126
+    },
+    {
+      "name": "BC_T17_Thôn_Hòa_Trung.xlsx",
+      "sha256": "318b14375af4b83e195625196ef7a881f78266ca048956dd79f86291f57818ac",
+      "size": 6132
+    },
+    {
+      "name": "BC_T18_Thôn_Một.xlsx",
+      "sha256": "61f97369c6b4767a37856ea506dc10903ab0141e136c71dc2b6c2fc07e0890b5",
+      "size": 6157
+    },
+    {
+      "name": "BC_T19_Thôn_Trung_Nghĩa.xlsx",
+      "sha256": "6d13fec2f17858369673e1dd5cd2df8e13ca2590799f50acfc00c17099fc9d20",
+      "size": 6132
+    },
+    {
+      "name": "BC_T20_Thôn_Đông_Sơn.xlsx",
+      "sha256": "ce8cc045261810f5f01247257b0ba979f8fe3350622ecb6953553b1d44d23253",
+      "size": 6132
+    },
+    {
+      "name": "BC_T22_Thôn_An_Sơn.xlsx",
+      "sha256": "029289b666d23c3265ebc29088cf19f7be0f6cbb69f62a56596c37b3881308f2",
+      "size": 6129
+    },
+    {
+      "name": "TONG_HOP_va_THEO_DOI_TIEN_DO.xlsx",
+      "sha256": "febfaee4fe7926ac295444a0ed6bed92c4d719cc2234f366feba1b4763244d99",
+      "size": 6134
+    }
+  ]
+}

@@ -29,7 +29,19 @@ def test_restore_target_must_be_distinct_and_explicitly_non_production() -> None
     )
 
 
-def test_database_urls_are_mapped_to_libpq_environment_not_command_arguments() -> None:
+def test_database_urls_are_mapped_to_libpq_environment_not_command_arguments(
+    monkeypatch,
+) -> None:
+    for variable in (
+        "PGHOST",
+        "PGDATABASE",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGPORT",
+        "PGSSLMODE",
+    ):
+        monkeypatch.setenv(variable, "must-not-leak")
+
     url = "postgresql://operator@db.example.test:6543/bana_staging?sslmode=require"
     environment = staging_release_gate.postgres_environment(url)
 
@@ -39,7 +51,18 @@ def test_database_urls_are_mapped_to_libpq_environment_not_command_arguments() -
     assert "PGPASSWORD" not in environment
     assert environment["PGPORT"] == "6543"
     assert environment["PGSSLMODE"] == "require"
-    assert backup_restore_smoke.postgres_environment(url)["PGDATABASE"] == "bana_staging"
+    backup_environment = backup_restore_smoke.postgres_environment(url)
+    assert backup_environment["PGDATABASE"] == "bana_staging"
+    assert "PGPASSWORD" not in backup_environment
+
+
+def test_database_url_password_replaces_inherited_libpq_password(monkeypatch) -> None:
+    monkeypatch.setenv("PGPASSWORD", "inherited-secret")
+    expected_password = "url-secret"
+    url = "postgresql://" + "operator:" + expected_password + "@db.example.test/bana_restore"
+
+    assert staging_release_gate.postgres_environment(url)["PGPASSWORD"] == expected_password
+    assert backup_restore_smoke.postgres_environment(url)["PGPASSWORD"] == expected_password
 
 
 def test_performance_smoke_rejects_credentialed_or_non_http_origin() -> None:

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / "DU_LIEU_CHINH_THUC" / "DỮ LIỆU MẪU - BaNa Smartlink" / "02_Bao_cao_tung_thon"
+DATA_DIR = PROJECT_ROOT / "tests" / "fixtures" / "xlsx"
 MAP_PATH = PROJECT_ROOT / "DU_LIEU_CHINH_THUC" / "village_merge_map_CHINH_THUC.json"
 
 def get_test_cases():
@@ -17,12 +17,11 @@ def get_test_cases():
     for entry in merge_data["anh_xa_thon_cu"]:
         old_to_new_map[entry["ten_thon_cu"]] = entry["new_village_id"]
         
-    excel_files = list(DATA_DIR.glob("*.xlsx"))
+    excel_files = list(DATA_DIR.glob("BC_T*.xlsx"))
     return [(f.name, old_to_new_map) for f in excel_files]
 
 test_cases = get_test_cases()
 
-@pytest.mark.skipif(not test_cases, reason="DU_LIEU_CHINH_THUC not available")
 @pytest.mark.parametrize("filename,old_to_new_map", test_cases)
 def test_village_mapping_golden(filename, old_to_new_map):
     """

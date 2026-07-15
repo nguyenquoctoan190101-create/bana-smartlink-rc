@@ -113,17 +113,18 @@ reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a004', false);
 do $$
+declare
+  affected_rows integer;
 begin
   if (select count(*) from public.reports) <> 2 then
     raise exception 'lanh_dao should read commune reports';
   end if;
-  begin
-    update public.reports set report_source = 'direct_api'
-    where id = '00000000-0000-4000-8000-00000000b001';
+  update public.reports set report_source = 'direct_api'
+  where id = '00000000-0000-4000-8000-00000000b001';
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> 0 then
     raise exception 'lanh_dao unexpectedly mutated a report';
-  exception when insufficient_privilege then
-    null;
-  end;
+  end if;
 end
 $$;
 reset role;
@@ -131,17 +132,18 @@ reset role;
 set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a005', false);
 do $$
+declare
+  affected_rows integer;
 begin
   if (select count(*) from public.reports) <> 1 then
     raise exception 'force-reset user should retain scoped read access';
   end if;
-  begin
-    update public.reports set report_source = 'direct_api'
-    where id = '00000000-0000-4000-8000-00000000b002';
+  update public.reports set report_source = 'direct_api'
+  where id = '00000000-0000-4000-8000-00000000b002';
+  get diagnostics affected_rows = row_count;
+  if affected_rows <> 0 then
     raise exception 'force-reset user unexpectedly mutated a report';
-  exception when insufficient_privilege then
-    null;
-  end;
+  end if;
 end
 $$;
 reset role;
