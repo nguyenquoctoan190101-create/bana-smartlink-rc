@@ -131,8 +131,8 @@ def test_lanh_dao_sees_all_proposals_and_report_values(client, mock_get_user_pro
     mock_get_user_profile.return_value = UserProfile(id=sub, role="lanh_dao", village_id=None, force_password_reset=False)
     
     mock_db_conn.fetch.return_value = [
-            {"id": "p1", "report_id": "r1", "ct_code": "CT01", "proposed_value": 100, "proposed_by": "123", "status": "pending", "reviewed_by": None, "reviewed_at": None, "created_at": "2026-07-14T00:00:00Z", "sla_due_at": "2026-07-17T00:00:00Z", "sla_status": "on_track"},
-            {"id": "p2", "report_id": "r2", "ct_code": "CT02", "proposed_value": 200, "proposed_by": "456", "status": "pending", "reviewed_by": None, "reviewed_at": None, "created_at": "2026-07-14T00:00:00Z", "sla_due_at": "2026-07-17T00:00:00Z", "sla_status": "on_track"}
+            {"id": "p1", "report_id": "r1", "village_id": "v1", "ct_code": "CT01", "proposed_value": 100, "previous_value": None, "proposed_by": "123", "status": "pending", "reviewed_by": None, "reviewed_at": None, "created_at": "2026-07-14T00:00:00Z", "sla_due_at": "2026-07-17T00:00:00Z", "sla_status": "on_track"},
+            {"id": "p2", "report_id": "r2", "village_id": "v2", "ct_code": "CT02", "proposed_value": 200, "previous_value": None, "proposed_by": "456", "status": "pending", "reviewed_by": None, "reviewed_at": None, "created_at": "2026-07-14T00:00:00Z", "sla_due_at": "2026-07-17T00:00:00Z", "sla_status": "on_track"}
     ]
     
     # Test proposals
@@ -204,8 +204,10 @@ def test_list_approved_proposal_serializes_reviewer_uuid(client, mock_get_user_p
     mock_db_conn.fetch.return_value = [{
         "id": proposal_id,
         "report_id": report_id,
+        "village_id": str(uuid4()),
         "ct_code": "CT01",
         "proposed_value": 320,
+        "previous_value": 318,
         "proposed_by": "0900000000",
         "status": "approved",
         "reviewed_by": UUID(sub),
@@ -220,6 +222,7 @@ def test_list_approved_proposal_serializes_reviewer_uuid(client, mock_get_user_p
     assert res.status_code == 200
     assert res.json()[0]["reviewed_by"] == sub
     assert res.json()[0]["status"] == "approved"
+    assert res.json()[0]["previous_value"] == 318
 
 
 # 6. POST /auth/proposals/{id}/action

@@ -1638,6 +1638,17 @@
             "title": "Id",
             "type": "string"
           },
+          "previous_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Value"
+          },
           "proposed_by": {
             "anyOf": [
               {
@@ -1695,11 +1706,16 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "village_id": {
+            "title": "Village Id",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "report_id",
+          "village_id",
           "ct_code",
           "proposed_value",
           "proposed_by",

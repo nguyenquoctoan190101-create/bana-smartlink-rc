@@ -58,6 +58,15 @@ async def execute_proposal_action(
             if proposal["status"] != "pending":
                 raise ValueError("Proposal is not pending")
 
+            existing_values = await conn.fetch(
+                "select ct_code, value from report_values where report_id = $1",
+                proposal["report_id"],
+            )
+            candidate_values = {
+                str(row["ct_code"]): row["value"] for row in existing_values
+            }
+            previous_value = candidate_values.get(str(proposal["ct_code"]))
+
             validation_errors: list[ValidationError] = []
             new_version = int(proposal["version"])
             if action == "approve":
@@ -67,13 +76,6 @@ async def execute_proposal_action(
                 ):
                     raise ValueError("Report is not eligible for a public proposal update")
 
-                existing_values = await conn.fetch(
-                    "select ct_code, value from report_values where report_id = $1",
-                    proposal["report_id"],
-                )
-                candidate_values = {
-                    str(row["ct_code"]): row["value"] for row in existing_values
-                }
                 candidate_values[str(proposal["ct_code"])] = proposal["proposed_value"]
                 validation_errors = validate_report(candidate_values)
                 blocking_errors = [
@@ -150,6 +152,9 @@ async def execute_proposal_action(
                 json.dumps(
                     {
                         "ct_code": str(proposal["ct_code"]),
+                        "previous_value": (
+                            int(previous_value) if previous_value is not None else None
+                        ),
                         "proposed_value": int(proposal["proposed_value"]),
                         "report_id": str(proposal["report_id"]),
                         "report_version": int(new_version),

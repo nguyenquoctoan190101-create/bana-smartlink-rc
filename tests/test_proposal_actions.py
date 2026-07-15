@@ -53,6 +53,7 @@ def _proposal() -> dict[str, object]:
 async def test_approved_proposal_is_reopened_and_audited_atomically() -> None:
     proposal = _proposal()
     connection = _Connection(proposal)
+    connection.fetch.return_value = [{"ct_code": "CT03", "value": 3}]
     with (
         patch("services.proposal_actions.load_settings", return_value=SimpleNamespace(database_url="postgresql://test")),
         patch("services.proposal_actions.asyncpg.connect", new=AsyncMock(return_value=connection)),
@@ -68,6 +69,10 @@ async def test_approved_proposal_is_reopened_and_audited_atomically() -> None:
     assert "workflow_status = 'needs_revision'" in report_update_sql
     assert "publication_status = 'private'" in report_update_sql
     assert "insert into audit_log" in executed_sql
+    audit_call = next(
+        args for query, args in connection.executed if "insert into audit_log" in query
+    )
+    assert '"previous_value": 3' in audit_call[3]
     assert result["status"] == "approved"
     assert result["report_version"] == 8
     connection.close.assert_awaited_once()

@@ -19,6 +19,7 @@ interface Proposal {
   report_id: string;
   village_id: string;
   proposed_changes: Record<string, number>;
+  previous_value?: number | null;
   status: "Pending" | "Approved" | "Rejected";
   created_at: string;
   reviewed_at?: string;
@@ -32,6 +33,7 @@ interface ProposalApiRow {
   village_id?: string;
   ct_code: string;
   proposed_value: number;
+  previous_value?: number | null;
   proposed_by?: string | null;
   status: string;
   created_at?: string;
@@ -128,6 +130,7 @@ export default function PendingUpdates({
         report_id: item.report_id,
         village_id: item.village_id || "",
         proposed_changes: { [item.ct_code]: item.proposed_value },
+        previous_value: item.previous_value,
         status: item.status.toLowerCase() === "approved" ? "Approved" : item.status.toLowerCase() === "rejected" ? "Rejected" : "Pending",
         created_at: item.created_at || "",
         reviewed_at: item.reviewed_at || undefined,
@@ -208,9 +211,13 @@ export default function PendingUpdates({
     }
   });
 
-  // Get current old value of an indicator
-  const getOldValue = (reportId: string, ctCode: string): number | null => {
-    const valObj = reportValues.find(v => v.report_id === reportId && v.ct_code === ctCode);
+  // Processed approvals must use the immutable audit snapshot, never the
+  // report's current value (which already contains the approved change).
+  const getOldValue = (proposal: Proposal, ctCode: string): number | null => {
+    if (proposal.status !== "Pending") {
+      return typeof proposal.previous_value === "number" ? proposal.previous_value : null;
+    }
+    const valObj = reportValues.find(v => v.report_id === proposal.report_id && v.ct_code === ctCode);
     return valObj ? valObj.value : null;
   };
 
@@ -372,7 +379,10 @@ export default function PendingUpdates({
                     <span className="block text-4xs font-bold text-slate-400 uppercase tracking-wider">Chi tiết điều chỉnh đề xuất:</span>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {Object.entries(proposal.proposed_changes).map(([ct_code, proposed_val]) => {
-                        const old_val = getOldValue(proposal.report_id, ct_code);
+                        const old_val = getOldValue(proposal, ct_code);
+                        const oldValueLabel = old_val == null
+                          ? proposal.status === "Pending" ? "Chưa có dữ liệu" : "Không lưu snapshot"
+                          : old_val;
                         return (
                           <div key={ct_code} className="border border-slate-100 rounded-xl p-3 bg-slate-25/40 flex flex-col justify-between gap-2.5">
                             <div>
@@ -382,7 +392,7 @@ export default function PendingUpdates({
                             <div className="flex items-center justify-between border-t border-slate-100/60 pt-2">
                               <div className="text-center flex-1">
                                 <span className="block text-4xs text-slate-400 font-bold uppercase tracking-wide">Giá trị cũ</span>
-                                <span className="font-mono font-bold text-slate-600 text-sm">{old_val == null ? "Chưa có dữ liệu" : old_val}</span>
+                                <span className="font-mono font-bold text-slate-600 text-sm">{oldValueLabel}</span>
                               </div>
                               <div className="px-2">
                                 <ArrowRight className="w-4 h-4 text-slate-300" />

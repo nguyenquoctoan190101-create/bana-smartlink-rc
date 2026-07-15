@@ -103,8 +103,10 @@ class OfficerResponse(BaseModel):
 class ProposalResponse(BaseModel):
     id: str
     report_id: str
+    village_id: str
     ct_code: str
     proposed_value: int
+    previous_value: int | None = None
     proposed_by: str | None
     status: str
     reviewed_by: str | None
@@ -608,8 +610,19 @@ async def list_proposals(
     village_id: str | None = None
 ) -> list[ProposalResponse]:
     query = """
-      SELECT id, report_id, ct_code, proposed_value, proposed_by, status, reviewed_by,
+      SELECT id, report_id,
+             (SELECT report.village_id::text FROM reports AS report WHERE report.id = pending_updates.report_id) AS village_id,
+             ct_code, proposed_value, proposed_by, status, reviewed_by,
              reviewed_at::text, created_at::text,
+             (
+               SELECT (audit.details ->> 'previous_value')::integer
+               FROM audit_log AS audit
+               WHERE audit.table_name = 'pending_updates'
+                 AND audit.record_id = pending_updates.id
+                 AND audit.action IN ('PROPOSAL_APPROVE', 'PROPOSAL_REJECT')
+               ORDER BY audit.created_at DESC
+               LIMIT 1
+             ) AS previous_value,
              (created_at + interval '72 hours')::text AS sla_due_at,
              CASE
                WHEN status <> 'pending' THEN 'closed'
@@ -652,8 +665,10 @@ async def list_proposals(
         ProposalResponse(
             id=str(r["id"]),
             report_id=str(r["report_id"]),
+            village_id=str(r["village_id"]),
             ct_code=str(r["ct_code"]),
             proposed_value=int(r["proposed_value"]),
+            previous_value=int(r["previous_value"]) if r["previous_value"] is not None else None,
             proposed_by=r["proposed_by"],
             status=str(r["status"]),
             reviewed_by=str(r["reviewed_by"]) if r["reviewed_by"] else None,
