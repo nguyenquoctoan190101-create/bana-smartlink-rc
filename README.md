@@ -153,6 +153,14 @@ python scripts/production_gate.py --attestation-file .\production_attestation.js
 Lệnh này là kiểm tra hồ sơ, không thay thế việc rotate secret, xem access log,
 UAT, review pháp lý hoặc phê duyệt của đơn vị phụ trách.
 
+## Hồ sơ phát hành và bàn giao
+
+- `docs/STAGING_UPGRADE_20260716.md`: backup, migration 0004-0006, seed và post-check.
+- `docs/TRACEABILITY_MATRIX.md`: yêu cầu -> code/API/UI -> bằng chứng test.
+- `docs/TEST_REPORT_20260716.md`: kết quả CI, coverage, RLS và các gate còn thiếu.
+- `docs/DEMO_AND_HANDOVER_SCRIPT.md`: kịch bản demo năm nhóm người dùng và biên bản bàn giao.
+- `docs/LEGACY_DATA_IMPORT.md`: quy trình kiểm duyệt 19/22 file và lineage 22 -> 10.
+
 ## Tạo gói bàn giao
 
 ```powershell
