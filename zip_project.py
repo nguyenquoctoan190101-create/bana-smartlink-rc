@@ -13,7 +13,6 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parent
 ALLOWED_ROOT_FILES = {
     ".dockerignore",
-    ".env.example",
     ".gitignore",
     "Dockerfile",
     "README.md",
@@ -93,7 +92,7 @@ def _is_allowed(path: Path) -> bool:
     if path.is_symlink() or any(part in EXCLUDED_PARTS for part in relative.parts):
         return False
     if relative.name == ".env" or relative.name.startswith(".env."):
-        return relative.as_posix() == ".env.example"
+        return False
     if path.suffix.lower() in EXCLUDED_SUFFIXES:
         return False
     # The release artifact is deployable source, not a research/archive bundle.
@@ -101,6 +100,8 @@ def _is_allowed(path: Path) -> bool:
     # distributed with an Internet-facing deployment.  Keep only the official,
     # non-personal village reference required by the seed command.
     if relative.parts[0] == "tests":
+        return False
+    if relative.as_posix().startswith("src/test/") or ".test." in relative.name:
         return False
     if relative.parts[0] == "DU_LIEU_CHINH_THUC":
         return relative.as_posix() == "DU_LIEU_CHINH_THUC/village_merge_map_CHINH_THUC.json"
