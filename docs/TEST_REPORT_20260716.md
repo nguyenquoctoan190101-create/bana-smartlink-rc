@@ -2,21 +2,21 @@
 
 ## Phiên bản
 
-- Nhánh: `agent/data-reconciliation-import`
-- Commit mã nguồn đã kiểm tra: `13f625b`
-- Pull request: `https://github.com/nguyenquoctoan190101-create/bana-smartlink-rc/pull/1`
-- GitHub Actions: `https://github.com/nguyenquoctoan190101-create/bana-smartlink-rc/actions/runs/29495507679`
+- Nhánh: `main`
+- Commit mã nguồn đã kiểm tra: `7890b18`
+- Pull request: `#1` và hotfix `#2`, đều đã merge
+- GitHub Actions: `https://github.com/nguyenquoctoan190101-create/bana-smartlink-rc/actions/runs/29511101180`
 
 ## Kết quả tự động
 
 | Nhóm | Kết quả |
 |---|---|
-| Backend unit/integration | 363 test đạt; gồm regression test cấu hình in cho 6 sheet tổng hợp và phiếu từng thôn |
+| Backend unit/integration | 366 test đạt; gồm regression test cấu hình in cho 6 sheet tổng hợp và phiếu từng thôn |
 | Coverage routers + services | 80.91%, gate tối thiểu 80% |
 | Security-critical branch coverage | 100% cho validator, security, settings và upload validator |
 | PostgreSQL schema + RLS | Đạt trên PostgreSQL 17 với Supabase-compatible roles |
-| Migration overlay 0004-0006 | Đạt, gồm trigger validator, immutable evidence và privilege assertions |
-| Frontend | TypeScript strict, 14 test và Vite production build đạt |
+| Migration overlay 0004-0007 | Đạt, gồm trigger validator, immutable evidence và ACL Supabase snapshot |
+| Frontend | TypeScript strict, 17 test và Vite production build đạt |
 | OpenAPI contract | Sinh lại và không có drift |
 | Bundle budget | Đạt |
 | Python lint | Ruff đạt |
@@ -26,7 +26,7 @@
 | SBOM | Đã tạo CycloneDX cho Node và Python |
 | Render QA XLSX | Đạt trong Microsoft Excel: workbook tổng hợp 6 sheet/6 trang; phiếu từng thôn 1 trang; không cắt ngang, mất cột hoặc tạo trang rỗng |
 
-Lưu ý: 91 test security-critical chạy lại ở job coverage riêng và trùng với một phần tập 363 test. Không cộng hai con số để tuyên bố số test duy nhất.
+Lưu ý: 91 test security-critical chạy lại ở job coverage riêng và trùng với một phần tập 366 test. Không cộng hai con số để tuyên bố số test duy nhất.
 
 ## Kết quả dữ liệu nguồn
 
@@ -53,12 +53,20 @@ ngang; các sheet còn lại dùng A4 phù hợp với độ rộng. Regression 
 hình in của cả sáu sheet và phiếu từng thôn. Bản render sau sửa đạt 6/6 trang cho
 workbook tổng hợp và 1/1 trang cho phiếu từng thôn.
 
-## Kiểm thử còn phải thực hiện ngoài mã nguồn
+## Kiểm thử staging đã hoàn tất
 
-- Backup/restore thật của Supabase staging.
-- Áp dụng migration và seed trên staging đang dùng.
-- RLS/authorization smoke bằng JWT thật của năm principal.
-- Browser UAT, axe/keyboard và responsive trên bản sau deploy.
+- Backup 349.249 byte, SHA-256 xác nhận và restore smoke PostgreSQL 17 đạt.
+- Migration 0004-0007, seed 22 thôn cũ + 2 khu tái định cư và hậu kiểm Supabase đạt.
+- JWT UAT cho anonymous, `can_bo_thon`, `to_cnscd`, `admin_xa`, `lanh_dao` đạt; tài khoản UAT tạm đã xóa.
+- API thật đối chiếu 19/22 workbook đúng ba nguồn thiếu, khóa Đông Sơn và nhận diện 6 lỗi chặn.
+- Render readiness 200; public không có CT14/PII; hotfix lazy chunk đã triển khai.
+
+Chi tiết: `docs/STAGING_EVIDENCE_20260716.md`.
+
+## Gate còn phải thực hiện ngoài kỹ thuật
+
 - Privacy/legal và phê duyệt phát hành.
+- Biên bản UAT khách hàng trên thiết bị mục tiêu và phê duyệt dùng dữ liệu thật.
+- Quyết định Đông Sơn và bổ sung ba workbook còn thiếu.
 
-Do các mục này chưa có bằng chứng, bản hiện tại vẫn là release candidate dùng dữ liệu tổng hợp.
+Do các phê duyệt bên ngoài chưa có bằng chứng, bản hiện tại vẫn là release candidate dùng dữ liệu tổng hợp.

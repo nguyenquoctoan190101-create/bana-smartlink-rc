@@ -2,9 +2,9 @@
 
 ## Trạng thái trước khi nâng cấp
 
-- Nhánh phát hành: `agent/data-reconciliation-import`.
-- Pull request: `#1`, đang ở trạng thái draft và chưa được merge vào `main`.
-- Render đang phục vụ bản cũ trên `main`; không bị tác động bởi nhánh này.
+- Nhánh phát hành: `main`.
+- Pull request `#1` và hotfix `#2` đã merge.
+- Render đang phục vụ commit `7890b18` dưới dạng release candidate.
 - Supabase hiện chỉ dùng dữ liệu tổng hợp cho cuộc thi.
 - Bốn migration mới phải được áp dụng theo đúng thứ tự:
   1. `20260715_0004_legacy_batch_import.sql`
@@ -12,7 +12,7 @@
   3. `20260715_0006_database_validation_enforcement.sql`
   4. `20260715_0007_supabase_function_acl_hardening.sql`
 
-Không merge PR trước khi hoàn tất các bước dưới đây.
+Các bước dưới đây đã được thực thi ngày 16/07/2026; bằng chứng không chứa secret được lưu tại `docs/STAGING_EVIDENCE_20260716.md`.
 
 ## 1. Sao lưu và ghi nhận điểm khôi phục
 
