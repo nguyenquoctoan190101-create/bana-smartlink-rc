@@ -4,6 +4,7 @@ from typing import Any
 import unicodedata
 
 from openpyxl import Workbook
+from openpyxl.worksheet.page import PageMargins
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -89,6 +90,43 @@ def _safe_excel_value(value: object | None) -> int | float | str | None:
     if isinstance(value, (int, float)):
         return value
     return _safe_excel_text(value)
+
+
+def _configure_print_layout(
+    worksheet,
+    *,
+    print_area: str,
+    landscape: bool,
+    paper_size: int | str,
+    title_rows: str | None = None,
+) -> None:
+    """Keep every exported sheet on one readable printed page.
+
+    The explicit print area prevents Excel from including stray formatted
+    cells, while fit-to-page avoids splitting a logical table horizontally.
+    Wide 17-column summaries use A3; compact sheets stay on A4.
+    """
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+    worksheet.page_setup.orientation = (
+        worksheet.ORIENTATION_LANDSCAPE
+        if landscape
+        else worksheet.ORIENTATION_PORTRAIT
+    )
+    worksheet.page_setup.paperSize = paper_size
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 1
+    worksheet.print_area = print_area
+    if title_rows:
+        worksheet.print_title_rows = title_rows
+    worksheet.print_options.horizontalCentered = True
+    worksheet.page_margins = PageMargins(
+        left=0.25,
+        right=0.25,
+        top=0.5,
+        bottom=0.5,
+        header=0.2,
+        footer=0.2,
+    )
 
 
 def _format_submitted_at(value: object | None) -> str:
@@ -251,6 +289,14 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
     ws.column_dimensions['D'].width = 15
     ws.column_dimensions['E'].width = 25
 
+    _configure_print_layout(
+        ws,
+        print_area=f"A1:E{ws.max_row}",
+        landscape=False,
+        paper_size=ws.PAPERSIZE_A4,
+        title_rows="1:12",
+    )
+
     # Export to bytes
     output = BytesIO()
     wb.save(output)
@@ -356,6 +402,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
             cell.alignment = CENTER_ALIGN
             
     ws1.freeze_panes = 'C5'
+    ws1.row_dimensions[4].height = 72
+    _configure_print_layout(
+        ws1,
+        print_area=f"A1:Q{ws1.max_row}",
+        landscape=True,
+        paper_size=ws1.PAPERSIZE_A3,
+        title_rows="1:4",
+    )
 
     # Sheet 2: THEO DÕI TIẾN ĐỘ
     ws2 = wb.create_sheet("Theo dõi tiến độ")
@@ -430,6 +484,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws2.column_dimensions['E'].width = 20
     ws2.column_dimensions['F'].width = 20
     ws2.column_dimensions['G'].width = 15
+    ws2.row_dimensions[4].height = 34
+    _configure_print_layout(
+        ws2,
+        print_area=f"A1:G{ws2.max_row}",
+        landscape=True,
+        paper_size=ws2.PAPERSIZE_A4,
+        title_rows="1:4",
+    )
 
     # Sheet 2 in the official reference workbook: a compact operational
     # dashboard. It intentionally contains typed values rather than charts so
@@ -477,6 +539,13 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     dashboard.column_dimensions["B"].width = 18
     dashboard.freeze_panes = "A4"
     dashboard.sheet_view.showGridLines = False
+    _configure_print_layout(
+        dashboard,
+        print_area=f"A1:B{dashboard.max_row}",
+        landscape=False,
+        paper_size=dashboard.PAPERSIZE_A4,
+        title_rows="1:3",
+    )
 
     dictionary = wb.create_sheet("Từ điển dữ liệu")
     dictionary.merge_cells("A1:E1")
@@ -500,6 +569,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 10, "B": 58, "C": 16, "D": 16, "E": 62}.items():
         dictionary.column_dimensions[column].width = width
     dictionary.freeze_panes = "A4"
+    dictionary.row_dimensions[3].height = 38
+    _configure_print_layout(
+        dictionary,
+        print_area=f"A1:E{dictionary.max_row}",
+        landscape=True,
+        paper_size=dictionary.PAPERSIZE_A4,
+        title_rows="1:3",
+    )
 
     warnings = wb.create_sheet("Cảnh báo dữ liệu")
     warnings.append(["Thôn", "Mã báo cáo", "Chỉ tiêu", "Loại cảnh báo", "Nội dung", "Trạng thái"])
@@ -533,6 +610,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 25, "B": 38, "C": 12, "D": 20, "E": 62, "F": 16}.items():
         warnings.column_dimensions[column].width = width
     warnings.freeze_panes = "A2"
+    warnings.row_dimensions[1].height = 34
+    _configure_print_layout(
+        warnings,
+        print_area=f"A1:F{warnings.max_row}",
+        landscape=True,
+        paper_size=warnings.PAPERSIZE_A4,
+        title_rows="1:1",
+    )
 
     sources = wb.create_sheet("Nguồn dữ liệu")
     sources.append([
@@ -573,6 +658,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 25, "B": 38, "C": 18, "D": 18, "E": 16, "F": 22, "G": 20, "H": 22}.items():
         sources.column_dimensions[column].width = width
     sources.freeze_panes = "A2"
+    sources.row_dimensions[1].height = 42
+    _configure_print_layout(
+        sources,
+        print_area=f"A1:H{sources.max_row}",
+        landscape=True,
+        paper_size=sources.PAPERSIZE_A4,
+        title_rows="1:1",
+    )
 
     output = BytesIO()
     wb.save(output)

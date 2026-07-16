@@ -87,6 +87,45 @@ def test_all_export_formats_keep_ct01_to_ct14_nulls_and_formula_safety() -> None
     assert len(pdf) > 1_000
 
 
+def test_xlsx_exports_define_single_page_print_layouts() -> None:
+    reports, villages = _report()
+    summary = openpyxl.load_workbook(
+        BytesIO(generate_summary_xlsx_file("Tháng 7/2026", reports, villages))
+    )
+
+    expected = {
+        "Bảng tổng hợp": (8, "landscape", "$A$1:$Q$"),
+        "Dashboard": (9, "portrait", "$A$1:$B$"),
+        "Theo dõi tiến độ": (9, "landscape", "$A$1:$G$"),
+        "Từ điển dữ liệu": (9, "landscape", "$A$1:$E$"),
+        "Cảnh báo dữ liệu": (9, "landscape", "$A$1:$F$"),
+        "Nguồn dữ liệu": (9, "landscape", "$A$1:$H$"),
+    }
+    for sheet_name, (paper_size, orientation, print_area) in expected.items():
+        sheet = summary[sheet_name]
+        assert sheet.sheet_properties.pageSetUpPr.fitToPage is True
+        assert sheet.page_setup.fitToWidth == 1
+        assert sheet.page_setup.fitToHeight == 1
+        assert sheet.page_setup.paperSize == paper_size
+        assert sheet.page_setup.orientation == orientation
+        assert print_area in str(sheet.print_area)
+        assert sheet.print_options.horizontalCentered is True
+
+    village = openpyxl.load_workbook(
+        BytesIO(
+            generate_village_xlsx_file(
+                "Tháng 7/2026", reports[0], villages["village-1"]
+            )
+        )
+    )["Phiếu báo cáo"]
+    assert village.sheet_properties.pageSetUpPr.fitToPage is True
+    assert village.page_setup.fitToWidth == 1
+    assert village.page_setup.fitToHeight == 1
+    assert village.page_setup.paperSize == 9
+    assert village.page_setup.orientation == "portrait"
+    assert "$A$1:$E$" in str(village.print_area)
+
+
 def test_internal_html_preview_escapes_untrusted_cells_and_shows_all_indicators() -> None:
     reports, villages = _report()
     preview = generate_preview_html("<b>period</b>", reports, villages)
