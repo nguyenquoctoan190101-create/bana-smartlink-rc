@@ -1,4 +1,4 @@
-const CACHE_NAME = "bana-smartlink-static-v4-civic-ui";
+const CACHE_NAME = "bana-smartlink-static-v5-chunk-recovery";
 const APP_SHELL = ["/", "/index.html", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

@@ -1,5 +1,7 @@
 import React, { ErrorInfo, ReactNode } from "react";
 
+import { attemptChunkRecovery } from "../lib/chunkRecovery";
+
 interface Props {
   children: ReactNode;
 }
@@ -27,6 +29,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (attemptChunkRecovery(error)) return;
     console.error("[Uncaught React Error]", error, errorInfo);
   }
 
