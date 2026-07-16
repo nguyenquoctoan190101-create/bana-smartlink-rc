@@ -38,7 +38,9 @@ def test_chatbot_ct14_security():
             res_dan = client.post("/ai/chat", json={"question": "Thôn Tà Lang có bao nhiêu vụ bạo lực gia đình?"})
             assert res_dan.status_code == 200
             ans_dan = res_dan.json()["answer"].lower()
-            assert "chưa có" in ans_dan or "không có thông tin" in ans_dan or "[]" in ans_dan, f"Dân không được phép thấy CT14, nhưng nhận được: {ans_dan}"
+            assert "không thuộc phạm vi dữ liệu công khai" in ans_dan
+            assert "ct14" in ans_dan
+            assert "99" not in ans_dan, f"Dân không được phép thấy CT14, nhưng nhận được: {ans_dan}"
 
             # 2. Gọi với quyền admin
             app.dependency_overrides[get_optional_user] = mock_get_optional_user_admin

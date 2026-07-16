@@ -100,6 +100,7 @@ _CODE_TO_INDICATOR: dict[str, _Indicator] = {ind.code: ind for ind in _INDICATOR
 
 
 class _QueryIntent(Enum):
+    HELP = auto()                # "Bạn biết những gì?" / "Tôi cần hỏi thế nào?"
     VILLAGE_INDICATOR = auto()   # "Thôn X có bao nhiêu hộ nghèo?"
     VILLAGE_ALL_STATS = auto()   # "Cho tôi xem tất cả chỉ tiêu thôn X"
     COMPARE_VILLAGES = auto()    # "So sánh hộ nghèo giữa thôn A và thôn B"
@@ -157,6 +158,10 @@ _COMPARE_PHRASE_RE = re.compile(
 _SUMMARY_PHRASE_RE = re.compile(
     r"\b(toan xa|tong cong|tat ca cac thon|ca xa|toan bo xa)\b"
 )
+_HELP_PHRASE_RE = re.compile(
+    r"\b(ban biet gi|co the hoi gi|toi can hoi the nao|hoi nhu the nao"
+    r"|huong dan hoi|huong dan su dung|ban lam duoc gi|tro giup)\b"
+)
 
 
 @dataclass
@@ -197,7 +202,11 @@ def _extract_village_names_raw(text: str) -> list[str]:
     return [
         f"Thôn {match.strip()}"
         for match in matches
-        if match.strip() and len(match.strip()) <= 40
+        if (
+            match.strip()
+            and len(match.strip()) <= 40
+            and _normalise(match) not in {"toi", "minh", "cua toi", "cua minh"}
+        )
     ]
 
 
@@ -223,7 +232,9 @@ def _detect_ct_code(norm: str) -> str | None:
 def _classify_question(question: str) -> _ParsedQuestion:
     norm = _normalise(question)
 
-    if _COMPARE_PHRASE_RE.search(norm):
+    if _HELP_PHRASE_RE.search(norm):
+        intent = _QueryIntent.HELP
+    elif _COMPARE_PHRASE_RE.search(norm):
         intent = _QueryIntent.COMPARE_VILLAGES
     elif _SUBMISSION_PHRASE_RE.search(norm):
         intent = _QueryIntent.SUBMISSION_STATUS
@@ -246,6 +257,32 @@ def _classify_question(question: str) -> _ParsedQuestion:
         village_names=village_names,
         ct_code=ct_code,
         period_name=period,
+    )
+
+
+def _guidance_answer(caller_role: str) -> str:
+    """Return safe usage guidance without calling the model or database."""
+    if caller_role == "dan":
+        return (
+            "Tôi hỗ trợ tra cứu 5 chỉ tiêu đã được công bố: tổng số hộ dân, "
+            "tổng số nhân khẩu, gia đình văn hóa, thành viên Tổ công nghệ số "
+            "cộng đồng và lượt hướng dẫn dịch vụ công trực tuyến. "
+            "Bạn hãy nêu rõ tên thôn, ví dụ: “Thôn Phú Hòa có bao nhiêu hộ dân?” "
+            "hoặc hỏi “Toàn xã có bao nhiêu nhân khẩu?”."
+        )
+    return (
+        "Tôi hỗ trợ tra cứu chỉ tiêu báo cáo trong đúng phạm vi tài khoản của bạn, "
+        "so sánh thôn, tình trạng nộp báo cáo và số liệu toàn xã nếu vai trò cho phép. "
+        "Ví dụ: “Thôn tôi có bao nhiêu hộ nghèo?”, “Thôn nào chưa nộp báo cáo kỳ này?” "
+        "hoặc “So sánh hộ dân giữa Thôn An Sơn và Thôn Phú Hòa?”."
+    )
+
+
+def _public_scope_answer() -> str:
+    return (
+        "Chỉ tiêu này không thuộc phạm vi dữ liệu công khai. "
+        "Cổng người dân chỉ cho phép tra cứu CT01, CT02, CT09, CT12 và CT13; "
+        "CT14 và dữ liệu nhận diện cá nhân không bao giờ được trả về công khai."
     )
 
 
@@ -660,6 +697,37 @@ async def ask_question_async(
         raise ChatbotError("Câu hỏi không được để trống.")
 
     parsed = _classify_question(question)
+
+    if parsed.intent in {_QueryIntent.HELP, _QueryIntent.UNKNOWN}:
+        return ChatbotAnswer(
+            question=question,
+            answer=_guidance_answer(caller_role),
+            intent=parsed.intent.name,
+            rows_retrieved=0,
+        )
+
+    if caller_role == "dan" and parsed.ct_code and parsed.ct_code not in PUBLIC_CT_CODES:
+        return ChatbotAnswer(
+            question=question,
+            answer=_public_scope_answer(),
+            intent=parsed.intent.name,
+            rows_retrieved=0,
+        )
+
+    if (
+        caller_role == "dan"
+        and parsed.intent == _QueryIntent.VILLAGE_INDICATOR
+        and not parsed.village_names
+    ):
+        return ChatbotAnswer(
+            question=question,
+            answer=(
+                "Bạn vui lòng nêu rõ tên thôn cần tra cứu, ví dụ: "
+                "“Thôn Phú Hòa có bao nhiêu hộ dân?”."
+            ),
+            intent=parsed.intent.name,
+            rows_retrieved=0,
+        )
 
     conn: asyncpg.Connection | None = None
     try:
