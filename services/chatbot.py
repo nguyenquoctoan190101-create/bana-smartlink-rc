@@ -178,7 +178,7 @@ def _normalise(text: str) -> str:
 
 
 def _extract_village_names_raw(text: str) -> list[str]:
-    """Trích xuất 'Thôn <Tên>' giữ nguyên dấu.
+    """Trích xuất tên thôn theo đúng dạng được lưu trong cơ sở dữ liệu.
 
     Dừng trước các từ chức năng (có, và, với, nào, là, không, phải, ...)
     để tránh bắt cả câu hỏi vào tên thôn.
@@ -190,7 +190,15 @@ def _extract_village_names_raw(text: str) -> list[str]:
         text,
         flags=re.UNICODE,
     )
-    return [m.strip() for m in matches if m.strip() and len(m.strip()) <= 40]
+    # Regex intentionally captures only the part after ``Thôn``.  Database
+    # rows, however, use the canonical full name (for example
+    # ``Thôn An Sơn``).  Returning the bare suffix caused every
+    # village-specific chatbot query to miss its row.
+    return [
+        f"Thôn {match.strip()}"
+        for match in matches
+        if match.strip() and len(match.strip()) <= 40
+    ]
 
 
 def _extract_period_name(text: str) -> str | None:
