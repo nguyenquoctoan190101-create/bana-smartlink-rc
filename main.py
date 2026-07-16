@@ -16,6 +16,7 @@ from routers.cnscd_impact import router as cnscd_impact_router
 from routers.policy_scorecard import router as policy_scorecard_router
 from routers.operations import router as operations_router
 from routers.reports import period_router, router as reports_router
+from routers.report_imports import router as report_imports_router
 from routers.push import router as push_router, api_router
 from services.logger import get_logger  # noqa: F401  — side-effect: initialises Sentry + JSON logging
 from services.rate_limit import limiter
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_router)
     app.include_router(reports_router)
     app.include_router(period_router)
+    app.include_router(report_imports_router)
     app.include_router(policy_scorecard_router, prefix="/api")
     app.include_router(operations_router, prefix="/api")
     app.include_router(cnscd_impact_router, prefix="/api")
@@ -152,9 +154,10 @@ def create_app() -> FastAPI:
             if (
                 path_name.startswith("api/") or 
                 path_name.startswith("reports/") or 
+                path_name.startswith("report-imports/") or
                 path_name.startswith("auth/") or 
                 path_name.startswith("ai/") or 
-                path_name in ("api", "reports", "auth", "ai")
+                path_name in ("api", "reports", "report-imports", "auth", "ai")
             ):
                 raise HTTPException(status_code=404, detail="API endpoint not found")
 

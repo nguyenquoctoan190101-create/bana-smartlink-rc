@@ -1,6 +1,9 @@
 {
   "source": "DU_LIEU_CHINH_THUC/village_merge_map_CHINH_THUC.json",
-  "updated_at": "2026-07-10",
+  "updated_at": "2026-07-15",
+  "mapping_version": "2026-07-15-infographic-v2",
+  "source_artifact_sha256": "9d5533a78ca52c309047a8de283ffeb30710d0119bdae392153938bd4f47201c",
+  "source_status": "tai_lieu_phuong_an_chua_thay_the_quyet_dinh_hanh_chinh",
   "new_villages": [
     {"id": "298f286f-d63d-4959-aa14-71afe97ec73b", "canonical_id": "thach_nham_dong", "name": "Thôn Thạch Nham Đông"},
     {"id": "7b69dd9a-2d94-45df-9ff2-5f63317c35fc", "canonical_id": "thach_nham_tay", "name": "Thôn Thạch Nham Tây"},
@@ -34,9 +37,9 @@
     {"id": "hoa_trung", "name": "Thôn Hòa Trung", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
     {"id": "thon_mot", "name": "Thôn Một", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
     {"id": "trung_nghia", "name": "Thôn Trung Nghĩa", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a"},
-    {"id": "dong_son", "name": "Thôn Đông Sơn", "target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a", "mapping_status": "pending_official_decision"},
+    {"id": "dong_son", "name": "Thôn Đông Sơn", "target_new_id": null, "proposed_target_new_id": "afc4c322-1bc4-4237-a720-4bb59f27881a", "mapping_status": "pending_official_decision"},
     {"id": "an_son", "name": "Thôn An Sơn", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"},
-    {"id": "khu_tdc_2", "name": "Khu tái định cư số 2", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"},
-    {"id": "khu_tdc_3", "name": "Khu tái định cư số 3", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c"}
+    {"id": "khu_tdc_2", "name": "Khu tái định cư số 2", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c", "legacy_unit_type": "resettlement_area"},
+    {"id": "khu_tdc_3", "name": "Khu tái định cư số 3", "target_new_id": "730f312b-6451-451b-a9f7-a66577dfea4c", "legacy_unit_type": "resettlement_area"}
   ]
 }

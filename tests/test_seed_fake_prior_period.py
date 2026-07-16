@@ -4,9 +4,11 @@ from pathlib import Path
 
 
 from scripts.seed_fake_prior_period import (
+    _load_merge_map,
     _perturb_and_sanitize,
     _read_and_aggregate_q2_data,
 )
+import pytest
 
 
 def test_perturb_and_sanitize_enforces_rules() -> None:
@@ -90,3 +92,40 @@ def test_read_and_aggregate_q2_data(tmp_path: Path) -> None:
     assert aggregated["Thôn Một"]["CT01"] == 30
     # Thôn Phước Thái = 100
     assert aggregated["Thôn Phước Thái"]["CT01"] == 100
+
+
+def test_official_mapping_blocks_legacy_aggregation_until_dong_son_split_is_decided() -> None:
+    with pytest.raises(RuntimeError, match="Đông Sơn"):
+        _load_merge_map()
+
+
+def test_aggregation_never_converts_blank_to_zero(tmp_path: Path) -> None:
+    import openpyxl
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Tong hop"
+    sheet.cell(row=5, column=2, value="Thôn A")
+    for index in range(1, 15):
+        sheet.cell(row=5, column=index + 2, value=None if index == 4 else index)
+    source = tmp_path / "blank.xlsx"
+    workbook.save(source)
+
+    with pytest.raises(ValueError, match="CT04 is blank"):
+        _read_and_aggregate_q2_data(source, ["Thôn Mới"], {"Thôn A": "Thôn Mới"})
+
+
+def test_aggregation_rejects_unmapped_source_village(tmp_path: Path) -> None:
+    import openpyxl
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Tong hop"
+    sheet.cell(row=5, column=2, value="Thôn Không Có Trong Bản Đồ")
+    for index in range(1, 15):
+        sheet.cell(row=5, column=index + 2, value=index)
+    source = tmp_path / "unmapped.xlsx"
+    workbook.save(source)
+
+    with pytest.raises(ValueError, match="not mapped"):
+        _read_and_aggregate_q2_data(source, ["Thôn Mới"], {})

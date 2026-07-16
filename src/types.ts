@@ -72,7 +72,9 @@ export interface ReportPeriod {
 export interface OldVillage {
   id: string;
   name: string;
-  target_new_id: string;
+  target_new_id: string | null;
+  proposed_target_new_id?: string;
+  mapping_status?: "confirmed" | "pending_official_decision";
 }
 
 export interface ValidationError {

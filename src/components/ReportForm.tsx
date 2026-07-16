@@ -270,7 +270,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
 
   // Handle successfully extracted and confirmed indicators from UploadReport component
   const handleDataExtracted = (
-    extractedIndicators: Record<string, number>,
+    extractedIndicators: Record<string, number | null>,
     metadata?: { raw_source: string; source_confirmed: boolean }
   ) => {
     setIndicators(prev => ({ ...prev, ...extractedIndicators }));

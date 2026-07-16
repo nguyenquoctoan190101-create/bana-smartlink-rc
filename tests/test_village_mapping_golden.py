@@ -15,7 +15,7 @@ def get_test_cases():
         
     old_to_new_map = {}
     for entry in merge_data["anh_xa_thon_cu"]:
-        old_to_new_map[entry["ten_thon_cu"]] = entry["new_village_id"]
+        old_to_new_map[entry["ten_thon_cu"]] = entry.get("new_village_id")
         
     excel_files = list(DATA_DIR.glob("BC_T*.xlsx"))
     return [(f.name, old_to_new_map) for f in excel_files]
@@ -36,12 +36,22 @@ def test_village_mapping_golden(filename, old_to_new_map):
         
     new_id = map_report_file_to_village(filename, mapping_data)
     
-    # Assert it maps exactly
-    assert new_id is not None, f"Mapping for {filename} is None"
-    
     # To verify it's the expected ID based on our ten_thon_cu logic
     parts = filename.replace(".xlsx", "").split("_", 2)
     extracted_name = parts[2].replace("_", " ")
     expected_id = old_to_new_map.get(extracted_name)
     
     assert new_id == expected_id, f"Filename {filename} mapped to {new_id} instead of {expected_id}"
+
+
+def test_dong_son_fails_closed_until_official_boundary_is_available():
+    from services.village_mapper import resolve_village_mapping
+
+    with open(MAP_PATH, "r", encoding="utf-8") as f:
+        mapping_data = json.load(f)
+
+    resolution = resolve_village_mapping("Thôn Đông Sơn", mapping_data)
+
+    assert resolution["mapping_status"] == "pending_official_decision"
+    assert resolution["target_village_id"] is None
+    assert resolution["proposed_target_village_id"] == "hoa_ninh"

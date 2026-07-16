@@ -99,8 +99,7 @@ def _official_reference_data() -> tuple[set[str], set[str], set[str]]:
     pending_names = {
         str(item["ten_thon_cu"])
         for item in payload.get("anh_xa_thon_cu", [])
-        if "CHUA CHAC CHAN" in str(item.get("ghi_chu", "")).upper()
-        or "CAN HOI LAI XA" in str(item.get("ghi_chu", "")).upper()
+        if item.get("mapping_status") == "pending_official_decision"
     }
     if len(village_names) != 10:
         raise ValueError("official reference file must define exactly 10 current villages")
@@ -122,10 +121,9 @@ def check_reference_data(database_url: str, commune_id: str) -> bool:
                 actual_villages = {str(row[0]) for row in cursor.fetchall()}
                 cursor.execute(
                     """
-                    select m.old_village_name, m.mapping_status::text
-                    from public.village_merge_map m
-                    join public.villages v on v.id = m.new_village_id
-                    where v.commune_id = %s
+                    select legacy.old_name, legacy.mapping_status
+                    from public.villages_legacy legacy
+                    where legacy.commune_id = %s
                     """,
                     (commune_id,),
                 )

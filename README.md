@@ -95,6 +95,11 @@ Hai RPC nghiệp vụ chính:
 - `save_report_submission(...)`: tạo/cập nhật report, CT01-CT14, validation flags,
   optimistic version và idempotency receipt trong một transaction. RPC phải được
   gọi bằng JWT của người dùng, không phải service-role.
+- `commit_report_import_batch(...)`: chỉ tổng hợp các nhóm thôn mới có đủ toàn bộ
+  nguồn đã kiểm duyệt; không yêu cầu giả tạo đủ 22 tệp và không cộng dở nhóm.
+
+Quy tắc nhập bộ XLSX 22 thôn cũ, xử lý 19/22 tệp mẫu và khóa Đông Sơn được mô tả
+tại [docs/LEGACY_DATA_IMPORT.md](docs/LEGACY_DATA_IMPORT.md).
 
 ## Kiểm thử
 
@@ -147,6 +152,14 @@ python scripts/production_gate.py --attestation-file .\production_attestation.js
 
 Lệnh này là kiểm tra hồ sơ, không thay thế việc rotate secret, xem access log,
 UAT, review pháp lý hoặc phê duyệt của đơn vị phụ trách.
+
+## Hồ sơ phát hành và bàn giao
+
+- `docs/STAGING_UPGRADE_20260716.md`: backup, migration 0004-0006, seed và post-check.
+- `docs/TRACEABILITY_MATRIX.md`: yêu cầu -> code/API/UI -> bằng chứng test.
+- `docs/TEST_REPORT_20260716.md`: kết quả CI, coverage, RLS và các gate còn thiếu.
+- `docs/DEMO_AND_HANDOVER_SCRIPT.md`: kịch bản demo năm nhóm người dùng và biên bản bàn giao.
+- `docs/LEGACY_DATA_IMPORT.md`: quy trình kiểm duyệt 19/22 file và lineage 22 -> 10.
 
 ## Tạo gói bàn giao
 

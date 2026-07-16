@@ -111,6 +111,37 @@ class SupabaseAdminClient:
             raise SupabaseAdminError("A user access token is required")
         await self._auth_request("PUT", "/auth/v1/user", {"password": new_password})
 
+    async def upload_storage_object(
+        self,
+        bucket: str,
+        object_path: str,
+        content: bytes,
+        content_type: str,
+    ) -> None:
+        """Upload an immutable object using the caller's JWT and Storage RLS."""
+        if not self._access_token:
+            raise SupabaseAdminError("A user access token is required")
+        safe_bucket = quote(bucket, safe="")
+        safe_path = "/".join(quote(part, safe="") for part in object_path.split("/"))
+        headers = self._headers()
+        headers["Content-Type"] = content_type
+        headers["x-upsert"] = "false"
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.request(
+                    "POST",
+                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                    headers=headers,
+                    content=content,
+                )
+        except httpx.HTTPError as exc:
+            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        if response.status_code >= 400:
+            raise SupabaseAdminError(
+                "Supabase Storage request failed",
+                status_code=response.status_code,
+            )
+
     async def create_user_profile(
         self,
         user_id: str,

@@ -56,6 +56,21 @@ def test_bad_phone_is_detected_in_east_son_workbook() -> None:
     }
 
 
+def test_official_parser_preserves_report_metadata() -> None:
+    parsed = parse_official_report_excel(
+        (REPORT_ROOT / "BC_T01_Thôn_Phú_Hòa_1.xlsx").read_bytes()
+    )
+
+    assert parsed["metadata"] == {
+        "period_name": None,
+        "village_name": None,
+        "reporter_name": None,
+        "reporter_title": "Cán bộ kiểm thử tổng hợp",
+        "reporter_phone": "0000000000",
+        "deadline": None,
+    }
+
+
 def test_three_expected_missing_villages_have_no_report_file() -> None:
     filenames = "\n".join(path.name for path in REPORT_ROOT.glob("*.xlsx"))
 

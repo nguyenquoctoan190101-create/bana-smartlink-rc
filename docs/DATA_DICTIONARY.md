@@ -40,3 +40,16 @@ giá trị nghiệp vụ đã được người dùng xác nhận.
 - BLANK, TEXT, SEP, code lạ và lỗi logic chặn submit. Outlier cần xác nhận và
   được audit trước khi tiếp tục.
 
+## Lineage nhập dữ liệu thôn cũ
+
+- `villages_legacy.legacy_unit_type`: phân biệt `village` với
+  `resettlement_area`; chỉ `village` thuộc baseline 22 báo cáo.
+- `dissolved_into_village_id`: đích đã được xác nhận.
+- `proposed_dissolved_into_village_id`: đích mới chỉ là phương án; không được dùng
+  để tổng hợp. Đông Sơn hiện thuộc trường hợp này.
+- `report_import_files.raw_values`: dữ liệu thô bất biến từ XLSX.
+- `normalized_values`: giá trị sau kiểm duyệt; chỉ được ghi khi quyết định tệp lần đầu.
+- `review_status`: `pending`, `accepted` hoặc `rejected`. Từ chối bắt buộc có
+  `review_reason`.
+- `report_import_lineage`: quan hệ nhiều-nhiều giữa báo cáo thôn mới và các tệp
+  nguồn đã chấp nhận. Chỉ RPC transaction được phép tạo quan hệ này.

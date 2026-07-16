@@ -1,8 +1,10 @@
 from datetime import datetime
 from io import BytesIO
 from typing import Any
+import unicodedata
 
 from openpyxl import Workbook
+from openpyxl.worksheet.page import PageMargins
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -41,6 +43,34 @@ INDICATORS_DICT = {
     "CT14": ("Số vụ bạo lực gia đình ghi nhận trong kỳ", "Vụ")
 }
 INDICATOR_CODES = tuple(INDICATORS_DICT)
+CURRENT_VILLAGE_ORDER = (
+    "Thôn Thạch Nham Đông",
+    "Thôn Thạch Nham Tây",
+    "Thôn Phước Hưng",
+    "Thôn Phú Hòa",
+    "Thôn Thái Lai",
+    "Thôn Phước Khương",
+    "Thôn Hòa Nhơn",
+    "Thôn Sơn Phước",
+    "Thôn Hòa Ninh",
+    "Thôn An Sơn",
+)
+INDICATOR_RULES = {
+    "CT01": "Số nguyên ≥ 0",
+    "CT02": "Số nguyên ≥ 0; cảnh báo nếu không xấp xỉ 3–4,5 lần CT01",
+    "CT03": "Số nguyên ≥ 0; CT03 ≤ CT01",
+    "CT04": "Số nguyên ≥ 0; CT03 + CT04 ≤ CT01",
+    "CT05": "Số nguyên ≥ 0",
+    "CT06": "Số nguyên ≥ 0",
+    "CT07": "Số nguyên ≥ 0; CT07 ≤ CT02",
+    "CT08": "Số nguyên ≥ 0; CT08 ≤ CT07",
+    "CT09": "Số nguyên ≥ 0; CT09 ≤ CT01",
+    "CT10": "Số nguyên ≥ 0; CT10 ≤ CT02",
+    "CT11": "Số nguyên ≥ 0; CT11 ≤ CT02",
+    "CT12": "Số nguyên ≥ 0; đối chiếu danh sách Tổ CNSCĐ",
+    "CT13": "Số nguyên ≥ 0",
+    "CT14": "Số nguyên ≥ 0; dữ liệu nội bộ, không công khai",
+}
 
 
 def _safe_excel_text(value: object | None) -> str | None:
@@ -62,6 +92,43 @@ def _safe_excel_value(value: object | None) -> int | float | str | None:
     return _safe_excel_text(value)
 
 
+def _configure_print_layout(
+    worksheet,
+    *,
+    print_area: str,
+    landscape: bool,
+    paper_size: int | str,
+    title_rows: str | None = None,
+) -> None:
+    """Keep every exported sheet on one readable printed page.
+
+    The explicit print area prevents Excel from including stray formatted
+    cells, while fit-to-page avoids splitting a logical table horizontally.
+    Wide 17-column summaries use A3; compact sheets stay on A4.
+    """
+    worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+    worksheet.page_setup.orientation = (
+        worksheet.ORIENTATION_LANDSCAPE
+        if landscape
+        else worksheet.ORIENTATION_PORTRAIT
+    )
+    worksheet.page_setup.paperSize = paper_size
+    worksheet.page_setup.fitToWidth = 1
+    worksheet.page_setup.fitToHeight = 1
+    worksheet.print_area = print_area
+    if title_rows:
+        worksheet.print_title_rows = title_rows
+    worksheet.print_options.horizontalCentered = True
+    worksheet.page_margins = PageMargins(
+        left=0.25,
+        right=0.25,
+        top=0.5,
+        bottom=0.5,
+        header=0.2,
+        footer=0.2,
+    )
+
+
 def _format_submitted_at(value: object | None) -> str:
     if value is None:
         return ""
@@ -70,6 +137,51 @@ def _format_submitted_at(value: object | None) -> str:
         return datetime.fromisoformat(text.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
     except ValueError:
         return text
+
+
+def _normalized_sort_text(value: object | None) -> str:
+    normalized = unicodedata.normalize("NFD", str(value or "").casefold())
+    return "".join(character for character in normalized if not unicodedata.combining(character))
+
+
+def _ordered_village_items(villages_map: dict) -> list[tuple[Any, Any]]:
+    official_positions = {
+        _normalized_sort_text(name): index for index, name in enumerate(CURRENT_VILLAGE_ORDER)
+    }
+    return sorted(
+        villages_map.items(),
+        key=lambda item: (
+            official_positions.get(_normalized_sort_text(item[1]), len(official_positions)),
+            _normalized_sort_text(item[1]),
+        ),
+    )
+
+
+def _source_label(value: object | None) -> str:
+    return {
+        "manual": "Nhập tay",
+        "excel": "Excel",
+        "photo_ocr": "Ảnh/OCR",
+        "direct_api": "API trực tiếp",
+    }.get(str(value or ""), "Không rõ")
+
+
+def _workflow_label(value: object | None) -> str:
+    return {
+        "draft": "Bản nháp",
+        "submitted": "Đã nộp",
+        "needs_revision": "Cần chỉnh sửa",
+        "approved": "Đã duyệt",
+        "locked": "Đã khóa",
+    }.get(str(value or ""), "Không rõ")
+
+
+def _timeliness_label(value: object | None) -> str:
+    return {
+        "not_submitted": "Chưa nộp",
+        "on_time": "Đúng hạn",
+        "late": "Trễ hạn",
+    }.get(str(value or ""), "Chưa xác định")
 
 
 def _submission_status_label(report: dict[str, Any]) -> str:
@@ -177,6 +289,14 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
     ws.column_dimensions['D'].width = 15
     ws.column_dimensions['E'].width = 25
 
+    _configure_print_layout(
+        ws,
+        print_area=f"A1:E{ws.max_row}",
+        landscape=False,
+        paper_size=ws.PAPERSIZE_A4,
+        title_rows="1:12",
+    )
+
     # Export to bytes
     output = BytesIO()
     wb.save(output)
@@ -225,7 +345,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws1.column_dimensions['Q'].width = 15
 
     # Sort villages
-    sorted_villages = sorted(villages_map.items(), key=lambda x: x[1])
+    sorted_villages = _ordered_village_items(villages_map)
     
     # Data Rows
     sums = {code: 0 for code in INDICATORS_DICT.keys()}
@@ -282,6 +402,14 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
             cell.alignment = CENTER_ALIGN
             
     ws1.freeze_panes = 'C5'
+    ws1.row_dimensions[4].height = 72
+    _configure_print_layout(
+        ws1,
+        print_area=f"A1:Q{ws1.max_row}",
+        landscape=True,
+        paper_size=ws1.PAPERSIZE_A3,
+        title_rows="1:4",
+    )
 
     # Sheet 2: THEO DÕI TIẾN ĐỘ
     ws2 = wb.create_sheet("Theo dõi tiến độ")
@@ -356,6 +484,188 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws2.column_dimensions['E'].width = 20
     ws2.column_dimensions['F'].width = 20
     ws2.column_dimensions['G'].width = 15
+    ws2.row_dimensions[4].height = 34
+    _configure_print_layout(
+        ws2,
+        print_area=f"A1:G{ws2.max_row}",
+        landscape=True,
+        paper_size=ws2.PAPERSIZE_A4,
+        title_rows="1:4",
+    )
+
+    # Sheet 2 in the official reference workbook: a compact operational
+    # dashboard. It intentionally contains typed values rather than charts so
+    # it remains accessible and verifiable in every spreadsheet viewer.
+    dashboard = wb.create_sheet("Dashboard")
+    wb.move_sheet(dashboard, offset=-1)
+    dashboard.merge_cells("A1:B1")
+    dashboard["A1"] = "DASHBOARD TỔNG QUAN"
+    dashboard["A1"].font = TITLE_FONT
+    dashboard.append([])
+    dashboard.append(["Chỉ số", "Giá trị"])
+    on_time_count = sum(1 for report in reports_data if report.get("timeliness_status") == "on_time")
+    late_count = sum(1 for report in reports_data if report.get("timeliness_status") == "late")
+    dashboard_rows = [
+        ("Tổng số thôn", len(villages_map)),
+        ("Đã nộp", submitted_count),
+        ("Đúng hạn", on_time_count),
+        ("Trễ hạn", late_count),
+        ("Chưa nộp", len(villages_map) - submitted_count),
+        ("Tỷ lệ nộp (%)", round(submitted_count * 100 / len(villages_map), 1) if villages_map else 0),
+        ("", ""),
+        ("Chỉ tiêu (tổng trong phạm vi)", "Giá trị"),
+        ("Tổng số hộ dân", "—" if incomplete_totals["CT01"] else sums["CT01"]),
+        ("Số hộ nghèo", "—" if incomplete_totals["CT03"] else sums["CT03"]),
+        ("Số hộ cận nghèo", "—" if incomplete_totals["CT04"] else sums["CT04"]),
+        ("Số người có công với cách mạng", "—" if incomplete_totals["CT05"] else sums["CT05"]),
+        ("Đối tượng bảo trợ xã hội", "—" if incomplete_totals["CT06"] else sums["CT06"]),
+        ("Hộ đạt Gia đình văn hóa", "—" if incomplete_totals["CT09"] else sums["CT09"]),
+    ]
+    for row in dashboard_rows:
+        dashboard.append([_safe_excel_text(row[0]), _safe_excel_value(row[1])])
+    for row in range(3, dashboard.max_row + 1):
+        for column in range(1, 3):
+            cell = dashboard.cell(row=row, column=column)
+            cell.border = THIN_BORDER
+            cell.font = BLACK_BOLD_FONT if row in {3, 11} else NORMAL_FONT
+            if row in {3, 11}:
+                cell.fill = BLUE_HEADER_FILL
+                cell.font = WHITE_BOLD_FONT
+            if column == 2 and row not in {3, 10, 11}:
+                cell.alignment = CENTER_ALIGN
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = "#,##0.0" if row == 9 else "#,##0"
+    dashboard.column_dimensions["A"].width = 48
+    dashboard.column_dimensions["B"].width = 18
+    dashboard.freeze_panes = "A4"
+    dashboard.sheet_view.showGridLines = False
+    _configure_print_layout(
+        dashboard,
+        print_area=f"A1:B{dashboard.max_row}",
+        landscape=False,
+        paper_size=dashboard.PAPERSIZE_A4,
+        title_rows="1:3",
+    )
+
+    dictionary = wb.create_sheet("Từ điển dữ liệu")
+    dictionary.merge_cells("A1:E1")
+    dictionary["A1"] = "TỪ ĐIỂN DỮ LIỆU (DATA DICTIONARY)"
+    dictionary["A1"].font = TITLE_FONT
+    dictionary.append([])
+    dictionary.append(["Mã CT", "Tên chỉ tiêu", "Đơn vị tính", "Kiểu dữ liệu", "Ràng buộc / kiểm tra hợp lệ"])
+    for code, (name, unit) in INDICATORS_DICT.items():
+        dictionary.append([code, name, unit, "Số nguyên", INDICATOR_RULES[code]])
+    for column in range(1, 6):
+        cell = dictionary.cell(row=3, column=column)
+        cell.fill = BLUE_HEADER_FILL
+        cell.font = WHITE_BOLD_FONT
+        cell.alignment = CENTER_ALIGN
+        cell.border = THIN_BORDER
+    for row in range(4, dictionary.max_row + 1):
+        for column in range(1, 6):
+            dictionary.cell(row=row, column=column).border = THIN_BORDER
+            dictionary.cell(row=row, column=column).font = NORMAL_FONT
+            dictionary.cell(row=row, column=column).alignment = LEFT_ALIGN
+    for column, width in {"A": 10, "B": 58, "C": 16, "D": 16, "E": 62}.items():
+        dictionary.column_dimensions[column].width = width
+    dictionary.freeze_panes = "A4"
+    dictionary.row_dimensions[3].height = 38
+    _configure_print_layout(
+        dictionary,
+        print_area=f"A1:E{dictionary.max_row}",
+        landscape=True,
+        paper_size=dictionary.PAPERSIZE_A4,
+        title_rows="1:3",
+    )
+
+    warnings = wb.create_sheet("Cảnh báo dữ liệu")
+    warnings.append(["Thôn", "Mã báo cáo", "Chỉ tiêu", "Loại cảnh báo", "Nội dung", "Trạng thái"])
+    warning_count = 0
+    for report in reports_data:
+        village_name = villages_map.get(str(report.get("village_id")), str(report.get("village_id") or ""))
+        for flag in report.get("validation_flags") or []:
+            warnings.append([
+                _safe_excel_text(village_name),
+                _safe_excel_text(report.get("id")),
+                _safe_excel_text(flag.get("ct_code")),
+                _safe_excel_text(flag.get("error_type")),
+                _safe_excel_text(flag.get("message")),
+                "Đã xử lý" if flag.get("resolved") else "Cần xem",
+            ])
+            warning_count += 1
+    if warning_count == 0:
+        warnings.append(["Không có cảnh báo chưa xử lý trong lát cắt xuất bản", "", "", "", "", ""])
+        warnings.merge_cells("A2:F2")
+        warnings["A2"].alignment = CENTER_ALIGN
+    for column in range(1, 7):
+        cell = warnings.cell(row=1, column=column)
+        cell.fill = BLUE_HEADER_FILL
+        cell.font = WHITE_BOLD_FONT
+        cell.alignment = CENTER_ALIGN
+        cell.border = THIN_BORDER
+    for row in range(2, warnings.max_row + 1):
+        for column in range(1, 7):
+            warnings.cell(row=row, column=column).border = THIN_BORDER
+            warnings.cell(row=row, column=column).font = NORMAL_FONT
+    for column, width in {"A": 25, "B": 38, "C": 12, "D": 20, "E": 62, "F": 16}.items():
+        warnings.column_dimensions[column].width = width
+    warnings.freeze_panes = "A2"
+    warnings.row_dimensions[1].height = 34
+    _configure_print_layout(
+        warnings,
+        print_area=f"A1:F{warnings.max_row}",
+        landscape=True,
+        paper_size=warnings.PAPERSIZE_A4,
+        title_rows="1:1",
+    )
+
+    sources = wb.create_sheet("Nguồn dữ liệu")
+    sources.append([
+        "Thôn", "Mã báo cáo", "Nguồn nhập", "Phiên bản báo cáo", "Bộ quy tắc",
+        "Trạng thái nghiệp vụ", "Trạng thái đúng hạn", "Thời điểm nộp",
+    ])
+    village_positions = {
+        str(village_id): index
+        for index, (village_id, _name) in enumerate(_ordered_village_items(villages_map))
+    }
+    for report in sorted(
+        reports_data,
+        key=lambda item: (
+            village_positions.get(str(item.get("village_id")), len(village_positions)),
+            str(item.get("village_id") or ""),
+        ),
+    ):
+        sources.append([
+            _safe_excel_text(villages_map.get(str(report.get("village_id")), str(report.get("village_id") or ""))),
+            _safe_excel_text(report.get("id")),
+            _safe_excel_text(_source_label(report.get("report_source"))),
+            _safe_excel_value(report.get("version")),
+            _safe_excel_text(report.get("rule_version") or "2026-07"),
+            _safe_excel_text(_workflow_label(report.get("workflow_status"))),
+            _safe_excel_text(_timeliness_label(report.get("timeliness_status"))),
+            _safe_excel_text(_format_submitted_at(report.get("submitted_at"))),
+        ])
+    for column in range(1, 9):
+        cell = sources.cell(row=1, column=column)
+        cell.fill = BLUE_HEADER_FILL
+        cell.font = WHITE_BOLD_FONT
+        cell.alignment = CENTER_ALIGN
+        cell.border = THIN_BORDER
+    for row in range(2, sources.max_row + 1):
+        for column in range(1, 9):
+            sources.cell(row=row, column=column).border = THIN_BORDER
+            sources.cell(row=row, column=column).font = NORMAL_FONT
+    for column, width in {"A": 25, "B": 38, "C": 18, "D": 18, "E": 16, "F": 22, "G": 20, "H": 22}.items():
+        sources.column_dimensions[column].width = width
+    sources.freeze_panes = "A2"
+    sources.row_dimensions[1].height = 42
+    _configure_print_layout(
+        sources,
+        print_area=f"A1:H{sources.max_row}",
+        landscape=True,
+        paper_size=sources.PAPERSIZE_A4,
+        title_rows="1:1",
+    )
 
     output = BytesIO()
     wb.save(output)

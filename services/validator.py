@@ -70,6 +70,18 @@ def validate_phone(phone: Any) -> ValidationError | None:
     return None
 
 
+def coerce_storage_value(value: Any) -> int | None:
+    """Convert only unambiguous integers; never turn missing/invalid input into zero."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped_value = value.strip()
+        return int(stripped_value) if re.fullmatch(r"[+-]?[0-9]+", stripped_value) else None
+    return None
+
+
 def _load_rules() -> list[Rule]:
     with RULES_PATH.open("r", encoding="utf-8") as rules_file:
         payload = json.load(rules_file)

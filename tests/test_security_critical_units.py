@@ -31,7 +31,7 @@ from services.upload_validator import (
     UploadValidationError,
     validate_report_upload,
 )
-from services.validator import validate_phone, validate_report
+from services.validator import coerce_storage_value, validate_phone, validate_report
 
 
 JWT_SECRET = "unit-test-jwt-secret-with-at-least-32-bytes"
@@ -498,6 +498,25 @@ def _errors_for(values: dict[str, object], code: str) -> set[str]:
 def test_validator_accepts_real_rule_baseline() -> None:
     assert validate_report(VALID_VALUES) == []
     assert validate_report({**VALID_VALUES, "CT01": "100"}) == []
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        (None, None),
+        (True, None),
+        (42, 42),
+        ("  +42 ", 42),
+        ("-7", -7),
+        ("2.450", None),
+        (10.5, None),
+    ],
+)
+def test_storage_coercion_never_turns_ambiguous_values_into_zero(
+    raw_value: object,
+    expected: int | None,
+) -> None:
+    assert coerce_storage_value(raw_value) == expected
 
 
 @pytest.mark.parametrize("blank", [None, "", "   \t"])
