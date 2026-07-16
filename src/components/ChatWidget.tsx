@@ -31,12 +31,19 @@ const viteApiBaseUrl =
   (import.meta as unknown as { env?: { VITE_API_BASE_URL?: string } }).env
     ?.VITE_API_BASE_URL ?? "";
 
-/** Gợi ý câu hỏi hiển thị khi lần đầu mở widget */
-const SUGGESTED_QUESTIONS = [
+/** Public suggestions must stay inside the five published indicators. */
+const PUBLIC_SUGGESTED_QUESTIONS = [
+  "Thôn Phú Hòa có bao nhiêu hộ dân?",
+  "Toàn xã có bao nhiêu nhân khẩu?",
+  "Thôn Phú Hòa có bao nhiêu gia đình văn hóa?",
+  "Bạn biết những gì?",
+];
+
+const STAFF_SUGGESTED_QUESTIONS = [
   "Thôn tôi có bao nhiêu hộ nghèo?",
   "Thôn nào chưa nộp báo cáo kỳ này?",
   "Toàn xã có bao nhiêu nhân khẩu?",
-  "So sánh hộ nghèo giữa các thôn",
+  "So sánh hộ dân giữa Thôn An Sơn và Thôn Phú Hòa?",
 ];
 
 const DISCLAIMER =
@@ -53,6 +60,7 @@ function newId() {
 export default function ChatWidget({
   xaId,
   apiBaseUrl = viteApiBaseUrl,
+  userPhone,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -150,6 +158,9 @@ export default function ChatWidget({
   }
 
   const showSuggestions = messages.length === 0;
+  const suggestedQuestions = userPhone
+    ? STAFF_SUGGESTED_QUESTIONS
+    : PUBLIC_SUGGESTED_QUESTIONS;
 
   /* ─── Render ──────────────────────────────────────────────────────── */
   return (
@@ -253,7 +264,7 @@ export default function ChatWidget({
             <div className="chat-widget__suggestions" aria-label="Gợi ý câu hỏi">
               <p className="chat-widget__suggestions-label">Bạn có thể hỏi:</p>
               <ul>
-                {SUGGESTED_QUESTIONS.map((q) => (
+                {suggestedQuestions.map((q) => (
                   <li key={q}>
                     <button
                       id={`chat-suggest-${q.slice(0, 20).replace(/\s/g, "-")}`}
