@@ -17,7 +17,7 @@ import { apiFetch } from "../lib/apiClient";
 
 interface UploadReportProps {
   onDataExtracted: (
-    indicators: Record<string, number>,
+    indicators: Record<string, number | null>,
     metadata?: { raw_source: string; source_confirmed: boolean }
   ) => void;
   onCancel: () => void;
@@ -27,6 +27,7 @@ interface ExtractionRow {
   code: string;
   name: string;
   value: number | null;
+  rawValue?: string | number | null;
   needsConfirmation: boolean;
   confirmed: boolean;
   
@@ -51,6 +52,8 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   
   // Normalized indicators state for review grid
   const [reviewRows, setReviewRows] = useState<ExtractionRow[] | null>(null);
+  const [previewSource, setPreviewSource] = useState<"excel" | "photo_ocr" | null>(null);
+  const [previewMetadata, setPreviewMetadata] = useState<Record<string, string | null> | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +150,14 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       }
 
       const resData = await response.json();
-      initializeOcrReview(resData.values || {}, resData.flags || [], resData.null_codes || []);
+      initializePreview(
+        resData.values || {},
+        resData.raw_values || resData.values || {},
+        resData.flags || [],
+        resData.null_codes || [],
+        "photo_ocr",
+        null,
+      );
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Đã xảy ra lỗi khi kết nối máy chủ phân tích ảnh.");
@@ -175,8 +185,14 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       }
 
       const resData = await response.json();
-      // excel-preview returns same format as ocr-preview
-      initializeOcrReview(resData.values || {}, resData.flags || [], resData.null_codes || []);
+      initializePreview(
+        resData.values || {},
+        resData.raw_values || {},
+        resData.flags || [],
+        resData.null_codes || [],
+        "excel",
+        resData.metadata || null,
+      );
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Đã xảy ra lỗi khi kết nối máy chủ chuẩn hóa biểu mẫu.");
@@ -206,7 +222,14 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setReviewRows(rows);
   };
 
-  const initializeOcrReview = (values: Record<string, number | null>, flags: any[], nullCodes: string[]) => {
+  const initializePreview = (
+    values: Record<string, number | null>,
+    rawValues: Record<string, string | number | null>,
+    flags: Array<{ ct_code: string; error_type: string; message: string }>,
+    nullCodes: string[],
+    source: "excel" | "photo_ocr",
+    metadata: Record<string, string | null> | null,
+  ) => {
     const rows: ExtractionRow[] = Object.keys(INDICATOR_MAP).map(code => {
       const val = values[code] !== undefined ? values[code] : null;
       const flag = flags.find(f => f.ct_code === code);
@@ -217,13 +240,16 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         code,
         name: INDICATOR_MAP[code],
         value: val,
+        rawValue: rawValues[code] ?? null,
         needsConfirmation: needsConf,
-        confirmed: false,
-        isOcr: true,
+        confirmed: source === "excel" ? !needsConf : false,
+        isOcr: source === "photo_ocr",
         ocrWarning: flag ? flag.message : undefined,
         isNullCode: isNull
       };
     });
+    setPreviewSource(source);
+    setPreviewMetadata(metadata);
     setReviewRows(rows);
   };
 
@@ -253,6 +279,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       if (!prev) return null;
       return prev.map(row => {
         if (row.code === code) {
+          if (row.value === null) return row;
           return { ...row, confirmed: !row.confirmed };
         }
         return row;
@@ -281,13 +308,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     }
 
     // Build finalized key-value pair of indicators to return to parent
-    const finalizedData: Record<string, number> = {};
+    if (reviewRows.some(row => row.value === null)) {
+      setError("Không thể áp dụng khi còn chỉ tiêu trống. Vui lòng nhập đủ CT01–CT14.");
+      return;
+    }
+
+    const finalizedData: Record<string, number | null> = {};
     reviewRows.forEach(row => {
-      finalizedData[row.code] = row.value || 0;
+      finalizedData[row.code] = row.value;
     });
 
-    const isOcr = reviewRows.some(r => r.isOcr);
-    const raw_source = isOcr ? "photo_upload" : "excel_upload";
+    const raw_source = previewSource === "photo_ocr" ? "photo_upload" : "excel_upload";
 
     onDataExtracted(finalizedData, {
       raw_source,
@@ -300,6 +331,8 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setReviewRows(null);
     setError(null);
     setShowPrivacyWarning(false);
+    setPreviewSource(null);
+    setPreviewMetadata(null);
   };
 
   // Counting unconfirmed low confidence indicators
@@ -475,6 +508,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             )}
           </div>
 
+          {previewSource === "excel" && previewMetadata && (
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-3">
+              <p><span className="font-semibold">Thôn trong tệp:</span> {previewMetadata.village_name || "Chưa có"}</p>
+              <p><span className="font-semibold">Kỳ báo cáo:</span> {previewMetadata.period_name || "Chưa có"}</p>
+              <p><span className="font-semibold">Hạn nộp:</span> {previewMetadata.deadline || "Chưa có"}</p>
+              <p><span className="font-semibold">Người lập:</span> {previewMetadata.reporter_name || "Chưa có"}</p>
+              <p><span className="font-semibold">Chức danh:</span> {previewMetadata.reporter_title || "Chưa có"}</p>
+              <p><span className="font-semibold">Số điện thoại:</span> {previewMetadata.reporter_phone || "Chưa có"}</p>
+            </div>
+          )}
+
           {/* Warning banner */}
           <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-3.5 text-emerald-900 text-2xs font-medium leading-relaxed flex flex-col md:flex-row md:items-center justify-between gap-3">
             <span>
@@ -575,7 +619,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         ) : (
                           <>
                             <td className="py-3 px-4 text-slate-500 italic max-w-[200px] truncate" title={row.matchedFrom}>
-                              <span className="text-2xs font-medium">"{row.matchedFrom}"</span>
+                              <span className="text-2xs font-medium">{row.rawValue === null || row.rawValue === undefined ? "—" : String(row.rawValue)}</span>
                             </td>
                             <td className="py-3 px-4 text-center">
                               <div className="flex flex-col items-center justify-center">

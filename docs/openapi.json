@@ -298,6 +298,23 @@
         "title": "AuditLogResponse",
         "type": "object"
       },
+      "Body_add_batch_files_report_imports_batches__batch_id__files_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_add_batch_files_report_imports_batches__batch_id__files_post",
+        "type": "object"
+      },
       "Body_excel_preview_reports_excel_preview_post": {
         "properties": {
           "file": {
@@ -338,6 +355,23 @@
           "file"
         ],
         "title": "Body_ocr_photo_preview_reports_ocr_preview_post",
+        "type": "object"
+      },
+      "Body_preview_batch_report_imports_preview_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_preview_batch_report_imports_preview_post",
         "type": "object"
       },
       "Body_upload_report_file_reports_upload_post": {
@@ -400,6 +434,20 @@
           "file"
         ],
         "title": "Body_upload_report_file_reports_upload_post",
+        "type": "object"
+      },
+      "Body_upload_report_period_template_report_periods__period_id__template_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_report_period_template_report_periods__period_id__template_post",
         "type": "object"
       },
       "ChangePasswordRequest": {
@@ -657,24 +705,49 @@
       "CnscdImpactResponse": {
         "properties": {
           "absolute_difference": {
-            "title": "Absolute Difference",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Difference"
           },
           "assisted_report_count": {
             "title": "Assisted Report Count",
             "type": "integer"
           },
           "ct13_total": {
-            "title": "Ct13 Total",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct13 Total"
           },
           "difference": {
-            "title": "Difference",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
           },
           "interpretation": {
             "title": "Interpretation",
             "type": "string"
+          },
+          "missing_ct13_report_count": {
+            "title": "Missing Ct13 Report Count",
+            "type": "integer"
           },
           "period_id": {
             "format": "uuid",
@@ -705,10 +778,31 @@
           "ct13_total",
           "difference",
           "absolute_difference",
+          "missing_ct13_report_count",
           "villages",
           "interpretation"
         ],
         "title": "CnscdImpactResponse",
+        "type": "object"
+      },
+      "CreateImportBatchRequest": {
+        "properties": {
+          "expected_village_count": {
+            "const": 22,
+            "default": 22,
+            "title": "Expected Village Count",
+            "type": "integer"
+          },
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_id"
+        ],
+        "title": "CreateImportBatchRequest",
         "type": "object"
       },
       "CreateReportPeriodRequest": {
@@ -1126,6 +1220,16 @@
             "title": "Flags",
             "type": "array"
           },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportPreviewMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "null_codes": {
             "items": {
               "type": "string"
@@ -1133,9 +1237,37 @@
             "title": "Null Codes",
             "type": "array"
           },
+          "raw_values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Raw Values",
+            "type": "object"
+          },
           "size_bytes": {
             "title": "Size Bytes",
             "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "excel",
+              "photo_ocr"
+            ],
+            "title": "Source",
+            "type": "string"
           },
           "values": {
             "additionalProperties": {
@@ -1157,7 +1289,8 @@
           "flags",
           "null_codes",
           "filename",
-          "size_bytes"
+          "size_bytes",
+          "source"
         ],
         "title": "OcrPreviewResponse",
         "type": "object"
@@ -1758,6 +1891,112 @@
         "title": "RejectedReportItem",
         "type": "object"
       },
+      "ReportPeriodTemplateResponse": {
+        "properties": {
+          "period_id": {
+            "format": "uuid",
+            "title": "Period Id",
+            "type": "string"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "template_path": {
+            "title": "Template Path",
+            "type": "string"
+          },
+          "template_sha256": {
+            "title": "Template Sha256",
+            "type": "string"
+          },
+          "template_size_bytes": {
+            "title": "Template Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period_id",
+          "template_name",
+          "template_path",
+          "template_sha256",
+          "template_size_bytes"
+        ],
+        "title": "ReportPeriodTemplateResponse",
+        "type": "object"
+      },
+      "ReportPreviewMetadata": {
+        "properties": {
+          "deadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline"
+          },
+          "period_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Name"
+          },
+          "reporter_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporter Name"
+          },
+          "reporter_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporter Phone"
+          },
+          "reporter_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporter Title"
+          },
+          "village_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Name"
+          }
+        },
+        "title": "ReportPreviewMetadata",
+        "type": "object"
+      },
       "ReportSubmitRequest": {
         "properties": {
           "assisted_by_cnscd": {
@@ -2045,6 +2284,80 @@
         "title": "ResetPasswordResponse",
         "type": "object"
       },
+      "ReviewImportFileRequest": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
+          "metadata_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Reason"
+          },
+          "reasons": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "object"
+          },
+          "reporter_phone": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporter Phone"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "ReviewImportFileRequest",
+        "type": "object"
+      },
       "SyncReportsRequest": {
         "properties": {
           "reports": {
@@ -2235,20 +2548,41 @@
       "VillageCnscdImpactResponse": {
         "properties": {
           "absolute_difference": {
-            "title": "Absolute Difference",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Difference"
           },
           "assisted_report_count": {
             "title": "Assisted Report Count",
             "type": "integer"
           },
           "ct13_value": {
-            "title": "Ct13 Value",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct13 Value"
           },
           "difference": {
-            "title": "Difference",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference"
           },
           "report_id": {
             "anyOf": [
@@ -4250,6 +4584,395 @@
         ]
       }
     },
+    "/report-imports/batches": {
+      "post": {
+        "operationId": "create_batch_report_imports_batches_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImportBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Batch Report Imports Batches Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Batch",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
+    "/report-imports/batches/{batch_id}": {
+      "get": {
+        "operationId": "get_batch_report_imports_batches__batch_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Batch Report Imports Batches  Batch Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Batch",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
+    "/report-imports/batches/{batch_id}/commit": {
+      "post": {
+        "operationId": "commit_batch_report_imports_batches__batch_id__commit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Commit Batch Report Imports Batches  Batch Id  Commit Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit Batch",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
+    "/report-imports/batches/{batch_id}/files": {
+      "post": {
+        "operationId": "add_batch_files_report_imports_batches__batch_id__files_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_batch_files_report_imports_batches__batch_id__files_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Add Batch Files Report Imports Batches  Batch Id  Files Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Batch Files",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
+    "/report-imports/files/{file_id}/review": {
+      "patch": {
+        "operationId": "review_file_report_imports_files__file_id__review_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewImportFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Review File Report Imports Files  File Id  Review Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review File",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
+    "/report-imports/preview": {
+      "post": {
+        "operationId": "preview_batch_report_imports_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preview_batch_report_imports_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Batch Report Imports Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Batch",
+        "tags": [
+          "report-imports"
+        ]
+      }
+    },
     "/report-periods": {
       "get": {
         "operationId": "list_report_periods_report_periods_get",
@@ -4358,6 +5081,76 @@
           }
         },
         "summary": "Create Report Period",
+        "tags": [
+          "report-periods"
+        ]
+      }
+    },
+    "/report-periods/{period_id}/template": {
+      "post": {
+        "description": "Validate and store the actual XLSX template in a private bucket.",
+        "operationId": "upload_report_period_template_report_periods__period_id__template_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_report_period_template_report_periods__period_id__template_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPeriodTemplateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Report Period Template",
         "tags": [
           "report-periods"
         ]

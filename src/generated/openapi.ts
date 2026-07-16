@@ -534,6 +534,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/report-imports/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Batch */
+        post: operations["create_batch_report_imports_batches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-imports/batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Batch */
+        get: operations["get_batch_report_imports_batches__batch_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-imports/batches/{batch_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit Batch */
+        post: operations["commit_batch_report_imports_batches__batch_id__commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-imports/batches/{batch_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Batch Files */
+        post: operations["add_batch_files_report_imports_batches__batch_id__files_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-imports/files/{file_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Review File */
+        patch: operations["review_file_report_imports_files__file_id__review_patch"];
+        trace?: never;
+    };
+    "/report-imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Batch */
+        post: operations["preview_batch_report_imports_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/report-periods": {
         parameters: {
             query?: never;
@@ -546,6 +648,26 @@ export interface paths {
         put?: never;
         /** Create Report Period */
         post: operations["create_report_period_report_periods_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-periods/{period_id}/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Report Period Template
+         * @description Validate and store the actual XLSX template in a private bucket.
+         */
+        post: operations["upload_report_period_template_report_periods__period_id__template_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1025,6 +1147,11 @@ export interface components {
             /** User Id */
             user_id: string | null;
         };
+        /** Body_add_batch_files_report_imports_batches__batch_id__files_post */
+        Body_add_batch_files_report_imports_batches__batch_id__files_post: {
+            /** Files */
+            files: string[];
+        };
         /** Body_excel_preview_reports_excel_preview_post */
         Body_excel_preview_reports_excel_preview_post: {
             /** File */
@@ -1039,6 +1166,11 @@ export interface components {
         Body_ocr_photo_preview_reports_ocr_preview_post: {
             /** File */
             file: string;
+        };
+        /** Body_preview_batch_report_imports_preview_post */
+        Body_preview_batch_report_imports_preview_post: {
+            /** Files */
+            files: string[];
         };
         /** Body_upload_report_file_reports_upload_post */
         Body_upload_report_file_reports_upload_post: {
@@ -1070,6 +1202,11 @@ export interface components {
              * Format: uuid
              */
             village_id: string;
+        };
+        /** Body_upload_report_period_template_report_periods__period_id__template_post */
+        Body_upload_report_period_template_report_periods__period_id__template_post: {
+            /** File */
+            file: string;
         };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
@@ -1165,15 +1302,17 @@ export interface components {
         /** CnscdImpactResponse */
         CnscdImpactResponse: {
             /** Absolute Difference */
-            absolute_difference: number;
+            absolute_difference: number | null;
             /** Assisted Report Count */
             assisted_report_count: number;
             /** Ct13 Total */
-            ct13_total: number;
+            ct13_total: number | null;
             /** Difference */
-            difference: number;
+            difference: number | null;
             /** Interpretation */
             interpretation: string;
+            /** Missing Ct13 Report Count */
+            missing_ct13_report_count: number;
             /**
              * Period Id
              * Format: uuid
@@ -1185,6 +1324,20 @@ export interface components {
             submitted_report_count: number;
             /** Villages */
             villages: components["schemas"]["VillageCnscdImpactResponse"][];
+        };
+        /** CreateImportBatchRequest */
+        CreateImportBatchRequest: {
+            /**
+             * Expected Village Count
+             * @default 22
+             * @constant
+             */
+            expected_village_count: 22;
+            /**
+             * Period Id
+             * Format: uuid
+             */
+            period_id: string;
         };
         /** CreateReportPeriodRequest */
         CreateReportPeriodRequest: {
@@ -1349,10 +1502,20 @@ export interface components {
             filename: string;
             /** Flags */
             flags: components["schemas"]["OcrValidationFlag"][];
+            metadata?: components["schemas"]["ReportPreviewMetadata"] | null;
             /** Null Codes */
             null_codes: string[];
+            /** Raw Values */
+            raw_values?: {
+                [key: string]: number | string | null;
+            };
             /** Size Bytes */
             size_bytes: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "excel" | "photo_ocr";
             /** Values */
             values: {
                 [key: string]: number | null;
@@ -1539,6 +1702,37 @@ export interface components {
             /** Retryable */
             retryable: boolean;
         };
+        /** ReportPeriodTemplateResponse */
+        ReportPeriodTemplateResponse: {
+            /**
+             * Period Id
+             * Format: uuid
+             */
+            period_id: string;
+            /** Template Name */
+            template_name: string;
+            /** Template Path */
+            template_path: string;
+            /** Template Sha256 */
+            template_sha256: string;
+            /** Template Size Bytes */
+            template_size_bytes: number;
+        };
+        /** ReportPreviewMetadata */
+        ReportPreviewMetadata: {
+            /** Deadline */
+            deadline?: string | null;
+            /** Period Name */
+            period_name?: string | null;
+            /** Reporter Name */
+            reporter_name?: string | null;
+            /** Reporter Phone */
+            reporter_phone?: string | null;
+            /** Reporter Title */
+            reporter_title?: string | null;
+            /** Village Name */
+            village_name?: string | null;
+        };
         /** ReportSubmitRequest */
         ReportSubmitRequest: {
             /**
@@ -1677,6 +1871,28 @@ export interface components {
             /** Temporary Password */
             temporary_password: string;
         };
+        /** ReviewImportFileRequest */
+        ReviewImportFileRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accepted" | "rejected";
+            /** Decision Reason */
+            decision_reason?: string | null;
+            /** Metadata Reason */
+            metadata_reason?: string | null;
+            /** Reasons */
+            reasons?: {
+                [key: string]: string;
+            };
+            /** Reporter Phone */
+            reporter_phone?: string | null;
+            /** Values */
+            values?: {
+                [key: string]: number | null;
+            };
+        };
         /** SyncReportsRequest */
         SyncReportsRequest: {
             /** Reports */
@@ -1748,13 +1964,13 @@ export interface components {
         /** VillageCnscdImpactResponse */
         VillageCnscdImpactResponse: {
             /** Absolute Difference */
-            absolute_difference: number;
+            absolute_difference: number | null;
             /** Assisted Report Count */
             assisted_report_count: number;
             /** Ct13 Value */
-            ct13_value: number;
+            ct13_value: number | null;
             /** Difference */
-            difference: number;
+            difference: number | null;
             /** Report Id */
             report_id: string | null;
             /**
@@ -2909,6 +3125,228 @@ export interface operations {
             };
         };
     };
+    create_batch_report_imports_batches_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateImportBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_batch_report_imports_batches__batch_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_batch_report_imports_batches__batch_id__commit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_batch_files_report_imports_batches__batch_id__files_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_batch_files_report_imports_batches__batch_id__files_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_file_report_imports_files__file_id__review_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewImportFileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_batch_report_imports_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_preview_batch_report_imports_preview_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_report_periods_report_periods_get: {
         parameters: {
             query?: never;
@@ -2966,6 +3404,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_report_period_template_report_periods__period_id__template_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_report_period_template_report_periods__period_id__template_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportPeriodTemplateResponse"];
                 };
             };
             /** @description Validation Error */

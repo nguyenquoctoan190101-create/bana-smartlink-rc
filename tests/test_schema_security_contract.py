@@ -58,4 +58,68 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260713_0001_security_domain_upgrade.sql",
         "20260713_0002_atomic_workflows.sql",
         "20260714_0003_production_operations.sql",
+        "20260715_0004_legacy_batch_import.sql",
+        "20260715_0005_report_templates_and_import_privacy.sql",
+        "20260715_0006_database_validation_enforcement.sql",
     ]
+
+
+def test_database_enforces_deterministic_indicator_rules_on_workflow_transition() -> None:
+    for marker in (
+        "create function public.report_indicator_values_are_valid",
+        "create function public.enforce_submitted_report_values",
+        "create trigger reports_enforce_indicator_values",
+        "ct03 + ct04 <= ct01",
+        "ct07 <= ct02",
+        "ct11 <= ct02",
+    ):
+        assert marker in SCHEMA
+
+
+def test_import_overlay_is_safe_to_reapply_in_database_contract_job() -> None:
+    migration = (
+        ROOT / "migrations" / "20260715_0004_legacy_batch_import.sql"
+    ).read_text(encoding="utf-8")
+    assert "create or replace function public.commit_report_import_batch" in migration
+    for marker in (
+        "proposed_dissolved_into_village_id",
+        "review_reason text",
+        "Every uploaded file must be reviewed",
+        "No complete current-village group is eligible for import",
+        "file.review_status = 'accepted'",
+        "revoke insert,update,delete on public.report_import_lineage",
+        "guard_report_import_file_mutation",
+        "Source import evidence is immutable",
+    ):
+        assert marker in migration
+    for policy in (
+        "report_import_batches_select_internal",
+        "report_import_batches_mutate_admin",
+        "report_import_files_select_internal",
+        "report_import_files_mutate_admin",
+        "report_import_resolutions_select_internal",
+        "report_import_resolutions_mutate_admin",
+        "report_import_lineage_select_internal",
+        "report_import_lineage_insert_admin",
+    ):
+        assert f"drop policy if exists {policy}" in migration
+
+
+def test_database_contract_verifies_new_tables_privileges_and_trigger() -> None:
+    verification = (ROOT / "tests" / "sql" / "migration_overlay_verify.sql").read_text(
+        encoding="utf-8"
+    )
+    for marker in (
+        "report_import_batches",
+        "report_import_files",
+        "report_import_resolutions",
+        "report_import_lineage",
+        "template_sha256",
+        "reports_enforce_indicator_values",
+        "report_import_files_guard",
+        "has_function_privilege('anon'",
+        "has_table_privilege('authenticated'",
+        "proposed_dissolved_into_village_id",
+        "review_reason",
+    ):
+        assert marker in verification

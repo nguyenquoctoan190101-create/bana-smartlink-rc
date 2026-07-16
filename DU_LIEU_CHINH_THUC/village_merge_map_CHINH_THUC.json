@@ -1,10 +1,14 @@
 {
   "_meta": {
+    "mapping_version": "2026-07-15-infographic-v2",
     "nguon": "Infographic 'PHUONG AN SAP XEP THON TREN DIA BAN XA BA NA' do xa cung cap",
+    "source_artifact_filename": "z7982650350245_907608dec8b2c08e057b01dbffbb6cf3.jpg",
+    "source_artifact_sha256": "9d5533a78ca52c309047a8de283ffeb30710d0119bdae392153938bd4f47201c",
+    "source_status": "tai_lieu_phuong_an_chua_thay_the_quyet_dinh_hanh_chinh",
     "ngay_cap_nhat": "2026-07-10",
     "ghi_chu_quan_trong": [
       "Tong cong doi chieu duoc 24 don vi cu trong khi infographic ghi '22 thon hien co' - chenh lech 2 don vi vi 'Khu tai dinh cu so 2' va 'Khu tai dinh cu so 3' (thuoc An Son) la khu tai dinh cu, khong phai thon goc trong 22 thon ban dau.",
-      "Thon Dong Son cu bi TACH DOI theo infographic (chi ghi '+ phia Bac Dong Son' vao Hoa Ninh) nhung du lieu bao cao mau (BC_T20_Thon_Dong_Son.xlsx) chi co 1 ban ghi duy nhat cho toan bo thon Dong Son, khong tach theo khu vuc. CAN HOI LAI XA: du lieu bao cao hien co cua Dong Son tinh het vao Hoa Ninh, hay can xa cung cap them so lieu tach theo khu vuc?",
+      "Thon Dong Son cu bi TACH DOI theo infographic (chi ghi '+ phia Bac Dong Son' vao Hoa Ninh) nhung du lieu bao cao mau (BC_T20_Thon_Dong_Son.xlsx) chi co 1 ban ghi duy nhat cho toan bo thon Dong Son, khong tach theo khu vuc. Bao cao nay KHONG DUOC tu dong gom vao Hoa Ninh cho den khi xa cung cap quyet dinh va so lieu tach pham vi.",
       "3 thon 'giu nguyen' (Thach Nham Dong, Thach Nham Tay, Phuoc Hung) van map 1-1 vao chinh no, KHONG bo qua buoc tra bang nay, de logic tong hop luon di qua dung 1 con duong duy nhat."
     ]
   },
@@ -62,12 +66,14 @@
     {
       "ten_thon_cu": "Thôn Đông Sơn",
       "quy_mo_ho_cu": null,
-      "new_village_id": "hoa_ninh",
-      "ghi_chu": "CHUA CHAC CHAN: infographic ghi chi '+ phia Bac Dong Son' nhap vao Hoa Ninh (tach doi thon), nhung du lieu mau chi co 1 ban ghi bao cao duy nhat cho toan bo Dong Son - tam map toan bo vao Hoa Ninh, DANH DAU CAN HOI LAI XA."
+      "new_village_id": null,
+      "mapping_status": "pending_official_decision",
+      "proposed_new_village_id": "hoa_ninh",
+      "ghi_chu": "CHO QUYET DINH: infographic chi xac nhan phia Bac Dong Son nhap vao Hoa Ninh. Bao cao mau hien co la cua toan bo Dong Son nen khong duoc tu dong tong hop."
     },
 
     {"ten_thon_cu": "Thôn An Sơn", "quy_mo_ho_cu": null, "new_village_id": "an_son"},
-    {"ten_thon_cu": "Khu tái định cư số 2", "quy_mo_ho_cu": null, "new_village_id": "an_son", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."},
-    {"ten_thon_cu": "Khu tái định cư số 3", "quy_mo_ho_cu": null, "new_village_id": "an_son", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."}
+    {"ten_thon_cu": "Khu tái định cư số 2", "quy_mo_ho_cu": null, "new_village_id": "an_son", "legacy_unit_type": "resettlement_area", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."},
+    {"ten_thon_cu": "Khu tái định cư số 3", "quy_mo_ho_cu": null, "new_village_id": "an_son", "legacy_unit_type": "resettlement_area", "ghi_chu": "Khu tai dinh cu, khong phai thon goc trong 22 thon cu - co the chua co bao cao mau rieng."}
   ]
 }

@@ -123,7 +123,12 @@ class ReportRepository:
         )
         merge_rows = await self._supabase._rest_request(
             "GET",
-            "/rest/v1/village_merge_map?select=old_village_name,new_village_id",
+            (
+                "/rest/v1/village_merge_map"
+                "?mapping_status=eq.confirmed"
+                "&new_village_id=not.is.null"
+                "&select=old_village_name,new_village_id"
+            ),
         )
         reports = await self._supabase._rest_request(
             "GET",

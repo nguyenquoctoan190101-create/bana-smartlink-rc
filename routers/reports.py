@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import io
 import json
 import logging
@@ -40,6 +41,7 @@ from services.upload_validator import UploadValidationError, validate_report_upl
 from services.validator import (
     BLOCKING_ERROR_TYPES,
     ValidationError,
+    coerce_storage_value,
     validate_phone,
     validate_report,
 )
@@ -173,10 +175,27 @@ class CreateReportPeriodRequest(BaseModel):
     template_name: str | None = Field(default=None, max_length=255)
 
 
+class ReportPeriodTemplateResponse(BaseModel):
+    period_id: UUID
+    template_name: str
+    template_path: str
+    template_sha256: str
+    template_size_bytes: int
+
+
 class OcrValidationFlag(BaseModel):
     ct_code: str
     error_type: str
     message: str
+
+
+class ReportPreviewMetadata(BaseModel):
+    period_name: str | None = None
+    village_name: str | None = None
+    reporter_name: str | None = None
+    reporter_title: str | None = None
+    reporter_phone: str | None = None
+    deadline: str | None = None
 
 
 class OcrPreviewResponse(BaseModel):
@@ -187,10 +206,13 @@ class OcrPreviewResponse(BaseModel):
     """
 
     values: dict[str, int | None]
+    raw_values: dict[str, int | float | str | None] = Field(default_factory=dict)
     flags: list[OcrValidationFlag]
     null_codes: list[str]
     filename: str
     size_bytes: int
+    source: Literal["excel", "photo_ocr"]
+    metadata: ReportPreviewMetadata | None = None
     # raw_gemini_text is intentionally excluded from the response model
     # to prevent the AI-generated text from reaching the frontend.
 
@@ -217,7 +239,8 @@ async def list_report_periods(
             "GET",
             (
                 "/rest/v1/report_periods"
-                "?select=id,name,due_date,template_name,template_path,created_at"
+                "?select=id,name,due_date,template_name,template_path,"
+                "template_sha256,template_size_bytes,created_at"
                 "&order=due_date.desc"
             ),
         )
@@ -253,6 +276,81 @@ async def create_report_period(
     if not rows:
         raise HTTPException(status_code=502, detail="Report period creation returned no result")
     return rows[0]
+
+
+@period_router.post(
+    "/{period_id}/template",
+    response_model=ReportPeriodTemplateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_report_period_template(
+    period_id: UUID,
+    file: Annotated[UploadFile, File(...)],
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> ReportPeriodTemplateResponse:
+    """Validate and store the actual XLSX template in a private bucket."""
+    if Path(file.filename or "").suffix.lower() != ".xlsx":
+        raise HTTPException(status_code=422, detail="Template must be an XLSX workbook")
+    try:
+        content = await validate_report_upload(file)
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        period_rows = await repository._supabase._rest_request(
+            "GET",
+            (
+                f"/rest/v1/report_periods?id=eq.{period_id}"
+                "&select=id,commune_id&limit=1"
+            ),
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to verify report period") from exc
+    if not period_rows:
+        raise HTTPException(status_code=404, detail="Report period not found")
+
+    digest = hashlib.sha256(content).hexdigest()
+    commune_id = str(period_rows[0]["commune_id"])
+    object_path = f"{commune_id}/{period_id}/{digest}.xlsx"
+    template_name = Path(file.filename or "template.xlsx").name
+    try:
+        await repository._supabase.upload_storage_object(
+            "report-templates",
+            object_path,
+            content,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except SupabaseAdminError as exc:
+        # Re-uploading the exact immutable object is idempotent. The database
+        # metadata still has to be written after a previous partial request.
+        if exc.status_code != 409:
+            raise HTTPException(status_code=502, detail="Unable to store report template") from exc
+
+    try:
+        updated_rows = await repository._supabase._rest_request(
+            "PATCH",
+            f"/rest/v1/report_periods?id=eq.{period_id}",
+            {
+                "template_name": template_name,
+                "template_path": object_path,
+                "template_sha256": digest,
+                "template_size_bytes": len(content),
+            },
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Template stored but metadata update failed") from exc
+    if not updated_rows:
+        raise HTTPException(status_code=409, detail="Report period changed during template upload")
+
+    return ReportPeriodTemplateResponse(
+        period_id=period_id,
+        template_name=template_name,
+        template_path=object_path,
+        template_sha256=digest,
+        template_size_bytes=len(content),
+    )
 
 
 @router.get("")
@@ -627,6 +725,7 @@ async def ocr_photo_preview(
 
     return OcrPreviewResponse(
         values=preview.values,
+        raw_values=preview.values,
         flags=[
             OcrValidationFlag(
                 ct_code=f["ct_code"],
@@ -638,6 +737,7 @@ async def ocr_photo_preview(
         null_codes=preview.null_codes,
         filename=file.filename or "upload.jpg",
         size_bytes=len(content),
+        source="photo_ocr",
         # raw_gemini_text deliberately omitted from response
     )
 
@@ -677,15 +777,27 @@ async def excel_preview(
             detail=str(exc),
         ) from exc
 
-    # Identify which codes have null values
-    null_codes = [k for k, v in parsed["values"].items() if v is None]
+    raw_values = parsed["values"]
+    normalized_values = {
+        code: coerce_storage_value(value)
+        for code, value in raw_values.items()
+    }
+    validation_flags = validate_report(raw_values)
+    reporter_phone = parsed["metadata"].get("reporter_phone")
+    phone_flag = validate_phone(reporter_phone) if reporter_phone is not None else None
+    if phone_flag is not None:
+        validation_flags.append(phone_flag)
+    null_codes = [code for code, value in normalized_values.items() if value is None]
 
     return OcrPreviewResponse(
-        values=parsed["values"],
-        flags=[],
+        values=normalized_values,
+        raw_values=raw_values,
+        flags=[OcrValidationFlag(**flag) for flag in validation_flags],
         null_codes=null_codes,
         filename=file.filename or "upload.xlsx",
         size_bytes=len(content),
+        source="excel",
+        metadata=ReportPreviewMetadata(**parsed["metadata"]),
     )
 
 
@@ -875,7 +987,7 @@ async def _submit_report_values(
         )
 
     storage_values = {
-        ct_code: _coerce_storage_value(value)
+        ct_code: coerce_storage_value(value)
         for ct_code, value in known_values.items()
     }
     non_blocking_flags = [
@@ -1053,23 +1165,6 @@ def _has_blocking_errors(errors: list[ValidationError]) -> bool:
     return any(error["error_type"] in BLOCKING_ERROR_TYPES for error in errors)
 
 
-def _coerce_storage_value(value: Any) -> int | None:
-    if value is None:
-        return None
-
-    if isinstance(value, bool):
-        return None
-
-    if isinstance(value, int):
-        return value
-
-    if isinstance(value, str):
-        stripped_value = value.strip()
-        return int(stripped_value) if stripped_value.lstrip("-").isdigit() else None
-
-    return None
-
-
 def _status_response(item: VillageSubmissionStatus) -> VillageStatusResponse:
     return VillageStatusResponse(
         village_id=UUID(item.village_id),
@@ -1128,7 +1223,8 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
             # approved citizen proposal and must remain part of the internal
             # snapshot/export while publication stays private.
             "&timeliness_status=in.(on_time,late)"
-            "&select=id,village_id,workflow_status,timeliness_status,submitted_at"
+            "&select=id,village_id,workflow_status,timeliness_status,report_source,"
+            "version,created_at,updated_at,submitted_at"
         )
     )
     if not reports:
@@ -1139,6 +1235,14 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
     values = await supabase._rest_request(
         "GET",
         f"/rest/v1/report_values?report_id=in.({quoted_ids})&select=report_id,ct_code,value"
+    )
+    flags = await supabase._rest_request(
+        "GET",
+        (
+            f"/rest/v1/report_validation_flags?report_id=in.({quoted_ids})"
+            "&select=report_id,ct_code,error_type,message,resolved"
+            "&order=created_at.asc"
+        ),
     )
     
     indicator_codes = _indicator_codes()
@@ -1155,6 +1259,14 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
         vals_map[r_id][code] = int(raw_value) if raw_value is not None else None
         
     result = []
+    flags_map: dict[str, list[dict[str, Any]]] = {}
+    for flag in flags:
+        flags_map.setdefault(str(flag["report_id"]), []).append({
+            "ct_code": str(flag.get("ct_code") or ""),
+            "error_type": str(flag.get("error_type") or ""),
+            "message": str(flag.get("message") or ""),
+            "resolved": bool(flag.get("resolved", False)),
+        })
     for raw_report in reports:
         report = dict(raw_report)
         r_vals = vals_map.get(str(report["id"]), {})
@@ -1162,6 +1274,8 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
             if code not in r_vals:
                 r_vals[code] = None
         report["values"] = r_vals
+        report["validation_flags"] = flags_map.get(str(report["id"]), [])
+        report["rule_version"] = "2026-07"
         result.append(report)
         
     return result

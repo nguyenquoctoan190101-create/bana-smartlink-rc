@@ -95,6 +95,11 @@ Hai RPC nghiệp vụ chính:
 - `save_report_submission(...)`: tạo/cập nhật report, CT01-CT14, validation flags,
   optimistic version và idempotency receipt trong một transaction. RPC phải được
   gọi bằng JWT của người dùng, không phải service-role.
+- `commit_report_import_batch(...)`: chỉ tổng hợp các nhóm thôn mới có đủ toàn bộ
+  nguồn đã kiểm duyệt; không yêu cầu giả tạo đủ 22 tệp và không cộng dở nhóm.
+
+Quy tắc nhập bộ XLSX 22 thôn cũ, xử lý 19/22 tệp mẫu và khóa Đông Sơn được mô tả
+tại [docs/LEGACY_DATA_IMPORT.md](docs/LEGACY_DATA_IMPORT.md).
 
 ## Kiểm thử
 

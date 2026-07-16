@@ -46,5 +46,52 @@ def test_official_village_map_keeps_east_son_as_unresolved() -> None:
     east_son = next(
         row for row in mapping["anh_xa_thon_cu"] if row["ten_thon_cu"] == "Thôn Đông Sơn"
     )
-    assert east_son["new_village_id"] == "hoa_ninh"
-    assert "CHUA CHAC CHAN" in east_son["ghi_chu"]
+    assert east_son["new_village_id"] is None
+    assert east_son["proposed_new_village_id"] == "hoa_ninh"
+    assert east_son["mapping_status"] == "pending_official_decision"
+    assert "khong duoc tu dong tong hop" in east_son["ghi_chu"].casefold()
+
+
+def test_village_map_matches_infographic_household_plan_exactly() -> None:
+    mapping = json.loads(VILLAGE_MAP.read_text(encoding="utf-8"))
+    expected_households = {
+        "thach_nham_dong": 553,
+        "thach_nham_tay": 533,
+        "phuoc_hung": 571,
+        "phu_hoa": 899,
+        "thai_lai": 546,
+        "phuoc_khuong": 856,
+        "hoa_nhon": 726,
+        "son_phuoc": 672,
+        "hoa_ninh": 911,
+        "an_son": 300,
+    }
+
+    assert {
+        row["id"]: row["quy_mo_ho_du_kien"] for row in mapping["villages_moi"]
+    } == expected_households
+    assert sum(expected_households.values()) == 6_567
+    assert mapping["_meta"]["source_artifact_sha256"] == (
+        "9d5533a78ca52c309047a8de283ffeb30710d0119bdae392153938bd4f47201c"
+    )
+    assert mapping["_meta"]["source_status"] == (
+        "tai_lieu_phuong_an_chua_thay_the_quyet_dinh_hanh_chinh"
+    )
+
+
+def test_village_map_distinguishes_22_old_villages_from_two_resettlement_areas() -> None:
+    mapping = json.loads(VILLAGE_MAP.read_text(encoding="utf-8"))
+    legacy_rows = mapping["anh_xa_thon_cu"]
+    resettlement_rows = [
+        row for row in legacy_rows if row.get("legacy_unit_type") == "resettlement_area"
+    ]
+
+    assert len(legacy_rows) == 24
+    assert len(resettlement_rows) == 2
+    assert len(legacy_rows) - len(resettlement_rows) == 22
+    assert {row["new_village_id"] for row in resettlement_rows} == {"an_son"}
+    assert all(
+        row.get("legacy_unit_type", "village") == "village"
+        for row in legacy_rows
+        if row not in resettlement_rows
+    )

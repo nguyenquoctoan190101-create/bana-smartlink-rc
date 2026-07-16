@@ -20,9 +20,9 @@ class VillageCnscdImpactResponse(BaseModel):
     village_name: str
     report_id: UUID | None
     assisted_report_count: int
-    ct13_value: int
-    difference: int
-    absolute_difference: int
+    ct13_value: int | None
+    difference: int | None
+    absolute_difference: int | None
 
 
 class CnscdImpactResponse(BaseModel):
@@ -30,9 +30,10 @@ class CnscdImpactResponse(BaseModel):
     period_name: str
     submitted_report_count: int
     assisted_report_count: int
-    ct13_total: int
-    difference: int
-    absolute_difference: int
+    ct13_total: int | None
+    difference: int | None
+    absolute_difference: int | None
+    missing_ct13_report_count: int
     villages: list[VillageCnscdImpactResponse]
     interpretation: str
 
@@ -72,6 +73,7 @@ async def get_cnscd_impact(
         ct13_total=impact.ct13_total,
         difference=impact.difference,
         absolute_difference=impact.absolute_difference,
+        missing_ct13_report_count=impact.missing_ct13_report_count,
         villages=[
             VillageCnscdImpactResponse(
                 village_id=UUID(item.village_id),

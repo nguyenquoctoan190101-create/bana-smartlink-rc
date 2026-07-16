@@ -69,13 +69,13 @@ upsert_reports as (
   select
     village.id,
     period.id,
-    'approved',
-    'on_time',
-    'published',
+    'draft',
+    'not_submitted',
+    'private',
     'direct_api',
-    now(),
-    now(),
-    now()
+    null,
+    null,
+    null
   from upsert_villages as village
   cross join upsert_period as period
   on conflict (village_id, period_id) do update set
@@ -117,5 +117,18 @@ cross join lateral (
 on conflict (report_id, ct_code) do update set
   value = excluded.value,
   note = excluded.note;
+
+update public.reports as report
+set
+  workflow_status = 'approved',
+  timeliness_status = 'on_time',
+  publication_status = 'published',
+  submitted_at = now(),
+  approved_at = now(),
+  published_at = now()
+from public.report_periods as period
+where report.period_id = period.id
+  and period.commune_id = 'ba_na'
+  and period.name = 'Bản công bố minh họa — Tháng 7/2026';
 
 commit;

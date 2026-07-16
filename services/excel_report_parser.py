@@ -15,9 +15,19 @@ REPORT_SHEET_NAME = "Phiếu báo cáo"
 FIRST_INDICATOR_ROW = 13
 
 
+class ParsedExcelMetadata(TypedDict):
+    period_name: str | None
+    village_name: str | None
+    reporter_name: str | None
+    reporter_title: str | None
+    reporter_phone: str | None
+    deadline: str | None
+
+
 class ParsedExcelReport(TypedDict):
     values: dict[str, Any]
     notes: dict[str, str | None]
+    metadata: ParsedExcelMetadata
 
 
 class ExcelReportParseError(RuntimeError):
@@ -38,6 +48,14 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
     worksheet = workbook[REPORT_SHEET_NAME]
     values: dict[str, Any] = {code: None for code in expected_codes}
     notes: dict[str, str | None] = {code: None for code in expected_codes}
+    metadata: ParsedExcelMetadata = {
+        "period_name": _clean_prefixed_text(worksheet["A5"].value, "Kỳ báo cáo:"),
+        "village_name": _clean_text(worksheet["B7"].value),
+        "reporter_name": _clean_text(worksheet["B8"].value),
+        "reporter_title": _clean_text(worksheet["B9"].value),
+        "reporter_phone": _clean_text(worksheet["B10"].value),
+        "deadline": _clean_text(worksheet["B11"].value),
+    }
 
     for row in worksheet.iter_rows(min_row=FIRST_INDICATOR_ROW):
         ct_code = _clean_code(row[0].value if len(row) > 0 else None)
@@ -47,7 +65,7 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
         values[ct_code] = row[3].value if len(row) > 3 else None
         notes[ct_code] = _clean_note(row[4].value if len(row) > 4 else None)
 
-    return {"values": values, "notes": notes}
+    return {"values": values, "notes": notes, "metadata": metadata}
 
 
 def _load_indicator_codes() -> set[str]:
@@ -78,6 +96,23 @@ def _clean_note(value: Any) -> str | None:
 
     note = str(value).strip()
     return note or None
+
+
+def _clean_text(value: Any) -> str | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    return text or None
+
+
+def _clean_prefixed_text(value: Any, prefix: str) -> str | None:
+    text = _clean_text(value)
+    if text is None:
+        return None
+    if text.casefold().startswith(prefix.casefold()):
+        text = text[len(prefix):].strip()
+    return text or None
 
 
 __all__ = ["ExcelReportParseError", "parse_official_report_excel"]

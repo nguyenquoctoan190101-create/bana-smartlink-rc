@@ -13,9 +13,9 @@ class VillageCnscdImpact:
     village_name: str
     report_id: str | None
     assisted_report_count: int
-    ct13_value: int
-    difference: int
-    absolute_difference: int
+    ct13_value: int | None
+    difference: int | None
+    absolute_difference: int | None
 
 
 @dataclass(frozen=True)
@@ -24,9 +24,10 @@ class CnscdImpact:
     period_name: str
     submitted_report_count: int
     assisted_report_count: int
-    ct13_total: int
-    difference: int
-    absolute_difference: int
+    ct13_total: int | None
+    difference: int | None
+    absolute_difference: int | None
+    missing_ct13_report_count: int
     villages: list[VillageCnscdImpact]
     interpretation: str
 
@@ -49,8 +50,8 @@ class CnscdImpactService:
             report = reports_by_village.get(village_id)
             report_id = str(report["id"]) if report is not None else None
             assisted_count = 1 if report is not None and bool(report.get("assisted_by_cnscd")) else 0
-            ct13_value = values_by_report.get(report_id or "", 0)
-            difference = ct13_value - assisted_count
+            ct13_value = values_by_report.get(report_id or "") if report_id is not None else None
+            difference = ct13_value - assisted_count if ct13_value is not None else None
             village_impacts.append(
                 VillageCnscdImpact(
                     village_id=village_id,
@@ -59,16 +60,27 @@ class CnscdImpactService:
                     assisted_report_count=assisted_count,
                     ct13_value=ct13_value,
                     difference=difference,
-                    absolute_difference=abs(difference),
+                    absolute_difference=abs(difference) if difference is not None else None,
                 )
             )
 
         assisted_report_count = sum(item.assisted_report_count for item in village_impacts)
-        ct13_total = sum(item.ct13_value for item in village_impacts)
-        difference = ct13_total - assisted_report_count
+        missing_ct13_report_count = sum(
+            1 for item in village_impacts if item.report_id is not None and item.ct13_value is None
+        )
+        complete_ct13 = missing_ct13_report_count == 0
+        ct13_total = (
+            sum(item.ct13_value for item in village_impacts if item.ct13_value is not None)
+            if complete_ct13 else None
+        )
+        difference = ct13_total - assisted_report_count if ct13_total is not None else None
         interpretation = (
             f"Kỳ {period['name']}: Tổ CNSCĐ hỗ trợ nhập hộ {assisted_report_count} báo cáo; "
-            f"CT13 do thôn tự khai là {ct13_total} người; chênh lệch {abs(difference)}."
+            + (
+                f"CT13 do thôn tự khai là {ct13_total} người; chênh lệch {abs(difference or 0)}."
+                if complete_ct13
+                else f"chưa thể tính tổng CT13 vì {missing_ct13_report_count} báo cáo thiếu dữ liệu."
+            )
         )
         return CnscdImpact(
             period_id=period_id,
@@ -77,7 +89,8 @@ class CnscdImpactService:
             assisted_report_count=assisted_report_count,
             ct13_total=ct13_total,
             difference=difference,
-            absolute_difference=abs(difference),
+            absolute_difference=abs(difference) if difference is not None else None,
+            missing_ct13_report_count=missing_ct13_report_count,
             villages=village_impacts,
             interpretation=interpretation,
         )
@@ -110,7 +123,7 @@ class CnscdImpactService:
             ),
         )
 
-    async def _fetch_ct13_values(self, report_ids: list[str]) -> dict[str, int]:
+    async def _fetch_ct13_values(self, report_ids: list[str]) -> dict[str, int | None]:
         if not report_ids:
             return {}
 
@@ -124,21 +137,21 @@ class CnscdImpactService:
                 "&select=report_id,value"
             ),
         )
-        return {str(row["report_id"]): _int_or_zero(row.get("value")) for row in rows}
+        return {str(row["report_id"]): _int_or_none(row.get("value")) for row in rows}
 
 
 class CnscdImpactError(RuntimeError):
     """Raised when CNSCD impact data cannot be calculated."""
 
 
-def _int_or_zero(value: Any) -> int:
+def _int_or_none(value: Any) -> int | None:
     if value is None or isinstance(value, bool):
-        return 0
+        return None
 
     try:
         return int(value)
     except (TypeError, ValueError):
-        return 0
+        return None
 
 
 __all__ = [

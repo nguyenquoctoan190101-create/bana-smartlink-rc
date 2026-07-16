@@ -54,6 +54,7 @@ def _is_pending(note: str | None) -> bool:
 
 async def seed(conn: asyncpg.Connection, commune_id: str) -> tuple[int, int]:
     data = _load_json(OFFICIAL_MAP)
+    mapping_version = str(data.get("_meta", {}).get("mapping_version") or "unversioned")
     known = _existing_uuid_by_name()
     village_ids: dict[str, uuid.UUID] = {}
 
@@ -88,44 +89,62 @@ async def seed(conn: asyncpg.Connection, commune_id: str) -> tuple[int, int]:
 
         for legacy in data.get("anh_xa_thon_cu", []):
             old_name = str(legacy["ten_thon_cu"])
-            target_slug = str(legacy["new_village_id"])
-            target_id = village_ids[target_slug]
+            raw_target_slug = legacy.get("new_village_id")
+            target_id = village_ids[str(raw_target_slug)] if raw_target_slug else None
+            raw_proposed_slug = legacy.get("proposed_new_village_id")
+            proposed_target_id = village_ids[str(raw_proposed_slug)] if raw_proposed_slug else None
             note = legacy.get("ghi_chu")
-            status = "pending_official_decision" if _is_pending(note) else "confirmed"
+            status = str(legacy.get("mapping_status") or ("pending_official_decision" if _is_pending(note) else "confirmed"))
+            if status == "pending_official_decision":
+                target_id = None
+            else:
+                proposed_target_id = None
+            unit_type = str(legacy.get("legacy_unit_type") or "village")
             legacy_id = uuid.uuid5(NAMESPACE, f"legacy:{old_name}")
             await conn.execute(
                 """
                 insert into public.villages_legacy (
-                  id, old_name, dissolved_into_village_id, commune_id,
-                  mapping_status, note
-                ) values ($1, $2, $3, $4, $5, $6)
+                  id, old_name, dissolved_into_village_id, proposed_dissolved_into_village_id, commune_id,
+                  mapping_status, mapping_version, legacy_unit_type, note
+                ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 on conflict (old_name) do update set
                   dissolved_into_village_id = excluded.dissolved_into_village_id,
+                  proposed_dissolved_into_village_id = excluded.proposed_dissolved_into_village_id,
                   commune_id = excluded.commune_id,
                   mapping_status = excluded.mapping_status,
+                  mapping_version = excluded.mapping_version,
+                  legacy_unit_type = excluded.legacy_unit_type,
                   note = excluded.note
                 """,
                 legacy_id,
                 old_name,
                 target_id,
+                proposed_target_id,
                 commune_id,
                 status,
+                mapping_version,
+                unit_type,
                 note,
             )
             await conn.execute(
                 """
                 insert into public.village_merge_map (
-                  old_village_name, new_village_id, mapping_status, source_note
-                ) values ($1, $2, $3, $4)
+                  old_village_name, new_village_id, proposed_new_village_id, mapping_status, source_note
+                  , mapping_version
+                ) values ($1, $2, $3, $4, $5, $6)
                 on conflict (old_village_name) do update set
                   new_village_id = excluded.new_village_id,
+                  proposed_new_village_id = excluded.proposed_new_village_id,
                   mapping_status = excluded.mapping_status,
-                  source_note = excluded.source_note
+                  source_note = excluded.source_note,
+                  mapping_version = excluded.mapping_version
                 """,
                 old_name,
                 target_id,
+                proposed_target_id,
                 status,
                 note,
+                mapping_version,
             )
     return len(village_ids), len(data.get("anh_xa_thon_cu", []))
 

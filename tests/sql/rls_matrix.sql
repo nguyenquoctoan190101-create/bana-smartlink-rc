@@ -49,30 +49,45 @@ insert into public.reports (
     '00000000-0000-4000-8000-00000000b001',
     '00000000-0000-4000-8000-00000000c001',
     '00000000-0000-4000-8000-00000000d001',
-    'approved', 'on_time', 'published', 'manual',
+    'draft', 'not_submitted', 'private', 'manual',
     '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-00000000a002',
     '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-00000000a001',
-    now(), now(), now()
+    null, null, null
   ),
   (
     '00000000-0000-4000-8000-00000000b002',
     '00000000-0000-4000-8000-00000000c002',
     '00000000-0000-4000-8000-00000000d001',
-    'approved', 'on_time', 'published', 'manual',
+    'draft', 'not_submitted', 'private', 'manual',
     '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-00000000a003',
     '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-00000000a001',
-    now(), now(), now()
+    null, null, null
   );
 
-insert into public.report_values (report_id, ct_code, value) values
-  ('00000000-0000-4000-8000-00000000b001', 'CT01', 10),
-  ('00000000-0000-4000-8000-00000000b001', 'CT14', 1),
-  ('00000000-0000-4000-8000-00000000b002', 'CT01', 20),
-  ('00000000-0000-4000-8000-00000000b002', 'CT14', 2);
+insert into public.report_values (report_id, ct_code, value)
+select report_id, ct_code, value
+from (
+  values
+    ('00000000-0000-4000-8000-00000000b001'::uuid, 10),
+    ('00000000-0000-4000-8000-00000000b002'::uuid, 20)
+) as report(report_id, households)
+cross join lateral (
+  values
+    ('CT01', households), ('CT02', households * 4),
+    ('CT03', 1), ('CT04', 1), ('CT05', 1), ('CT06', 1),
+    ('CT07', households), ('CT08', 1), ('CT09', households - 1),
+    ('CT10', households * 2), ('CT11', households * 3),
+    ('CT12', 6), ('CT13', 2), ('CT14', 1)
+) as indicator(ct_code, value);
+
+update public.reports
+set workflow_status = 'approved', timeliness_status = 'on_time',
+    publication_status = 'published', submitted_at = now(),
+    approved_at = now(), published_at = now();
 
 do $$
 begin

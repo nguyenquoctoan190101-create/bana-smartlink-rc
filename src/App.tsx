@@ -26,7 +26,8 @@ import {
   Wifi,
   WifiOff,
   Plus,
-  Bell
+  Bell,
+  FileArchive
 } from "lucide-react";
 
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -40,6 +41,7 @@ const CreatePeriod = React.lazy(() => import("./components/CreatePeriod"));
 const PendingUpdates = React.lazy(() => import("./components/PendingUpdates"));
 const PublicVillagePage = React.lazy(() => import("./components/PublicVillagePage"));
 const OperationsCenter = React.lazy(() => import("./components/OperationsCenter"));
+const LegacyBatchImport = React.lazy(() => import("./components/LegacyBatchImport"));
 
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
@@ -174,7 +176,7 @@ export default function App() {
   const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import">("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -253,9 +255,9 @@ export default function App() {
   }, []);
 
   // Synchronize tab state with URL path
-  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations", search = new URLSearchParams()) => {
+  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import", search = new URLSearchParams()) => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import"]),
       can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations"]),
       to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations"]),
       lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations"]),
@@ -269,7 +271,7 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
-    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations"]);
+    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
@@ -676,6 +678,7 @@ export default function App() {
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Điều hành" },
           { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
           { id: "create-period", label: "Tạo kỳ báo cáo", icon: Plus, group: "Quản trị" },
+          { id: "legacy-import", label: "Nhập 22 thôn cũ", icon: FileArchive },
           { id: "admin-panel", label: "Tài khoản cán bộ", icon: Shield }
         ];
       case "can_bo_thon":
@@ -1049,6 +1052,9 @@ export default function App() {
 
               {activeTab === "create-period" && (
                 <CreatePeriod />
+              )}
+              {activeTab === "legacy-import" && (
+                <LegacyBatchImport />
               )}
               </div>
             </React.Suspense>

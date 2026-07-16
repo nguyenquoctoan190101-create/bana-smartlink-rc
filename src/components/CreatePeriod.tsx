@@ -9,6 +9,14 @@ interface CreatedPeriod {
   due_date: string;
   village_ids?: string[];
   notified_count?: number;
+  template_name?: string | null;
+  template_sha256?: string | null;
+}
+
+interface TemplateUploadResult {
+  period_id: string;
+  template_name: string;
+  template_sha256: string;
 }
 
 const MAX_TEMPLATE_BYTES = 5 * 1024 * 1024;
@@ -24,6 +32,7 @@ export default function CreatePeriod() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPeriod | null>(null);
+  const [templateUploadFailed, setTemplateUploadFailed] = useState(false);
 
   useEffect(() => {
     if (selectedVillages.length === 0 && allVillageIds.length > 0) {
@@ -57,6 +66,7 @@ export default function CreatePeriod() {
     event.preventDefault();
     setError(null);
     setCreated(null);
+    setTemplateUploadFailed(false);
     if (!periodName.trim()) return setError("Vui lòng nhập tên kỳ báo cáo.");
     if (!deadline || Number.isNaN(new Date(deadline).getTime())) return setError("Vui lòng chọn hạn nộp hợp lệ.");
     if (new Date(deadline).getTime() <= Date.now()) return setError("Hạn nộp phải ở tương lai.");
@@ -74,16 +84,58 @@ export default function CreatePeriod() {
           name: periodName.trim(),
           due_date: new Date(deadline).toISOString(),
           village_ids: selectedVillages,
-          template_name: templateFile?.name || null,
+          template_name: null,
         }),
       });
-      setCreated({ ...result, village_ids: selectedVillages, notified_count: selectedVillages.length });
+      let uploadedTemplate: TemplateUploadResult | null = null;
+      if (templateFile) {
+        const formData = new FormData();
+        formData.append("file", templateFile);
+        try {
+          uploadedTemplate = await apiJson<TemplateUploadResult>(`/report-periods/${result.id}/template`, {
+            method: "POST",
+            body: formData,
+          });
+        } catch (cause) {
+          setCreated({ ...result, village_ids: selectedVillages, notified_count: selectedVillages.length });
+          setTemplateUploadFailed(true);
+          setError(cause instanceof Error
+            ? `Kỳ báo cáo đã được tạo nhưng chưa tải được biểu mẫu: ${cause.message}`
+            : "Kỳ báo cáo đã được tạo nhưng chưa tải được biểu mẫu.");
+          return;
+        }
+      }
+      setCreated({ ...result, ...uploadedTemplate, village_ids: selectedVillages, notified_count: selectedVillages.length });
       setPeriodName("");
       setDeadline("");
       setTemplateFile(null);
       setSelectedVillages(allVillageIds);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể tạo kỳ báo cáo.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const retryTemplateUpload = async () => {
+    if (!created || !templateFile) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", templateFile);
+      const uploaded = await apiJson<TemplateUploadResult>(`/report-periods/${created.id}/template`, {
+        method: "POST",
+        body: formData,
+      });
+      setCreated((current) => current ? { ...current, ...uploaded } : current);
+      setTemplateUploadFailed(false);
+      setPeriodName("");
+      setDeadline("");
+      setTemplateFile(null);
+      setSelectedVillages(allVillageIds);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Không thể tải lại biểu mẫu.");
     } finally {
       setIsSubmitting(false);
     }
@@ -109,8 +161,13 @@ export default function CreatePeriod() {
       {created && (
         <div role="status" className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
           <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0" />
-          <span><b>Đã tạo kỳ “{created.name}”.</b> Thông báo nội bộ đã gửi đến {created.notified_count ?? created.village_ids?.length ?? 0} thôn.</span>
+          <span><b>Đã tạo kỳ “{created.name}”.</b> Thông báo nội bộ đã gửi đến {created.notified_count ?? created.village_ids?.length ?? 0} thôn.{created.template_sha256 ? ` Biểu mẫu ${created.template_name || "XLSX"} đã được lưu và kiểm tra SHA-256.` : ""}</span>
         </div>
+      )}
+      {templateUploadFailed && created && templateFile && (
+        <button type="button" onClick={retryTemplateUpload} disabled={isSubmitting} className="min-h-11 rounded-xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-900 disabled:opacity-60">
+          Tải lại biểu mẫu cho kỳ vừa tạo
+        </button>
       )}
 
       <form onSubmit={submit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -150,7 +207,7 @@ export default function CreatePeriod() {
         </fieldset>
 
         <div>
-          <label htmlFor="period-template" className="block text-sm font-bold text-slate-700">Tên tệp mẫu XLSX tham chiếu (không bắt buộc)</label>
+          <label htmlFor="period-template" className="block text-sm font-bold text-slate-700">Tệp mẫu XLSX (không bắt buộc)</label>
           {templateFile ? (
             <div className="mt-2 flex min-h-14 items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3">
               <span className="flex min-w-0 items-center gap-2 text-sm"><FileSpreadsheet aria-hidden="true" className="h-5 w-5 shrink-0" /><span className="truncate">{templateFile.name}</span></span>
@@ -162,7 +219,7 @@ export default function CreatePeriod() {
               <input id="period-template" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => chooseFile(e.target.files?.[0])} />
             </label>
           )}
-          <p className="mt-2 text-sm text-slate-500">Phiên bản này lưu tên tệp tham chiếu trong kỳ báo cáo; nội dung tệp không được gửi khỏi thiết bị tại bước này.</p>
+          <p className="mt-2 text-sm text-slate-500">Máy chủ kiểm tra cấu trúc XLSX, lưu tệp trong kho riêng tư và ghi SHA-256 để đối chiếu đúng phiên bản.</p>
         </div>
 
         <button type="submit" disabled={isSubmitting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-black text-white disabled:opacity-60">
