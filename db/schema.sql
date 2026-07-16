@@ -773,6 +773,7 @@ $$;
 create function public.enforce_submitted_report_values()
 returns trigger
 language plpgsql
+security definer
 set search_path = pg_catalog, public
 as $$
 begin

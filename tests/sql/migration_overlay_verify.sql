@@ -50,6 +50,16 @@ begin
     raise exception 'anonymous role can execute protected import/validation helpers';
   end if;
 
+  if not exists (
+    select 1
+    from pg_proc
+    where oid = 'public.enforce_submitted_report_values()'::regprocedure
+      and prosecdef
+      and proconfig @> array['search_path=pg_catalog, public']
+  ) then
+    raise exception 'submitted report trigger must validate as a hardened security definer';
+  end if;
+
   if has_table_privilege('authenticated', 'public.report_import_lineage', 'insert') then
     raise exception 'authenticated callers can forge import lineage directly';
   end if;
