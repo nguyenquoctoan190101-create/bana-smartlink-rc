@@ -56,7 +56,7 @@ create trigger reports_enforce_indicator_values
 before insert or update on public.reports
 for each row execute function public.enforce_submitted_report_values();
 
-revoke all on function public.report_indicator_values_are_valid(uuid) from public;
-revoke all on function public.enforce_submitted_report_values() from public;
+revoke all on function public.report_indicator_values_are_valid(uuid) from public, anon, authenticated, service_role;
+revoke all on function public.enforce_submitted_report_values() from public, anon, authenticated, service_role;
 
 commit;

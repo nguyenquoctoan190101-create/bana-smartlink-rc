@@ -6,10 +6,11 @@
 - Pull request: `#1`, đang ở trạng thái draft và chưa được merge vào `main`.
 - Render đang phục vụ bản cũ trên `main`; không bị tác động bởi nhánh này.
 - Supabase hiện chỉ dùng dữ liệu tổng hợp cho cuộc thi.
-- Ba migration mới phải được áp dụng theo đúng thứ tự:
+- Bốn migration mới phải được áp dụng theo đúng thứ tự:
   1. `20260715_0004_legacy_batch_import.sql`
   2. `20260715_0005_report_templates_and_import_privacy.sql`
   3. `20260715_0006_database_validation_enforcement.sql`
+  4. `20260715_0007_supabase_function_acl_hardening.sql`
 
 Không merge PR trước khi hoàn tất các bước dưới đây.
 
@@ -111,9 +112,8 @@ Kết quả bắt buộc: `dissolved_into_village_id` là `null`, target đề x
 Chỉ chuyển PR khỏi draft và merge khi có đủ bằng chứng:
 
 - backup đọc được và có phương án phục hồi;
-- cả ba migration thành công;
+- cả bốn migration thành công;
 - seed và năm số kiểm tra sau migration đúng;
 - smoke test không có 401/403/500 ngoài trường hợp mong đợi;
 - import batch hiển thị đúng 19/22 tệp, ba nguồn thiếu và khóa Đông Sơn;
 - người chịu trách nhiệm staging xác nhận kết quả.
-

@@ -46,8 +46,24 @@ begin
   end if;
 
   if has_function_privilege('anon', 'public.commit_report_import_batch(uuid)', 'execute')
-     or has_function_privilege('anon', 'public.report_indicator_values_are_valid(uuid)', 'execute') then
+     or has_function_privilege('anon', 'public.report_indicator_values_are_valid(uuid)', 'execute')
+     or has_function_privilege('anon', 'public.guard_report_import_file_mutation()', 'execute')
+     or has_function_privilege('anon', 'public.enforce_submitted_report_values()', 'execute') then
     raise exception 'anonymous role can execute protected import/validation helpers';
+  end if;
+
+  if not has_function_privilege('authenticated', 'public.commit_report_import_batch(uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.report_indicator_values_are_valid(uuid)', 'execute')
+     or has_function_privilege('authenticated', 'public.guard_report_import_file_mutation()', 'execute')
+     or has_function_privilege('authenticated', 'public.enforce_submitted_report_values()', 'execute') then
+    raise exception 'authenticated role has an invalid import/helper privilege set';
+  end if;
+
+  if has_function_privilege('service_role', 'public.commit_report_import_batch(uuid)', 'execute')
+     or has_function_privilege('service_role', 'public.report_indicator_values_are_valid(uuid)', 'execute')
+     or has_function_privilege('service_role', 'public.guard_report_import_file_mutation()', 'execute')
+     or has_function_privilege('service_role', 'public.enforce_submitted_report_values()', 'execute') then
+    raise exception 'service role retains direct execute on protected import/validation helpers';
   end if;
 
   if not exists (

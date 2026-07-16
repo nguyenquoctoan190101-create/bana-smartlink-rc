@@ -61,6 +61,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260715_0004_legacy_batch_import.sql",
         "20260715_0005_report_templates_and_import_privacy.sql",
         "20260715_0006_database_validation_enforcement.sql",
+        "20260715_0007_supabase_function_acl_hardening.sql",
     ]
 
 
@@ -123,3 +124,26 @@ def test_database_contract_verifies_new_tables_privileges_and_trigger() -> None:
         "review_reason",
     ):
         assert marker in verification
+
+
+def test_supabase_direct_function_grants_are_explicitly_hardened() -> None:
+    migration = (
+        ROOT / "migrations" / "20260715_0007_supabase_function_acl_hardening.sql"
+    ).read_text(encoding="utf-8")
+    assert migration.count("from public, anon, authenticated, service_role") == 4
+    assert (
+        "grant execute on function public.commit_report_import_batch(uuid) "
+        "to authenticated"
+    ) in migration.replace("\n", " ")
+
+
+def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    rls_matrix = (ROOT / "tests" / "sql" / "rls_matrix.sql").read_text(
+        encoding="utf-8"
+    )
+    assert workflow.count("psql -v ON_ERROR_STOP=1") == 8
+    assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
+    assert rls_matrix.rstrip().endswith("rollback;")

@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 
+begin;
+
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000a001'),
   ('00000000-0000-4000-8000-00000000a002'),
@@ -175,3 +177,5 @@ $$;
 update public.reports set report_source = 'direct_api'
 where id = '00000000-0000-4000-8000-00000000b001';
 reset role;
+
+rollback;

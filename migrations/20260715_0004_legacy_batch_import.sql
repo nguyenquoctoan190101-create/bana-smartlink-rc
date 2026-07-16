@@ -263,7 +263,7 @@ begin
   return query select p_batch_id, committed_reports, file_count, false;
 end
 $$;
-revoke all on function public.commit_report_import_batch(uuid) from public;
+revoke all on function public.commit_report_import_batch(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.commit_report_import_batch(uuid) to authenticated;
 
 create or replace function public.guard_report_import_file_mutation()
@@ -304,7 +304,7 @@ begin
   return new;
 end
 $$;
-revoke all on function public.guard_report_import_file_mutation() from public;
+revoke all on function public.guard_report_import_file_mutation() from public, anon, authenticated, service_role;
 
 create index if not exists report_import_batches_scope_idx on public.report_import_batches (commune_id,period_id,status);
 create index if not exists report_import_files_batch_status_idx on public.report_import_files (batch_id,mapping_status,review_status);

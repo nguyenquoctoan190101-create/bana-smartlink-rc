@@ -116,19 +116,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Bootstrap Supabase-compatible roles
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_test_bootstrap.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_test_bootstrap.sql
       - name: Migrate a blank database
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f db/schema.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f db/schema.sql
       - name: Execute real PostgreSQL RLS matrix
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/rls_matrix.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/rls_matrix.sql
       - name: Seed synthetic demo dataset
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f db/demo_synthetic_seed.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f db/demo_synthetic_seed.sql
       - name: Verify synthetic demo dataset
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/demo_seed_verify.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/demo_seed_verify.sql
+      - name: Reproduce direct Supabase function grants from an upgraded snapshot
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_function_grant_snapshot.sql
       - name: Apply ordered release-candidate overlay migrations
         run: |
           for migration in migrations/20260715_*.sql; do
-            psql -h 127.0.0.1 -U postgres -d bana_test -f "$migration"
+            psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f "$migration"
           done
       - name: Verify migration overlay and database validation gate
-        run: psql -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/migration_overlay_verify.sql
+        run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/migration_overlay_verify.sql

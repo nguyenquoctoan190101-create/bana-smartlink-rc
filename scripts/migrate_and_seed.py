@@ -62,30 +62,36 @@ async def seed(conn: asyncpg.Connection, commune_id: str) -> tuple[int, int]:
         for village in data.get("villages_moi", []):
             slug = str(village["id"])
             name = str(village["ten"])
-            village_id = _village_uuid(slug, name, known)
-            village_ids[slug] = village_id
+            proposed_village_id = _village_uuid(slug, name, known)
             expected_households = village.get("quy_mo_ho_du_kien")
             household_count = (
                 {"2026-07": int(expected_households)}
                 if expected_households is not None
                 else {}
             )
-            await conn.execute(
+            # Fresh databases use the deterministic UUID. Existing staging
+            # databases may already have the same official commune/name under
+            # an older UUID, so preserve that identity and return it for every
+            # downstream legacy mapping and lineage reference.
+            village_id = await conn.fetchval(
                 """
                 insert into public.villages (
                   id, commune_id, name, household_count, mapping_status
                 ) values ($1, $2, $3, $4::jsonb, 'confirmed')
-                on conflict (id) do update set
-                  commune_id = excluded.commune_id,
-                  name = excluded.name,
+                on conflict (commune_id, name) do update set
                   household_count = excluded.household_count,
+                  mapping_status = 'confirmed',
                   updated_at = now()
+                returning id
                 """,
-                village_id,
+                proposed_village_id,
                 commune_id,
                 name,
                 json.dumps(household_count, ensure_ascii=False),
             )
+            if not isinstance(village_id, uuid.UUID):
+                village_id = uuid.UUID(str(village_id))
+            village_ids[slug] = village_id
 
         for legacy in data.get("anh_xa_thon_cu", []):
             old_name = str(legacy["ten_thon_cu"])
