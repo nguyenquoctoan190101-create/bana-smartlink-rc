@@ -858,6 +858,7 @@ def _enrich_with_indicator_names(rows: list[dict[str, Any]]) -> list[dict[str, A
 def _build_gemini_prompt(
     question: str,
     context_rows: list[dict[str, Any]],
+    resolved_villages: list[str] | None = None,
 ) -> str:
     """Xây dựng prompt cho Gemini chỉ chứa số liệu tổng hợp an toàn.
 
@@ -869,6 +870,7 @@ def _build_gemini_prompt(
     safe_context = json.dumps(
         {
             "cau_hoi": _redact_free_text(question),
+            "ten_thon_chuan_hoa": resolved_villages or [],
             "du_lieu_he_thong": enriched,
         },
         ensure_ascii=False,
@@ -880,6 +882,9 @@ def _build_gemini_prompt(
         "CHỈ sử dụng các số liệu có trong trường \'du_lieu_he_thong\'. "
         "Nêu rõ thôn hoặc phạm vi, kỳ dữ liệu, mã/tên chỉ tiêu và nguồn là "
         "BaNa SmartLink khi các trường đó có trong dữ liệu. "
+        "Nếu câu hỏi dùng tên thôn cũ nhưng trường 'ten_thon_chuan_hoa' hoặc "
+        "'du_lieu_he_thong' dùng tên mới, hãy coi đó là cùng phạm vi và nói rõ "
+        "tên chuẩn mới trong câu trả lời; không được kết luận là không có dữ liệu. "
         "Nếu không có dữ liệu liên quan, nói rõ là chưa có thông tin.\n\n"
         f"{safe_context}"
     )
@@ -1120,7 +1125,7 @@ async def ask_question_async(
             rows_retrieved=0,
         )
 
-    prompt = _build_gemini_prompt(question, context_rows)
+    prompt = _build_gemini_prompt(question, context_rows, parsed.village_names)
 
     try:
         answer_text = await get_gemini_client().generate_text(

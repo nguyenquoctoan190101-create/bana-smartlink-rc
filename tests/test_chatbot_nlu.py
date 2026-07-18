@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from services.chatbot import (
     _QueryIntent,
     _classify_question_with_gemini,
+    _build_gemini_prompt,
     _query_village_indicator,
     _redact_free_text,
     ask_question_async,
@@ -164,6 +165,26 @@ def test_screenshot_question_reaches_ct09_database_query() -> None:
     assert answer.rows_retrieved == 1
     assert "479" in answer.answer
     assert "CT09" in connection.params
+
+
+def test_answer_prompt_explains_legacy_name_resolution() -> None:
+    prompt = _build_gemini_prompt(
+        "Thôn Mỹ Sơn có bao nhiêu hộ dân?",
+        [
+            {
+                "village_name": "Thôn Sơn Phước",
+                "period_name": "Tháng 7/2026",
+                "ct_code": "CT01",
+                "value": 181,
+                "status": "approved",
+            }
+        ],
+        ["Thôn Sơn Phước"],
+    )
+
+    assert "ten_thon_chuan_hoa" in prompt
+    assert "Thôn Sơn Phước" in prompt
+    assert "tên thôn cũ" in prompt
 
 
 def test_cnscd_query_is_scoped_by_assignment_not_single_profile_village() -> None:
