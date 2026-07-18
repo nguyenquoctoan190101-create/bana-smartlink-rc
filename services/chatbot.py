@@ -965,6 +965,23 @@ async def _fetch_knowledge_articles(
     return [article for _, article in ranked[:5]]
 
 
+async def _has_restricted_knowledge_article(
+    conn: asyncpg.Connection, question: str, xa_id: str | None
+) -> bool:
+    """Detect a matching approved non-public article without exposing it."""
+    rows = await conn.fetch(
+        """
+        select title, summary
+        from public.knowledge_articles
+        where commune_id = $1 and status = 'approved' and audience <> 'public'
+        order by updated_at desc limit 50
+        """,
+        xa_id or "ba_na",
+    )
+    tokens = _knowledge_tokens(question)
+    return any(tokens & _knowledge_tokens(f"{row['title']} {row['summary'] or ''}") for row in rows)
+
+
 def _deterministic_knowledge_answer(articles: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for article in articles[:3]:
@@ -1164,6 +1181,13 @@ async def ask_question_async(
                     except GeminiError:
                         answer_text = _deterministic_knowledge_answer(articles)
                     return ChatbotAnswer(question=question, answer=answer_text.strip(), intent="KNOWLEDGE_ARTICLE", rows_retrieved=len(articles))
+                if caller_role == "dan" and await _has_restricted_knowledge_article(article_conn, question, xa_id):
+                    return ChatbotAnswer(
+                        question=question,
+                        answer="Nội dung này có tài liệu trong khu vực nội bộ và chưa được công khai. Cổng người dân chỉ cung cấp dữ liệu đã công bố.",
+                        intent="RESTRICTED_KNOWLEDGE",
+                        rows_retrieved=0,
+                    )
         except asyncpg.PostgresError as exc:
             raise ChatbotError("Không thể truy vấn tài liệu nghiệp vụ.") from exc
         finally:
