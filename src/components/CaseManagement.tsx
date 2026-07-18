@@ -386,7 +386,8 @@ export default function CaseManagement({
             return (
               <article
                 key={item.id}
-                className="rounded-xl border border-slate-200 bg-white p-4 md:p-5"
+                className="case-status-card rounded-xl border border-slate-200 bg-white p-4 md:p-5"
+                data-status={isOverdue ? "overdue" : item.status}
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">

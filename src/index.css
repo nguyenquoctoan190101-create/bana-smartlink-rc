@@ -116,12 +116,25 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .metric-card__value small { color: var(--ui-muted); font-size: .8125rem; letter-spacing: 0; }
 .metric-card__context { color: var(--ui-muted); font-size: .8125rem; }
 
-.status-badge { display: inline-flex; min-height: 1.75rem; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .6rem; background: #edf1f0; color: #40504a; font-size: .75rem; font-weight: 700; white-space: nowrap; }
-.status-badge svg { width: .85rem; height: .85rem; }
-.status-badge[data-tone="success"] { background: #e2f4eb; color: #08643f; }
-.status-badge[data-tone="info"] { background: #e4f0fa; color: #12588f; }
-.status-badge[data-tone="warning"] { background: #fff2d9; color: #895300; }
-.status-badge[data-tone="danger"] { background: #fce8e6; color: #9f1f16; }
+.status-badge { display: inline-flex; min-height: 1.85rem; align-items: center; gap: .35rem; border: 1px solid #cbd3d0; border-radius: 999px; padding: .28rem .65rem; background: #edf1f0; color: #34433e; box-shadow: 0 1px 2px rgb(23 33 43 / .08); font-size: .75rem; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+.status-badge svg { width: .9rem; height: .9rem; stroke-width: 2.4; }
+.status-badge[data-tone="success"] { border-color: #75bf91; background: #ddf5e6; color: #075d32; }
+.status-badge[data-tone="info"] { border-color: #88bce8; background: #e1f0fd; color: #0a4f86; }
+.status-badge[data-tone="warning"] { border-color: #e0ad45; background: #fff0c9; color: #754500; }
+.status-badge[data-tone="danger"] { border-color: #e59a93; background: #fde3e0; color: #941f17; }
+.status-badge[data-tone="assigned"] { border-color: #ac9ae5; background: #eee9ff; color: #49328c; }
+.status-badge[data-tone="progress"] { border-color: #70c5b4; background: #ddf4ef; color: #075e50; }
+.status-badge[data-status="overdue"] { border-color: #d86b62; background: #fbd6d2; color: #7f1710; box-shadow: 0 0 0 2px rgb(216 107 98 / .14); }
+
+.case-status-card { position: relative; overflow: hidden; border-left-width: 4px !important; border-left-color: #9aa7a2 !important; transition: border-color .2s ease, box-shadow .2s ease; }
+.case-status-card[data-status="received"] { border-left-color: #2b7fbd !important; }
+.case-status-card[data-status="verifying"] { border-left-color: #d18a06 !important; }
+.case-status-card[data-status="assigned"] { border-left-color: #7157bd !important; }
+.case-status-card[data-status="in_progress"] { border-left-color: #0d8a75 !important; }
+.case-status-card[data-status="completed"] { border-left-color: #168354 !important; }
+.case-status-card[data-status="out_of_scope"] { border-left-color: #687773 !important; }
+.case-status-card[data-status="rejected"],
+.case-status-card[data-status="overdue"] { border-left-color: #c9362b !important; }
 
 .data-scope { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 0; color: var(--ui-muted); font-size: .75rem; }
 .data-scope div { display: flex; gap: .35rem; }
