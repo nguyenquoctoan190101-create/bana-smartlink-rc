@@ -7,6 +7,7 @@
     {"method":"GET","path":"/api/cases/track/{tracking_code}","authorization":"public","scope":"public_case_status_redacted","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/api/cases/{case_id}/media","authorization":"public","scope":"tracking_code_bound_private_media","mutates":true,"may_include_ct14":false},
     {"method":"GET","path":"/api/cases","authorization":"authenticated","scope":"role_and_assigned_village","mutates":false,"may_include_ct14":false},
+    {"method":"GET","path":"/api/cases/routing-rules","authorization":"authenticated","scope":"active_commune_case_routing_catalogue","mutates":false,"may_include_ct14":false},
     {"method":"PATCH","path":"/api/cases/{case_id}/status","authorization":"authenticated","scope":"commune_case_processing","mutates":true,"may_include_ct14":false},
     {"method":"POST","path":"/api/cases/{case_id}/assignment","authorization":"admin","scope":"commune_case_routing","mutates":true,"may_include_ct14":false},
     {"method":"GET","path":"/api/knowledge/articles","authorization":"authenticated","scope":"commune_internal_no_pii","mutates":false,"may_include_ct14":false},

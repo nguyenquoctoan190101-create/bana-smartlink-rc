@@ -3609,6 +3609,61 @@
         ]
       }
     },
+    "/api/cases/routing-rules": {
+      "get": {
+        "description": "Return the approved or demo routing catalogue within the caller's RLS scope.",
+        "operationId": "list_routing_rules_api_cases_routing_rules_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Routing Rules Api Cases Routing Rules Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Routing Rules",
+        "tags": [
+          "citizen-cases"
+        ]
+      }
+    },
     "/api/cases/track/{tracking_code}": {
       "get": {
         "description": "Public, non-PII status lookup by an unguessable token.",

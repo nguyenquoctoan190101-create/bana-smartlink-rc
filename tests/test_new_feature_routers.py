@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -128,7 +128,7 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
 
     queue_path = (
         "/rest/v1/citizen_cases?select=id,commune_id,village_id,category,description,"
-        "priority,status,assigned_department,sla_due_at,created_at,updated_at"
+        "priority,status,assigned_department,sla_due_at,routing_rule_id,created_at,updated_at"
         "&order=created_at.desc&status=eq.received"
     )
     client.responses[("GET", queue_path)] = [created]
@@ -149,16 +149,66 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
     )
     assert updated["status"] == "in_progress"
 
+    assignment_path = "/rest/v1/rpc/assign_citizen_case"
+    client.responses[("POST", assignment_path)] = [
+        {
+            "id": case_id,
+            "status": "assigned",
+            "assigned_department": "Hạ tầng",
+            "sla_due_at": "2026-07-20T00:00:00Z",
+        }
+    ]
     assigned = asyncio.run(
         cases.assign_case(
-            uuid4(),
+            UUID(case_id),
             cases.CaseAssignmentRequest(department=" Hạ tầng "),
             _profile(),
             client,
             "Bearer admin-token",
         )
     )
-    assert assigned["department"] == "Hạ tầng"
+    assert assigned["assigned_department"] == "Hạ tầng"
+    assert client.calls[-1][2] == {
+        "p_case_id": case_id,
+        "p_department": "Hạ tầng",
+        "p_assignee_id": None,
+    }
+
+
+def test_case_routing_catalogue_is_scoped_and_demo_labeled() -> None:
+    client = FakeSupabase()
+    settings = SimpleNamespace(bana_commune_id="ba_na")
+    path = (
+        "/rest/v1/routing_rules?"
+        "select=id,category,department,priority,verification_minutes,"
+        "resolution_minutes,escalation_department,is_active,is_demo,sla_version"
+        "&commune_id=eq.ba_na&is_active=eq.true&order=category.asc,priority.asc"
+    )
+    client.responses[("GET", path)] = [
+        {
+            "id": str(uuid4()),
+            "category": "road",
+            "department": "Bộ phận hạ tầng",
+            "priority": "normal",
+            "verification_minutes": 480,
+            "resolution_minutes": 7200,
+            "escalation_department": "Lãnh đạo UBND xã",
+            "is_active": True,
+            "is_demo": True,
+            "sla_version": "demo-2026-07-18",
+        }
+    ]
+    result = asyncio.run(
+        cases.list_routing_rules(
+            _profile("lanh_dao"),
+            settings,
+            client,
+            "Bearer leader-token",
+        )
+    )
+    assert result[0]["is_demo"] is True
+    assert result[0]["resolution_minutes"] == 7200
+    assert client.token == "leader-token"
 
 
 @pytest.mark.parametrize(

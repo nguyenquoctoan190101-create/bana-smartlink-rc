@@ -261,7 +261,7 @@ async def list_cases(
     """Internal queue; Postgres RLS remains the final scope boundary."""
     if profile.role not in {"admin_xa", "lanh_dao", "to_cnscd", "can_bo_thon"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Role cannot view field reports")
-    query = "/rest/v1/citizen_cases?select=id,commune_id,village_id,category,description,priority,status,assigned_department,sla_due_at,created_at,updated_at&order=created_at.desc"
+    query = "/rest/v1/citizen_cases?select=id,commune_id,village_id,category,description,priority,status,assigned_department,sla_due_at,routing_rule_id,created_at,updated_at&order=created_at.desc"
     if status_filter:
         if status_filter not in {"received", "verifying", "assigned", "in_progress", "completed", "out_of_scope", "rejected"}:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid status filter")
@@ -270,6 +270,33 @@ async def list_cases(
         return await supabase.as_user(_extract_bearer(authorization))._rest_request("GET", query)
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Unable to retrieve field reports") from exc
+
+
+@router.get("/routing-rules")
+async def list_routing_rules(
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    """Return the approved or demo routing catalogue within the caller's RLS scope."""
+    query = (
+        "/rest/v1/routing_rules?"
+        "select=id,category,department,priority,verification_minutes,"
+        "resolution_minutes,escalation_department,is_active,is_demo,sla_version"
+        "&commune_id=eq."
+        + quote(settings.bana_commune_id, safe="")
+        + "&is_active=eq.true&order=category.asc,priority.asc"
+    )
+    try:
+        return await supabase.as_user(_extract_bearer(authorization))._rest_request(
+            "GET", query
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to retrieve routing rules",
+        ) from exc
 
 
 def _extract_bearer(authorization: str | None) -> str:
@@ -316,8 +343,15 @@ async def assign_case(
     client = supabase.as_user(_extract_bearer(authorization))
     try:
         rows = await client._rest_request(
-            "POST", "/rest/v1/case_assignments",
-            {"case_id": str(case_id), "department": payload.department.strip(), "assignee_id": str(payload.assignee_id) if payload.assignee_id else None, "assigned_by": profile.id},
+            "POST",
+            "/rest/v1/rpc/assign_citizen_case",
+            {
+                "p_case_id": str(case_id),
+                "p_department": payload.department.strip(),
+                "p_assignee_id": str(payload.assignee_id)
+                if payload.assignee_id
+                else None,
+            },
             prefer="return=representation",
         )
     except SupabaseAdminError as exc:

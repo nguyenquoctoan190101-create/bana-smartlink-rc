@@ -27,7 +27,8 @@ import {
   WifiOff,
   Plus,
   Bell,
-  FileArchive
+  FileArchive,
+  MapPinned
 } from "lucide-react";
 
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -43,6 +44,7 @@ const PublicVillagePage = React.lazy(() => import("./components/PublicVillagePag
 const OperationsCenter = React.lazy(() => import("./components/OperationsCenter"));
 const LegacyBatchImport = React.lazy(() => import("./components/LegacyBatchImport"));
 const KnowledgeCenter = React.lazy(() => import("./components/KnowledgeCenter"));
+const CaseManagement = React.lazy(() => import("./components/CaseManagement"));
 
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
@@ -177,7 +179,7 @@ export default function App() {
   const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases">("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -237,6 +239,8 @@ export default function App() {
         changeTab("report-form", target.searchParams);
       } else if (url.includes("pending-updates")) {
         changeTab("pending-updates");
+      } else if (url.includes("/app/cases")) {
+        changeTab("cases");
       } else if (url.includes("dashboard")) {
         changeTab("dashboard");
       }
@@ -256,12 +260,12 @@ export default function App() {
   }, []);
 
   // Synchronize tab state with URL path
-  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge", search = new URLSearchParams()) => {
+  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases", search = new URLSearchParams()) => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge"]),
-      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge"]),
-      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases"]),
+      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
+      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases"]),
       dan: new Set(["dashboard", "citizen-proposal"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
@@ -272,7 +276,7 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
-    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge"]);
+    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
@@ -674,6 +678,7 @@ export default function App() {
         return [
           { id: "operations", label: "Hộp việc điều hành", icon: UserCheck, group: "Công việc" },
           { id: "pending-updates", label: "Duyệt kiến nghị", icon: MessageSquare },
+          { id: "cases", label: "Xử lý phản ánh", icon: MapPinned },
           { id: "dashboard", label: "Tổng hợp số liệu", icon: BarChart3, group: "Báo cáo & phê duyệt" },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Điều hành" },
@@ -687,6 +692,7 @@ export default function App() {
       case "to_cnscd":
         return [
           { id: "operations", label: "Việc của tôi", icon: UserCheck, group: "Công việc" },
+          { id: "cases", label: "Phản ánh hiện trường", icon: MapPinned },
           { id: "report-form", label: "Nhập báo cáo", icon: FileText },
           { id: "dashboard", label: "Dữ liệu của thôn", icon: BarChart3, group: "Theo dõi" },
           { id: "citizen-proposal", label: "Gửi kiến nghị", icon: MessageSquare },
@@ -695,6 +701,7 @@ export default function App() {
       case "lanh_dao":
         return [
           { id: "operations", label: "Brief quyết định", icon: UserCheck, group: "Điều hành" },
+          { id: "cases", label: "Giám sát phản ánh", icon: MapPinned },
           { id: "dashboard", label: "Tổng hợp toàn xã", icon: BarChart3 },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Đánh giá" },
@@ -1028,6 +1035,10 @@ export default function App() {
 
               {activeTab === "knowledge" && (
                 <KnowledgeCenter role={userRole} />
+              )}
+
+              {activeTab === "cases" && (
+                <CaseManagement role={userRole} villages={villages} />
               )}
 
               {activeTab === "report-form" && (
