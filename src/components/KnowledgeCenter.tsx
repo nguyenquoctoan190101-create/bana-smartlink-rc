@@ -9,6 +9,7 @@ type Article = { id: string; title: string; summary?: string | null; category: s
 type Champion = { id: string; user_id: string; skills?: string[]; support_schedule?: string | null; supported_groups?: string | null; is_active: boolean };
 type SupportPoint = { id: string; name: string; address: string; opening_hours?: string | null; equipment?: string[] };
 type Scenario = { id: string; name: string; description?: string | null; status: string };
+type Officer = { id: string; name: string; role: string; is_active: boolean };
 
 const articleStatus: Record<string, string> = { draft: "Bản nháp", in_review: "Chờ duyệt", approved: "Đã duyệt", archived: "Lưu trữ" };
 const categoryLabels: Record<string, string> = { procedure: "Quy trình", guidance: "Hướng dẫn", lesson_learned: "Bài học kinh nghiệm", faq: "Hỏi đáp", policy: "Chính sách" };
@@ -19,6 +20,7 @@ export default function KnowledgeCenter({ role }: Props) {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [points, setPoints] = useState<SupportPoint[]>([]);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [officers, setOfficers] = useState<Officer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -30,6 +32,9 @@ export default function KnowledgeCenter({ role }: Props) {
   const [scenarioName, setScenarioName] = useState("");
   const [runningScenario, setRunningScenario] = useState<string | null>(null);
   const [scenarioResult, setScenarioResult] = useState<Record<string, number> | null>(null);
+  const [championUserId, setChampionUserId] = useState("");
+  const [championSkills, setChampionSkills] = useState("");
+  const [championSchedule, setChampionSchedule] = useState("");
 
   const refresh = async () => {
     setLoading(true); setError(null);
@@ -38,12 +43,14 @@ export default function KnowledgeCenter({ role }: Props) {
       apiJson<Champion[]>("/api/knowledge/champions"),
       apiJson<SupportPoint[]>("/api/knowledge/support-points"),
       apiJson<Scenario[]>("/api/knowledge/scenarios"),
+      ...(admin ? [apiJson<Officer[]>("/auth/officers")] : []),
     ]);
-    const [articlesResult, championsResult, pointsResult, scenariosResult] = results;
+    const [articlesResult, championsResult, pointsResult, scenariosResult, officersResult] = results;
     if (articlesResult.status === "fulfilled") setArticles(articlesResult.value);
     if (championsResult.status === "fulfilled") setChampions(championsResult.value);
     if (pointsResult.status === "fulfilled") setPoints(pointsResult.value);
     if (scenariosResult.status === "fulfilled") setScenarios(scenariosResult.value);
+    if (officersResult?.status === "fulfilled") setOfficers(officersResult.value as Officer[]);
     if (results.every((result) => result.status === "rejected")) setError("Không tải được kho tri thức. Kiểm tra quyền truy cập hoặc kết nối rồi thử lại.");
     setLoading(false);
   };
@@ -59,6 +66,11 @@ export default function KnowledgeCenter({ role }: Props) {
     if (!pointName.trim() || !pointAddress.trim()) return;
     await apiJson<SupportPoint>("/api/knowledge/support-points", { method: "POST", body: JSON.stringify({ name: pointName.trim(), address: pointAddress.trim(), opening_hours: pointHours.trim() || null }) });
     setPointName(""); setPointAddress(""); setPointHours(""); setNotice("Đã thêm điểm hỗ trợ cộng đồng."); await refresh();
+  };
+  const createChampion = async () => {
+    if (!championUserId) return;
+    await apiJson<Champion>("/api/knowledge/champions", { method: "POST", body: JSON.stringify({ user_id: championUserId, skills: championSkills.split(",").map((item) => item.trim()).filter(Boolean), support_schedule: championSchedule.trim() || null }) });
+    setChampionUserId(""); setChampionSkills(""); setChampionSchedule(""); setNotice("Đã thêm Digital Champion và ghi nhận người phụ trách."); await refresh();
   };
   const createScenario = async () => {
     if (!scenarioName.trim()) return;
@@ -82,7 +94,7 @@ export default function KnowledgeCenter({ role }: Props) {
       <div className="mt-4 space-y-2">{articles.length ? articles.map((article) => <article key={article.id} className="rounded-lg border border-slate-200 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">{article.title}</h3><p className="text-xs text-slate-500">{categoryLabels[article.category] || article.category} · phiên bản {article.version}</p></div><div className="flex items-center gap-2"><StatusBadge status={article.status} />{admin && article.status !== "approved" && <Button size="sm" onClick={() => void approveArticle(article.id)}>Duyệt</Button>}</div></div><p className="mt-1 text-sm text-slate-600">{article.summary || "Chưa có tóm tắt"}</p></article>) : <EmptyState title="Chưa có bài viết" description="Admin có thể tạo bản nháp rồi duyệt sau khi rà soát nội dung." />}</div>
       {admin && <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Tiêu đề<input className="mt-1 w-full" value={articleTitle} onChange={(event) => setArticleTitle(event.target.value)} placeholder="Ví dụ: Quy trình tiếp nhận phản ánh" /></label><label className="text-sm font-semibold md:row-span-2">Nội dung<textarea className="mt-1 min-h-24 w-full" value={articleBody} onChange={(event) => setArticleBody(event.target.value)} placeholder="Nội dung đã được kiểm duyệt nội bộ" /></label><div className="flex items-end"><Button onClick={() => void createArticle()} disabled={!articleTitle.trim() || !articleBody.trim()}><Plus />Tạo bản nháp</Button></div></div>}
     </SectionCard>
-    <div className="grid gap-5 lg:grid-cols-2"><SectionCard><div className="flex items-center gap-3"><Users className="text-emerald-800" /><div><h2 className="text-lg font-bold">Digital Champions</h2><p className="text-sm text-slate-600">Cán bộ hỗ trợ người dân và nhóm yếu thế.</p></div></div>{champions.length ? <ul className="mt-4 space-y-2">{champions.map((champion) => <li key={champion.id} className="rounded-lg border border-slate-200 p-3 text-sm"><strong>{champion.user_id}</strong><br />Kỹ năng: {champion.skills?.join(", ") || "Chưa cập nhật"}<br />Lịch hỗ trợ: {champion.support_schedule || "Chưa cập nhật"}</li>)}</ul> : <EmptyState title="Chưa có đại sứ số" description="Admin thêm hồ sơ sau khi phân công người phụ trách." />}</SectionCard>
+    <div className="grid gap-5 lg:grid-cols-2"><SectionCard><div className="flex items-center gap-3"><Users className="text-emerald-800" /><div><h2 className="text-lg font-bold">Digital Champions</h2><p className="text-sm text-slate-600">Cán bộ hỗ trợ người dân và nhóm yếu thế.</p></div></div>{champions.length ? <ul className="mt-4 space-y-2">{champions.map((champion) => <li key={champion.id} className="rounded-lg border border-slate-200 p-3 text-sm"><strong>{officers.find((officer) => officer.id === champion.user_id)?.name || champion.user_id}</strong><br />Kỹ năng: {champion.skills?.join(", ") || "Chưa cập nhật"}<br />Lịch hỗ trợ: {champion.support_schedule || "Chưa cập nhật"}</li>)}</ul> : <EmptyState title="Chưa có đại sứ số" description="Admin chọn cán bộ trong danh sách để phân công hỗ trợ." />}{admin && <div className="mt-4 grid gap-2"><select value={championUserId} onChange={(event) => setChampionUserId(event.target.value)}><option value="">Chọn cán bộ phụ trách</option>{officers.filter((officer) => officer.is_active && !champions.some((champion) => champion.user_id === officer.id)).map((officer) => <option key={officer.id} value={officer.id}>{officer.name || officer.id} · {officer.role === "to_cnscd" ? "Tổ CNSCĐ" : "Cán bộ thôn"}</option>)}</select><input value={championSkills} onChange={(event) => setChampionSkills(event.target.value)} placeholder="Kỹ năng, phân cách bằng dấu phẩy" /><div className="flex gap-2"><input className="min-w-0 flex-1" value={championSchedule} onChange={(event) => setChampionSchedule(event.target.value)} placeholder="Lịch hỗ trợ" /><Button onClick={() => void createChampion()} disabled={!championUserId}><Plus />Thêm Champion</Button></div></div>}</SectionCard>
       <SectionCard><div className="flex items-center gap-3"><MapPin className="text-emerald-800" /><div><h2 className="text-lg font-bold">Điểm hỗ trợ cộng đồng</h2><p className="text-sm text-slate-600">Địa điểm, lịch trực và thiết bị dùng chung.</p></div></div>{points.length ? <ul className="mt-4 space-y-2">{points.map((point) => <li key={point.id} className="rounded-lg border border-slate-200 p-3 text-sm"><strong>{point.name}</strong><br />{point.address}<br />{point.opening_hours || "Chưa cập nhật lịch"}</li>)}</ul> : <EmptyState title="Chưa có điểm hỗ trợ" description="Admin cấu hình địa điểm và người phụ trách để công khai trong nội bộ." />}{admin && <div className="mt-4 grid gap-2"><input value={pointName} onChange={(event) => setPointName(event.target.value)} placeholder="Tên điểm hỗ trợ" /><input value={pointAddress} onChange={(event) => setPointAddress(event.target.value)} placeholder="Địa chỉ" /><div className="flex gap-2"><input className="min-w-0 flex-1" value={pointHours} onChange={(event) => setPointHours(event.target.value)} placeholder="Lịch trực (ví dụ: T2–T6, 8:00–17:00)" /><Button onClick={() => void createPoint()} disabled={!pointName.trim() || !pointAddress.trim()}><Plus />Thêm điểm</Button></div></div>}</SectionCard></div>
     <SectionCard><div className="flex items-center gap-3"><Database className="text-emerald-800" /><div><h2 className="text-lg font-bold">Mô phỏng what-if</h2><p className="text-sm text-slate-600">Tính toán xác định từ baseline; không phải dự báo AI và không sửa dữ liệu thật.</p></div></div>{scenarios.length ? <div className="mt-4 space-y-2">{scenarios.map((scenario) => <div key={scenario.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"><div><strong>{scenario.name}</strong><p className="text-sm text-slate-600">{scenario.description || "Chưa có mô tả"}</p></div>{admin && <Button onClick={() => void runScenario(scenario.id)} disabled={runningScenario === scenario.id}>{runningScenario === scenario.id ? <Loader2 className="animate-spin" /> : <Sparkles />}Chạy mô phỏng</Button>}</div>)}</div> : <EmptyState title="Chưa có kịch bản" description="Tạo kịch bản để thử các giả định dân số, ngân sách và nhu cầu dịch vụ." />}{scenarioResult && <div role="status" className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900"><strong>Kết quả mô phỏng:</strong> {Object.entries(scenarioResult).map(([key, value]) => `${key}: ${value}`).join(" · ")}</div>}{admin && <div className="mt-4 flex gap-3"><input className="min-w-0 flex-1" value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="Tên kịch bản, ví dụ: Tăng nhu cầu dịch vụ 10%" /><Button onClick={() => void createScenario()} disabled={!scenarioName.trim()}><Plus />Tạo kịch bản</Button></div>}</SectionCard>
   </div>;
