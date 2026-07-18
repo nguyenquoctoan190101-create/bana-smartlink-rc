@@ -887,6 +887,7 @@ def _build_gemini_prompt(
     question: str,
     context_rows: list[dict[str, Any]],
     resolved_villages: list[str] | None = None,
+    knowledge_articles: list[dict[str, Any]] | None = None,
 ) -> str:
     """Xây dựng prompt cho Gemini chỉ chứa số liệu tổng hợp an toàn.
 
@@ -900,6 +901,7 @@ def _build_gemini_prompt(
             "cau_hoi": _redact_free_text(question),
             "ten_thon_chuan_hoa": resolved_villages or [],
             "du_lieu_he_thong": enriched,
+            "tai_lieu_da_duyet": knowledge_articles or [],
         },
         ensure_ascii=False,
         default=str,
@@ -916,6 +918,61 @@ def _build_gemini_prompt(
         "Nếu không có dữ liệu liên quan, nói rõ là chưa có thông tin.\n\n"
         f"{safe_context}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tìm kiếm tài liệu nghiệp vụ đã duyệt (luôn giới hạn theo vai trò)
+# ---------------------------------------------------------------------------
+
+def _knowledge_audience(caller_role: str) -> str:
+    return "public" if caller_role == "dan" else ("champions" if caller_role == "to_cnscd" else "internal")
+
+
+def _knowledge_tokens(text: str) -> set[str]:
+    normalized = _normalise(text)
+    stop = {"cho", "bao", "nhung", "trong", "cua", "voi", "toi", "ban"}
+    return {token for token in re.findall(r"[a-z0-9]{3,}", normalized) if token not in stop}
+
+
+async def _fetch_knowledge_articles(
+    conn: asyncpg.Connection,
+    question: str,
+    xa_id: str | None,
+    caller_role: str,
+) -> list[dict[str, Any]]:
+    """Lấy bài viết approved cùng commune và audience; không đọc bản nháp."""
+    rows = await conn.fetch(
+        """
+        select id, title, summary, body, category, audience, version, effective_from
+        from public.knowledge_articles
+        where commune_id = $1 and status = 'approved' and audience = $2
+        order by updated_at desc
+        limit 50
+        """,
+        xa_id or "ba_na",
+        _knowledge_audience(caller_role),
+    )
+    question_tokens = _knowledge_tokens(question)
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for row in rows:
+        article = dict(row)
+        haystack = " ".join(str(article.get(key) or "") for key in ("title", "summary", "body"))
+        overlap = len(question_tokens & _knowledge_tokens(haystack))
+        if overlap:
+            article["body"] = str(article.get("body") or "")[:6000]
+            ranked.append((overlap, article))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [article for _, article in ranked[:5]]
+
+
+def _deterministic_knowledge_answer(articles: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for article in articles[:3]:
+        title = str(article.get("title") or "Tài liệu đã duyệt")
+        body = " ".join(str(article.get("body") or "").split())
+        version = article.get("version") or 1
+        parts.append(f"{title} (phiên bản {version}): {body[:700]}")
+    return "\n\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -1086,6 +1143,35 @@ async def ask_question_async(
         )
 
     if parsed.intent in {_QueryIntent.HELP, _QueryIntent.UNKNOWN}:
+        # For free-form questions, search only approved articles visible to
+        # this role before falling back to generic guidance.
+        article_conn: asyncpg.Connection | None = None
+        try:
+            if db_pool is not None:
+                article_conn = await db_pool.acquire()
+            else:
+                settings = load_settings()
+                if settings.database_url:
+                    article_conn = await asyncpg.connect(dsn=settings.database_url, statement_cache_size=0)
+            if article_conn is not None:
+                articles = await _fetch_knowledge_articles(article_conn, question, xa_id, caller_role)
+                if articles:
+                    prompt = _build_gemini_prompt(question, [], knowledge_articles=articles)
+                    try:
+                        answer_text = await get_gemini_client().generate_text(
+                            GEMINI_SYSTEM_PROMPT, prompt, max_output_tokens=_MAX_OUTPUT_TOKENS, temperature=_GEMINI_TEMPERATURE
+                        )
+                    except GeminiError:
+                        answer_text = _deterministic_knowledge_answer(articles)
+                    return ChatbotAnswer(question=question, answer=answer_text.strip(), intent="KNOWLEDGE_ARTICLE", rows_retrieved=len(articles))
+        except asyncpg.PostgresError as exc:
+            raise ChatbotError("Không thể truy vấn tài liệu nghiệp vụ.") from exc
+        finally:
+            if article_conn is not None:
+                if db_pool is not None:
+                    await db_pool.release(article_conn)
+                else:
+                    await article_conn.close()
         return ChatbotAnswer(
             question=question,
             answer=_guidance_answer(caller_role),
