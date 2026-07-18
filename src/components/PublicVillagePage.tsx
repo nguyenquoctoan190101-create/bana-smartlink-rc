@@ -221,7 +221,8 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
         throw new Error("Mã tra cứu phải có 16 ký tự (kiến nghị) hoặc 32 ký tự (phản ánh).");
       }
       const result = await apiJson<{ status: string; message?: string; case?: { category?: string } }>(endpoint);
-      setLookupResult({ ...result, message: formatPublicLookupMessage(result) });
+      const { case: _case, ...safeResult } = result;
+      setLookupResult({ ...safeResult, message: formatPublicLookupMessage(result) });
     } catch {
       setLookupResult({ status: "not_found", message: "Không tìm thấy mã tra cứu hoặc mã không hợp lệ." });
     }
