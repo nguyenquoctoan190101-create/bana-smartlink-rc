@@ -149,5 +149,7 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
         encoding="utf-8"
     )
     assert workflow.count("psql -v ON_ERROR_STOP=1") == 8
+    assert "migrations/20260715_*.sql migrations/20260718_*.sql" in workflow
+    assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")

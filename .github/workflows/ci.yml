@@ -129,8 +129,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_function_grant_snapshot.sql
       - name: Apply ordered release-candidate overlay migrations
         run: |
-          for migration in migrations/*.sql; do
-            [ "${migration##*/}" = "README.md" ] && continue
+          for migration in migrations/20260715_*.sql migrations/20260718_*.sql; do
             psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f "$migration"
           done
       - name: Verify migration overlay and database validation gate

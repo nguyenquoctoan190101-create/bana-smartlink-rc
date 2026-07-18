@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parent
 BASELINE = ROOT / "db" / "schema.sql"
 MIGRATIONS = ROOT / "migrations"
 LOCK_KEY = 7_202_607_13
+BASELINE_INCORPORATED_GLOB = "20260713_*.sql"
+FRESH_OVERLAY_GLOBS = ("20260715_*.sql", "20260718_*.sql")
 
 
 def _checksum(path: Path) -> str:
@@ -54,6 +56,17 @@ async def _record(conn: asyncpg.Connection, path: Path) -> None:
         """,
         path.name,
         _checksum(path),
+    )
+
+
+def _fresh_overlay_files() -> list[Path]:
+    """Return upgrades that are intentionally safe after the canonical baseline."""
+    return sorted(
+        {
+            path
+            for pattern in FRESH_OVERLAY_GLOBS
+            for path in MIGRATIONS.glob(pattern)
+        }
     )
 
 
@@ -106,11 +119,14 @@ async def run(*, baseline: bool, status_only: bool) -> None:
             return
         if baseline:
             await _assert_empty_database(conn)
-            # A fresh database needs the canonical baseline and every ordered
-            # overlay in the same locked run; leaving overlays for a second
-            # manual command creates a deceptively incomplete installation.
+            # The baseline already incorporates the 20260713 legacy upgrade.
+            # Record those checksums without replaying schema-altering SQL over
+            # the modern baseline, then apply only overlays proven safe there.
             await _apply(conn, BASELINE)
-            files = sorted(MIGRATIONS.glob("*.sql"))
+            for incorporated in sorted(MIGRATIONS.glob(BASELINE_INCORPORATED_GLOB)):
+                print(f"BASELINE {incorporated.name}")
+                await _record(conn, incorporated)
+            files = _fresh_overlay_files()
         else:
             files = sorted(MIGRATIONS.glob("*.sql"))
         for path in files:
