@@ -33,6 +33,15 @@ export function extractPublishedPeriods(reports: unknown[]): string[] {
   return [...new Set(periodNames)];
 }
 
+export function getPublicReportTimestamp(report: unknown): string {
+  if (!report || typeof report !== "object") return "";
+  const candidate = report as { updated_at?: unknown; published_at?: unknown };
+  if (typeof candidate.published_at === "string" && candidate.published_at.trim()) {
+    return candidate.published_at;
+  }
+  return typeof candidate.updated_at === "string" ? candidate.updated_at : "";
+}
+
 interface PublicVillagePageProps {
   onGoToLogin?: () => void;
   reports?: unknown;
@@ -96,14 +105,15 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
   const relevantReports = useMemo(() => {
     const scoped = reports.filter((report) => report?.village_id === selectedVillageId);
     if (selectedPeriod !== "all_time") return scoped.filter((report) => report?.report_period === selectedPeriod);
-    return [...scoped].sort((a, b) => String(b?.updated_at || "").localeCompare(String(a?.updated_at || ""))).slice(0, 1);
+    return [...scoped].sort((a, b) => getPublicReportTimestamp(b).localeCompare(getPublicReportTimestamp(a))).slice(0, 1);
   }, [reports, selectedPeriod, selectedVillageId]);
 
   const selectedReport = relevantReports[0];
   const values = selectedReport?.values ?? {};
   const villageName = villages.find((item) => item?.id === selectedVillageId)?.name || "Chưa chọn thôn";
   const periodLabel = selectedPeriod === "all_time" ? selectedReport?.report_period || "Bản công bố mới nhất" : selectedPeriod;
-  const updatedLabel = selectedReport?.updated_at ? new Date(selectedReport.updated_at).toLocaleDateString("vi-VN") : "Chưa có bản công bố";
+  const reportTimestamp = getPublicReportTimestamp(selectedReport);
+  const updatedLabel = reportTimestamp ? new Date(reportTimestamp).toLocaleDateString("vi-VN") : "Chưa có bản công bố";
 
   const goToProposalStep = (step: ProposalStep) => {
     setFormError(null);
