@@ -371,10 +371,13 @@ export default function CaseManagement({
             />
           )}
           {visibleCases.map((item) => {
+            const isTerminal = ["completed", "out_of_scope", "rejected"].includes(
+              item.status,
+            );
             const isOverdue =
               Boolean(item.sla_due_at) &&
               new Date(item.sla_due_at as string).getTime() < Date.now() &&
-              !["completed", "out_of_scope", "rejected"].includes(item.status);
+              !isTerminal;
             const matchingDepartments = Array.from(
               new Set(
                 rules
@@ -444,9 +447,14 @@ export default function CaseManagement({
                         </dd>
                       </div>
                     </dl>
+                    {isTerminal && (
+                      <p className="mt-4 text-xs font-semibold text-slate-500">
+                        Đã đóng quy trình — chỉ xem.
+                      </p>
+                    )}
                   </div>
 
-                  {(admin || canUpdate) && (
+                  {(admin || canUpdate) && !isTerminal && (
                     <div className="w-full space-y-3 rounded-xl bg-slate-50 p-4 xl:w-96">
                       {admin && (
                         <div>

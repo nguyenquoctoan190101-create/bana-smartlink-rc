@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CaseManagement from "./CaseManagement";
 
@@ -95,5 +95,52 @@ describe("CaseManagement", () => {
     expect(
       screen.queryByRole("button", { name: /Cập nhật trạng thái/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps terminal cases read-only for administrators", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path === "/api/cases") {
+        return Promise.resolve([
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            village_id: "village-1",
+            category: "road",
+            description: "Ổ gà đã được xử lý.",
+            priority: "normal",
+            status: "completed",
+            assigned_department: "Bộ phận Địa chính - Xây dựng - Môi trường",
+            sla_due_at: "2026-07-20T00:00:00Z",
+            created_at: "2026-07-18T00:00:00Z",
+            updated_at: "2026-07-18T00:00:00Z",
+          },
+        ]);
+      }
+      if (path === "/api/cases/routing-rules") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    render(
+      <CaseManagement
+        role="admin_xa"
+        villages={[{ id: "village-1", name: "Thôn An Sơn" }]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue("Đang mở")).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByDisplayValue("Đang mở"), {
+      target: { value: "all" },
+    });
+    await waitFor(() =>
+      expect(screen.getByText("Ổ gà đã được xử lý.")).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Xác nhận phân công/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Cập nhật trạng thái/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Đã đóng quy trình — chỉ xem.")).toBeInTheDocument();
   });
 });
