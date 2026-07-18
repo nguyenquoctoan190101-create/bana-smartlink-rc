@@ -66,6 +66,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260718_0009_knowledge_scenarios.sql",
         "20260718_0010_iot_tourism_pilots.sql",
         "20260718_0011_citizen_case_media_storage.sql",
+        "20260718_0012_demo_case_routing.sql",
     ]
 
 
