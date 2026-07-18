@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, CheckCircle2, FileSearch, MapPin, RefreshCw, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, MapPin, RefreshCw, Send } from "lucide-react";
 import { apiJson } from "../lib/apiClient";
-import { Button, EmptyState, SectionCard, StatusBadge } from "./ui";
+import { Button, EmptyState, SectionCard } from "./ui";
 
 type Village = { id: string; name: string };
 type CaseResult = { tracking_code: string; case: { id?: string; status?: string; created_at?: string }; message: string };
@@ -24,8 +24,6 @@ export default function CitizenCasePanel({ villages, onBack }: { villages: Villa
   const [media, setMedia] = useState<File[]>([]);
   const [mediaWarning, setMediaWarning] = useState<string | null>(null);
   const [result, setResult] = useState<CaseResult | null>(null);
-  const [lookup, setLookup] = useState("");
-  const [lookupResult, setLookupResult] = useState<{ status: string; case?: { category?: string } } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -70,12 +68,6 @@ export default function CitizenCasePanel({ villages, onBack }: { villages: Villa
     finally { setBusy(false); }
   };
 
-  const track = async (event: FormEvent) => {
-    event.preventDefault(); setError(null); setLookupResult(null);
-    try { setLookupResult(await apiJson<{ status: string; case?: { category?: string } }>(`/api/cases/track/${encodeURIComponent(lookup.trim().toUpperCase())}`)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Không tìm thấy mã tra cứu."); }
-  };
-
   if (result) return <SectionCard className="mx-auto max-w-2xl p-6 text-center md:p-10"><CheckCircle2 className="mx-auto h-14 w-14 text-emerald-700" /><h2 className="mt-4 text-2xl font-bold text-slate-900">Đã tiếp nhận phản ánh</h2><p className="mt-2 text-sm text-slate-600">Hãy lưu mã bên dưới. Mã chỉ hiển thị một lần và không chứa thông tin cá nhân.</p>{mediaWarning && <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900">{mediaWarning}</div>}<div className="mx-auto mt-6 max-w-sm rounded-xl border border-emerald-200 bg-emerald-50 p-5"><p className="text-xs font-bold text-emerald-800">MÃ TRA CỨU</p><p className="mt-2 break-all font-mono text-xl font-bold tracking-wider text-emerald-950">{result.tracking_code}</p></div><Button className="mt-6" onClick={onBack}>Về cổng dữ liệu</Button></SectionCard>;
 
   return <SectionCard className="mx-auto max-w-3xl p-5 md:p-8">
@@ -90,6 +82,5 @@ export default function CitizenCasePanel({ villages, onBack }: { villages: Villa
       <label className="flex min-h-12 items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm text-slate-700"><input type="checkbox" className="mt-0.5 h-5! min-h-5! w-5!" checked={consent} onChange={(event) => setConsent(event.target.checked)} /><span>Tôi đồng ý để UBND xã Bà Nà tiếp nhận và xử lý phản ánh theo thông báo quyền riêng tư.</span></label>
       <Button type="submit" disabled={busy || !consent}>{busy ? <RefreshCw className="animate-spin" /> : <Send />}Gửi phản ánh</Button>
     </form>
-    <div className="mt-8 border-t border-slate-200 pt-6"><h3 className="font-bold text-slate-900">Tra cứu phản ánh</h3><form onSubmit={track} className="mt-3 flex flex-col gap-3 sm:flex-row"><input className="flex-1 font-mono tracking-wider" value={lookup} onChange={(event) => setLookup(event.target.value.toUpperCase())} maxLength={32} minLength={32} placeholder="MÃ 32 KÝ TỰ" required /><Button type="submit" variant="secondary"><FileSearch />Tra cứu</Button></form>{lookupResult && <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm"><StatusBadge status={lookupResult.status} />{lookupResult.case?.category && <span>Loại sự cố: {lookupResult.case.category}</span>}</div>}</div>
   </SectionCard>;
 }

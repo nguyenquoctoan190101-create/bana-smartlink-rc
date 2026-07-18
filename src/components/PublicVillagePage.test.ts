@@ -2,8 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   extractPublishedPeriods,
   formatPublicIndicatorValue,
+  getPublicLookupEndpoint,
   getPublicReportTimestamp,
 } from "./PublicVillagePage";
+
+describe("shared public lookup", () => {
+  it("routes 16-character proposal codes to the proposal tracker", () => {
+    expect(getPublicLookupEndpoint(" ab12cd34ef56gh78 "))
+      .toBe("/auth/citizen/pending-updates/AB12CD34EF56GH78");
+  });
+
+  it("routes 32-character field-report codes to the case tracker", () => {
+    expect(getPublicLookupEndpoint("ab12cd34ef56gh789012345678901234"))
+      .toBe("/api/cases/track/AB12CD34EF56GH789012345678901234");
+  });
+
+  it("rejects codes that do not match either public format", () => {
+    expect(getPublicLookupEndpoint("too-short")).toBeNull();
+  });
+});
 
 describe("public indicator rendering", () => {
   it("does not turn missing data or invalid numbers into zero", () => {

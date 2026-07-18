@@ -42,6 +42,14 @@ export function getPublicReportTimestamp(report: unknown): string {
   return typeof candidate.updated_at === "string" ? candidate.updated_at : "";
 }
 
+/** Resolve the shared public lookup route by the opaque code format. */
+export function getPublicLookupEndpoint(code: string): string | null {
+  const normalized = code.trim().toUpperCase();
+  if (normalized.length === 16) return `/auth/citizen/pending-updates/${encodeURIComponent(normalized)}`;
+  if (normalized.length === 32) return `/api/cases/track/${encodeURIComponent(normalized)}`;
+  return null;
+}
+
 interface PublicVillagePageProps {
   onGoToLogin?: () => void;
   reports?: unknown;
@@ -73,7 +81,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [trackingCode, setTrackingCode] = useState<string | null>(null);
   const [lookupCode, setLookupCode] = useState("");
-  const [lookupResult, setLookupResult] = useState<{ status: string; message: string } | null>(null);
+  const [lookupResult, setLookupResult] = useState<{ status: string; message?: string; case?: { category?: string } } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -166,11 +174,16 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
     }
   };
 
-  const lookupProposal = async (event: FormEvent) => {
+  const lookupSubmission = async (event: FormEvent) => {
     event.preventDefault();
     setLookupResult(null);
+    const code = lookupCode.trim().toUpperCase();
     try {
-      const result = await apiJson<{ status: string; message: string }>(`/auth/citizen/pending-updates/${encodeURIComponent(lookupCode.trim())}`);
+      const endpoint = getPublicLookupEndpoint(code);
+      if (!endpoint) {
+        throw new Error("Mã tra cứu phải có 16 ký tự (kiến nghị) hoặc 32 ký tự (phản ánh).");
+      }
+      const result = await apiJson<{ status: string; message?: string; case?: { category?: string } }>(endpoint);
       setLookupResult(result);
     } catch {
       setLookupResult({ status: "not_found", message: "Không tìm thấy mã tra cứu hoặc mã không hợp lệ." });
@@ -203,7 +216,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
           <Button variant={mode === "data" ? "secondary" : "quiet"} className={mode !== "data" ? "text-white hover:text-white" : ""} onClick={() => setMode("data")}><FileText />Xem dữ liệu</Button>
           <Button variant={mode === "proposal" ? "secondary" : "quiet"} className={mode !== "proposal" ? "text-white hover:text-white" : ""} onClick={() => { setMode("proposal"); setProposalStep(1); }}><MessageSquare />Gửi kiến nghị</Button>
           <Button variant={mode === "case" ? "secondary" : "quiet"} className={mode !== "case" ? "text-white hover:text-white" : ""} onClick={() => setMode("case")}><MapPin />Phản ánh hiện trường</Button>
-          <Button variant={mode === "lookup" ? "secondary" : "quiet"} className={mode !== "lookup" ? "text-white hover:text-white" : ""} onClick={() => setMode("lookup")}><FileSearch />Tra cứu kiến nghị</Button>
+          <Button variant={mode === "lookup" ? "secondary" : "quiet"} className={mode !== "lookup" ? "text-white hover:text-white" : ""} onClick={() => setMode("lookup")}><FileSearch />Tra cứu hồ sơ</Button>
           {onGoToLogin && <Button variant="quiet" className="ml-auto text-white hover:text-white" onClick={onGoToLogin}><Lock />Khu vực cán bộ</Button>}
         </div>
       </section>
@@ -235,13 +248,13 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
 
       {mode === "lookup" && (
         <SectionCard className="mx-auto max-w-2xl p-5 md:p-8">
-          <h2 className="text-xl font-bold text-slate-900">Tra cứu trạng thái kiến nghị</h2>
-          <p className="mt-2 text-sm text-slate-600">Nhập mã 16 ký tự đã nhận. Kết quả không hiển thị thông tin cá nhân.</p>
-          <form onSubmit={lookupProposal} className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <label className="flex-1 text-sm font-semibold text-slate-700">Mã tra cứu<input value={lookupCode} onChange={(event) => setLookupCode(event.target.value.toUpperCase())} maxLength={16} required className="mt-1.5 font-mono tracking-wider" placeholder="MÃ TRA CỨU" /></label>
+          <h2 className="text-xl font-bold text-slate-900">Tra cứu hồ sơ</h2>
+          <p className="mt-2 text-sm text-slate-600">Dùng chung một ô tra cứu cho kiến nghị (16 ký tự) và phản ánh hiện trường (32 ký tự). Kết quả không hiển thị thông tin cá nhân.</p>
+          <form onSubmit={lookupSubmission} className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <label className="flex-1 text-sm font-semibold text-slate-700">Mã tra cứu<input value={lookupCode} onChange={(event) => setLookupCode(event.target.value.toUpperCase())} maxLength={32} minLength={16} required className="mt-1.5 font-mono tracking-wider" placeholder="MÃ TRA CỨU" /></label>
             <Button type="submit" className="sm:self-end"><FileSearch />Tra cứu</Button>
           </form>
-          {lookupResult && <div role="status" className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{lookupResult.message}</div>}
+          {lookupResult && <div role="status" className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{lookupResult.message || `Trạng thái: ${lookupResult.status}`}{"case" in lookupResult && lookupResult.case?.category ? ` · Loại phản ánh: ${lookupResult.case.category}` : ""}</div>}
         </SectionCard>
       )}
 
