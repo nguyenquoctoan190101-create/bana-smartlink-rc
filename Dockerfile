@@ -40,4 +40,7 @@ COPY --from=frontend-build --chown=appuser:appuser /app/dist ./dist
 USER appuser
 EXPOSE 10000
 
-CMD ["sh", "-c", "exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]
+# Fail closed when the current release schema cannot be applied. The runner
+# uses an advisory lock and a checksum table, so repeat deploys safely skip
+# migrations that were already committed.
+CMD ["sh", "-c", "python migrate.py --release-overlays && exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]

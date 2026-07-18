@@ -18,6 +18,7 @@ MIGRATIONS = ROOT / "migrations"
 LOCK_KEY = 7_202_607_13
 BASELINE_INCORPORATED_GLOB = "20260713_*.sql"
 FRESH_OVERLAY_GLOBS = ("20260715_*.sql", "20260718_*.sql")
+RELEASE_OVERLAY_GLOBS = ("20260718_*.sql",)
 
 
 def _checksum(path: Path) -> str:
@@ -70,6 +71,17 @@ def _fresh_overlay_files() -> list[Path]:
     )
 
 
+def _release_overlay_files() -> list[Path]:
+    """Return only the idempotent overlays owned by the current RC release."""
+    return sorted(
+        {
+            path
+            for pattern in RELEASE_OVERLAY_GLOBS
+            for path in MIGRATIONS.glob(pattern)
+        }
+    )
+
+
 async def _apply(conn: asyncpg.Connection, path: Path) -> None:
     if await _already_applied(conn, path):
         print(f"SKIP {path.name}")
@@ -95,7 +107,12 @@ async def _assert_empty_database(conn: asyncpg.Connection) -> None:
         )
 
 
-async def run(*, baseline: bool, status_only: bool) -> None:
+async def run(
+    *,
+    baseline: bool,
+    status_only: bool,
+    release_overlays: bool = False,
+) -> None:
     load_dotenv(ROOT / ".env")
     database_url = os.getenv("DATABASE_URL", "").strip()
     if not database_url:
@@ -106,7 +123,12 @@ async def run(*, baseline: bool, status_only: bool) -> None:
         await conn.execute("select pg_advisory_lock($1)", LOCK_KEY)
         await _ensure_tracking(conn)
         if status_only:
-            files = [BASELINE, *sorted(MIGRATIONS.glob("*.sql"))] if baseline else sorted(MIGRATIONS.glob("*.sql"))
+            if baseline:
+                files = [BASELINE, *sorted(MIGRATIONS.glob("*.sql"))]
+            elif release_overlays:
+                files = _release_overlay_files()
+            else:
+                files = sorted(MIGRATIONS.glob("*.sql"))
             applied = {
                 row["name"]: row["sha256"]
                 for row in await conn.fetch(
@@ -117,7 +139,9 @@ async def run(*, baseline: bool, status_only: bool) -> None:
                 state = "applied" if applied.get(path.name) == _checksum(path) else "pending"
                 print(f"{state:7} {path.name}")
             return
-        if baseline:
+        if release_overlays:
+            files = _release_overlay_files()
+        elif baseline:
             await _assert_empty_database(conn)
             # The baseline already incorporates the 20260713 legacy upgrade.
             # Record those checksums without replaying schema-altering SQL over
@@ -143,10 +167,23 @@ def main() -> int:
     parser.add_argument(
         "--baseline", action="store_true", help="initialize an empty database"
     )
+    parser.add_argument(
+        "--release-overlays",
+        action="store_true",
+        help="apply only migrations owned by the current release candidate",
+    )
     parser.add_argument("--status", action="store_true", help="show migration state")
     args = parser.parse_args()
+    if args.baseline and args.release_overlays:
+        parser.error("--baseline and --release-overlays are mutually exclusive")
     try:
-        asyncio.run(run(baseline=args.baseline, status_only=args.status))
+        asyncio.run(
+            run(
+                baseline=args.baseline,
+                status_only=args.status,
+                release_overlays=args.release_overlays,
+            )
+        )
     except Exception as exc:  # Never echo a DSN or full driver error.
         print(f"Migration failed ({type(exc).__name__}). See secured server logs.")
         return 1
