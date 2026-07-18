@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   extractPublishedPeriods,
+  formatPublicLookupMessage,
   formatPublicIndicatorValue,
+  getPublicCaseCategoryLabel,
   getPublicLookupEndpoint,
   getPublicReportTimestamp,
+  getPublicStatusLabel,
 } from "./PublicVillagePage";
 
 describe("shared public lookup", () => {
@@ -55,5 +58,14 @@ describe("public period options", () => {
   it("falls back to updated_at for older compatible responses", () => {
     expect(getPublicReportTimestamp({ updated_at: "2026-07-14T10:04:38Z" }))
       .toBe("2026-07-14T10:04:38Z");
+  });
+});
+
+describe("public lookup labels", () => {
+  it("translates status and category values for citizens", () => {
+    expect(getPublicStatusLabel("received")).toBe("Đã tiếp nhận");
+    expect(getPublicCaseCategoryLabel("road")).toBe("Đường giao thông");
+    expect(formatPublicLookupMessage({ status: "received", case: { category: "road" } }))
+      .toBe("● Đã tiếp nhận · Loại sự cố: Đường giao thông");
   });
 });
