@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_issuer: str = ""
     supabase_jwt_audience: str = "authenticated"
+    bana_commune_id: str = Field(default="ba_na", validation_alias=AliasChoices("BANA_COMMUNE_ID", "COMMUNE_ID"))
+    feature_cases: bool = Field(default=True, validation_alias=AliasChoices("FEATURE_CASES", "ENABLE_CASES"))
+    feature_voice: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_VOICE", "ENABLE_VOICE"))
+    feature_iot_pilot: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_IOT_PILOT", "ENABLE_IOT_PILOT"))
+    feature_tourism_pilot: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_TOURISM_PILOT", "ENABLE_TOURISM_PILOT"))
     vapid_private_key: str = ""
     vapid_public_key: str = ""
     vapid_contact: str = Field(

@@ -93,6 +93,7 @@ def test_every_inventory_policy_matches_runtime_dependency_graph() -> None:
 def test_public_routes_cannot_expose_ct14_or_add_unreviewed_mutations() -> None:
     public_mutation_allowlist = {
         ("POST", "/auth/citizen/pending-updates"),
+        ("POST", "/api/cases/{case_id}/media"),
     }
     for operation, policy in _inventory_by_operation().items():
         if policy["authorization"] in {"public", "optional"}:
@@ -177,5 +178,15 @@ def test_internal_exports_and_commune_analytics_are_never_public() -> None:
         path = operation[1]
         if "/export/" in path or path.endswith("/trend-alerts") or path.startswith("/api/"):
             if path.startswith("/api/notifications"):
+                continue
+            if operation in {
+                ("POST", "/api/cases"),
+                ("GET", "/api/cases/track/{tracking_code}"),
+                ("POST", "/api/cases/{case_id}/media"),
+                ("GET", "/api/pilots/tourism/places"),
+            }:
+                # Public field reporting is intentionally a capability-limited
+                # anonymous mutation; it returns only a tracking token and is
+                # protected by rate limiting, consent and RLS-backed RPC.
                 continue
             assert policy["authorization"] in {"authenticated", "admin", "admin_or_leader"}

@@ -130,6 +130,20 @@ async def test_user_password_and_storage_upload_use_caller_jwt_and_encoded_path(
 
 
 @pytest.mark.asyncio
+async def test_server_media_upload_uses_service_key_without_borrowing_caller_jwt() -> None:
+    client = SupabaseAdminClient(_settings())
+    fake = FakeAsyncClient(httpx.Response(200, json={"Key": "ok"}))
+    with patch("services.supabase_admin.httpx.AsyncClient", return_value=fake):
+        await client.upload_storage_object_admin(
+            "citizen-case-media", "ba_na/cases/case-1/evidence.png", b"PNG", "image/png"
+        )
+    headers = fake.request.await_args.kwargs["headers"]
+    assert headers["apikey"] == "sb_secret_test"
+    assert "Authorization" not in headers
+    assert headers["x-upsert"] == "false"
+
+
+@pytest.mark.asyncio
 async def test_storage_transport_and_http_failures_are_redacted() -> None:
     client = SupabaseAdminClient(_settings()).as_user("caller.jwt")
     request = httpx.Request("POST", "https://project.supabase.co/storage/v1/object/x")

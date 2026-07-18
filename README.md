@@ -33,6 +33,8 @@ Gói vận hành production gồm trung tâm chất lượng dữ liệu theo k�
 scorecard trưởng thành số, portfolio đổi mới và brief AI chỉ ở trạng thái chờ duyệt. Chi tiết
 contract, RLS và các giới hạn AI/PII nằm ở [docs/PRODUCTION_OPERATIONS.md](docs/PRODUCTION_OPERATIONS.md).
 Mã tra cứu kiến nghị công dân chỉ trả trạng thái khử PII; không có tài khoản công dân hoặc OTP.
+Các mô-đun phản ánh hiện trường, kho tri thức, what-if và pilot IoT/du lịch được mô tả cùng
+điều kiện bật tại [docs/FEATURE_PILOTS.md](docs/FEATURE_PILOTS.md).
 
 ## Chuẩn bị môi trường
 
@@ -160,6 +162,7 @@ UAT, review pháp lý hoặc phê duyệt của đơn vị phụ trách.
 - `docs/TEST_REPORT_20260716.md`: kết quả CI, coverage, RLS và các gate còn thiếu.
 - `docs/DEMO_AND_HANDOVER_SCRIPT.md`: kịch bản demo năm nhóm người dùng và biên bản bàn giao.
 - `docs/LEGACY_DATA_IMPORT.md`: quy trình kiểm duyệt 19/22 file và lineage 22 -> 10.
+- `docs/RC_HANDOFF_20260718.md`: phạm vi RC, kết quả gate tự động, SHA-256 gói bàn giao và các gate bên ngoài còn phải ký.
 
 ## Tạo gói bàn giao
 

@@ -142,6 +142,54 @@ class SupabaseAdminClient:
                 status_code=response.status_code,
             )
 
+    async def upload_storage_object_admin(
+        self,
+        bucket: str,
+        object_path: str,
+        content: bytes,
+        content_type: str,
+    ) -> None:
+        """Upload a server-validated object with the service key.
+
+        This is intentionally separate from ``upload_storage_object``: caller
+        JWT uploads must continue to use Storage RLS, while the anonymous field
+        report flow has no JWT and can only reach a private bucket through this
+        narrow, validated backend path.
+        """
+        safe_bucket = quote(bucket, safe="")
+        safe_path = "/".join(quote(part, safe="") for part in object_path.split("/"))
+        headers = self._headers()
+        headers["Content-Type"] = content_type
+        headers["x-upsert"] = "false"
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.request(
+                    "POST",
+                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                    headers=headers,
+                    content=content,
+                )
+        except httpx.HTTPError as exc:
+            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        if response.status_code >= 400:
+            raise SupabaseAdminError("Supabase Storage request failed", status_code=response.status_code)
+
+    async def delete_storage_object_admin(self, bucket: str, object_path: str) -> None:
+        """Remove an orphaned object after a failed metadata insert."""
+        safe_bucket = quote(bucket, safe="")
+        safe_path = "/".join(quote(part, safe="") for part in object_path.split("/"))
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.request(
+                    "DELETE",
+                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                    headers=self._headers(),
+                )
+        except httpx.HTTPError as exc:
+            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        if response.status_code >= 400:
+            raise SupabaseAdminError("Supabase Storage request failed", status_code=response.status_code)
+
     async def create_user_profile(
         self,
         user_id: str,

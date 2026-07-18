@@ -42,6 +42,7 @@ const PendingUpdates = React.lazy(() => import("./components/PendingUpdates"));
 const PublicVillagePage = React.lazy(() => import("./components/PublicVillagePage"));
 const OperationsCenter = React.lazy(() => import("./components/OperationsCenter"));
 const LegacyBatchImport = React.lazy(() => import("./components/LegacyBatchImport"));
+const KnowledgeCenter = React.lazy(() => import("./components/KnowledgeCenter"));
 
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
@@ -176,7 +177,7 @@ export default function App() {
   const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge">("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -255,12 +256,12 @@ export default function App() {
   }, []);
 
   // Synchronize tab state with URL path
-  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import", search = new URLSearchParams()) => {
+  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge", search = new URLSearchParams()) => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import"]),
-      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations"]),
-      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge"]),
+      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge"]),
+      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge"]),
       dan: new Set(["dashboard", "citizen-proposal"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
@@ -271,7 +272,7 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
-    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import"]);
+    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
@@ -679,7 +680,8 @@ export default function App() {
           { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
           { id: "create-period", label: "Tạo kỳ báo cáo", icon: Plus, group: "Quản trị" },
           { id: "legacy-import", label: "Nhập 22 thôn cũ", icon: FileArchive },
-          { id: "admin-panel", label: "Tài khoản cán bộ", icon: Shield }
+          { id: "admin-panel", label: "Tài khoản cán bộ", icon: Shield },
+          { id: "knowledge", label: "Kho tri thức & kịch bản", icon: FileArchive, group: "Năng lực" }
         ];
       case "can_bo_thon":
       case "to_cnscd":
@@ -687,7 +689,8 @@ export default function App() {
           { id: "operations", label: "Việc của tôi", icon: UserCheck, group: "Công việc" },
           { id: "report-form", label: "Nhập báo cáo", icon: FileText },
           { id: "dashboard", label: "Dữ liệu của thôn", icon: BarChart3, group: "Theo dõi" },
-          { id: "citizen-proposal", label: "Gửi kiến nghị", icon: MessageSquare }
+          { id: "citizen-proposal", label: "Gửi kiến nghị", icon: MessageSquare },
+          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
         ];
       case "lanh_dao":
         return [
@@ -695,7 +698,8 @@ export default function App() {
           { id: "dashboard", label: "Tổng hợp toàn xã", icon: BarChart3 },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Đánh giá" },
-          { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck }
+          { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
+          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
         ];
       case "dan":
       default:
@@ -1020,6 +1024,10 @@ export default function App() {
 
               {activeTab === "operations" && (
                 <OperationsCenter periodId={activePeriodId} role={userRole} />
+              )}
+
+              {activeTab === "knowledge" && (
+                <KnowledgeCenter role={userRole} />
               )}
 
               {activeTab === "report-form" && (

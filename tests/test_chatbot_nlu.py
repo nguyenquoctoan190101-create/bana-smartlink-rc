@@ -131,6 +131,14 @@ def test_out_of_scope_question_gets_a_reasonable_boundary_response() -> None:
     assert "không dùng kiến thức bên ngoài" in answer.answer
 
 
+def test_obvious_out_of_scope_question_is_explained_without_model_fallback() -> None:
+    answer = asyncio.run(ask_question_async("Ngày mai thời tiết có mưa không?", caller_role="dan"))
+
+    assert answer.intent == "OUT_OF_SCOPE"
+    assert answer.rows_retrieved == 0
+    assert "ngoài phạm vi" in answer.answer
+
+
 def test_pending_legacy_village_mapping_fails_closed() -> None:
     answer = asyncio.run(
         ask_question_async("Thôn Đông Sơn có bao nhiêu hộ dân?", caller_role="dan")

@@ -49,26 +49,33 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     return { present, missing: filteredReports.length - present };
   };
   const hasValueFor = (key: keyof ReportData) => availability(key).present > 0;
-  const totalHouseholds = filteredReports.reduce((sum, r) => sum + value(r.CT01), 0);
-  const totalPopulation = filteredReports.reduce((sum, r) => sum + value(r.CT02), 0);
-  const totalPoor = filteredReports.reduce((sum, r) => sum + value(r.CT03), 0);
-  const totalNearPoor = filteredReports.reduce((sum, r) => sum + value(r.CT04), 0);
-  const totalRevolutionContributors = filteredReports.reduce((sum, r) => sum + value(r.CT05), 0);
-  const totalSocialProtection = filteredReports.reduce((sum, r) => sum + value(r.CT06), 0);
-  const totalChildren = filteredReports.reduce((sum, r) => sum + value(r.CT07), 0);
-  const totalChildrenSpecial = filteredReports.reduce((sum, r) => sum + value(r.CT08), 0);
-  const totalCulturalFamilies = filteredReports.reduce((sum, r) => sum + value(r.CT09), 0);
-  const totalWorkingAge = filteredReports.reduce((sum, r) => sum + value(r.CT10), 0);
-  const totalBHYT = filteredReports.reduce((sum, r) => sum + value(r.CT11), 0);
-  const totalDigitalTeam = filteredReports.reduce((sum, r) => sum + value(r.CT12), 0);
-  const totalOnlineServiceGuided = filteredReports.reduce((sum, r) => sum + value(r.CT13), 0);
-  const totalDomesticViolence = filteredReports.reduce((sum, r) => sum + value(r.CT14), 0);
+  // A partially populated slice must never masquerade as a complete total.
+  // Keep the chart tolerant of missing points, but KPI cards/rates become
+  // null until every report in scope has a valid value for that indicator.
+  const sumMetric = (key: keyof ReportData): number | null => {
+    if (!filteredReports.length || !hasValueFor(key) || availability(key).missing > 0) return null;
+    return filteredReports.reduce((sum, report) => sum + value(report[key] as number | null), 0);
+  };
+  const totalHouseholds = sumMetric("CT01");
+  const totalPopulation = sumMetric("CT02");
+  const totalPoor = sumMetric("CT03");
+  const totalNearPoor = sumMetric("CT04");
+  const totalRevolutionContributors = sumMetric("CT05");
+  const totalSocialProtection = sumMetric("CT06");
+  const totalChildren = sumMetric("CT07");
+  const totalChildrenSpecial = sumMetric("CT08");
+  const totalCulturalFamilies = sumMetric("CT09");
+  const totalWorkingAge = sumMetric("CT10");
+  const totalBHYT = sumMetric("CT11");
+  const totalDigitalTeam = sumMetric("CT12");
+  const totalOnlineServiceGuided = sumMetric("CT13");
+  const totalDomesticViolence = sumMetric("CT14");
 
   // Poverty and near poverty rates
-  const povertyRate = totalHouseholds > 0 ? ((totalPoor / totalHouseholds) * 100) : 0;
-  const nearPovertyRate = totalHouseholds > 0 ? ((totalNearPoor / totalHouseholds) * 100) : 0;
-  const bhytRate = totalPopulation > 0 ? ((totalBHYT / totalPopulation) * 100) : 0;
-  const culturalFamilyRate = totalHouseholds > 0 ? ((totalCulturalFamilies / totalHouseholds) * 100) : 0;
+  const povertyRate = totalHouseholds !== null && totalPoor !== null && totalHouseholds > 0 ? ((totalPoor / totalHouseholds) * 100) : null;
+  const nearPovertyRate = totalHouseholds !== null && totalNearPoor !== null && totalHouseholds > 0 ? ((totalNearPoor / totalHouseholds) * 100) : null;
+  const bhytRate = totalPopulation !== null && totalBHYT !== null && totalPopulation > 0 ? ((totalBHYT / totalPopulation) * 100) : null;
+  const culturalFamilyRate = totalHouseholds !== null && totalCulturalFamilies !== null && totalHouseholds > 0 ? ((totalCulturalFamilies / totalHouseholds) * 100) : null;
 
   // Get village name helper
   const getVillageName = (id: string) => {
@@ -180,12 +187,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
           <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Hộ dân & Nhân khẩu</h3>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-bold text-slate-800">{hasValueFor("CT01") ? totalHouseholds.toLocaleString() : "—"}</span>
+            <span className="text-xl font-bold text-slate-800">{totalHouseholds !== null ? totalHouseholds.toLocaleString() : "—"}</span>
             <span className="text-xs text-slate-500">hộ</span>
           </div>
           <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
             <span>Tổng nhân khẩu:</span>
-            <b className="text-slate-700 font-semibold">{hasValueFor("CT02") ? `${totalPopulation.toLocaleString()} người` : "Chưa có dữ liệu"}</b>
+            <b className="text-slate-700 font-semibold">{totalPopulation !== null ? `${totalPopulation.toLocaleString()} người` : "Chưa có dữ liệu"}</b>
           </p>
         </div>
 
@@ -199,12 +206,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
           <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Tỷ lệ Hộ nghèo</h3>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-bold text-rose-600">{hasValueFor("CT01") && hasValueFor("CT03") ? `${povertyRate.toFixed(2)}%` : "—"}</span>
-            <span className="text-2xs text-rose-500">{hasValueFor("CT03") ? `(${totalPoor} hộ)` : "Chưa có dữ liệu"}</span>
+            <span className="text-xl font-bold text-rose-600">{povertyRate !== null ? `${povertyRate.toFixed(2)}%` : "—"}</span>
+            <span className="text-2xs text-rose-500">{totalPoor !== null ? `(${totalPoor} hộ)` : "Chưa có dữ liệu"}</span>
           </div>
           <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
             <span>Cận nghèo:</span>
-            <b className="text-slate-700 font-semibold">{hasValueFor("CT01") && hasValueFor("CT04") ? `${nearPovertyRate.toFixed(2)}% (${totalNearPoor} hộ)` : "Chưa có dữ liệu"}</b>
+            <b className="text-slate-700 font-semibold">{nearPovertyRate !== null && totalNearPoor !== null ? `${nearPovertyRate.toFixed(2)}% (${totalNearPoor} hộ)` : "Chưa có dữ liệu"}</b>
           </p>
         </div>
 
@@ -218,10 +225,10 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
           <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Bảo hiểm Y tế</h3>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-bold text-emerald-600">{hasValueFor("CT02") && hasValueFor("CT11") ? `${bhytRate.toFixed(1)}%` : "—"}</span>
+            <span className="text-xl font-bold text-emerald-600">{bhytRate !== null ? `${bhytRate.toFixed(1)}%` : "—"}</span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            {hasValueFor("CT11") && hasValueFor("CT02") ? <>Đã có <b className="text-slate-700 font-semibold">{totalBHYT.toLocaleString()} / {totalPopulation.toLocaleString()}</b> người tham gia</> : "Chưa có dữ liệu"}
+            {totalBHYT !== null && totalPopulation !== null ? <>Đã có <b className="text-slate-700 font-semibold">{totalBHYT.toLocaleString()} / {totalPopulation.toLocaleString()}</b> người tham gia</> : "Chưa có dữ liệu"}
           </p>
         </div>
 
@@ -235,10 +242,10 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
           <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Gia đình Văn hóa</h3>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-bold text-amber-600">{hasValueFor("CT01") && hasValueFor("CT09") ? `${culturalFamilyRate.toFixed(1)}%` : "—"}</span>
+            <span className="text-xl font-bold text-amber-600">{culturalFamilyRate !== null ? `${culturalFamilyRate.toFixed(1)}%` : "—"}</span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            {hasValueFor("CT09") && hasValueFor("CT01") ? <>Đạt chuẩn: <b className="text-slate-700 font-semibold">{totalCulturalFamilies.toLocaleString()} / {totalHouseholds.toLocaleString()}</b> hộ dân</> : "Chưa có dữ liệu"}
+            {totalCulturalFamilies !== null && totalHouseholds !== null ? <>Đạt chuẩn: <b className="text-slate-700 font-semibold">{totalCulturalFamilies.toLocaleString()} / {totalHouseholds.toLocaleString()}</b> hộ dân</> : "Chưa có dữ liệu"}
           </p>
         </div>
       </div>
@@ -382,12 +389,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               <div className="bg-slate-25 p-3.5 rounded-lg border border-slate-100/50">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-slate-500 font-medium">Thành viên Tổ CNSCĐ (CT12)</span>
-                  <span className="font-bold text-emerald-700 text-right">{totalDigitalTeam} người</span>
+                  <span className="font-bold text-emerald-700 text-right">{totalDigitalTeam === null ? "—" : `${totalDigitalTeam} người`}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-emerald-600 h-1.5 rounded-full" 
-                    style={{ width: `${Math.min(100, (totalDigitalTeam / 100) * 100)}%` }}
+                    style={{ width: `${totalDigitalTeam === null ? 0 : Math.min(100, (totalDigitalTeam / 100) * 100)}%` }}
                   ></div>
                 </div>
               </div>
@@ -396,12 +403,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               <div className="bg-slate-25 p-3.5 rounded-lg border border-slate-100/50">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-slate-500 font-medium">Số lượt hướng dẫn DVC trực tuyến (CT13)</span>
-                  <span className="font-bold text-emerald-700 text-right">{totalOnlineServiceGuided} lượt</span>
+                  <span className="font-bold text-emerald-700 text-right">{totalOnlineServiceGuided === null ? "—" : `${totalOnlineServiceGuided} lượt`}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-emerald-500 h-1.5 rounded-full" 
-                    style={{ width: `${Math.min(100, (totalOnlineServiceGuided / 500) * 100)}%` }}
+                    style={{ width: `${totalOnlineServiceGuided === null ? 0 : Math.min(100, (totalOnlineServiceGuided / 500) * 100)}%` }}
                   ></div>
                 </div>
                 <p className="text-4xs text-slate-400 mt-1">*Chỉ tiêu phấn đấu xã: 500 lượt hướng dẫn/kỳ</p>
@@ -411,11 +418,11 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">
                   <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Người có công (CT05)</span>
-                  <b className="text-sm font-bold text-slate-700">{totalRevolutionContributors} người</b>
+                  <b className="text-sm font-bold text-slate-700">{totalRevolutionContributors === null ? "—" : `${totalRevolutionContributors} người`}</b>
                 </div>
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">
                   <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Bảo trợ xã hội (CT06)</span>
-                  <b className="text-sm font-bold text-slate-700">{totalSocialProtection} người</b>
+                  <b className="text-sm font-bold text-slate-700">{totalSocialProtection === null ? "—" : `${totalSocialProtection} người`}</b>
                 </div>
               </div>
             </div>
@@ -423,8 +430,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
 
           <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-2xs">
             <span className="text-slate-400 font-medium">Vụ bạo lực gia đình ghi nhận (CT14):</span>
-            <span className={`px-2 py-0.5 rounded font-bold ${totalDomesticViolence > 0 ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
-              {totalDomesticViolence} vụ
+            <span className={`px-2 py-0.5 rounded font-bold ${totalDomesticViolence !== null && totalDomesticViolence > 0 ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
+              {totalDomesticViolence === null ? "—" : `${totalDomesticViolence} vụ`}
             </span>
           </div>
         </div>

@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Annotated, Any, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
+
+from routers.auth import get_settings, get_supabase_admin, require_admin_or_leader, require_admin_xa
+from services.settings import Settings
+from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
+
+router = APIRouter(prefix="/pilots", tags=["feature-flagged-pilots"])
+
+
+class SensorObservationRequest(BaseModel):
+    device_id: UUID
+    observed_at: datetime
+    value: float
+    unit: str = Field(min_length=1, max_length=40)
+    quality_flag: Literal["good", "suspect", "bad", "uncalibrated"] = "good"
+    source_message_id: str | None = Field(default=None, max_length=180)
+
+
+class SensorDeviceRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    device_type: Literal["water_level", "rain_gauge", "vibration", "noise", "tilt", "other"]
+    unit: str = Field(min_length=1, max_length=40)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class TourismPlaceRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=180)
+    category: Literal["nature", "heritage", "homestay", "food", "craft", "service"]
+    summary: str = Field(min_length=3, max_length=2000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    accessibility_notes: str | None = Field(default=None, max_length=1000)
+    opening_hours: str | None = Field(default=None, max_length=300)
+
+
+def _bearer(authorization: str | None) -> str:
+    if not authorization or not authorization.lower().startswith("bearer ") or not authorization[7:].strip():
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    return authorization[7:].strip()
+
+
+def _caller(client: SupabaseAdminClient, authorization: str | None) -> SupabaseAdminClient:
+    return client.as_user(_bearer(authorization))
+
+
+def _pilot_enabled(settings: Settings, name: str) -> None:
+    if not getattr(settings, name, False):
+        raise HTTPException(status_code=404, detail="Pilot feature is not enabled")
+
+
+@router.get("/tourism/places")
+async def list_public_tourism_places(
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+) -> list[dict[str, Any]]:
+    _pilot_enabled(settings, "feature_tourism_pilot")
+    try:
+        rows = await supabase._rest_request("GET", "/rest/v1/tourism_places?select=id,name,category,summary,latitude,longitude,accessibility_notes,opening_hours&commune_id=eq." + settings.bana_commune_id + "&status=eq.approved&order=name.asc")
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to retrieve tourism places") from exc
+    return rows
+
+
+@router.post("/tourism/places", status_code=201)
+async def create_tourism_place(
+    payload: TourismPlaceRequest,
+    profile: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _pilot_enabled(settings, "feature_tourism_pilot")
+    data = {**payload.model_dump(exclude_none=True), "commune_id": settings.bana_commune_id, "created_by": profile.id}
+    try:
+        rows = await _caller(supabase, authorization)._rest_request("POST", "/rest/v1/tourism_places", data, prefer="return=representation")
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=400, detail="Unable to save tourism place") from exc
+    return rows[0]
+
+
+@router.get("/sensors/devices")
+async def list_sensor_devices(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    _pilot_enabled(settings, "feature_iot_pilot")
+    return await _caller(supabase, authorization)._rest_request("GET", "/rest/v1/sensor_devices?select=*&commune_id=eq." + settings.bana_commune_id + "&order=name.asc")
+
+
+@router.post("/sensors/devices", status_code=201)
+async def create_sensor_device(
+    payload: SensorDeviceRequest,
+    profile: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _pilot_enabled(settings, "feature_iot_pilot")
+    data = {**payload.model_dump(exclude_none=True), "commune_id": settings.bana_commune_id, "created_by": profile.id}
+    rows = await _caller(supabase, authorization)._rest_request("POST", "/rest/v1/sensor_devices", data, prefer="return=representation")
+    return rows[0]
+
+
+@router.post("/sensors/observations", status_code=201)
+async def ingest_sensor_observation(
+    payload: SensorObservationRequest,
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _pilot_enabled(settings, "feature_iot_pilot")
+    data = payload.model_dump(mode="json")
+    rows = await _caller(supabase, authorization)._rest_request("POST", "/rest/v1/sensor_observations", data, prefer="return=representation")
+    return rows[0]
+
+
+@router.get("/alerts")
+async def list_internal_alerts(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    _pilot_enabled(settings, "feature_iot_pilot")
+    return await _caller(supabase, authorization)._rest_request("GET", "/rest/v1/alerts?select=id,severity,headline,description,status,source,effective_from,effective_until&commune_id=eq." + settings.bana_commune_id + "&order=effective_from.desc")
+
+
+__all__ = ["router"]

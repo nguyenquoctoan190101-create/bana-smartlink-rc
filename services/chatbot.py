@@ -180,6 +180,10 @@ _HELP_PHRASE_RE = re.compile(
     r"\b(ban biet gi|ban biet nhung gi|co the hoi gi|toi can hoi the nao|hoi nhu the nao"
     r"|huong dan hoi|huong dan su dung|ban lam duoc gi|tro giup)\b"
 )
+_OBVIOUS_OUT_OF_SCOPE_RE = re.compile(
+    r"\b(thoi tiet|du bao mua|ngay mai co mua|gia vang|gia xang|ket qua bong da|"
+    r"nau an|viet code|lap trinh|dich bai hat|tin tuc the gioi|tu van dau tu)\b"
+)
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 _PHONE_RE = re.compile(r"(?<!\d)(?:\+84|0)\d{8,10}(?!\d)")
@@ -357,7 +361,9 @@ def _detect_ct_code(norm: str) -> str | None:
 def _classify_question(question: str) -> _ParsedQuestion:
     norm = _normalise(question)
 
-    if _HELP_PHRASE_RE.search(norm):
+    if _OBVIOUS_OUT_OF_SCOPE_RE.search(norm):
+        intent = _QueryIntent.OUT_OF_SCOPE
+    elif _HELP_PHRASE_RE.search(norm):
         intent = _QueryIntent.HELP
     elif _COMPARE_PHRASE_RE.search(norm):
         intent = _QueryIntent.COMPARE_VILLAGES
@@ -535,6 +541,28 @@ def _no_data_answer(parsed: _ParsedQuestion, caller_role: str) -> str:
     return (
         f"Không tìm thấy dữ liệu trong phạm vi quyền của tài khoản cho {scope}. "
         "Hãy kiểm tra tên thôn, kỳ báo cáo hoặc trạng thái phân công."
+    )
+
+
+def _deterministic_data_answer(rows: list[dict[str, Any]]) -> str:
+    """Keep known data questions usable when the optional model is unavailable."""
+    snippets: list[str] = []
+    for row in rows[:20]:
+        village = str(row.get("village_name") or "Phạm vi đã chọn")
+        period = str(row.get("period_name") or "kỳ dữ liệu chưa xác định")
+        code = str(row.get("ct_code") or "chỉ tiêu")
+        value = row.get("value")
+        indicator = _CODE_TO_INDICATOR.get(code)
+        unit = indicator.unit if indicator else ""
+        if value is None:
+            rendered = "chưa có dữ liệu"
+        else:
+            rendered = f"{value}{f' {unit}' if unit else ''}"
+        snippets.append(f"{village}: {code} = {rendered} ({period})")
+    return (
+        "Kết quả từ dữ liệu đã được phân quyền: "
+        + "; ".join(snippets)
+        + ". Gemini hiện không sẵn sàng nên tôi hiển thị kết quả xác định, không suy diễn."
     )
 
 
@@ -1134,8 +1162,11 @@ async def ask_question_async(
             max_output_tokens=_MAX_OUTPUT_TOKENS,
             temperature=_GEMINI_TEMPERATURE,
         )
-    except GeminiError as exc:
-        raise ChatbotError("Không thể tạo câu trả lời từ Gemini.") from exc
+    except GeminiError:
+        # A missing/over-quota model must not make deterministic public data
+        # unavailable. The fallback deliberately emits only rows already
+        # filtered by role/publication scope and never invents a value.
+        answer_text = _deterministic_data_answer(context_rows)
 
     return ChatbotAnswer(
         question=question,

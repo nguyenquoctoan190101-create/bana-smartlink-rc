@@ -13,6 +13,9 @@ from slowapi.errors import RateLimitExceeded
 from routers.ai import router as ai_router
 from routers.auth import router as auth_router
 from routers.cnscd_impact import router as cnscd_impact_router
+from routers.cases import router as cases_router
+from routers.knowledge import router as knowledge_router
+from routers.pilots import router as pilots_router
 from routers.policy_scorecard import router as policy_scorecard_router
 from routers.operations import router as operations_router
 from routers.reports import period_router, router as reports_router
@@ -38,7 +41,13 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
+        # Media/GPS are opt-in capabilities.  The browser still prompts the
+        # user only when a feature explicitly calls getUserMedia/getCurrentPosition;
+        # denying the feature at the policy layer made the planned voice/GPS
+        # workflows impossible even after a user granted permission.
+        response.headers["Permissions-Policy"] = (
+            "camera=(self), microphone=(self), geolocation=(self)"
+        )
         connect_sources = ["'self'"]
         parsed_supabase = urlsplit(settings.normalized_supabase_url)
         if parsed_supabase.scheme == "https" and parsed_supabase.netloc:
@@ -108,6 +117,9 @@ def create_app() -> FastAPI:
     app.include_router(policy_scorecard_router, prefix="/api")
     app.include_router(operations_router, prefix="/api")
     app.include_router(cnscd_impact_router, prefix="/api")
+    app.include_router(cases_router, prefix="/api")
+    app.include_router(knowledge_router, prefix="/api")
+    app.include_router(pilots_router, prefix="/api")
     app.include_router(push_router, prefix="/api")
     app.include_router(api_router, prefix="/api")
 

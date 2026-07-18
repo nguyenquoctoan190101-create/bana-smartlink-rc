@@ -92,8 +92,8 @@ async def run(*, baseline: bool, status_only: bool) -> None:
     try:
         await conn.execute("select pg_advisory_lock($1)", LOCK_KEY)
         await _ensure_tracking(conn)
-        files = [BASELINE] if baseline else sorted(MIGRATIONS.glob("*.sql"))
         if status_only:
+            files = [BASELINE, *sorted(MIGRATIONS.glob("*.sql"))] if baseline else sorted(MIGRATIONS.glob("*.sql"))
             applied = {
                 row["name"]: row["sha256"]
                 for row in await conn.fetch(
@@ -106,6 +106,13 @@ async def run(*, baseline: bool, status_only: bool) -> None:
             return
         if baseline:
             await _assert_empty_database(conn)
+            # A fresh database needs the canonical baseline and every ordered
+            # overlay in the same locked run; leaving overlays for a second
+            # manual command creates a deceptively incomplete installation.
+            await _apply(conn, BASELINE)
+            files = sorted(MIGRATIONS.glob("*.sql"))
+        else:
+            files = sorted(MIGRATIONS.glob("*.sql"))
         for path in files:
             await _apply(conn, path)
     finally:

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Award, Check, CheckCircle2, ClipboardCheck, File
 import { apiFetch, apiJson } from "../lib/apiClient";
 import { loadVillages } from "../lib/useVillages";
 import { Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, TopographicPattern } from "./ui";
+import CitizenCasePanel from "./CitizenCasePanel";
 
 const PUBLIC_INDICATORS = [
   { code: "CT01", name: "Tổng số hộ dân", unit: "hộ", icon: Home, tone: "info" as const },
@@ -13,7 +14,7 @@ const PUBLIC_INDICATORS = [
   { code: "CT13", name: "Lượt hướng dẫn dịch vụ công trực tuyến", unit: "lượt", icon: FileText, tone: "info" as const },
 ];
 
-type PublicMode = "data" | "lookup" | "proposal";
+type PublicMode = "data" | "lookup" | "proposal" | "case";
 type ProposalStep = 1 | 2 | 3 | 4;
 
 export function formatPublicIndicatorValue(value: unknown): string {
@@ -191,6 +192,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
         <div className="relative z-10 mt-7 flex flex-wrap gap-3">
           <Button variant={mode === "data" ? "secondary" : "quiet"} className={mode !== "data" ? "text-white hover:text-white" : ""} onClick={() => setMode("data")}><FileText />Xem dữ liệu</Button>
           <Button variant={mode === "proposal" ? "secondary" : "quiet"} className={mode !== "proposal" ? "text-white hover:text-white" : ""} onClick={() => { setMode("proposal"); setProposalStep(1); }}><MessageSquare />Gửi kiến nghị</Button>
+          <Button variant={mode === "case" ? "secondary" : "quiet"} className={mode !== "case" ? "text-white hover:text-white" : ""} onClick={() => setMode("case")}><MapPin />Phản ánh hiện trường</Button>
           <Button variant={mode === "lookup" ? "secondary" : "quiet"} className={mode !== "lookup" ? "text-white hover:text-white" : ""} onClick={() => setMode("lookup")}><FileSearch />Tra cứu kiến nghị</Button>
           {onGoToLogin && <Button variant="quiet" className="ml-auto text-white hover:text-white" onClick={onGoToLogin}><Lock />Khu vực cán bộ</Button>}
         </div>
@@ -232,6 +234,8 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
           {lookupResult && <div role="status" className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{lookupResult.message}</div>}
         </SectionCard>
       )}
+
+      {mode === "case" && <CitizenCasePanel villages={villages} onBack={() => setMode("data")} />}
 
       {mode === "proposal" && (
         <SectionCard className="mx-auto max-w-3xl overflow-hidden">
