@@ -82,7 +82,7 @@ def _tracking_code() -> tuple[str, str]:
 def _hash_tracking_code(code: str) -> str:
     normalized = code.strip().upper()
     if not _TRACKING_RE.fullmatch(normalized):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid tracking code")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid tracking code")
     return hashlib.sha256(normalized.encode("ascii")).hexdigest()
 
 
@@ -112,9 +112,9 @@ async def create_case(
     if not settings.feature_cases:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Citizen reporting is disabled")
     if (payload.latitude is None) != (payload.longitude is None):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Latitude and longitude must be provided together")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Latitude and longitude must be provided together")
     if payload.latitude is not None and not payload.location_confirmed:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Location confirmation is required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Location confirmation is required")
     tracking_code, tracking_hash = _tracking_code()
     rpc_payload = {
         "p_commune_id": settings.bana_commune_id,
@@ -138,7 +138,7 @@ async def create_case(
         rows = await supabase._rest_request("POST", "/rest/v1/rpc/create_citizen_case", rpc_payload)
     except SupabaseAdminError as exc:
         if exc.status_code in {400, 409}:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unable to create field report") from exc
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unable to create field report") from exc
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Field reporting service is unavailable") from exc
     if not rows:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Field reporting service returned no case")
@@ -210,13 +210,13 @@ async def upload_case_media(
         )
         content, mime_type, extension = await validate_case_media(file)
     except CaseMediaValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Media service is unavailable") from exc
 
     image_count = sum(1 for row in media_rows if str(row.get("mime_type", "")).startswith("image/"))
     if image_count >= MAX_IMAGE_COUNT:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A field report can have at most 5 images")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A field report can have at most 5 images")
 
     object_path = f"{settings.bana_commune_id}/cases/{case_id}/{secrets.token_hex(16)}.{extension}"
     try:
@@ -264,7 +264,7 @@ async def list_cases(
     query = "/rest/v1/citizen_cases?select=id,commune_id,village_id,category,description,priority,status,assigned_department,sla_due_at,created_at,updated_at&order=created_at.desc"
     if status_filter:
         if status_filter not in {"received", "verifying", "assigned", "in_progress", "completed", "out_of_scope", "rejected"}:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid status filter")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid status filter")
         query += "&status=eq." + quote(status_filter, safe="")
     try:
         return await supabase.as_user(_extract_bearer(authorization))._rest_request("GET", query)

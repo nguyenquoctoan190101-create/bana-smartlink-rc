@@ -37,3 +37,19 @@ def test_case_media_rejects_video_until_duration_probe_exists() -> None:
 def test_case_media_rejects_mismatched_magic_bytes() -> None:
     with pytest.raises(CaseMediaValidationError, match="match"):
         asyncio.run(validate_case_media(_upload("evidence.png", b"not an image")))
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "message"),
+    [
+        ("evidence.txt", b"plain text", "Only JPG"),
+        ("empty.png", b"", "Empty"),
+        ("broken.webp", b"RIFF0000NOPE", "match"),
+        ("broken.jpg", b"\xff\xd8\xffnot-an-image", "corrupt"),
+    ],
+)
+def test_case_media_rejects_other_unsafe_inputs(
+    name: str, content: bytes, message: str
+) -> None:
+    with pytest.raises(CaseMediaValidationError, match=message):
+        asyncio.run(validate_case_media(_upload(name, content)))
