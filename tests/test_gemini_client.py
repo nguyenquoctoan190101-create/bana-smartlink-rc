@@ -71,6 +71,32 @@ async def test_validate_aggregate_report_marks_ai_as_advisory_only() -> None:
 
 
 @pytest.mark.asyncio
+async def test_generate_json_uses_schema_constrained_deterministic_output() -> None:
+    fake = FakeAsyncClient(_response('{"intent":"HELP"}'))
+    schema = {
+        "type": "OBJECT",
+        "properties": {"intent": {"type": "STRING"}},
+        "required": ["intent"],
+    }
+    with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+        result = await _client().generate_json("system", "question", schema)
+
+    assert result == {"intent": "HELP"}
+    config = fake.post.await_args.kwargs["json"]["generationConfig"]
+    assert config["temperature"] == 0.0
+    assert config["responseMimeType"] == "application/json"
+    assert config["responseSchema"] == schema
+
+
+@pytest.mark.asyncio
+async def test_generate_json_rejects_invalid_json() -> None:
+    fake = FakeAsyncClient(_response("not-json"))
+    with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(GeminiError, match="invalid JSON"):
+            await _client().generate_json("system", "question", {"type": "OBJECT"})
+
+
+@pytest.mark.asyncio
 async def test_gemini_transport_and_http_errors_are_redacted() -> None:
     request = httpx.Request("POST", "https://gemini.example")
     fake = FakeAsyncClient(error=httpx.ConnectError("secret network detail", request=request))

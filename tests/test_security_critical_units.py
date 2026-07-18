@@ -253,9 +253,11 @@ def test_jwt_verifier_rejects_unimplemented_critical_header() -> None:
         (_valid_claims(exp=int(time.time()) - 1), "expired"),
         (_valid_claims(sub="  "), "subject"),
         (_valid_claims(nbf="tomorrow"), "not-before"),
-        (_valid_claims(nbf=int(time.time()) + 120), "not active"),
+        # Keep a generous margin because the full suite can take several
+        # minutes on Windows; +120 seconds used to expire before this case.
+        (_valid_claims(nbf=int(time.time()) + 600), "not active"),
         (_valid_claims(iat=True), "issued-at"),
-        (_valid_claims(iat=int(time.time()) + 120), "issued-at"),
+        (_valid_claims(iat=int(time.time()) + 600), "issued-at"),
         (_valid_claims(iss=None), "issuer"),
         (_valid_claims(aud=["authenticated", 7]), "audience"),
     ],

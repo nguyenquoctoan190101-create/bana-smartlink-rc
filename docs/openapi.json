@@ -465,8 +465,40 @@
         "title": "ChangePasswordRequest",
         "type": "object"
       },
+      "ChatHistoryItem": {
+        "properties": {
+          "content": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatHistoryItem",
+        "type": "object"
+      },
       "ChatRequest": {
         "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ChatHistoryItem"
+            },
+            "maxItems": 6,
+            "title": "History",
+            "type": "array"
+          },
           "question": {
             "maxLength": 500,
             "minLength": 1,

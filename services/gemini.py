@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from typing import Any
 
@@ -62,6 +63,43 @@ class GeminiClient:
             },
         }
         return await self._generate_content(payload)
+
+    async def generate_json(
+        self,
+        system_prompt: str,
+        user_text: str,
+        response_schema: dict[str, Any],
+        max_output_tokens: int = 256,
+    ) -> dict[str, Any]:
+        """Generate a schema-constrained JSON object.
+
+        Callers must still validate every field against their own allowlists;
+        the schema improves shape reliability but is not an authorization
+        boundary.
+        """
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": user_text}],
+                }
+            ],
+            "generationConfig": {
+                "maxOutputTokens": max_output_tokens,
+                "temperature": 0.0,
+                "responseMimeType": "application/json",
+                "responseSchema": response_schema,
+            },
+        }
+        raw = await self._generate_content(payload)
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise GeminiError("Gemini returned invalid JSON") from exc
+        if not isinstance(parsed, dict):
+            raise GeminiError("Gemini returned invalid JSON")
+        return parsed
 
     def _gemini_url(self) -> str:
         base_url = self._settings.gemini_api_url.rstrip("/")

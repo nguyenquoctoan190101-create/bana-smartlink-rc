@@ -18,6 +18,16 @@ from services.chatbot import _classify_question
             ["Thôn An Sơn", "Thôn Phú Hòa"],
             "CT01",
         ),
+        (
+            "Thôn Sơn Phước có bao nhiêu gia đình văn hóa?",
+            ["Thôn Sơn Phước"],
+            "CT09",
+        ),
+        (
+            "Thôn Mỹ Sơn có bao nhiêu hộ dân?",
+            ["Thôn Sơn Phước"],
+            "CT01",
+        ),
     ],
 )
 def test_chatbot_uses_canonical_village_names(

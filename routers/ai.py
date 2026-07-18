@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -13,9 +13,15 @@ from services.supabase_admin import UserProfile
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
+class ChatHistoryItem(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=500)
+
+
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=500)
     xa_id: str | None = Field(default=None, max_length=64)
+    history: list[ChatHistoryItem] = Field(default_factory=list, max_length=6)
 
 
 class ChatResponse(BaseModel):
@@ -45,6 +51,8 @@ async def chat(
             xa_id=payload.xa_id,
             caller_role=caller_role,
             caller_village_id=current_user.village_id if current_user else None,
+            caller_user_id=current_user.id if current_user else None,
+            history=[item.model_dump() for item in payload.history],
         )
     except ChatbotError as exc:
         raise HTTPException(

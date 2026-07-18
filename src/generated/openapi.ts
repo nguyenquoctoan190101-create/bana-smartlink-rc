@@ -1213,8 +1213,20 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** ChatHistoryItem */
+        ChatHistoryItem: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+        };
         /** ChatRequest */
         ChatRequest: {
+            /** History */
+            history?: components["schemas"]["ChatHistoryItem"][];
             /** Question */
             question: string;
             /** Xa Id */

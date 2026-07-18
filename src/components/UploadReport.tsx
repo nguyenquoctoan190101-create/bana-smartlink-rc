@@ -351,7 +351,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             <span>Nạp báo cáo bằng Tệp tin & Trí tuệ nhân tạo (AI)</span>
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Hỗ trợ nạp biểu mẫu Excel thôn hoặc tự động số hóa ảnh báo cáo giấy viết tay qua mô hình Gemini 3.5-Flash.
+            Hỗ trợ nạp biểu mẫu Excel thôn hoặc tự động số hóa ảnh báo cáo giấy viết tay qua Gemini AI đa phương thức.
           </p>
         </div>
         {reviewRows && (

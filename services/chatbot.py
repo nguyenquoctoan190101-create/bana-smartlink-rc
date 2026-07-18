@@ -48,8 +48,25 @@ from services.settings import load_settings
 # ---------------------------------------------------------------------------
 
 RULES_PATH = Path(__file__).resolve().parents[1] / "config" / "validation_rules.json"
+VILLAGE_MAP_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "DU_LIEU_CHINH_THUC"
+    / "village_merge_map_CHINH_THUC.json"
+)
 PUBLIC_CT_CODES = ("CT01", "CT02", "CT09", "CT12", "CT13")
 _PUBLIC_CT_SQL = "('CT01','CT02','CT09','CT12','CT13')"
+_CURRENT_VILLAGE_NAMES = (
+    "Thôn An Sơn",
+    "Thôn Hòa Ninh",
+    "Thôn Hòa Nhơn",
+    "Thôn Phú Hòa",
+    "Thôn Phước Hưng",
+    "Thôn Phước Khương",
+    "Thôn Sơn Phước",
+    "Thôn Thạch Nham Đông",
+    "Thôn Thạch Nham Tây",
+    "Thôn Thái Lai",
+)
 
 # System prompt gửi kèm MỌI lần gọi Gemini.
 # Model bị cấm tuyệt đối bịa số liệu hoặc suy diễn ngoài context.
@@ -101,6 +118,7 @@ _CODE_TO_INDICATOR: dict[str, _Indicator] = {ind.code: ind for ind in _INDICATOR
 
 class _QueryIntent(Enum):
     HELP = auto()                # "Bạn biết những gì?" / "Tôi cần hỏi thế nào?"
+    OUT_OF_SCOPE = auto()        # Câu hỏi không liên quan dữ liệu BaNa SmartLink
     VILLAGE_INDICATOR = auto()   # "Thôn X có bao nhiêu hộ nghèo?"
     VILLAGE_ALL_STATS = auto()   # "Cho tôi xem tất cả chỉ tiêu thôn X"
     COMPARE_VILLAGES = auto()    # "So sánh hộ nghèo giữa thôn A và thôn B"
@@ -159,9 +177,50 @@ _SUMMARY_PHRASE_RE = re.compile(
     r"\b(toan xa|tong cong|tat ca cac thon|ca xa|toan bo xa)\b"
 )
 _HELP_PHRASE_RE = re.compile(
-    r"\b(ban biet gi|co the hoi gi|toi can hoi the nao|hoi nhu the nao"
+    r"\b(ban biet gi|ban biet nhung gi|co the hoi gi|toi can hoi the nao|hoi nhu the nao"
     r"|huong dan hoi|huong dan su dung|ban lam duoc gi|tro giup)\b"
 )
+
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_PHONE_RE = re.compile(r"(?<!\d)(?:\+84|0)\d{8,10}(?!\d)")
+_LONG_ID_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+
+_NLU_SYSTEM_PROMPT = (
+    "Bạn là bộ phân tích ý định cho BaNa SmartLink. Chỉ chuyển câu hỏi thành JSON; "
+    "không trả lời, không suy đoán số liệu và không quyết định quyền truy cập. "
+    "Chọn đúng một intent trong danh sách cho phép. Dùng NONE nếu không có mã chỉ tiêu. "
+    "Tên thôn phải lấy nguyên văn từ danh sách cho phép."
+)
+
+_NLU_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "intent": {
+            "type": "STRING",
+            "enum": [
+                "HELP",
+                "OUT_OF_SCOPE",
+                "VILLAGE_INDICATOR",
+                "VILLAGE_ALL_STATS",
+                "COMPARE_VILLAGES",
+                "PERIOD_SUMMARY",
+                "SUBMISSION_STATUS",
+                "UNKNOWN",
+            ],
+        },
+        "ct_code": {
+            "type": "STRING",
+            "enum": ["NONE", *[f"CT{i:02d}" for i in range(1, 15)]],
+        },
+        "village_names": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+            "maxItems": 10,
+        },
+        "period_name": {"type": "STRING", "maxLength": 64},
+    },
+    "required": ["intent", "ct_code", "village_names", "period_name"],
+}
 
 
 @dataclass
@@ -175,11 +234,48 @@ class _ParsedQuestion:
 def _strip_accents(text: str) -> str:
     """Bỏ dấu tiếng Việt và chuyển về chữ thường để so sánh từ khoá."""
     nfd = unicodedata.normalize("NFD", text)
-    return "".join(c for c in nfd if unicodedata.category(c) != "Mn").lower()
+    without_marks = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    # Vietnamese đ/Đ does not decompose under NFD.
+    return without_marks.replace("đ", "d").replace("Đ", "D").lower()
 
 
 def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", _strip_accents(text).strip())
+
+
+def _load_village_aliases() -> tuple[dict[str, str], set[str]]:
+    """Load official old→new village names and pending mappings.
+
+    The source document is deliberately treated as a routing aid only. A
+    legacy name mapped to ``None`` is kept separate so the chatbot cannot
+    silently aggregate a village before an official decision exists.
+    """
+    if not VILLAGE_MAP_PATH.exists():
+        return {}, set()
+    try:
+        payload = json.loads(VILLAGE_MAP_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}, set()
+    new_names = {
+        str(item.get("id")): str(item.get("ten"))
+        for item in payload.get("villages_moi", [])
+        if isinstance(item, dict) and item.get("id") and item.get("ten")
+    }
+    aliases: dict[str, str] = {}
+    pending: set[str] = set()
+    for item in payload.get("anh_xa_thon_cu", []):
+        if not isinstance(item, dict) or not item.get("ten_thon_cu"):
+            continue
+        alias = _normalise(str(item["ten_thon_cu"]))
+        target_id = item.get("new_village_id")
+        if target_id and target_id in new_names:
+            aliases[alias] = new_names[target_id]
+        else:
+            pending.add(alias)
+    return aliases, pending
+
+
+_LEGACY_VILLAGE_ALIASES, _PENDING_VILLAGE_ALIASES = _load_village_aliases()
 
 
 def _extract_village_names_raw(text: str) -> list[str]:
@@ -188,6 +284,26 @@ def _extract_village_names_raw(text: str) -> list[str]:
     Dừng trước các từ chức năng (có, và, với, nào, là, không, phải, ...)
     để tránh bắt cả câu hỏi vào tên thôn.
     """
+    normalized_text = _normalise(text)
+    canonical_matches = [
+        village
+        for village in _CURRENT_VILLAGE_NAMES
+        if _normalise(village) in normalized_text
+        or _normalise(village.removeprefix("Thôn ")) in normalized_text
+    ]
+    if canonical_matches:
+        return canonical_matches
+
+    legacy_matches = [
+        target
+        for alias, target in sorted(
+            _LEGACY_VILLAGE_ALIASES.items(), key=lambda item: len(item[0]), reverse=True
+        )
+        if alias in normalized_text
+    ]
+    if legacy_matches:
+        return list(dict.fromkeys(legacy_matches))
+
     matches = re.findall(
         r"[Tt]h[\xf4o][nN]\s+([\w\d][\w\s\d/]{0,40}?)"
         r"(?=\s+(?:c[\xf3o]\b|v[\xe0a]\b|n[\xe0a]o\b|l[\xe0a]\b|v[\u1edbi]\b"
@@ -222,10 +338,19 @@ def _extract_period_name(text: str) -> str | None:
 
 def _detect_ct_code(norm: str) -> str | None:
     """Tìm mã chỉ tiêu từ văn bản đã chuẩn hoá."""
+    explicit_code = re.search(r"\bct(?:0[1-9]|1[0-4])\b", norm)
+    if explicit_code:
+        return explicit_code.group(0).upper()
+
     # Ưu tiên khớp dài trước (tránh "nghèo" khớp trước "hộ nghèo")
     for kw in sorted(_KEYWORD_TO_CT, key=len, reverse=True):
         if kw in norm:
             return _KEYWORD_TO_CT[kw]
+    for indicator in sorted(_INDICATORS, key=lambda item: len(item.name), reverse=True):
+        indicator_name = _normalise(indicator.name)
+        indicator_name = re.sub(r"^so |^tong so ", "", indicator_name)
+        if indicator_name and indicator_name in norm:
+            return indicator.code
     return None
 
 
@@ -260,6 +385,102 @@ def _classify_question(question: str) -> _ParsedQuestion:
     )
 
 
+def _redact_free_text(text: str) -> str:
+    """Remove common citizen identifiers before any model request."""
+    redacted = _EMAIL_RE.sub("[EMAIL_REDACTED]", text)
+    redacted = _PHONE_RE.sub("[PHONE_REDACTED]", redacted)
+    return _LONG_ID_RE.sub("[ID_REDACTED]", redacted)
+
+
+def _canonical_village_name(value: str) -> str | None:
+    normalized = _normalise(value)
+    normalized_without_prefix = re.sub(r"^thon\s+", "", normalized)
+    for village in _CURRENT_VILLAGE_NAMES:
+        candidate = _normalise(village)
+        candidate_without_prefix = re.sub(r"^thon\s+", "", candidate)
+        if normalized in {candidate, candidate_without_prefix}:
+            return village
+        if normalized_without_prefix == candidate_without_prefix:
+            return village
+    return None
+
+
+def _mentions_pending_village_mapping(question: str) -> bool:
+    normalized = _normalise(question)
+    return any(alias in normalized for alias in _PENDING_VILLAGE_ALIASES)
+
+
+async def _classify_question_with_gemini(
+    question: str,
+    history: list[dict[str, str]] | None,
+) -> _ParsedQuestion | None:
+    """Use Gemini only as a constrained NLU fallback.
+
+    All returned fields are validated against backend allowlists. Model output
+    never carries a role, a permission decision, SQL, or a final answer.
+    """
+    safe_history = [
+        {
+            "role": str(item.get("role", ""))[:16],
+            "content": _redact_free_text(str(item.get("content", ""))[:500]),
+        }
+        for item in (history or [])[-6:]
+        if item.get("role") in {"user", "assistant"}
+    ]
+    payload = {
+        "question": _redact_free_text(question),
+        "recent_history": safe_history,
+        "allowed_villages": list(_CURRENT_VILLAGE_NAMES),
+        "legacy_village_aliases": [
+            {"old_name": alias, "new_name": target}
+            for alias, target in _LEGACY_VILLAGE_ALIASES.items()
+        ],
+        "pending_village_names": list(_PENDING_VILLAGE_ALIASES),
+        "allowed_indicators": [
+            {"code": indicator.code, "name": indicator.name}
+            for indicator in _INDICATORS
+        ],
+        "intent_meanings": {
+            "HELP": "hỏi chatbot làm được gì hoặc cách hỏi",
+            "OUT_OF_SCOPE": "không liên quan dữ liệu/báo cáo BaNa SmartLink",
+            "VILLAGE_INDICATOR": "một chỉ tiêu của một hay nhiều thôn",
+            "VILLAGE_ALL_STATS": "toàn bộ chỉ tiêu của một thôn",
+            "COMPARE_VILLAGES": "so sánh các thôn",
+            "PERIOD_SUMMARY": "tổng hợp toàn xã hoặc theo kỳ",
+            "SUBMISSION_STATUS": "tiến độ/trạng thái nộp báo cáo",
+            "UNKNOWN": "có vẻ liên quan nhưng thiếu thông tin để hiểu",
+        },
+    }
+    try:
+        result = await get_gemini_client().generate_json(
+            _NLU_SYSTEM_PROMPT,
+            json.dumps(payload, ensure_ascii=False),
+            _NLU_RESPONSE_SCHEMA,
+            max_output_tokens=256,
+        )
+    except GeminiError:
+        return None
+
+    intent_name = str(result.get("intent", "UNKNOWN")).upper()
+    intent = _QueryIntent.__members__.get(intent_name, _QueryIntent.UNKNOWN)
+    raw_code = str(result.get("ct_code", "NONE")).upper()
+    ct_code = raw_code if raw_code in _CODE_TO_INDICATOR else None
+    village_names: list[str] = []
+    raw_villages = result.get("village_names")
+    if isinstance(raw_villages, list):
+        for raw_village in raw_villages[:10]:
+            canonical = _canonical_village_name(str(raw_village))
+            if canonical and canonical not in village_names:
+                village_names.append(canonical)
+    period_name = _extract_period_name(str(result.get("period_name", "")))
+    return _ParsedQuestion(
+        intent=intent,
+        village_names=village_names,
+        ct_code=ct_code,
+        period_name=period_name,
+    )
+
+
 def _guidance_answer(caller_role: str) -> str:
     """Return safe usage guidance without calling the model or database."""
     if caller_role == "dan":
@@ -286,9 +507,70 @@ def _public_scope_answer() -> str:
     )
 
 
+def _out_of_scope_answer() -> str:
+    return (
+        "Câu hỏi này nằm ngoài phạm vi dữ liệu và báo cáo của BaNa SmartLink. "
+        "Tôi không dùng kiến thức bên ngoài để suy đoán. Bạn có thể hỏi về chỉ tiêu "
+        "theo thôn, số liệu toàn xã, kỳ báo cáo hoặc tiến độ nộp báo cáo nếu tài khoản "
+        "của bạn có quyền xem."
+    )
+
+
+def _pending_village_mapping_answer() -> str:
+    return (
+        "Tên thôn này đang có phương án phân chia nhưng chưa có quyết định và số liệu "
+        "chính thức để gộp vào thôn mới. Tôi không tự suy đoán; vui lòng hỏi lại sau "
+        "khi UBND xã cập nhật phạm vi dữ liệu."
+    )
+
+
+def _no_data_answer(parsed: _ParsedQuestion, caller_role: str) -> str:
+    scope = ", ".join(parsed.village_names) if parsed.village_names else "phạm vi đã hỏi"
+    if caller_role == "dan":
+        return (
+            f"Chưa có dữ liệu đã công bố cho {scope}. "
+            "Dữ liệu có thể chưa được công bố hoặc không thuộc phạm vi công khai; "
+            "tôi không tự suy đoán giá trị."
+        )
+    return (
+        f"Không tìm thấy dữ liệu trong phạm vi quyền của tài khoản cho {scope}. "
+        "Hãy kiểm tra tên thôn, kỳ báo cáo hoặc trạng thái phân công."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Truy vấn PostgreSQL — chỉ số liệu tổng hợp, KHÔNG CÓ cột PII
 # ---------------------------------------------------------------------------
+
+
+def _append_staff_scope(
+    conditions: list[str],
+    params: list[Any],
+    idx: int,
+    caller_role: str,
+    caller_village_id: str | None,
+    caller_user_id: str | None,
+) -> int | None:
+    """Append an explicit village scope; return None when scope is invalid."""
+    if caller_role == "can_bo_thon":
+        if not caller_village_id:
+            return None
+        conditions.append(f"v.id = ${idx}::uuid")
+        params.append(caller_village_id)
+        return idx + 1
+    if caller_role == "to_cnscd":
+        if not caller_user_id:
+            return None
+        conditions.append(
+            "EXISTS ("
+            "SELECT 1 FROM user_village_assignments chatbot_scope "
+            f"WHERE chatbot_scope.user_id = ${idx}::uuid "
+            "AND chatbot_scope.village_id = v.id"
+            ")"
+        )
+        params.append(caller_user_id)
+        return idx + 1
+    return idx
 
 
 async def _query_village_indicator(
@@ -299,6 +581,7 @@ async def _query_village_indicator(
     xa_id: str | None,
     caller_role: str = "dan",
     caller_village_id: str | None = None,
+    caller_user_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Giá trị chỉ tiêu cho một hoặc nhiều thôn.
 
@@ -331,10 +614,17 @@ async def _query_village_indicator(
     if caller_role == "dan":
         conditions.append("r.publication_status = 'published'")
     elif caller_role in {"can_bo_thon", "to_cnscd"}:
-        if not caller_village_id:
+        scoped_idx = _append_staff_scope(
+            conditions,
+            params,
+            idx,
+            caller_role,
+            caller_village_id,
+            caller_user_id,
+        )
+        if scoped_idx is None:
             return []
-        conditions.append(f"v.id = ${idx}")
-        params.append(caller_village_id)
+        idx = scoped_idx
 
     where = " AND ".join(conditions)
     sql = f"""
@@ -363,6 +653,7 @@ async def _query_village_all_stats(
     xa_id: str | None,
     caller_role: str = "dan",
     caller_village_id: str | None = None,
+    caller_user_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Tất cả chỉ tiêu CT01-CT14 của một hoặc nhiều thôn."""
     conditions: list[str] = []
@@ -389,10 +680,17 @@ async def _query_village_all_stats(
         conditions.append(f"rv.ct_code IN {_PUBLIC_CT_SQL}")
         conditions.append("r.publication_status = 'published'")
     elif caller_role in {"can_bo_thon", "to_cnscd"}:
-        if not caller_village_id:
+        scoped_idx = _append_staff_scope(
+            conditions,
+            params,
+            idx,
+            caller_role,
+            caller_village_id,
+            caller_user_id,
+        )
+        if scoped_idx is None:
             return []
-        conditions.append(f"v.id = ${idx}")
-        params.append(caller_village_id)
+        idx = scoped_idx
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     sql = f"""
@@ -420,6 +718,7 @@ async def _query_submission_status(
     xa_id: str | None,
     caller_role: str,
     caller_village_id: str | None,
+    caller_user_id: str | None,
 ) -> list[dict[str, Any]]:
     """Trạng thái nộp báo cáo theo thôn — không có danh tính người nộp."""
     conditions: list[str] = []
@@ -437,10 +736,17 @@ async def _query_submission_status(
         idx += 1
 
     if caller_role in {"can_bo_thon", "to_cnscd"}:
-        if not caller_village_id:
+        scoped_idx = _append_staff_scope(
+            conditions,
+            params,
+            idx,
+            caller_role,
+            caller_village_id,
+            caller_user_id,
+        )
+        if scoped_idx is None:
             return []
-        conditions.append(f"v.id = ${idx}")
-        params.append(caller_village_id)
+        idx = scoped_idx
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     # submitted_at chỉ lấy ::date — không tiết lộ thời điểm chính xác
@@ -468,6 +774,7 @@ async def _query_period_summary(
     xa_id: str | None,
     caller_role: str = "dan",
     caller_village_id: str | None = None,
+    caller_user_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Tổng cộng toàn xã theo một hoặc tất cả chỉ tiêu cho một kỳ."""
     if caller_role == "dan" and ct_code and ct_code not in PUBLIC_CT_CODES:
@@ -497,10 +804,17 @@ async def _query_period_summary(
     if caller_role == "dan":
         conditions.append("r.publication_status = 'published'")
     elif caller_role in {"can_bo_thon", "to_cnscd"}:
-        if not caller_village_id:
+        scoped_idx = _append_staff_scope(
+            conditions,
+            params,
+            idx,
+            caller_role,
+            caller_village_id,
+            caller_user_id,
+        )
+        if scoped_idx is None:
             return []
-        conditions.append(f"v.id = ${idx}")
-        params.append(caller_village_id)
+        idx = scoped_idx
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     sql = f"""
@@ -554,7 +868,7 @@ def _build_gemini_prompt(
     # json.dumps với default=str để xử lý datetime an toàn
     safe_context = json.dumps(
         {
-            "cau_hoi": question,
+            "cau_hoi": _redact_free_text(question),
             "du_lieu_he_thong": enriched,
         },
         ensure_ascii=False,
@@ -564,6 +878,8 @@ def _build_gemini_prompt(
         "Dưới đây là câu hỏi của người dùng và dữ liệu từ hệ thống Ba Na SmartLink.\n"
         "Hãy trả lời câu hỏi bằng tiếng Việt, ngắn gọn và chính xác, "
         "CHỈ sử dụng các số liệu có trong trường \'du_lieu_he_thong\'. "
+        "Nêu rõ thôn hoặc phạm vi, kỳ dữ liệu, mã/tên chỉ tiêu và nguồn là "
+        "BaNa SmartLink khi các trường đó có trong dữ liệu. "
         "Nếu không có dữ liệu liên quan, nói rõ là chưa có thông tin.\n\n"
         f"{safe_context}"
     )
@@ -580,6 +896,7 @@ async def _fetch_context(
     xa_id: str | None,
     caller_role: str = "dan",
     caller_village_id: str | None = None,
+    caller_user_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Gọi đúng hàm truy vấn dựa trên intent đã phân loại."""
     intent = parsed.intent
@@ -593,6 +910,7 @@ async def _fetch_context(
             xa_id=xa_id,
             caller_role=caller_role,
             caller_village_id=caller_village_id,
+            caller_user_id=caller_user_id,
         )
 
     if intent in (_QueryIntent.VILLAGE_ALL_STATS, _QueryIntent.COMPARE_VILLAGES):
@@ -603,6 +921,7 @@ async def _fetch_context(
             xa_id=xa_id,
             caller_role=caller_role,
             caller_village_id=caller_village_id,
+            caller_user_id=caller_user_id,
         )
 
     if intent == _QueryIntent.SUBMISSION_STATUS:
@@ -614,6 +933,7 @@ async def _fetch_context(
             xa_id=xa_id,
             caller_role=caller_role,
             caller_village_id=caller_village_id,
+            caller_user_id=caller_user_id,
         )
 
     if intent == _QueryIntent.PERIOD_SUMMARY:
@@ -624,6 +944,7 @@ async def _fetch_context(
             xa_id=xa_id,
             caller_role=caller_role,
             caller_village_id=caller_village_id,
+            caller_user_id=caller_user_id,
         )
 
     # UNKNOWN nhưng có tên thôn → thử lấy tất cả chỉ tiêu
@@ -635,6 +956,7 @@ async def _fetch_context(
             xa_id=xa_id,
             caller_role=caller_role,
             caller_village_id=caller_village_id,
+            caller_user_id=caller_user_id,
         )
 
     # Không xác định được → trả về rỗng; Gemini sẽ nói "chưa có thông tin"
@@ -665,6 +987,8 @@ async def ask_question_async(
     xa_id: str | None = None,
     caller_role: str = "dan",
     caller_village_id: str | None = None,
+    caller_user_id: str | None = None,
+    history: list[dict[str, str]] | None = None,
     db_pool: asyncpg.Pool | None = None,
 ) -> ChatbotAnswer:
     """Trả lời câu hỏi tiếng Việt bằng dữ liệu PostgreSQL + diễn giải Gemini.
@@ -697,6 +1021,36 @@ async def ask_question_async(
         raise ChatbotError("Câu hỏi không được để trống.")
 
     parsed = _classify_question(question)
+
+    if _mentions_pending_village_mapping(question):
+        return ChatbotAnswer(
+            question=question,
+            answer=_pending_village_mapping_answer(),
+            intent="PENDING_VILLAGE_MAPPING",
+            rows_retrieved=0,
+        )
+
+    # Fast deterministic rules handle common questions. Gemini is only a
+    # constrained NLU fallback for natural paraphrases and conversational
+    # follow-ups. Its structured result is validated against backend
+    # allowlists before any permission check or database query happens.
+    needs_nlu_fallback = parsed.intent == _QueryIntent.UNKNOWN or bool(
+        history
+        and parsed.intent == _QueryIntent.VILLAGE_INDICATOR
+        and not parsed.village_names
+    )
+    if needs_nlu_fallback:
+        model_parsed = await _classify_question_with_gemini(question, history)
+        if model_parsed is not None:
+            parsed = model_parsed
+
+    if parsed.intent == _QueryIntent.OUT_OF_SCOPE:
+        return ChatbotAnswer(
+            question=question,
+            answer=_out_of_scope_answer(),
+            intent=parsed.intent.name,
+            rows_retrieved=0,
+        )
 
     if parsed.intent in {_QueryIntent.HELP, _QueryIntent.UNKNOWN}:
         return ChatbotAnswer(
@@ -745,6 +1099,7 @@ async def ask_question_async(
             xa_id,
             caller_role,
             caller_village_id,
+            caller_user_id,
         )
     except asyncpg.PostgresError as exc:
         raise ChatbotError("Không thể truy vấn cơ sở dữ liệu.") from exc
@@ -754,6 +1109,16 @@ async def ask_question_async(
                 await db_pool.release(conn)
             else:
                 await conn.close()
+
+    # Never ask the answer model to fill a missing value. A deterministic
+    # response makes the absence or permission boundary explicit.
+    if not context_rows:
+        return ChatbotAnswer(
+            question=question,
+            answer=_no_data_answer(parsed, caller_role),
+            intent=parsed.intent.name,
+            rows_retrieved=0,
+        )
 
     prompt = _build_gemini_prompt(question, context_rows)
 

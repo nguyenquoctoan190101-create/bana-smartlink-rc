@@ -108,10 +108,21 @@ export default function ChatWidget({
     setIsSending(true);
 
     try {
+      const history = messages
+        .filter((message) => !message.isLoading)
+        .slice(-6)
+        .map((message) => ({
+          role: message.role === "user" ? "user" : "assistant",
+          content: message.text.slice(0, 500),
+        }));
       const response = await apiFetch("/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: trimmed, xa_id: xaId ?? null }),
+        body: JSON.stringify({
+          question: trimmed,
+          xa_id: xaId ?? null,
+          history,
+        }),
       });
 
       if (!response.ok) {
