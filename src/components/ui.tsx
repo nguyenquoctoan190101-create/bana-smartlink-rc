@@ -1,5 +1,16 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, CircleAlert, Inbox, RotateCw } from "lucide-react";
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  CircleAlert,
+  Inbox,
+  RotateCw,
+  Search,
+  UserCheck,
+  Wrench,
+  XCircle,
+} from "lucide-react";
 
 export function Wordmark({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
   return (
@@ -64,14 +75,14 @@ const statusMap: Record<string, { label: string; tone: string; icon: ReactNode }
   published: { label: "Đã công bố", tone: "success", icon: <CheckCircle2 /> },
   pending: { label: "Chờ nhận", tone: "warning", icon: <CircleAlert /> },
   pending_review: { label: "Chờ duyệt", tone: "warning", icon: <CircleAlert /> },
-  received: { label: "Đã tiếp nhận", tone: "info", icon: <CircleAlert /> },
-  verifying: { label: "Đang xác minh", tone: "warning", icon: <RotateCw /> },
-  assigned: { label: "Đã phân công", tone: "info", icon: <CircleAlert /> },
-  in_progress: { label: "Đang xử lý", tone: "info", icon: <RotateCw /> },
+  received: { label: "Đã tiếp nhận", tone: "info", icon: <Inbox /> },
+  verifying: { label: "Đang xác minh", tone: "warning", icon: <Search /> },
+  assigned: { label: "Đã phân công", tone: "assigned", icon: <UserCheck /> },
+  in_progress: { label: "Đang xử lý", tone: "progress", icon: <Wrench /> },
   completed: { label: "Hoàn tất", tone: "success", icon: <CheckCircle2 /> },
-  out_of_scope: { label: "Không thuộc thẩm quyền", tone: "neutral", icon: <CircleAlert /> },
+  out_of_scope: { label: "Không thuộc thẩm quyền", tone: "neutral", icon: <Ban /> },
   accepted: { label: "Đã chấp nhận", tone: "success", icon: <CheckCircle2 /> },
-  rejected: { label: "Đã từ chối", tone: "danger", icon: <AlertTriangle /> },
+  rejected: { label: "Đã từ chối", tone: "danger", icon: <XCircle /> },
   ready: { label: "Đạt", tone: "success", icon: <CheckCircle2 /> },
   needs_review: { label: "Cần rà soát", tone: "warning", icon: <AlertTriangle /> },
   blocked: { label: "Bị chặn", tone: "danger", icon: <AlertTriangle /> },
@@ -81,7 +92,12 @@ const statusMap: Record<string, { label: string; tone: string; icon: ReactNode }
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const config = statusMap[status] ?? { label: status, tone: "neutral", icon: <CircleAlert /> };
-  return <span className="status-badge" data-tone={config.tone}>{config.icon}{label ?? config.label}</span>;
+  return (
+    <span className="status-badge" data-tone={config.tone} data-status={status}>
+      {config.icon}
+      {label ?? config.label}
+    </span>
+  );
 }
 
 export function DataScope({ period, scope, quality }: { period?: string; scope?: string; quality?: string }) {

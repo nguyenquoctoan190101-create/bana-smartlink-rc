@@ -70,6 +70,10 @@ describe("CaseManagement", () => {
     expect(
       screen.getAllByText("Bộ phận Địa chính - Xây dựng - Môi trường").length,
     ).toBeGreaterThan(0);
+    const caseCard = screen
+      .getByText("Rác thải tồn đọng cạnh nhà văn hóa.")
+      .closest("article");
+    expect(caseCard).toHaveAttribute("data-status", "received");
   });
 
   it("keeps leader mode read-only", async () => {
