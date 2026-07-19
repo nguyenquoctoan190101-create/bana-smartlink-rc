@@ -5645,6 +5645,60 @@
         ]
       }
     },
+    "/api/pilots/status": {
+      "get": {
+        "description": "Expose feature flags to the internal pilot workbench without exposing data.",
+        "operationId": "pilot_status_api_pilots_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Pilot Status Api Pilots Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pilot Status",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
     "/api/pilots/tourism/places": {
       "get": {
         "operationId": "list_public_tourism_places_api_pilots_tourism_places_get",
