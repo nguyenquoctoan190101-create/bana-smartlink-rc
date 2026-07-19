@@ -5471,6 +5471,33 @@
         ]
       }
     },
+    "/api/pilots/evacuation-points": {
+      "get": {
+        "description": "Return verified evacuation points without private contact details.\n\nThis is a public preparedness directory, not an emergency alert channel.",
+        "operationId": "list_public_evacuation_points_api_pilots_evacuation_points_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Public Evacuation Points Api Pilots Evacuation Points Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Public Evacuation Points",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
     "/api/pilots/sensors/devices": {
       "get": {
         "operationId": "list_sensor_devices_api_pilots_sensors_devices_get",

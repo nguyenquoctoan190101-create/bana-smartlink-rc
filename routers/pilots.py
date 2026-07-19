@@ -14,6 +14,24 @@ from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, Use
 router = APIRouter(prefix="/pilots", tags=["feature-flagged-pilots"])
 
 
+@router.get("/evacuation-points")
+async def list_public_evacuation_points(
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+) -> list[dict[str, Any]]:
+    """Return verified evacuation points without private contact details.
+
+    This is a public preparedness directory, not an emergency alert channel.
+    """
+    try:
+        return await supabase._rest_request(
+            "GET",
+            "/rest/v1/evacuation_points?select=id,village_id,name,latitude,longitude,capacity_households,is_verified&is_verified=eq.true&order=name.asc",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=502, detail="Unable to retrieve evacuation points") from exc
+
+
 @router.get("/status")
 async def pilot_status(
     _: Annotated[UserProfile, Depends(require_admin_or_leader)],

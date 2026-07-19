@@ -131,4 +131,46 @@ where report.period_id = period.id
   and period.commune_id = 'ba_na'
   and period.name = 'Bản công bố minh họa — Tháng 7/2026';
 
+-- Verified demo preparedness points. Synthetic locations only; replace with
+-- authority-approved coordinates before any real deployment.
+insert into public.evacuation_points (
+  village_id, name, latitude, longitude, capacity_households,
+  contact_name, contact_phone, is_verified
+)
+select village.id, point.name, point.latitude, point.longitude,
+       point.capacity_households, 'Truc ban UBND xa (demo)', '0000000000', true
+from (values
+  ('ThÃ´n An SÆ¡n', 'Nha van hoa thon An Son', 16.0241::double precision, 108.1184::double precision, 120),
+  ('ThÃ´n PhÃº HÃ²a', 'Truong tieu hoc Phu Hoa', 16.0187::double precision, 108.1099::double precision, 180),
+  ('ThÃ´n Tháº¡ch Nham ÄÃ´ng', 'Nha van hoa Thach Nham Dong', 16.0332::double precision, 108.1261::double precision, 150)
+) as point(village_name, name, latitude, longitude, capacity_households)
+join public.villages as village
+  on village.commune_id = 'ba_na' and village.name = point.village_name
+where not exists (
+  select 1 from public.evacuation_points existing
+  where existing.village_id = village.id and existing.name = point.name
+);
+
+-- Fallback rank-based fixtures keep the demo usable even when legacy village
+-- names carry a different Unicode normalization form.
+insert into public.evacuation_points (
+  village_id, name, latitude, longitude, capacity_households,
+  contact_name, contact_phone, is_verified
+)
+select ranked.id, point.name, point.latitude, point.longitude,
+       point.capacity_households, 'Truc ban UBND xa (demo)', '0000000000', true
+from (values
+  (1, 'Nha van hoa thon An Son', 16.0241::double precision, 108.1184::double precision, 120),
+  (2, 'Truong tieu hoc Phu Hoa', 16.0187::double precision, 108.1099::double precision, 180),
+  (3, 'Nha van hoa Thach Nham Dong', 16.0332::double precision, 108.1261::double precision, 150)
+) as point(village_rank, name, latitude, longitude, capacity_households)
+join (
+  select id, row_number() over (order by name) as village_rank
+  from public.villages where commune_id = 'ba_na'
+) as ranked on ranked.village_rank = point.village_rank
+where not exists (
+  select 1 from public.evacuation_points existing
+  where existing.village_id = ranked.id and existing.name = point.name
+);
+
 commit;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Award, Check, CheckCircle2, ClipboardCheck, FileSearch, FileText, Home, Lock, MapPin, MessageSquare, Phone, RefreshCw, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, Check, CheckCircle2, ClipboardCheck, FileSearch, FileText, Home, Lock, MapPin, MessageSquare, Navigation, Phone, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { apiFetch, apiJson } from "../lib/apiClient";
 import { loadVillages } from "../lib/useVillages";
 import { Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, StatusBadge, TopographicPattern } from "./ui";
@@ -16,6 +16,16 @@ const PUBLIC_INDICATORS = [
 
 type PublicMode = "data" | "lookup" | "proposal" | "case";
 type ProposalStep = 1 | 2 | 3 | 4;
+
+type EvacuationPoint = {
+  id: string;
+  village_id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  capacity_households: number;
+  is_verified: boolean;
+};
 
 export function formatPublicIndicatorValue(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("vi-VN") : "—";
@@ -97,6 +107,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
   const [villages, setVillages] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
+  const [evacuationPoints, setEvacuationPoints] = useState<EvacuationPoint[]>([]);
   const [selectedVillageId, setSelectedVillageId] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("all_time");
   const [mode, setMode] = useState<PublicMode>("data");
@@ -126,15 +137,18 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
       setIsLoading(true);
       setDataError(null);
       try {
-        const [villageData, reportData] = await Promise.all([
+        const [villageData, reportData, evacuationData] = await Promise.all([
           loadVillages(),
           apiJson<unknown[]>("/reports/public"),
+          apiJson<unknown[]>("/api/pilots/evacuation-points").catch(() => []),
         ]);
         if (!active) return;
         const safeVillages = Array.isArray(villageData) ? villageData : [];
         const safeReports = Array.isArray(reportData) ? reportData : [];
+        const safeEvacuationPoints = Array.isArray(evacuationData) ? evacuationData.filter((point): point is EvacuationPoint => Boolean(point && typeof point === "object" && typeof (point as EvacuationPoint).id === "string" && typeof (point as EvacuationPoint).name === "string" && typeof (point as EvacuationPoint).latitude === "number" && typeof (point as EvacuationPoint).longitude === "number")) : [];
         setVillages(safeVillages);
         setReports(safeReports);
+        setEvacuationPoints(safeEvacuationPoints);
         setPeriods(extractPublishedPeriods(safeReports));
         setSelectedVillageId((current) => current || safeVillages[0]?.id || "");
       } catch {
@@ -280,6 +294,17 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
           <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-start">
             <ShieldCheck className="h-6 w-6 shrink-0 text-emerald-800" />
             <div><h2 className="font-bold text-slate-900">Phạm vi công khai và quyền riêng tư</h2><p className="mt-1 text-sm leading-relaxed text-slate-600">Cổng chỉ hiển thị CT01, CT02, CT09, CT12 và CT13 sau khi được công bố. CT14 và dữ liệu nhận diện cá nhân không xuất hiện trong phản hồi công khai.</p></div>
+          </SectionCard>
+
+          <SectionCard className="p-5">
+            <div className="flex items-start gap-3">
+              <Navigation className="mt-0.5 h-6 w-6 shrink-0 text-emerald-800" />
+              <div>
+                <h2 className="font-bold text-slate-900">Điểm sơ tán đã xác minh</h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">Danh mục chuẩn bị ứng phó do cơ quan có thẩm quyền xác minh. Đây không phải kênh phát cảnh báo khẩn cấp; khi có sự cố, hãy theo hướng dẫn chính thức.</p>
+              </div>
+            </div>
+            {evacuationPoints.length === 0 ? <div className="mt-4"><EmptyState title="Chưa có điểm sơ tán công khai" description="Danh mục sẽ hiển thị sau khi được xác minh và công bố." /></div> : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{evacuationPoints.map((point) => { const pointVillage = villages.find((village) => village.id === point.village_id)?.name || "Toàn xã"; return <article key={point.id} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4"><div className="flex items-start justify-between gap-2"><h3 className="font-semibold text-slate-900">{point.name}</h3><StatusBadge status="approved" label="Đã xác minh" /></div><p className="mt-2 text-sm text-slate-700">{pointVillage}</p><p className="mt-1 text-sm text-slate-600">Sức chứa dự kiến: <strong>{point.capacity_households.toLocaleString("vi-VN")} hộ</strong></p><a className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline" href={`https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`} target="_blank" rel="noreferrer"><MapPin className="h-4 w-4" />Mở vị trí bản đồ</a></article>; })}</div>}
           </SectionCard>
         </div>
       )}

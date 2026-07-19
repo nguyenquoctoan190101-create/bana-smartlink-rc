@@ -182,9 +182,10 @@ def test_internal_exports_and_commune_analytics_are_never_public() -> None:
             if operation in {
                 ("POST", "/api/cases"),
                 ("GET", "/api/cases/track/{tracking_code}"),
-                ("POST", "/api/cases/{case_id}/media"),
-                ("GET", "/api/pilots/tourism/places"),
-            }:
+                    ("POST", "/api/cases/{case_id}/media"),
+                    ("GET", "/api/pilots/tourism/places"),
+                    ("GET", "/api/pilots/evacuation-points"),
+                }:
                 # Public field reporting is intentionally a capability-limited
                 # anonymous mutation; it returns only a tracking token and is
                 # protected by rate limiting, consent and RLS-backed RPC.

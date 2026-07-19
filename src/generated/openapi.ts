@@ -468,6 +468,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pilots/evacuation-points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Evacuation Points
+         * @description Return verified evacuation points without private contact details.
+         *
+         *     This is a public preparedness directory, not an emergency alert channel.
+         */
+        get: operations["list_public_evacuation_points_api_pilots_evacuation_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pilots/sensors/devices": {
         parameters: {
             query?: never;
@@ -3752,6 +3774,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_public_evacuation_points_api_pilots_evacuation_points_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
