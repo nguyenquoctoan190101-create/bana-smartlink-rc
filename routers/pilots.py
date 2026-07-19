@@ -14,6 +14,15 @@ from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, Use
 router = APIRouter(prefix="/pilots", tags=["feature-flagged-pilots"])
 
 
+@router.get("/status")
+async def pilot_status(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, bool]:
+    """Expose feature flags to the internal pilot workbench without exposing data."""
+    return {"iot_enabled": bool(settings.feature_iot_pilot), "tourism_enabled": bool(settings.feature_tourism_pilot)}
+
+
 class SensorObservationRequest(BaseModel):
     device_id: UUID
     observed_at: datetime

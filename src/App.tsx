@@ -29,6 +29,7 @@ import {
   Bell,
   FileArchive,
   MapPinned
+  ,Radio
 } from "lucide-react";
 
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -45,6 +46,7 @@ const OperationsCenter = React.lazy(() => import("./components/OperationsCenter"
 const LegacyBatchImport = React.lazy(() => import("./components/LegacyBatchImport"));
 const KnowledgeCenter = React.lazy(() => import("./components/KnowledgeCenter"));
 const CaseManagement = React.lazy(() => import("./components/CaseManagement"));
+const PilotWorkbench = React.lazy(() => import("./components/PilotWorkbench"));
 
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
@@ -179,7 +181,7 @@ export default function App() {
   const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots">("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
@@ -260,12 +262,12 @@ export default function App() {
   }, []);
 
   // Synchronize tab state with URL path
-  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases", search = new URLSearchParams()) => {
+  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots", search = new URLSearchParams()) => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]),
       can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
       to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots"]),
       dan: new Set(["dashboard", "citizen-proposal"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
@@ -276,7 +278,7 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
-    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases"]);
+    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
@@ -686,7 +688,8 @@ export default function App() {
           { id: "create-period", label: "Tạo kỳ báo cáo", icon: Plus, group: "Quản trị" },
           { id: "legacy-import", label: "Nhập 22 thôn cũ", icon: FileArchive },
           { id: "admin-panel", label: "Tài khoản cán bộ", icon: Shield },
-          { id: "knowledge", label: "Kho tri thức & kịch bản", icon: FileArchive, group: "Năng lực" }
+          { id: "knowledge", label: "Kho tri thức & kịch bản", icon: FileArchive, group: "Năng lực" },
+          { id: "pilots", label: "Pilot IoT & du lịch", icon: Radio, group: "Thí điểm" }
         ];
       case "can_bo_thon":
       case "to_cnscd":
@@ -706,7 +709,8 @@ export default function App() {
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Đánh giá" },
           { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
-          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
+          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" },
+          { id: "pilots", label: "Pilot IoT & du lịch", icon: Radio, group: "Thí điểm" }
         ];
       case "dan":
       default:
@@ -1039,6 +1043,10 @@ export default function App() {
 
               {activeTab === "cases" && (
                 <CaseManagement role={userRole} villages={villages} />
+              )}
+
+              {activeTab === "pilots" && (
+                <PilotWorkbench role={userRole} />
               )}
 
               {activeTab === "report-form" && (
