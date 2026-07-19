@@ -5585,6 +5585,76 @@
       }
     },
     "/api/pilots/sensors/observations": {
+      "get": {
+        "description": "Return recent pilot observations for internal review only.\n\nThis endpoint deliberately exposes raw readings only to admin/leader and never\ncreates alerts or public messages by itself.",
+        "operationId": "list_sensor_observations_api_pilots_sensors_observations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "device_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Sensor Observations Api Pilots Sensors Observations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Sensor Observations",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      },
       "post": {
         "operationId": "ingest_sensor_observation_api_pilots_sensors_observations_post",
         "parameters": [

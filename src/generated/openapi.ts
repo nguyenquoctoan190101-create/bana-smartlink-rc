@@ -493,7 +493,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Sensor Observations
+         * @description Return recent pilot observations for internal review only.
+         *
+         *     This endpoint deliberately exposes raw readings only to admin/leader and never
+         *     creates alerts or public messages by itself.
+         */
+        get: operations["list_sensor_observations_api_pilots_sensors_observations_get"];
         put?: never;
         /** Ingest Sensor Observation */
         post: operations["ingest_sensor_observation_api_pilots_sensors_observations_post"];
@@ -3806,6 +3813,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sensor_observations_api_pilots_sensors_observations_get: {
+        parameters: {
+            query?: {
+                device_id?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */

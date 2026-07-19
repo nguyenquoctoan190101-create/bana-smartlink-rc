@@ -134,6 +134,26 @@ async def ingest_sensor_observation(
     return rows[0]
 
 
+@router.get("/sensors/observations")
+async def list_sensor_observations(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+    device_id: UUID | None = None,
+) -> list[dict[str, Any]]:
+    """Return recent pilot observations for internal review only.
+
+    This endpoint deliberately exposes raw readings only to admin/leader and never
+    creates alerts or public messages by itself.
+    """
+    _pilot_enabled(settings, "feature_iot_pilot")
+    query = "/rest/v1/sensor_observations?select=*&order=observed_at.desc&limit=100"
+    if device_id is not None:
+        query += f"&device_id=eq.{device_id}"
+    return await _caller(supabase, authorization)._rest_request("GET", query)
+
+
 @router.get("/alerts")
 async def list_internal_alerts(
     _: Annotated[UserProfile, Depends(require_admin_or_leader)],
