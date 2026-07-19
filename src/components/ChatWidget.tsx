@@ -66,6 +66,7 @@ export default function ChatWidget({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -83,6 +84,19 @@ export default function ChatWidget({
       setTimeout(() => inputRef.current?.focus(), 120);
     }
   }, [isOpen]);
+
+  function toggleVoiceInput() {
+    const SpeechRecognition = (window as Window & { SpeechRecognition?: new () => { lang: string; interimResults: boolean; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void } }).SpeechRecognition;
+    if (!SpeechRecognition) {
+      setMessages((prev) => [...prev, { id: newId(), role: "bot", text: "Thiết bị chưa hỗ trợ nhập bằng giọng nói. Bạn có thể gõ câu hỏi để tiếp tục.", timestamp: new Date() }]);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "vi-VN"; recognition.interimResults = false;
+    recognition.onresult = (event) => setInputText(Array.from(event.results).map((result) => result[0].transcript).join(" "));
+    recognition.onend = () => setIsListening(false);
+    setIsListening(true); recognition.start();
+  }
 
   /* ── Send a question ────────────────────────────────────────────────── */
   async function sendQuestion(question: string) {
@@ -352,6 +366,16 @@ export default function ChatWidget({
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
           />
+          <button
+            type="button"
+            className={`chat-widget__voice-btn${isListening ? " chat-widget__voice-btn--active" : ""}`}
+            aria-label={isListening ? "Đang nghe, bấm để dừng" : "Nhập câu hỏi bằng giọng nói"}
+            title="Nhập bằng giọng nói (chỉ khi bạn bấm nút)"
+            onClick={toggleVoiceInput}
+            disabled={isSending}
+          >
+            {isListening ? "■" : "🎙"}
+          </button>
           <button
             id="chat-widget-send"
             className="chat-widget__send-btn"
