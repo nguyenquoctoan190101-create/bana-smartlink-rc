@@ -483,11 +483,55 @@ export interface paths {
          */
         get: operations["list_public_evacuation_points_api_pilots_evacuation_points_get"];
         put?: never;
+        /**
+         * Create Evacuation Point
+         * @description Create an unverified point; publication requires a separate admin action.
+         */
+        post: operations["create_evacuation_point_api_pilots_evacuation_points_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pilots/evacuation-points/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Admin Evacuation Points
+         * @description Return the internal evacuation catalogue for admin/leader review.
+         */
+        get: operations["list_admin_evacuation_points_api_pilots_evacuation_points_admin_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/pilots/evacuation-points/{point_id}/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Verify Evacuation Point
+         * @description Publish or withdraw a point after the admin has verified its source.
+         */
+        patch: operations["verify_evacuation_point_api_pilots_evacuation_points__point_id__verification_patch"];
         trace?: never;
     };
     "/api/pilots/sensors/devices": {
@@ -1872,6 +1916,31 @@ export interface components {
             role: string;
             /** Village Id */
             village_id: string | null;
+        };
+        /** EvacuationPointRequest */
+        EvacuationPointRequest: {
+            /** Capacity Households */
+            capacity_households: number;
+            /** Contact Name */
+            contact_name: string;
+            /** Contact Phone */
+            contact_phone: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /** Name */
+            name: string;
+            /**
+             * Village Id
+             * Format: uuid
+             */
+            village_id: string;
+        };
+        /** EvacuationPointVerificationRequest */
+        EvacuationPointVerificationRequest: {
+            /** Is Verified */
+            is_verified: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3796,6 +3865,115 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    create_evacuation_point_api_pilots_evacuation_points_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvacuationPointRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_evacuation_points_api_pilots_evacuation_points_admin_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_evacuation_point_api_pilots_evacuation_points__point_id__verification_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvacuationPointVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

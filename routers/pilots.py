@@ -14,9 +14,22 @@ from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, Use
 router = APIRouter(prefix="/pilots", tags=["feature-flagged-pilots"])
 
 
+class EvacuationPointRequest(BaseModel):
+    village_id: UUID
+    name: str = Field(min_length=3, max_length=180)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    capacity_households: int = Field(gt=0, le=100000)
+    contact_name: str = Field(min_length=2, max_length=180)
+    contact_phone: str = Field(min_length=3, max_length=40)
+
+
+class EvacuationPointVerificationRequest(BaseModel):
+    is_verified: bool
+
+
 @router.get("/evacuation-points")
 async def list_public_evacuation_points(
-    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> list[dict[str, Any]]:
     """Return verified evacuation points without private contact details.
@@ -30,6 +43,62 @@ async def list_public_evacuation_points(
         )
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=502, detail="Unable to retrieve evacuation points") from exc
+
+
+@router.get("/evacuation-points/admin")
+async def list_admin_evacuation_points(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    """Return the internal evacuation catalogue for admin/leader review."""
+    return await _caller(supabase, authorization)._rest_request(
+        "GET",
+        "/rest/v1/evacuation_points?select=id,village_id,name,latitude,longitude,capacity_households,contact_name,contact_phone,is_verified,created_at,updated_at&order=name.asc",
+    )
+
+
+@router.post("/evacuation-points", status_code=201)
+async def create_evacuation_point(
+    payload: EvacuationPointRequest,
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Create an unverified point; publication requires a separate admin action."""
+    try:
+        rows = await _caller(supabase, authorization)._rest_request(
+            "POST",
+            "/rest/v1/evacuation_points",
+            {**payload.model_dump(mode="json"), "is_verified": False},
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=400, detail="Unable to save evacuation point") from exc
+    return rows[0]
+
+
+@router.patch("/evacuation-points/{point_id}/verification")
+async def verify_evacuation_point(
+    point_id: UUID,
+    payload: EvacuationPointVerificationRequest,
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Publish or withdraw a point after the admin has verified its source."""
+    try:
+        rows = await _caller(supabase, authorization)._rest_request(
+            "PATCH",
+            f"/rest/v1/evacuation_points?id=eq.{point_id}",
+            {"is_verified": payload.is_verified},
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=400, detail="Unable to update evacuation point") from exc
+    if not rows:
+        raise HTTPException(status_code=404, detail="Evacuation point not found")
+    return rows[0]
 
 
 @router.get("/status")

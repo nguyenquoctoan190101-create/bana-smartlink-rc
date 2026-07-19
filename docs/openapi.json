@@ -1393,6 +1393,75 @@
         "title": "CurrentUserResponse",
         "type": "object"
       },
+      "EvacuationPointRequest": {
+        "properties": {
+          "capacity_households": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000.0,
+            "title": "Capacity Households",
+            "type": "integer"
+          },
+          "contact_name": {
+            "maxLength": 180,
+            "minLength": 2,
+            "title": "Contact Name",
+            "type": "string"
+          },
+          "contact_phone": {
+            "maxLength": 40,
+            "minLength": 3,
+            "title": "Contact Phone",
+            "type": "string"
+          },
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "maxLength": 180,
+            "minLength": 3,
+            "title": "Name",
+            "type": "string"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "name",
+          "latitude",
+          "longitude",
+          "capacity_households",
+          "contact_name",
+          "contact_phone"
+        ],
+        "title": "EvacuationPointRequest",
+        "type": "object"
+      },
+      "EvacuationPointVerificationRequest": {
+        "properties": {
+          "is_verified": {
+            "title": "Is Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_verified"
+        ],
+        "title": "EvacuationPointVerificationRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5493,6 +5562,193 @@
           }
         },
         "summary": "List Public Evacuation Points",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      },
+      "post": {
+        "description": "Create an unverified point; publication requires a separate admin action.",
+        "operationId": "create_evacuation_point_api_pilots_evacuation_points_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvacuationPointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Evacuation Point Api Pilots Evacuation Points Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Evacuation Point",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
+    "/api/pilots/evacuation-points/admin": {
+      "get": {
+        "description": "Return the internal evacuation catalogue for admin/leader review.",
+        "operationId": "list_admin_evacuation_points_api_pilots_evacuation_points_admin_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Admin Evacuation Points Api Pilots Evacuation Points Admin Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Admin Evacuation Points",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
+    "/api/pilots/evacuation-points/{point_id}/verification": {
+      "patch": {
+        "description": "Publish or withdraw a point after the admin has verified its source.",
+        "operationId": "verify_evacuation_point_api_pilots_evacuation_points__point_id__verification_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "point_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Point Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvacuationPointVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Verify Evacuation Point Api Pilots Evacuation Points  Point Id  Verification Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Evacuation Point",
         "tags": [
           "feature-flagged-pilots"
         ]
