@@ -32,7 +32,7 @@
     "error_message": "Lỗi: Tổng số hộ nghèo và cận nghèo (CT03 + CT04) không được vượt quá Tổng số hộ dân (CT01)"
   },
   "CT05": {
-    "name": "Số người có công với cách mạng",
+    "name": "Số người có công đang được quản lý",
     "unit": "Người",
     "type": "integer",
     "min": 0
@@ -49,6 +49,9 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT02",
+    "warning_ratio_min": 0.01,
+    "warning_ratio_max": 0.35,
+    "warning_ratio_ref": "CT02",
     "error_message": "Lỗi: Số trẻ em dưới 16 tuổi (CT07) không được vượt quá Tổng số nhân khẩu (CT02)"
   },
   "CT08": {
@@ -99,6 +102,8 @@
     "name": "Số vụ bạo lực gia đình ghi nhận trong kỳ",
     "unit": "Vụ",
     "type": "integer",
-    "min": 0
+    "min": 0,
+    "max_ref": "CT01",
+    "error_message": "Lỗi: Số vụ bạo lực gia đình (CT14) không được vượt quá tổng số hộ dân (CT01)"
   }
 }

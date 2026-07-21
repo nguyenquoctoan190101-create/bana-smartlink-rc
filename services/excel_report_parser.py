@@ -43,12 +43,7 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
     except (BadZipFile, InvalidFileException, OSError, ValueError) as exc:
         raise ExcelReportParseError("Không đọc được file Excel.") from exc
 
-    sheet_name = next(
-        (name for name in workbook.sheetnames if _normalize_sheet_name(name) == _normalize_sheet_name(REPORT_SHEET_NAME)),
-        None,
-    )
-    if sheet_name is None:
-        raise ExcelReportParseError(f"Không tìm thấy sheet '{REPORT_SHEET_NAME}'.")
+    sheet_name = _find_report_sheet(workbook, expected_codes)
 
     worksheet = workbook[sheet_name]
     values: dict[str, Any] = {code: None for code in expected_codes}
@@ -77,6 +72,48 @@ def _normalize_sheet_name(value: Any) -> str:
     """Match the official sheet despite harmless whitespace/Unicode differences."""
     text = unicodedata.normalize("NFKC", str(value or ""))
     return " ".join(text.split()).casefold()
+
+
+def _sheet_name_key(value: Any) -> str:
+    """Ignore harmless accents, casing and punctuation in copied template tabs."""
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    without_accents = "".join(char for char in text if not unicodedata.combining(char))
+    return "".join(char for char in without_accents.casefold() if char.isalnum())
+
+
+def _find_report_sheet(workbook: Any, expected_codes: set[str]) -> str:
+    """Locate the report tab by its canonical name, then a unique CT layout."""
+    exact_name = _normalize_sheet_name(REPORT_SHEET_NAME)
+    for name in workbook.sheetnames:
+        if _normalize_sheet_name(name) == exact_name:
+            return name
+
+    expected_key = _sheet_name_key(REPORT_SHEET_NAME)
+    for name in workbook.sheetnames:
+        if _sheet_name_key(name) == expected_key:
+            return name
+
+    candidates: list[str] = []
+    for name in workbook.sheetnames:
+        worksheet = workbook[name]
+        found_codes = {
+            _clean_code(row[0].value if row else None)
+            for row in worksheet.iter_rows(min_row=1, max_col=1)
+        }
+        # A single CT code is not enough: only accept a sheet with most of the
+        # official structure, avoiding accidental imports from unrelated tabs.
+        if len(found_codes & expected_codes) >= min(8, len(expected_codes)):
+            candidates.append(name)
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        raise ExcelReportParseError(
+            "Có nhiều sheet có dữ liệu CT01–CT14; hãy đổi tên sheet báo cáo thành 'Phiếu báo cáo'."
+        )
+    raise ExcelReportParseError(
+        "Không tìm thấy sheet báo cáo. Dùng tên 'Phiếu báo cáo' hoặc một sheet chứa ít nhất 8 chỉ tiêu CT01–CT14."
+    )
 
 
 def _load_indicator_codes() -> set[str]:

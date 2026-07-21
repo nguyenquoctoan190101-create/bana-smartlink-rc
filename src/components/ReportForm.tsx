@@ -26,7 +26,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     { title: "Chuyển đổi số và an toàn xã hội", description: "CT14 là dữ liệu nội bộ, không được công bố trên cổng người dân.", codes: ["CT12", "CT13", "CT14"] },
   ];
   const indicatorGuidance: Partial<Record<keyof IndicatorValues, string>> = {
-    CT05: "Nhập số người có công đang được quản lý trong danh sách nghiệp vụ của thôn tại thời điểm báo cáo. Không tự cộng số thân nhân; trường hợp chưa rõ, lưu nháp và đối chiếu danh sách chính sách.",
+    CT05: "Chỉ nhập số người có công còn đang được quản lý trong danh sách nghiệp vụ của thôn tại thời điểm báo cáo. Không tự cộng số thân nhân hoặc người đã qua đời; trường hợp chưa rõ, lưu nháp và đối chiếu danh sách chính sách.",
     CT14: "Chỉ tiêu nội bộ: không công bố trên cổng người dân và không gửi vào luồng diễn giải AI.",
   };
 
@@ -188,6 +188,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     const CT09 = indicators.CT09 ?? 0;
     const CT10 = indicators.CT10 ?? 0;
     const CT11 = indicators.CT11 ?? 0;
+    const CT14 = indicators.CT14 ?? 0;
 
     // CT02 warning check: ratio should be between 3.0 and 4.5
     if (CT01 > 0) {
@@ -230,6 +231,20 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       });
     }
 
+    if (CT02 > 0) {
+      const childRatio = CT07 / CT02;
+      if (
+        childRatio < validationRules.CT07.warning_ratio_min ||
+        childRatio > validationRules.CT07.warning_ratio_max
+      ) {
+        warnings.push({
+          field: "CT07",
+          message: `Cảnh báo: tỷ lệ trẻ em dưới 16 tuổi là ${(childRatio * 100).toFixed(1)}%; cần đối chiếu lại danh sách dân cư trước khi nộp.`,
+          severity: "warning"
+        });
+      }
+    }
+
     // CT08 <= CT07
     if (CT08 > CT07) {
       errors.push({
@@ -262,6 +277,14 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       errors.push({
         field: "CT11",
         message: validationRules.CT11.error_message,
+        severity: "error"
+      });
+    }
+
+    if (CT14 > CT01) {
+      errors.push({
+        field: "CT14",
+        message: validationRules.CT14.error_message,
         severity: "error"
       });
     }
@@ -365,6 +388,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     const CT09 = indicators.CT09 ?? 0;
     const CT10 = indicators.CT10 ?? 0;
     const CT11 = indicators.CT11 ?? 0;
+    const CT14 = indicators.CT14 ?? 0;
 
     if (!reporterName.trim() || !reporterPhone.trim()) {
       setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ Tên và SĐT người lập báo cáo!" });
@@ -393,6 +417,14 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     }
     if (CT11 > CT02) {
       errors.push({ field: "CT11", message: validationRules.CT11.error_message, severity: "error" });
+    }
+
+    if (CT14 > CT01) {
+      errors.push({
+        field: "CT14",
+        message: validationRules.CT14.error_message,
+        severity: "error"
+      });
     }
 
     if (errors.length > 0) {

@@ -43,7 +43,7 @@
     },
     {
       "code": "CT05",
-      "name": "Số người có công với cách mạng",
+      "name": "Số người có công đang được quản lý",
       "unit": "Người",
       "type": "integer",
       "min": 0
@@ -61,7 +61,13 @@
       "unit": "Người",
       "type": "integer",
       "min": 0,
-      "max_ref": "CT02"
+      "max_ref": "CT02",
+      "ratio_check": {
+        "ref": "CT02",
+        "min_ratio": 0.01,
+        "max_ratio": 0.35,
+        "severity": "warning"
+      }
     },
     {
       "code": "CT08",
@@ -114,7 +120,8 @@
       "name": "Số vụ bạo lực gia đình ghi nhận trong kỳ",
       "unit": "Vụ",
       "type": "integer",
-      "min": 0
+      "min": 0,
+      "max_ref": "CT01"
     }
   ]
 }

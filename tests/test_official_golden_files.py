@@ -83,6 +83,19 @@ def test_official_parser_accepts_harmless_sheet_name_whitespace() -> None:
     assert parsed["values"]["CT01"] is not None
 
 
+def test_official_parser_accepts_ascii_or_renamed_report_tab_when_layout_is_unique() -> None:
+    content = next(REPORT_ROOT.glob("BC_T01_*.xlsx")).read_bytes()
+    workbook = load_workbook(BytesIO(content))
+    worksheet = workbook[workbook.sheetnames[0]]
+    worksheet.title = "Bao cao thon An Son"
+    output = BytesIO()
+    workbook.save(output)
+
+    parsed = parse_official_report_excel(output.getvalue())
+
+    assert parsed["values"]["CT01"] is not None
+
+
 def test_three_expected_missing_villages_have_no_report_file() -> None:
     filenames = "\n".join(path.name for path in REPORT_ROOT.glob("*.xlsx"))
 
