@@ -310,7 +310,17 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               <span className="text-3xs font-mono text-slate-400">Đơn vị: Người / Hộ</span>
             </div>
 
-            {/* High-Fidelity Responsive Custom SVG Chart */}
+            {/* A chart is only useful when its source slice contains reports. */}
+            {filteredReports.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-25">
+                <div className="empty-state">
+                  <BarChart3 aria-hidden="true" />
+                  <h3>Chưa có dữ liệu để lập biểu đồ</h3>
+                  <p>Hãy chọn kỳ hoặc thôn có báo cáo, hoặc tạo báo cáo mới. Hệ thống không thay dữ liệu thiếu bằng số 0.</p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="w-full h-64 relative bg-slate-25 rounded-lg border border-slate-100/60 p-4 overflow-x-auto overflow-y-hidden custom-scrollbar">
               {(() => {
                 const numReports = filteredReports.length;
@@ -395,13 +405,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                   </svg>
                 );
               })()}
-              {filteredReports.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400 font-medium">
-                  Chưa có dữ liệu cho kỳ báo cáo này.
-                </div>
-              )}
             </div>
-          </div>
 
           {/* Chart Legend */}
           <div className="flex gap-4 mt-3 pt-3 border-t border-slate-50 text-xs">
@@ -421,6 +425,9 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <Maximize2 className="w-3.5 h-3.5" />
             Mở biểu đồ toàn màn hình
           </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Right Bento: Digital & Social Progress indicators */}

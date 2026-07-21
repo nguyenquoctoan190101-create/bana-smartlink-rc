@@ -207,7 +207,7 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .data-scope dt { font-weight: 500; }
 .data-scope dd { margin: 0; color: var(--ui-ink); font-weight: 700; }
 .filter-bar { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1rem; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: #fff; box-shadow: 0 1px 2px rgb(23 33 43 / .03); }
-.sticky-action-bar { position: sticky; z-index: 25; bottom: .75rem; display: flex; justify-content: flex-end; gap: .75rem; margin-top: 2rem; padding: .75rem; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: rgb(255 255 255 / .94); box-shadow: 0 10px 32px rgb(23 33 43 / .14); backdrop-filter: blur(12px); }
+.sticky-action-bar { display: flex; justify-content: flex-end; gap: .75rem; margin-top: 2rem; padding: .9rem; border-top: 1px solid var(--ui-border); background: var(--ui-canvas); }
 .action-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--ui-border); border-radius: .625rem; background: #fff; }
 .action-card h3 { margin: 0; color: var(--ui-ink); font-size: .9375rem; font-weight: 700; }
 .action-card__meta { margin-top: .35rem; color: var(--ui-muted); font-size: .8125rem; }
@@ -222,7 +222,7 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .error-state p { margin: .2rem 0 .75rem; font-size: .8125rem; }
 
 .gov-shell { min-height: 100vh; background: var(--ui-canvas); color: var(--ui-ink); }
-.gov-shell__sidebar { width: 17.5rem; background: #0b342b; color: #fff; overflow-y: auto; overflow-x: hidden; }
+.gov-shell__sidebar { width: 17.5rem; height: 100vh; position: sticky; top: 0; align-self: flex-start; background: #0b342b; color: #fff; overflow-y: auto; overflow-x: hidden; }
 .gov-shell__main { min-width: 0; flex: 1; }
 .gov-shell__content { width: min(100%, 1440px); margin: 0 auto; padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 5.5rem; }
 .gov-nav-group { margin: 1.2rem .75rem .35rem; color: #9fb8af; font-size: .6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }

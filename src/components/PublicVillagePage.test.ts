@@ -3,6 +3,7 @@ import {
   extractPublishedPeriods,
   formatPublicLookupMessage,
   formatPublicIndicatorValue,
+  getDefaultPublicVillageId,
   getPublicCaseCategoryLabel,
   getPublicLookupEndpoint,
   getPublicReportTimestamp,
@@ -58,6 +59,19 @@ describe("public period options", () => {
   it("falls back to updated_at for older compatible responses", () => {
     expect(getPublicReportTimestamp({ updated_at: "2026-07-14T10:04:38Z" }))
       .toBe("2026-07-14T10:04:38Z");
+  });
+});
+
+describe("public portal default scope", () => {
+  it("starts on a village with a published report when the first catalogue village has none", () => {
+    expect(getDefaultPublicVillageId(
+      [{ id: "new-village", name: "Thôn mới" }, { id: "published-village", name: "Thôn đã công bố" }],
+      [{ village_id: "published-village", report_period: "Tháng 7/2026" }],
+    )).toBe("published-village");
+  });
+
+  it("keeps the catalogue fallback when no public report exists yet", () => {
+    expect(getDefaultPublicVillageId([{ id: "first-village" }], [])).toBe("first-village");
   });
 });
 

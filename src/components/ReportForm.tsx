@@ -511,7 +511,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Báo cáo định kỳ" title={initialReport ? "Chỉnh sửa báo cáo" : "Khai báo số liệu văn hóa – xã hội"} description="Nhập đủ 14 chỉ tiêu. Bộ quy tắc xác định sẽ kiểm tra ngay khi bạn nhập và trước lúc nộp." actions={<Button variant="quiet" onClick={onCancel}>Hủy và quay lại</Button>} />
+      <PageHeader eyebrow="Báo cáo định kỳ" title={initialReport ? "Chỉnh sửa báo cáo" : "Khai báo số liệu văn hóa – xã hội"} description="Nhập đủ 14 chỉ tiêu. Bộ quy tắc xác định sẽ kiểm tra ngay khi bạn nhập và trước lúc nộp." />
 
       {/* Top Offline Notification Banner */}
       {!navigator.onLine && (
@@ -602,7 +602,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
 
           {/* Section: Tổ CNSCĐ hỗ trợ nhập hộ */}
           {userRole === "to_cnscd" && <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-3">
               <input
                 type="checkbox"
                 id="assistedByCnscd"
@@ -610,9 +610,14 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                 onChange={(e) => setAssistedByCnscd(e.target.checked)}
                 className="w-4.5 h-4.5 rounded-md text-emerald-600 focus:ring-emerald-600 border-slate-300 cursor-pointer"
               />
-              <label htmlFor="assistedByCnscd" className="text-xs font-bold text-slate-700 cursor-pointer select-none">
-                Tôi đang hỗ trợ nhập hộ (Cán bộ Tổ CNSCĐ hỗ trợ người dân/cán bộ thôn lớn tuổi)
-              </label>
+              <div>
+                <label htmlFor="assistedByCnscd" className="block text-sm font-bold text-slate-800 cursor-pointer select-none">
+                  Ghi nhận hỗ trợ nhập liệu
+                </label>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  Chọn khi bạn là thành viên Tổ CNSCĐ đang nhập báo cáo thay mặt cán bộ thôn hoặc hỗ trợ người dân lớn tuổi. Không chọn khi người lập tự nhập báo cáo của mình.
+                </p>
+              </div>
             </div>
 
             {assistedByCnscd && (

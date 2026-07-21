@@ -43,6 +43,29 @@ export function extractPublishedPeriods(reports: unknown[]): string[] {
   return [...new Set(periodNames)];
 }
 
+/**
+ * The catalogue may contain a newly-created village that does not have a
+ * published report yet.  Start citizens on the first village that actually
+ * has public data instead of presenting an empty dashboard by default.
+ */
+export function getDefaultPublicVillageId(villages: unknown[], reports: unknown[]): string {
+  const publishedVillageIds = new Set(
+    reports
+      .map((report) => report && typeof report === "object" ? (report as { village_id?: unknown }).village_id : null)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+
+  const firstPublishedVillage = villages.find((village) => {
+    if (!village || typeof village !== "object") return false;
+    const id = (village as { id?: unknown }).id;
+    return typeof id === "string" && publishedVillageIds.has(id);
+  }) as { id?: unknown } | undefined;
+
+  if (typeof firstPublishedVillage?.id === "string") return firstPublishedVillage.id;
+  const firstVillage = villages.find((village) => village && typeof village === "object") as { id?: unknown } | undefined;
+  return typeof firstVillage?.id === "string" ? firstVillage.id : "";
+}
+
 export function getPublicReportTimestamp(report: unknown): string {
   if (!report || typeof report !== "object") return "";
   const candidate = report as { updated_at?: unknown; published_at?: unknown };
@@ -150,7 +173,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
         setReports(safeReports);
         setEvacuationPoints(safeEvacuationPoints);
         setPeriods(extractPublishedPeriods(safeReports));
-        setSelectedVillageId((current) => current || safeVillages[0]?.id || "");
+        setSelectedVillageId((current) => current || getDefaultPublicVillageId(safeVillages, safeReports));
       } catch {
         if (active) setDataError("Dịch vụ dữ liệu công khai chưa sẵn sàng. Bạn vẫn có thể xem cấu trúc cổng và thử lại sau.");
       } finally {
