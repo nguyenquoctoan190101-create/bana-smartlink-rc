@@ -278,17 +278,25 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
+    const roleTabs: Record<UserRole, Set<string>> = {
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]),
+      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
+      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots"]),
+      dan: new Set(["dashboard", "citizen-proposal"]),
+    };
     const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
       const target = pathTab || legacyTab;
-      if (target && validTabs.has(target)) setActiveTab(target as typeof activeTab);
+      if (target && validTabs.has(target) && roleTabs[userRole].has(target)) setActiveTab(target as typeof activeTab);
+      else if (!roleTabs[userRole].has(activeTab)) setActiveTab("dashboard");
     };
     restore();
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, []);
+  }, [userRole]);
 
   // Initialize and seed database on mount
   useEffect(() => {
