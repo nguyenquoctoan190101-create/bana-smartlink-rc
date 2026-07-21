@@ -105,6 +105,7 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .knowledge-list, .knowledge-article-list, .scenario-list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
 .knowledge-list > li, .knowledge-article, .scenario-card { border: 1px solid #dce8e3; border-radius: .75rem; background: #fff; }
 .knowledge-list > li { padding: 1rem; }
+.knowledge-list > li > strong { display: block; margin: 0 0 .45rem; color: var(--ui-ink); font-size: .94rem; font-weight: 750; line-height: 1.35; }
 .knowledge-list strong, .knowledge-article h3, .scenario-card h3 { display: block; margin: 0; color: var(--ui-ink); font-size: .94rem; font-weight: 750; line-height: 1.35; }
 .knowledge-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem 1rem; margin-top: .75rem; color: #485b69; font-size: .8rem; line-height: 1.4; }
 .knowledge-detail-grid span { display: grid; gap: .15rem; min-width: 0; overflow-wrap: anywhere; }
