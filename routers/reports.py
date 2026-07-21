@@ -32,6 +32,7 @@ from routers.auth import (
 )
 from services.excel_report_parser import ExcelReportParseError, parse_official_report_excel
 from services.export_service import generate_summary_xlsx_file, generate_village_xlsx_file
+from services.gemini import GeminiError, get_gemini_client
 from services.ocr_report import OcrError, ocr_report_async
 from services.rate_limit import limiter
 from services.report_repository import ReportRepository, VillageSubmissionStatus
@@ -215,6 +216,24 @@ class OcrPreviewResponse(BaseModel):
     metadata: ReportPreviewMetadata | None = None
     # raw_gemini_text is intentionally excluded from the response model
     # to prevent the AI-generated text from reaching the frontend.
+
+
+class ReportNarrativeRequest(BaseModel):
+    """Aggregate-only input for optional, non-authoritative AI narration."""
+
+    values: dict[str, Any]
+    period_name: str | None = Field(default=None, max_length=120)
+
+
+class ReportNarrativeResponse(BaseModel):
+    """A read-only AI explanation; deterministic validation remains authoritative."""
+
+    is_valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    source: Literal["gemini", "deterministic"]
+    period_name: str | None = None
 
 
 def get_report_repository(
@@ -739,6 +758,102 @@ async def ocr_photo_preview(
         size_bytes=len(content),
         source="photo_ocr",
         # raw_gemini_text deliberately omitted from response
+    )
+
+
+@router.post("/ai-narrative", response_model=ReportNarrativeResponse)
+@limiter.limit("5/minute")
+async def create_report_narrative(
+    request: Request,
+    payload: ReportNarrativeRequest,
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> ReportNarrativeResponse:
+    """Explain an aggregate report without persisting or deciding its validity.
+
+    Only CT01-CT14 values and deterministic validation flags may leave the
+    application.  Names, phones, villages, GPS, report identifiers and any
+    other personal/internal context are intentionally excluded from the prompt.
+    """
+    _ = request
+    indicator_codes = {f"CT{index:02d}" for index in range(1, 15)}
+    unknown_codes = sorted(set(payload.values) - indicator_codes)
+    if unknown_codes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Chỉ chấp nhận các chỉ tiêu CT01 đến CT14 cho diễn giải AI.",
+        )
+
+    aggregate_values = {code: payload.values.get(code) for code in sorted(indicator_codes)}
+    flags = validate_report(aggregate_values)
+    blocking_messages = [
+        flag["message"]
+        for flag in flags
+        if flag["error_type"] in BLOCKING_ERROR_TYPES
+    ]
+    warning_messages = [
+        flag["message"]
+        for flag in flags
+        if flag["error_type"] not in BLOCKING_ERROR_TYPES
+    ]
+    if blocking_messages:
+        return ReportNarrativeResponse(
+            is_valid=False,
+            errors=blocking_messages,
+            warnings=warning_messages,
+            recommendations=["Hoàn thiện các chỉ tiêu được nêu trước khi yêu cầu diễn giải."],
+            source="deterministic",
+            period_name=payload.period_name,
+        )
+
+    response_schema = {
+        "type": "OBJECT",
+        "properties": {
+            "warnings": {"type": "ARRAY", "items": {"type": "STRING"}},
+            "recommendations": {"type": "ARRAY", "items": {"type": "STRING"}},
+        },
+        "required": ["warnings", "recommendations"],
+    }
+    system_prompt = (
+        "Bạn là trợ lý diễn giải dữ liệu cho hệ thống điều hành cấp xã. "
+        "Chỉ dùng các số tổng hợp CT01-CT14 được cung cấp. Không suy đoán, "
+        "không tự sửa số, không kết luận báo cáo hợp lệ và không đề xuất công bố. "
+        "Không nhắc đến dữ liệu cá nhân, CT14 hoặc thông tin nội bộ. "
+        "Nêu tối đa 3 cảnh báo và 3 gợi ý kiểm tra ngắn, trung tính, bằng tiếng Việt."
+    )
+    # CT14 is internal-only. Validate it locally but never send it to an AI
+    # provider, including when the caller is an authenticated staff member.
+    ai_values = {
+        code: aggregate_values[code]
+        for code in sorted(indicator_codes - {"CT14"})
+    }
+    user_text = json.dumps(
+        {"period": payload.period_name or "Chưa nêu kỳ", "values": ai_values, "known_warnings": warning_messages},
+        ensure_ascii=False,
+    )
+    try:
+        generated = await get_gemini_client().generate_json(
+            system_prompt=system_prompt,
+            user_text=user_text,
+            response_schema=response_schema,
+        )
+    except GeminiError as exc:
+        logger.warning("AI narrative unavailable: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Dịch vụ diễn giải AI hiện chưa sẵn sàng. Kiểm tra nghiệp vụ vẫn hoạt động bình thường.",
+        ) from exc
+
+    def clean_items(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [item.strip()[:300] for item in value if isinstance(item, str) and item.strip()][:3]
+
+    return ReportNarrativeResponse(
+        is_valid=True,
+        warnings=warning_messages + clean_items(generated.get("warnings")),
+        recommendations=clean_items(generated.get("recommendations")),
+        source="gemini",
+        period_name=payload.period_name,
     )
 
 

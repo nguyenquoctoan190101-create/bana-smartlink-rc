@@ -81,6 +81,7 @@
     {"method":"GET","path":"/reports/export/{file_format}","authorization":"admin_or_leader","scope":"commune_internal","mutates":false,"may_include_ct14":true},
     {"method":"POST","path":"/reports/normalize","authorization":"authenticated","scope":"authenticated_preview","mutates":false,"may_include_ct14":true},
     {"method":"POST","path":"/reports/ocr-preview","authorization":"authenticated","scope":"authenticated_preview","mutates":false,"may_include_ct14":true},
+    {"method":"POST","path":"/reports/ai-narrative","authorization":"authenticated","scope":"authenticated_aggregate_only","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/reports/periods","authorization":"authenticated","scope":"commune_internal","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/reports/preview/{file_format}","authorization":"authenticated","scope":"role_and_assigned_village","mutates":false,"may_include_ct14":true},
     {"method":"GET","path":"/reports/public","authorization":"public","scope":"published_public_indicators","mutates":false,"may_include_ct14":false},

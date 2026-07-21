@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ReportData, UserRole, workflowStatusOf } from "../types";
 import { apiFetch } from "../lib/apiClient";
 import { 
@@ -6,6 +6,7 @@ import {
   Trash2, Edit, Cpu, HelpCircle, ChevronRight, BarChart3, Plus, Download, X, Maximize2, CheckCircle, Lock
 } from "lucide-react";
 import { useVillages } from "../lib/useVillages";
+import { useAuth } from "../lib/AuthContext";
 import { DataScope, PageHeader } from "./ui";
 
 interface DashboardProps {
@@ -19,10 +20,23 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon" }: DashboardProps) {
+  const { userVillageId } = useAuth();
   const { villages: new_villages } = useVillages();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("Tất cả kỳ");
   const [selectedVillageFilter, setSelectedVillageFilter] = useState<string>("all");
   const [showChartModal, setShowChartModal] = useState<boolean>(false);
+
+  // A village officer must never be invited by the interface to browse a
+  // different village. The API is still the authorization authority.
+  useEffect(() => {
+    if (userRole === "can_bo_thon" && userVillageId) {
+      setSelectedVillageFilter(userVillageId);
+    }
+  }, [userRole, userVillageId]);
+
+  const effectiveVillageFilter = userRole === "can_bo_thon" && userVillageId
+    ? userVillageId
+    : selectedVillageFilter;
 
   // Get list of periods present in the reports
   const periods = ["Tất cả kỳ", ...Array.from(new Set(reports.map(r => r.report_period)))];
@@ -38,7 +52,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     : reports.filter((report) => report.report_period === selectedPeriod);
 
   const filteredReports = periodReports.filter(r => {
-    const matchesVillage = selectedVillageFilter === "all" || r.village_id === selectedVillageFilter;
+    const matchesVillage = effectiveVillageFilter === "all" || r.village_id === effectiveVillageFilter;
     return matchesVillage;
   });
 
@@ -82,7 +96,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     return new_villages.find(v => v.id === id)?.name || id;
   };
 
-  const handleExport = async () => {
+  const handleExport = async (fileFormat: "xlsx" | "docx" | "pdf" = "xlsx") => {
     if (selectedPeriod === "Tất cả kỳ") {
         alert("Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu Excel.");
         return;
@@ -93,16 +107,26 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       alert("Không xác định được mã kỳ báo cáo để xuất dữ liệu.");
       return;
     }
-    const route = selectedVillageFilter !== "all"
-      ? `/reports/village/${encodeURIComponent(selectedVillageFilter)}/export/xlsx?period_id=${encodeURIComponent(periodId)}`
-      : `/reports/export/xlsx?period_id=${encodeURIComponent(periodId)}`;
+    if (effectiveVillageFilter !== "all" && fileFormat !== "xlsx") {
+      alert("Báo cáo phạm vi một thôn hiện chỉ hỗ trợ xuất XLSX. Chọn toàn xã để xuất DOCX hoặc PDF.");
+      return;
+    }
+    const route = effectiveVillageFilter !== "all"
+      ? `/reports/village/${encodeURIComponent(effectiveVillageFilter)}/export/${fileFormat}?period_id=${encodeURIComponent(periodId)}`
+      : `/reports/export/${fileFormat}?period_id=${encodeURIComponent(periodId)}`;
     try {
       const response = await apiFetch(route);
       if (!response.ok) throw new Error("Không thể xuất báo cáo.");
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `bao-cao-${selectedPeriod.replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-")}.xlsx`;
+      const periodPart = selectedPeriod.replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-");
+      const scopePart = effectiveVillageFilter === "all"
+        ? "toan-xa"
+        : getVillageName(effectiveVillageFilter).replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-");
+      // Keep the selected scope in the browser download name. This prevents a
+      // village export from silently overwriting a commune-wide export.
+      anchor.download = `bao-cao-${scopePart}-${periodPart}.${fileFormat}`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -116,7 +140,11 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       <PageHeader
         eyebrow={userRole === "lanh_dao" ? "Tổng hợp phục vụ quyết định" : userRole === "admin_xa" ? "Báo cáo và phê duyệt" : "Dữ liệu địa bàn"}
         title={userRole === "can_bo_thon" || userRole === "to_cnscd" ? "Dữ liệu của thôn" : "Tổng hợp số liệu"}
-        description="Mỗi số liệu được hiển thị theo kỳ, phạm vi và trạng thái nguồn. Dữ liệu chưa có không được quy đổi thành số 0."
+        description={userRole === "can_bo_thon"
+          ? "Bạn chỉ xem và lập báo cáo cho thôn đã được phân công. Dữ liệu chưa có không được quy đổi thành số 0."
+          : userRole === "admin_xa"
+            ? "Xã tạo kỳ, theo dõi việc nộp, duyệt và công bố theo quy trình. Dữ liệu chưa có không được quy đổi thành số 0."
+            : "Mỗi số liệu được hiển thị theo kỳ, phạm vi và trạng thái nguồn. Dữ liệu chưa có không được quy đổi thành số 0."}
       />
 
 
@@ -142,10 +170,11 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <select
               value={selectedVillageFilter}
               onChange={(e) => setSelectedVillageFilter(e.target.value)}
+              disabled={userRole === "can_bo_thon" && Boolean(userVillageId)}
               className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
             >
-              <option value="all">Tất cả 10 thôn mới</option>
-              {new_villages.map(v => (
+              {userRole !== "can_bo_thon" && <option value="all">Tất cả 10 thôn mới</option>}
+              {new_villages.filter((v) => userRole !== "can_bo_thon" || !userVillageId || v.id === userVillageId).map(v => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
             </select>
@@ -159,21 +188,39 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               className="flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
             >
               <Plus className="w-4 h-4" />
-              <span>Khai báo mới</span>
+              <span>Lập báo cáo mới</span>
             </button>
           )}
           
           <button
-            onClick={handleExport}
+            onClick={() => handleExport("xlsx")}
             className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
           >
             <Download className="w-4 h-4" />
-            <span>Xuất Excel</span>
+            <span>Xuất XLSX</span>
           </button>
+          {(userRole === "admin_xa" || userRole === "lanh_dao") && effectiveVillageFilter === "all" && (
+            <>
+              <button
+                onClick={() => handleExport("docx")}
+                className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Xuất DOCX</span>
+              </button>
+              <button
+                onClick={() => handleExport("pdf")}
+                className="flex-1 md:flex-none bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Xuất PDF</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <DataScope period={selectedPeriod} scope={selectedVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(selectedVillageFilter)} quality={filteredReports.length ? `${filteredReports.length} báo cáo trong lát cắt` : "Chưa có dữ liệu"} />
+      <DataScope period={selectedPeriod} scope={effectiveVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(effectiveVillageFilter)} quality={filteredReports.length ? `${filteredReports.length} báo cáo trong lát cắt` : "Chưa có dữ liệu"} />
 
       {/* Grid: 4 Core KPIs Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -417,7 +464,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               {/* Metric 3: Revolutionary Contributors & Social Protection */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">
-                  <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Người có công (CT05)</span>
+                  <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Người có công với cách mạng (CT05)</span>
                   <b className="text-sm font-bold text-slate-700">{totalRevolutionContributors === null ? "—" : `${totalRevolutionContributors} người`}</b>
                 </div>
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">

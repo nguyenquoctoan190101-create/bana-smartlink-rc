@@ -25,6 +25,10 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     { title: "Văn hóa, lao động và y tế", description: "Theo dõi kết quả văn hóa và độ bao phủ chính sách.", codes: ["CT09", "CT10", "CT11"] },
     { title: "Chuyển đổi số và an toàn xã hội", description: "CT14 là dữ liệu nội bộ, không được công bố trên cổng người dân.", codes: ["CT12", "CT13", "CT14"] },
   ];
+  const indicatorGuidance: Partial<Record<keyof IndicatorValues, string>> = {
+    CT05: "Nhập số người có công đang được quản lý trong danh sách nghiệp vụ của thôn tại thời điểm báo cáo. Không tự cộng số thân nhân; trường hợp chưa rõ, lưu nháp và đối chiếu danh sách chính sách.",
+    CT14: "Chỉ tiêu nội bộ: không công bố trên cổng người dân và không gửi vào luồng diễn giải AI.",
+  };
 
   const getVillageName = (id: string) => {
     return new_villages.find((v: any) => v.id === id)?.name || id;
@@ -154,6 +158,16 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     return false;
   };
 
+  // Do not present a wall of errors before the user has interacted with the
+  // report.  All values are still checked strictly when the user submits.
+  const visibleErrors = isSubmitAttempted
+    ? localErrors
+    : localErrors.filter((error) => isFieldTouched(error.field));
+  const visibleWarnings = isSubmitAttempted
+    ? localWarnings
+    : localWarnings.filter((warning) => isFieldTouched(warning.field));
+  const pendingRequiredFields = localErrors.filter((error) => !isFieldTouched(error.field)).length;
+
   // Local Validation Logic mapped strictly to validation_rules.json
   const validateIndicatorsLocally = () => {
     const errors: ValidationError[] = [];
@@ -256,16 +270,24 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     setLocalWarnings(warnings);
   };
 
-  // Draft AI analysis stays off until a scoped, privacy-reviewed API exists.
-  // Deterministic validation above remains the only submission authority.
-  const handleAiAudit = () => {
-    setIsAiValidating(false);
+  // The server receives only aggregate values that have passed deterministic
+  // validation. The deterministic validator remains the sole submission authority.
+  const handleAiAudit = async () => {
+    setIsAiValidating(true);
     setAiError(null);
     setAiAnalysis(null);
-    setAiError(
-      "Diễn giải AI cho bản nháp đang tắt trong cấu hình này. " +
-      "Các quy tắc kiểm tra nghiệp vụ vẫn hoạt động đầy đủ và là kết quả có thẩm quyền."
-    );
+    try {
+      const analysis = await apiJson<GeminiAnalysisResponse>("/reports/ai-narrative", {
+        method: "POST",
+        body: JSON.stringify({ values: indicators, period_name: reportPeriod || undefined }),
+      });
+      setAiAnalysis(analysis);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể tạo diễn giải AI vào lúc này.";
+      setAiError(`${message} Bạn vẫn có thể tiếp tục dựa trên kiểm tra nghiệp vụ ở bên trên.`);
+    } finally {
+      setIsAiValidating(false);
+    }
   };
 
   // Handle successfully extracted and confirmed indicators from UploadReport component
@@ -470,6 +492,15 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
         </div>
       )}
 
+      <SectionCard className="border-emerald-100 bg-emerald-50/40 p-4">
+        <h2 className="text-sm font-bold text-emerald-950">Quy trình báo cáo</h2>
+        <ol className="mt-2 grid gap-2 text-xs text-slate-700 md:grid-cols-3">
+          <li><b className="text-emerald-800">1. Nhập và kiểm tra</b><br />Chọn đúng kỳ, nhập 14 chỉ tiêu; lỗi đỏ phải được xử lý.</li>
+          <li><b className="text-emerald-800">2. Lưu nháp hoặc nộp</b><br />Lưu nháp chỉ nằm trên thiết bị; nộp sẽ vào hàng đợi đồng bộ.</li>
+          <li><b className="text-emerald-800">3. Xã rà soát</b><br />Admin xã xem, yêu cầu chỉnh sửa hoặc duyệt theo quy trình.</li>
+        </ol>
+      </SectionCard>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Indicators Form (Left 2 Columns) */}
         <div className="xl:col-span-2 space-y-6">
@@ -478,16 +509,20 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
             <div className="mb-4"><h2 className="font-bold text-slate-900">Thông tin báo cáo</h2><p className="mt-1 text-sm text-slate-600">Phạm vi, kỳ báo cáo và người chịu trách nhiệm được dùng trong nhật ký kiểm tra.</p></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Thôn báo cáo (10 Thôn Mới):</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Thôn báo cáo (10 thôn mới):</label>
               <select
                 value={villageId}
                 onChange={(e) => setVillageId(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                disabled={userRole === "can_bo_thon" && Boolean(userVillageId)}
               >
                 {new_villages.map((v) => (
                   <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
               </select>
+              {userRole === "can_bo_thon" && userVillageId && (
+                <p className="mt-1.5 text-xs text-slate-500">Tài khoản của bạn chỉ được lập báo cáo cho <b>{getVillageName(userVillageId)}</b>. Liên hệ quản trị xã nếu cần điều chỉnh phân công.</p>
+              )}
             </div>
 
             <div>
@@ -604,6 +639,9 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                         {key}
                       </span>
                     </div>
+                    {indicatorGuidance[key as keyof IndicatorValues] && (
+                      <p className="mb-2 text-xs leading-relaxed text-slate-500">{indicatorGuidance[key as keyof IndicatorValues]}</p>
+                    )}
                     
                     <input
                       id={`input-${key}`}
@@ -663,21 +701,21 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-5">
             <h3 className="font-bold text-slate-700 text-sm mb-3">Đối soát nghiệp vụ tự động</h3>
             
-            {localErrors.length === 0 && localWarnings.length === 0 ? (
+            {visibleErrors.length === 0 && visibleWarnings.length === 0 ? (
               <div className="flex gap-2 text-xs bg-emerald-50 text-emerald-800 border border-emerald-100 p-3 rounded-lg font-medium">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Số liệu hiện tại phù hợp 100% với các ràng buộc cứng!</span>
+                <span>{pendingRequiredFields > 0 ? `Chưa kiểm tra đủ: còn ${pendingRequiredFields} chỉ tiêu bắt buộc cần nhập.` : "Số liệu hiện tại phù hợp với các ràng buộc cứng."}</span>
               </div>
             ) : (
               <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                {localErrors.map((err, idx) => (
+                {visibleErrors.map((err, idx) => (
                   <div key={`err-${idx}`} className="flex gap-2 text-xs bg-rose-50 text-rose-800 border border-rose-100 p-3 rounded-lg">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                     <span>{err.message}</span>
                   </div>
                 ))}
 
-                {localWarnings.map((warn, idx) => (
+                {visibleWarnings.map((warn, idx) => (
                   <div key={`warn-${idx}`} className="flex gap-2 text-xs bg-amber-50 text-amber-800 border border-amber-100 p-3 rounded-lg">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <span>{warn.message}</span>
@@ -755,15 +793,15 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                 <button
                   type="button"
                   onClick={handleAiAudit}
-                  disabled={localErrors.length > 0}
+                  disabled={localErrors.length > 0 || isAiValidating}
                   className={`w-full py-2.5 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-all ${
-                    localErrors.length > 0
+                    localErrors.length > 0 || isAiValidating
                       ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                       : "bg-emerald-600 hover:bg-emerald-700 text-white active:scale-98"
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Tạo diễn giải AI (không bắt buộc)</span>
+                  {isAiValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  <span>{isAiValidating ? "Đang tạo diễn giải…" : "Tạo diễn giải AI (không bắt buộc)"}</span>
                 </button>
                 {localErrors.length > 0 && (
                   <span className="text-3xs text-rose-500 text-center block mt-1">Khắc phục lỗi nghiệp vụ đỏ trước khi chạy AI</span>
@@ -801,13 +839,16 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
 
       {/* Actions Toolbar */}
       <StickyActionBar>
+        <Button type="button" onClick={onCancel} variant="quiet">
+          Hủy và quay lại
+        </Button>
         <Button
           type="button"
           onClick={handleSaveDraft}
           variant="secondary"
         >
           <Save className="w-4 h-4 text-slate-500" />
-          <span>Lưu nháp cục bộ</span>
+          <span>Lưu nháp trên thiết bị</span>
         </Button>
 
         <Button

@@ -615,7 +615,7 @@ export default function App() {
                 onClick={() => setPublicMode("public")}
                 className="button button--secondary w-full"
               >
-                <span>Xem cổng thông tin công khai</span>
+                <span>← Về cổng thông tin công khai</span>
               </button>
             </div>
 

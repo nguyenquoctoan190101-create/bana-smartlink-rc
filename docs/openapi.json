@@ -2351,6 +2351,88 @@
         "title": "RejectedReportItem",
         "type": "object"
       },
+      "ReportNarrativeRequest": {
+        "description": "Aggregate-only input for optional, non-authoritative AI narration.",
+        "properties": {
+          "period_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Name"
+          },
+          "values": {
+            "additionalProperties": true,
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "title": "ReportNarrativeRequest",
+        "type": "object"
+      },
+      "ReportNarrativeResponse": {
+        "description": "A read-only AI explanation; deterministic validation remains authoritative.",
+        "properties": {
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "is_valid": {
+            "title": "Is Valid",
+            "type": "boolean"
+          },
+          "period_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Name"
+          },
+          "recommendations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "gemini",
+              "deterministic"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "is_valid",
+          "source"
+        ],
+        "title": "ReportNarrativeResponse",
+        "type": "object"
+      },
       "ReportPeriodTemplateResponse": {
         "properties": {
           "period_id": {
@@ -7761,6 +7843,66 @@
           }
         },
         "summary": "Submit Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/ai-narrative": {
+      "post": {
+        "description": "Explain an aggregate report without persisting or deciding its validity.\n\nOnly CT01-CT14 values and deterministic validation flags may leave the\napplication.  Names, phones, villages, GPS, report identifiers and any\nother personal/internal context are intentionally excluded from the prompt.",
+        "operationId": "create_report_narrative_reports_ai_narrative_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportNarrativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportNarrativeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Report Narrative",
         "tags": [
           "reports"
         ]
