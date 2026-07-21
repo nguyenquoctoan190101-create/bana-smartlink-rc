@@ -258,8 +258,10 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
         throw new Error("Mã tra cứu phải có 16 ký tự (kiến nghị) hoặc 32 ký tự (phản ánh).");
       }
       const result = await apiJson<{ status: string; message?: string; case?: { category?: string } }>(endpoint);
-      const { case: _case, ...safeResult } = result;
-      setLookupResult({ ...safeResult, message: formatPublicLookupMessage(result) });
+      // Keep only the non-sensitive category for the public result. Never retain
+      // the API's case object wholesale because it may contain internal notes or PII.
+      const safeCase = result.case?.category ? { category: result.case.category } : undefined;
+      setLookupResult({ status: result.status, message: result.message, case: safeCase });
     } catch {
       setLookupResult({ status: "not_found", message: "Không tìm thấy mã tra cứu hoặc mã không hợp lệ." });
     }
@@ -340,7 +342,13 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
             <label className="flex-1 text-sm font-semibold text-slate-700">Mã tra cứu<input value={lookupCode} onChange={(event) => setLookupCode(event.target.value.toUpperCase())} maxLength={32} minLength={16} required className="mt-1.5 font-mono tracking-wider" placeholder="MÃ TRA CỨU" /></label>
             <Button type="submit" className="sm:self-end"><FileSearch />Tra cứu</Button>
           </form>
-          {lookupResult && <div role="status" className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">{lookupResult.message || `Trạng thái: ${lookupResult.status}`}{"case" in lookupResult && lookupResult.case?.category ? ` · Loại phản ánh: ${lookupResult.case.category}` : ""}</div>}
+          {lookupResult && <div role="status" className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="status-badge" data-tone="info"><strong>Trạng thái:</strong> {getPublicStatusLabel(lookupResult.status)}</span>
+              {lookupResult.case?.category ? <span className="status-badge"><strong>Loại phản ánh:</strong> {getPublicCaseCategoryLabel(lookupResult.case.category)}</span> : null}
+            </div>
+            {lookupResult.message ? <p className="mt-2 text-slate-600">{lookupResult.message}</p> : null}
+          </div>}
         </SectionCard>
       )}
 
