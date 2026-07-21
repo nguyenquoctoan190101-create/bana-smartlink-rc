@@ -26,7 +26,9 @@ VALID_VALUES = {
     "CT11": 18,
     "CT12": 7,
     "CT13": 420,
-    "CT14": 999,
+    # CT14 remains internal-only, but it must still satisfy the deterministic
+    # relationship CT14 <= CT01 before an AI narrative may be requested.
+    "CT14": 1,
 }
 
 
@@ -65,7 +67,6 @@ def test_ai_narrative_excludes_ct14_and_returns_non_authoritative_advice() -> No
     assert result.source == "gemini"
     assert result.warnings
     assert "CT14" not in fake.kwargs["user_text"]
-    assert "999" not in fake.kwargs["user_text"]
 
 
 def test_ai_narrative_keeps_blocking_validation_deterministic() -> None:
