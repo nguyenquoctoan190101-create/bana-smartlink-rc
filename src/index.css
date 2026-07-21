@@ -166,6 +166,8 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .button--secondary:hover:not(:disabled) { border-color: var(--ui-primary); background: #f2f7f5; }
 .button--quiet { background: transparent; color: var(--ui-muted); }
 .button--quiet:hover:not(:disabled) { background: #edf2f0; color: var(--ui-ink); }
+.public-hero-nav .button--quiet { border-color: rgb(255 255 255 / .48); background: rgb(255 255 255 / .12); color: #fff; }
+.public-hero-nav .button--quiet:hover:not(:disabled) { border-color: rgb(255 255 255 / .72); background: rgb(255 255 255 / .22); color: #fff; }
 .button--danger { border-color: #f0c5c0; background: #fff; color: var(--ui-danger); }
 .button:disabled { background: #e9eeec; color: #7b8783; border-color: transparent; }
 

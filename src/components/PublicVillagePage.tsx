@@ -287,7 +287,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
           <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.035em] md:text-5xl">Dữ liệu địa phương<br className="hidden sm:block" /> dễ xem, dễ kiểm chứng.</h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-emerald-50 md:text-base">Tra cứu 5 chỉ tiêu được phép công bố, xem kỳ cập nhật và gửi kiến nghị nếu bạn phát hiện số liệu cần đối chiếu.</p>
         </div>
-        <div className="relative z-10 mt-7 flex flex-wrap gap-3">
+        <div className="public-hero-nav relative z-10 mt-7 flex flex-wrap gap-3" aria-label="Điều hướng cổng công khai">
           <Button variant={mode === "data" ? "secondary" : "quiet"} className={mode !== "data" ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white" : ""} onClick={() => setMode("data")}><FileText />Xem dữ liệu</Button>
           <Button variant={mode === "proposal" ? "secondary" : "quiet"} className={mode !== "proposal" ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white" : ""} onClick={() => { setMode("proposal"); setProposalStep(1); }}><MessageSquare />Gửi kiến nghị</Button>
           <Button variant={mode === "case" ? "secondary" : "quiet"} className={mode !== "case" ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white" : ""} onClick={() => setMode("case")}><MapPin />Phản ánh hiện trường</Button>
