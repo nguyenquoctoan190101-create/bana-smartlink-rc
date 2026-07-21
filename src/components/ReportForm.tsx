@@ -637,7 +637,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                 </div>
                 <div className="flex items-center">
                   <p className="text-3xs text-emerald-650 leading-normal italic">
-                    * Số liệu báo cáo này sẽ được thống kê đối chiếu với chỉ tiêu CT13 để đo lường và thẩm định chênh lệch khách quan.
+                    * Hệ thống chỉ ghi nhận người hỗ trợ để phục vụ kiểm tra và trách nhiệm giải trình; không tự thay đổi hoặc cộng thêm bất kỳ chỉ tiêu nào.
                   </p>
                 </div>
               </div>
