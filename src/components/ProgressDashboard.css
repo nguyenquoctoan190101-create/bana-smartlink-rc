@@ -68,6 +68,19 @@
   padding: 10px 12px;
 }
 
+.progress-dashboard__legend {
+  align-items: center;
+  color: #475569;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: .82rem;
+  gap: .85rem 1.25rem;
+  margin: 0 0 .75rem;
+}
+.progress-dashboard__legend span { align-items: center; display: inline-flex; gap: .35rem; }
+.progress-dashboard__legend .progress-dashboard__dot { height: 9px; width: 9px; }
+.progress-dashboard__legend-note { color: #64748b; }
+
 .progress-dashboard__table-wrap {
   border: 1px solid #e2e8f0;
   border-radius: 8px;

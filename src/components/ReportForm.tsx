@@ -16,7 +16,7 @@ interface ReportFormProps {
 }
 
 export default function ReportForm({ initialReport, onSaved, onCancel }: ReportFormProps) {
-  const { userName, userPhone, userVillageId } = useAuth();
+  const { userName, userPhone, userVillageId, userRole } = useAuth();
   const { villages: new_villages } = useVillages();
   const validationRules = rulesData as any;
   const indicatorGroups = [
@@ -534,7 +534,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
           </SectionCard>
 
           {/* Section: Tổ CNSCĐ hỗ trợ nhập hộ */}
-          <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3">
+          {userRole === "to_cnscd" && <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3">
             <div className="flex items-center gap-3">
               <input
                 type="checkbox"
@@ -570,7 +570,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* Upload Report with Smart Assistant (Excel/Image) */}
           <UploadReport 

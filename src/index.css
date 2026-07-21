@@ -190,7 +190,7 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: 0; }
 .error-state p { margin: .2rem 0 .75rem; font-size: .8125rem; }
 
 .gov-shell { min-height: 100vh; background: var(--ui-canvas); color: var(--ui-ink); }
-.gov-shell__sidebar { width: 17.5rem; background: #0b342b; color: #fff; }
+.gov-shell__sidebar { width: 17.5rem; background: #0b342b; color: #fff; overflow-y: auto; overflow-x: hidden; }
 .gov-shell__main { min-width: 0; flex: 1; }
 .gov-shell__content { width: min(100%, 1440px); margin: 0 auto; padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 5.5rem; }
 .gov-nav-group { margin: 1.2rem .75rem .35rem; color: #9fb8af; font-size: .6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }

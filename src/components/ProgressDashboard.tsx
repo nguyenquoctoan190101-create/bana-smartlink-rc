@@ -193,6 +193,13 @@ export default function ProgressDashboard({
         </div>
       ) : null}
 
+      <div className="progress-dashboard__legend" aria-label="Chú giải trạng thái">
+        <span><i className="progress-dashboard__dot progress-dashboard__dot--green" aria-hidden="true" /> Đúng hạn</span>
+        <span><i className="progress-dashboard__dot progress-dashboard__dot--yellow" aria-hidden="true" /> Trễ hạn</span>
+        <span><i className="progress-dashboard__dot progress-dashboard__dot--red" aria-hidden="true" /> Chưa nộp / quá hạn</span>
+        <span className="progress-dashboard__legend-note">Ngày nộp lấy từ máy chủ; “—” là chưa nộp.</span>
+      </div>
+
       <div className="progress-dashboard__table-wrap">
         <table className="progress-dashboard__table">
           <thead>

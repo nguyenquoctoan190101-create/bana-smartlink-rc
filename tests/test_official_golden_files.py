@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from openpyxl import load_workbook
 
-from services.excel_report_parser import parse_official_report_excel
+from services.excel_report_parser import REPORT_SHEET_NAME, parse_official_report_excel
 from services.validator import validate_phone, validate_report
 
 
@@ -69,6 +69,18 @@ def test_official_parser_preserves_report_metadata() -> None:
         "reporter_phone": "0000000000",
         "deadline": None,
     }
+
+
+def test_official_parser_accepts_harmless_sheet_name_whitespace() -> None:
+    content = next(REPORT_ROOT.glob("BC_T01_*.xlsx")).read_bytes()
+    workbook = load_workbook(BytesIO(content))
+    worksheet = workbook[workbook.sheetnames[0]]
+    worksheet.title = f"  {REPORT_SHEET_NAME}  "
+    output = BytesIO()
+    workbook.save(output)
+
+    parsed = parse_official_report_excel(output.getvalue())
+    assert parsed["values"]["CT01"] is not None
 
 
 def test_three_expected_missing_villages_have_no_report_file() -> None:

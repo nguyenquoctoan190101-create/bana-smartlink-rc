@@ -206,6 +206,11 @@ export default function LegacyBatchImport() {
               }}
               className="block w-full rounded-lg border border-slate-300 bg-white p-2"
             />
+            <span className="block text-xs font-normal text-slate-500" aria-live="polite">
+              {selectedFiles.length
+                ? `Đã chọn ${selectedFiles.length} tệp: ${selectedFiles.slice(0, 3).map((file) => file.name).join(", ")}${selectedFiles.length > 3 ? "…" : ""}`
+                : "Chưa chọn tệp. Bạn có thể chọn tối đa 25 tệp XLSX."}
+            </span>
           </label>
         </div>
         <DataScope period={selectedPeriod?.name} scope={`${selectedFiles.length} tệp đã chọn`} quality={preview ? `${blockers} mục cần xử lý` : "Chưa kiểm tra"} />

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from io import BytesIO
 from pathlib import Path
 from typing import Any, TypedDict
@@ -42,10 +43,14 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
     except (BadZipFile, InvalidFileException, OSError, ValueError) as exc:
         raise ExcelReportParseError("Không đọc được file Excel.") from exc
 
-    if REPORT_SHEET_NAME not in workbook.sheetnames:
+    sheet_name = next(
+        (name for name in workbook.sheetnames if _normalize_sheet_name(name) == _normalize_sheet_name(REPORT_SHEET_NAME)),
+        None,
+    )
+    if sheet_name is None:
         raise ExcelReportParseError(f"Không tìm thấy sheet '{REPORT_SHEET_NAME}'.")
 
-    worksheet = workbook[REPORT_SHEET_NAME]
+    worksheet = workbook[sheet_name]
     values: dict[str, Any] = {code: None for code in expected_codes}
     notes: dict[str, str | None] = {code: None for code in expected_codes}
     metadata: ParsedExcelMetadata = {
@@ -66,6 +71,12 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
         notes[ct_code] = _clean_note(row[4].value if len(row) > 4 else None)
 
     return {"values": values, "notes": notes, "metadata": metadata}
+
+
+def _normalize_sheet_name(value: Any) -> str:
+    """Match the official sheet despite harmless whitespace/Unicode differences."""
+    text = unicodedata.normalize("NFKC", str(value or ""))
+    return " ".join(text.split()).casefold()
 
 
 def _load_indicator_codes() -> set[str]:
