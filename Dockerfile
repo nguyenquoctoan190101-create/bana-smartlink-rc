@@ -18,7 +18,13 @@ ENV VITE_SUPABASE_URL=${SUPABASE_URL}
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
-RUN npm run build
+# Vite normally clears its output directory, but do it explicitly as well.
+# This prevents a cached Docker layer or a stale build artifact from being
+# copied into the runtime image when Render rebuilds the service.
+RUN rm -rf dist \
+    && npm run build \
+    && test -f dist/index.html \
+    && grep -q 'assets/index-' dist/index.html
 
 
 FROM python:3.12-slim AS runtime
