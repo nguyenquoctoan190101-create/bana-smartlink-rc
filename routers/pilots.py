@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from routers.auth import get_settings, get_supabase_admin, require_admin_or_leader, require_admin_xa
 from services.settings import Settings
@@ -21,7 +22,22 @@ class EvacuationPointRequest(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     capacity_households: int = Field(gt=0, le=100000)
     contact_name: str = Field(min_length=2, max_length=180)
-    contact_phone: str = Field(min_length=3, max_length=40)
+    contact_phone: str | None = Field(default=None, max_length=40)
+
+    @field_validator("contact_phone")
+    @classmethod
+    def validate_contact_phone(cls, value: str | None) -> str | None:
+        """Accept only an explicitly supplied, plausible phone number.
+
+        A missing number is valid for synthetic/pre-publication points; a fake
+        placeholder must never be presented as an operational contact.
+        """
+        if value is None or not value.strip():
+            return None
+        normalized = re.sub(r"[\s().-]+", "", value)
+        if not re.fullmatch(r"\+?\d{7,15}", normalized):
+            raise ValueError("contact_phone must be a valid phone number")
+        return value.strip()
 
 
 class EvacuationPointVerificationRequest(BaseModel):

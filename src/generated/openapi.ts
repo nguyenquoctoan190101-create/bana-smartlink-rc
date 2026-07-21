@@ -1091,6 +1091,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/ai-narrative": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Report Narrative
+         * @description Explain an aggregate report without persisting or deciding its validity.
+         *
+         *     Only CT01-CT14 values and deterministic validation flags may leave the
+         *     application.  Names, phones, villages, GPS, report identifiers and any
+         *     other personal/internal context are intentionally excluded from the prompt.
+         */
+        post: operations["create_report_narrative_reports_ai_narrative_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/confirm-synonym": {
         parameters: {
             query?: never;
@@ -1924,7 +1948,7 @@ export interface components {
             /** Contact Name */
             contact_name: string;
             /** Contact Phone */
-            contact_phone: string;
+            contact_phone?: string | null;
             /** Latitude */
             latitude: number;
             /** Longitude */
@@ -2232,6 +2256,39 @@ export interface components {
             message: string;
             /** Retryable */
             retryable: boolean;
+        };
+        /**
+         * ReportNarrativeRequest
+         * @description Aggregate-only input for optional, non-authoritative AI narration.
+         */
+        ReportNarrativeRequest: {
+            /** Period Name */
+            period_name?: string | null;
+            /** Values */
+            values: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ReportNarrativeResponse
+         * @description A read-only AI explanation; deterministic validation remains authoritative.
+         */
+        ReportNarrativeResponse: {
+            /** Errors */
+            errors?: string[];
+            /** Is Valid */
+            is_valid: boolean;
+            /** Period Name */
+            period_name?: string | null;
+            /** Recommendations */
+            recommendations?: string[];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "gemini" | "deterministic";
+            /** Warnings */
+            warnings?: string[];
         };
         /** ReportPeriodTemplateResponse */
         ReportPeriodTemplateResponse: {
@@ -5144,6 +5201,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportSubmitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_report_narrative_reports_ai_narrative_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportNarrativeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportNarrativeResponse"];
                 };
             };
             /** @description Validation Error */

@@ -1408,10 +1408,16 @@
             "type": "string"
           },
           "contact_phone": {
-            "maxLength": 40,
-            "minLength": 3,
-            "title": "Contact Phone",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
           },
           "latitude": {
             "maximum": 90.0,
@@ -1443,8 +1449,7 @@
           "latitude",
           "longitude",
           "capacity_households",
-          "contact_name",
-          "contact_phone"
+          "contact_name"
         ],
         "title": "EvacuationPointRequest",
         "type": "object"

@@ -360,7 +360,7 @@ create table public.evacuation_points (
   longitude double precision not null,
   capacity_households integer not null,
   contact_name text not null,
-  contact_phone text not null,
+  contact_phone text,
   is_verified boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

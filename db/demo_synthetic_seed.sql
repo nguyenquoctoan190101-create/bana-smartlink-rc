@@ -138,7 +138,7 @@ insert into public.evacuation_points (
   contact_name, contact_phone, is_verified
 )
 select village.id, point.name, point.latitude, point.longitude,
-       point.capacity_households, 'Truc ban UBND xa (demo)', '0000000000', true
+       point.capacity_households, 'Truc ban UBND xa (demo)', null, true
 from (values
   ('ThÃ´n An SÆ¡n', 'Nha van hoa thon An Son', 16.0241::double precision, 108.1184::double precision, 120),
   ('ThÃ´n PhÃº HÃ²a', 'Truong tieu hoc Phu Hoa', 16.0187::double precision, 108.1099::double precision, 180),
@@ -158,7 +158,7 @@ insert into public.evacuation_points (
   contact_name, contact_phone, is_verified
 )
 select ranked.id, point.name, point.latitude, point.longitude,
-       point.capacity_households, 'Truc ban UBND xa (demo)', '0000000000', true
+       point.capacity_households, 'Truc ban UBND xa (demo)', null, true
 from (values
   (1, 'Nha van hoa thon An Son', 16.0241::double precision, 108.1184::double precision, 120),
   (2, 'Truong tieu hoc Phu Hoa', 16.0187::double precision, 108.1099::double precision, 180),
