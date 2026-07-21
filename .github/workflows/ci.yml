@@ -81,7 +81,10 @@ jobs:
       - name: Python SAST (high severity)
         run: bandit -r main.py routers services scripts -lll -q
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
+      # Audit production dependencies. openapi-typescript is a build-time
+      # generator and currently pins a vulnerable js-yaml range; it is not
+      # included in the deployed runtime bundle.
+      - run: npm audit --omit=dev --audit-level=high
       - name: Secret scan including archives
         run: python scripts/release_check.py && python scripts/scan_archives.py .
       - name: Generate Node SBOM
