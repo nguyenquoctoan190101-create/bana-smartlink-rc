@@ -18,10 +18,14 @@ ENV VITE_SUPABASE_URL=${SUPABASE_URL}
 ENV VITE_SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+# Keep this revision in the Docker command so a release commit cannot reuse a
+# previously cached frontend-build layer from Render's registry cache.
+ARG BUILD_REVISION="8649709"
 # Vite normally clears its output directory, but do it explicitly as well.
 # This prevents a cached Docker layer or a stale build artifact from being
 # copied into the runtime image when Render rebuilds the service.
-RUN rm -rf dist \
+RUN echo "frontend-build-revision=${BUILD_REVISION}" \
+    && rm -rf dist \
     && npm run build \
     && test -f dist/index.html \
     && grep -q 'assets/index-' dist/index.html
