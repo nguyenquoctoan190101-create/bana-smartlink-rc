@@ -93,7 +93,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     CT02: "Tổng số nhân khẩu (Nhân khẩu)",
     CT03: "Số hộ nghèo (Hộ)",
     CT04: "Số hộ cận nghèo (Hộ)",
-    CT05: "Số người có công đang được quản lý (Người)",
+    CT05: "Số người có công với cách mạng đang được quản lý (Người)",
     CT06: "Số đối tượng bảo trợ xã hội đang hưởng trợ cấp (Người)",
     CT07: "Số trẻ em dưới 16 tuổi (Trẻ em)",
     CT08: "Số trẻ em có hoàn cảnh đặc biệt (Trẻ em)",

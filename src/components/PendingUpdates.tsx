@@ -96,7 +96,7 @@ export default function PendingUpdates({
       CT02: "Tổng số nhân khẩu",
       CT03: "Số hộ nghèo",
       CT04: "Số hộ cận nghèo",
-      CT05: "Người có công",
+      CT05: "Số người có công với cách mạng đang được quản lý",
       CT06: "Bảo trợ xã hội",
       CT07: "Trẻ em dưới 16",
       CT08: "Trẻ em có hoàn cảnh đặc biệt",

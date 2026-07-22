@@ -20,7 +20,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
 # Keep this revision in the Docker command so a release commit cannot reuse a
 # previously cached frontend-build layer from Render's registry cache.
-ARG BUILD_REVISION="8649709"
+ARG BUILD_REVISION="2026-07-23-audit-1"
 # Vite normally clears its output directory, but do it explicitly as well.
 # This prevents a cached Docker layer or a stale build artifact from being
 # copied into the runtime image when Render rebuilds the service.

@@ -8,7 +8,7 @@ const INDICATORS = [
   { code: "CT02", name: "Tổng số nhân khẩu", unit: "Người" },
   { code: "CT03", name: "Số hộ nghèo", unit: "Hộ" },
   { code: "CT04", name: "Số hộ cận nghèo", unit: "Hộ" },
-  { code: "CT05", name: "Số người có công với cách mạng", unit: "Người" },
+  { code: "CT05", name: "Số người có công với cách mạng đang được quản lý", unit: "Người" },
   { code: "CT06", name: "Số đối tượng bảo trợ xã hội đang hưởng trợ cấp", unit: "Người" },
   { code: "CT07", name: "Số trẻ em dưới 16 tuổi", unit: "Người" },
   { code: "CT08", name: "Số trẻ em có hoàn cảnh đặc biệt", unit: "Người" },

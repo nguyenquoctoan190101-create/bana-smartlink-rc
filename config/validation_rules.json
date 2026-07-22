@@ -43,7 +43,7 @@
     },
     {
       "code": "CT05",
-      "name": "Số người có công đang được quản lý",
+      "name": "Số người có công với cách mạng đang được quản lý",
       "unit": "Người",
       "type": "integer",
       "min": 0

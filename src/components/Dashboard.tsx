@@ -534,7 +534,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               {/* Metric 3: Revolutionary Contributors & Social Protection */}
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">
-                  <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Người có công với cách mạng (CT05)</span>
+                  <span className="block text-3xs text-slate-500 font-medium uppercase tracking-wider mb-1">Người có công với cách mạng đang được quản lý (CT05)</span>
                   <b className="text-sm font-bold text-slate-700">{totalRevolutionContributors === null ? "—" : `${totalRevolutionContributors} người`}</b>
                 </div>
                 <div className="bg-slate-25 p-3 rounded-lg border border-slate-100/50 text-center">

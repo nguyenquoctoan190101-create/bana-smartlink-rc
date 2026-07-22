@@ -31,7 +31,7 @@ INDICATORS_DICT = {
     "CT02": ("Tổng số nhân khẩu", "Người"),
     "CT03": ("Số hộ nghèo", "Hộ"),
     "CT04": ("Số hộ cận nghèo", "Hộ"),
-    "CT05": ("Số người có công với cách mạng", "Người"),
+    "CT05": ("Số người có công với cách mạng đang được quản lý", "Người"),
     "CT06": ("Số đối tượng bảo trợ xã hội đang hưởng trợ cấp", "Người"),
     "CT07": ("Số trẻ em dưới 16 tuổi", "Người"),
     "CT08": ("Số trẻ em có hoàn cảnh đặc biệt", "Người"),
@@ -517,7 +517,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
         ("Tổng số hộ dân", "—" if incomplete_totals["CT01"] else sums["CT01"]),
         ("Số hộ nghèo", "—" if incomplete_totals["CT03"] else sums["CT03"]),
         ("Số hộ cận nghèo", "—" if incomplete_totals["CT04"] else sums["CT04"]),
-        ("Số người có công với cách mạng", "—" if incomplete_totals["CT05"] else sums["CT05"]),
+        ("Số người có công với cách mạng đang được quản lý", "—" if incomplete_totals["CT05"] else sums["CT05"]),
         ("Đối tượng bảo trợ xã hội", "—" if incomplete_totals["CT06"] else sums["CT06"]),
         ("Hộ đạt Gia đình văn hóa", "—" if incomplete_totals["CT09"] else sums["CT09"]),
     ]

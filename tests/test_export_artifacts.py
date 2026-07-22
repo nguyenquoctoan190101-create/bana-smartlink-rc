@@ -63,6 +63,10 @@ def test_all_export_formats_keep_ct01_to_ct14_nulls_and_formula_safety() -> None
     assert summary["Dashboard"]["B4"].value == 1
     assert summary["Dashboard"]["B16"].value == "—"
     assert summary["Từ điển dữ liệu"]["A17"].value == "CT14"
+    assert (
+        summary["Từ điển dữ liệu"]["B8"].value
+        == "Số người có công với cách mạng đang được quản lý"
+    )
     assert summary["Cảnh báo dữ liệu"]["E2"].value == "'=unsafe warning"
     assert summary["Nguồn dữ liệu"]["C2"].value == "Excel"
     assert summary["Nguồn dữ liệu"]["D2"].value == 3

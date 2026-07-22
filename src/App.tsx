@@ -743,8 +743,8 @@ export default function App() {
       {/* -------------------------------------------------------------
           DESKTOP SIDEBAR: FIXED LEFT SIDEBAR FOR DESKTOP
           ------------------------------------------------------------- */}
-      <aside className="gov-shell__sidebar hidden md:flex flex-col shrink-0 sticky top-0 h-screen justify-between border-r border-white/10">
-        <div className="flex flex-col">
+      <aside className="gov-shell__sidebar hidden md:flex flex-col shrink-0 sticky top-0 border-r border-white/10">
+        <div className="gov-shell__sidebar-scroll flex min-h-0 flex-1 flex-col">
           {/* Header Branding */}
           <div className="p-5 border-b border-white/10">
             <Wordmark inverse />
@@ -793,7 +793,7 @@ export default function App() {
         </div>
 
         {/* Footer actions with Logout */}
-        <div className="p-4 border-t border-emerald-900 space-y-2">
+        <div className="shrink-0 p-4 border-t border-emerald-900 space-y-2">
           {/* Offline indicator for desktop sidebar */}
           <div className="flex items-center justify-between px-2 text-3xs font-semibold text-slate-300">
             <span className="flex items-center gap-1">
