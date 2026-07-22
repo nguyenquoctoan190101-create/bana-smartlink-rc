@@ -5,10 +5,11 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routers.ai import router as ai_router
 from routers.auth import router as auth_router
@@ -26,6 +27,72 @@ from services.rate_limit import limiter
 from services.settings import load_settings
 
 _log = get_logger(__name__)
+
+
+_HTTP_ERROR_CODES = {
+    400: "BAD_REQUEST",
+    401: "UNAUTHORIZED",
+    403: "FORBIDDEN",
+    404: "NOT_FOUND",
+    409: "CONFLICT",
+    413: "PAYLOAD_TOO_LARGE",
+    415: "UNSUPPORTED_MEDIA_TYPE",
+    422: "VALIDATION_ERROR",
+    429: "RATE_LIMITED",
+    502: "UPSTREAM_ERROR",
+    503: "SERVICE_UNAVAILABLE",
+}
+
+
+def _request_id(request: Request) -> str | None:
+    return getattr(request.state, "request_id", None)
+
+
+def _http_error_content(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> dict[str, object | None]:
+    """Convert every handled HTTP error to the public API error contract."""
+    detail = exc.detail
+    code = _HTTP_ERROR_CODES.get(exc.status_code, "HTTP_ERROR")
+    details: object | None = None
+
+    if isinstance(detail, dict):
+        raw_code = detail.get("code")
+        if isinstance(raw_code, str) and raw_code:
+            code = raw_code.upper()
+        raw_message = detail.get("message")
+        message = raw_message if isinstance(raw_message, str) else "Yêu cầu không hợp lệ."
+        details = detail.get("details")
+    elif isinstance(detail, str):
+        message = detail
+    else:
+        message = "Yêu cầu không hợp lệ."
+        details = detail
+
+    # Upstream and server-side implementation details are never a public response.
+    if exc.status_code >= 500:
+        message = "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút."
+        details = None
+
+    return {
+        "code": code,
+        "message": message,
+        "details": details,
+        "request_id": _request_id(request),
+    }
+
+
+def _validation_details(exc: RequestValidationError) -> list[dict[str, str]]:
+    """Expose only field, message and type; never echo the submitted body."""
+    return [
+        {
+            "field": ".".join(str(part) for part in error.get("loc", ())),
+            "message": str(error.get("msg", "Giá trị không hợp lệ")),
+            "type": str(error.get("type", "value_error")),
+        }
+        for error in exc.errors()
+    ]
 
 
 def create_app() -> FastAPI:
@@ -63,7 +130,45 @@ def create_app() -> FastAPI:
         return response
 
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @app.exception_handler(RateLimitExceeded)
+    async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        _ = exc
+        return JSONResponse(
+            status_code=429,
+            content={
+                "code": "RATE_LIMITED",
+                "message": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.",
+                "details": None,
+                "request_id": _request_id(request),
+            },
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception_handler(
+        request: Request,
+        exc: StarletteHTTPException,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_http_error_content(request, exc),
+            headers=exc.headers,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "code": "VALIDATION_ERROR",
+                "message": "Dữ liệu yêu cầu không hợp lệ.",
+                "details": _validation_details(exc),
+                "request_id": _request_id(request),
+            },
+        )
 
     @app.exception_handler(Exception)
     async def _global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -83,14 +188,19 @@ def create_app() -> FastAPI:
             sentry_sdk.capture_exception(exc)
         except ImportError:
             pass
+        request_id = _request_id(request) or str(uuid4())
         return JSONResponse(
             status_code=500,
             content={
                 "code": "INTERNAL_ERROR",
-                "message": "Internal server error",
+                "message": "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.",
                 "details": None,
-                "request_id": getattr(request.state, "request_id", None),
+                "request_id": request_id,
             },
+            # Unhandled exceptions are rendered by Starlette's outer error
+            # middleware, so the normal response middleware cannot append this
+            # correlation header afterwards.
+            headers={"X-Request-ID": request_id},
         )
 
     configured_origins = [

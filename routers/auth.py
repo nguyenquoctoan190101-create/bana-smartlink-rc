@@ -141,7 +141,7 @@ def get_settings() -> Settings:
     except SettingsError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
+            detail="Application configuration is unavailable",
         ) from exc
 
 
@@ -775,7 +775,7 @@ async def action_proposal(
             raise HTTPException(status_code=404, detail="Proposal not found")
         if "not pending" in err_msg.lower() or "not eligible" in err_msg.lower():
             raise HTTPException(status_code=409, detail="Đề xuất này đã được xử lý trước đó.")
-        raise HTTPException(status_code=400, detail=err_msg)
+        raise HTTPException(status_code=400, detail="Proposal action is invalid") from e
 
 
 def _extract_bearer_token(authorization: str | None) -> str:

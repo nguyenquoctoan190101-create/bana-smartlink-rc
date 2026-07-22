@@ -278,7 +278,7 @@ class TestPendingUpdates:
         }
         response = client.post("/auth/citizen/pending-updates", json=payload)
         assert response.status_code == 400
-        assert "Số điện thoại không hợp lệ" in response.json()["detail"]
+        assert "Số điện thoại không hợp lệ" in response.json()["message"]
 
 
 # ===========================================================================

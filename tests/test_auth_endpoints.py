@@ -256,4 +256,4 @@ def test_duplicate_proposal_approval_returns_409(mock_exec, client, mock_get_use
     res2 = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve"}, headers={"Authorization": f"Bearer {token}"})
     
     assert res2.status_code == 409
-    assert res2.json()["detail"] == "Đề xuất này đã được xử lý trước đó."
+    assert res2.json()["message"] == "Đề xuất này đã được xử lý trước đó."

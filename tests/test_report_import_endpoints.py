@@ -140,7 +140,10 @@ def test_get_batch_maps_supabase_failure_to_gateway_error() -> None:
         f"/report-imports/batches/{uuid4()}", headers={"Authorization": "Bearer caller-jwt"}
     )
     assert response.status_code == 502
-    assert response.json()["detail"] == "Unable to retrieve import batch"
+    assert response.json()["code"] == "UPSTREAM_ERROR"
+    assert response.json()["message"] == (
+        "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút."
+    )
 
 
 def _valid_values(ct01: int = 100) -> dict[str, int]:
@@ -187,7 +190,7 @@ def test_review_file_reject_requires_a_reason() -> None:
         json={"decision": "rejected"},
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "A rejection reason is required"
+    assert response.json()["message"] == "A rejection reason is required"
 
 
 def test_review_file_requires_resolution_reason_for_changed_value() -> None:
@@ -206,7 +209,7 @@ def test_review_file_requires_resolution_reason_for_changed_value() -> None:
         json={"decision": "accepted", "values": _valid_values(100), "reasons": {}},
     )
     assert response.status_code == 422
-    assert "review reason" in response.json()["detail"]
+    assert "review reason" in response.json()["message"]
 
 
 def test_review_file_accepts_corrected_values_and_writes_lineage_resolution() -> None:
@@ -260,7 +263,7 @@ def test_phone_flag_requires_valid_replacement_and_audit_reason() -> None:
         json={"decision": "accepted", "values": values, "reasons": {}, "reporter_phone": "BAD"},
     )
     assert response.status_code == 422
-    assert "valid reporter phone" in response.json()["detail"]
+    assert "valid reporter phone" in response.json()["message"]
 
 
 def test_commit_batch_returns_rpc_result_and_conflict_is_redacted() -> None:

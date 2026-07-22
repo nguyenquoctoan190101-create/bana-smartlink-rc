@@ -57,7 +57,7 @@ async def chat(
     except ChatbotError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="Dịch vụ trợ lý AI đang tạm thời không sẵn sàng",
         ) from exc
 
     return ChatResponse(
