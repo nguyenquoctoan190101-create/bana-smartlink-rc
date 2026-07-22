@@ -68,3 +68,39 @@ def test_ocr_submission_with_confirmation_accepted():
     finally:
         app.dependency_overrides.pop(get_report_repository, None)
         app.dependency_overrides.pop(require_authenticated_user, None)
+
+
+def test_report_submission_rejects_ct14_greater_than_ct01_before_saving():
+    """The real submit endpoint must enforce the CT14 <= CT01 rule."""
+    village_id = str(uuid4())
+    payload = _payload(village_id, confirmed=True)
+    payload["raw_source"] = "manual"
+    payload["source_confirmed"] = False
+    payload["values"].update({
+        "CT01": 100,
+        "CT02": 300,
+        "CT07": 50,
+        "CT14": 101,
+    })
+    mock_repo = AsyncMock()
+    app.dependency_overrides[get_report_repository] = lambda: mock_repo
+    app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()), role="can_bo_thon", village_id=village_id, force_password_reset=False
+    )
+    try:
+        response = client.post("/reports", json=payload)
+
+        assert response.status_code == 422, response.text
+        response_payload = response.json()
+        assert response_payload["code"] == "VALIDATION_ERROR"
+        errors = response_payload["details"]["errors"]
+        assert any(
+            error["ct_code"] == "CT14"
+            and error["error_type"] == "LOGIC"
+            and "CT01" in error["message"]
+            for error in errors
+        )
+        mock_repo.save_report.assert_not_awaited()
+    finally:
+        app.dependency_overrides.pop(get_report_repository, None)
+        app.dependency_overrides.pop(require_authenticated_user, None)

@@ -58,6 +58,27 @@ def test_request_validation_does_not_echo_submitted_value() -> None:
     assert submitted_value not in response.text
 
 
+def test_structured_business_errors_are_preserved_in_public_contract() -> None:
+    app = create_app()
+
+    async def invalid_report() -> None:
+        raise HTTPException(
+            status_code=422,
+            detail={"errors": [{"ct_code": "CT14", "message": "CT14 không được lớn hơn CT01"}]},
+        )
+
+    _prepend_test_route(app, "/__test/report-rule", invalid_report)
+    response = TestClient(app).get("/__test/report-rule")
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["code"] == "VALIDATION_ERROR"
+    assert payload["message"] == "Yêu cầu không hợp lệ."
+    assert payload["details"] == {
+        "errors": [{"ct_code": "CT14", "message": "CT14 không được lớn hơn CT01"}]
+    }
+
+
 def test_unhandled_error_is_redacted_and_has_request_id() -> None:
     app = create_app()
 

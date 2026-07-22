@@ -228,6 +228,37 @@ def test_sync_reports_validation_error(client, mock_report_repo):
     assert "Tổng CT03 + CT04 không được lớn hơn CT01" in data["rejected"][0]["message"]
     app.dependency_overrides.pop(require_authenticated_user, None)
 
+
+def test_sync_reports_rejects_ct14_greater_than_ct01_without_saving(client, mock_report_repo):
+    """Offline sync cannot bypass the deterministic CT14 <= CT01 rule."""
+    village_id = str(uuid4())
+    report_id = str(uuid4())
+    app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="can_bo_thon",
+        village_id=village_id,
+        force_password_reset=False,
+    )
+    mock_report_repo.get_period_id_by_name.return_value = str(uuid4())
+    item = _make_report_item(report_id, village_id)
+    item["CT14"] = item["CT01"] + 1
+
+    try:
+        response = client.post("/reports/sync", json={"reports": [item]})
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["accepted"] == []
+        assert len(data["rejected"]) == 1
+        assert data["rejected"][0]["client_id"] == report_id
+        assert data["rejected"][0]["code"] == "VALIDATION_ERROR"
+        assert "CT14" in data["rejected"][0]["message"]
+        assert "CT01" in data["rejected"][0]["message"]
+        assert data["rejected"][0]["retryable"] is False
+        mock_report_repo.save_report.assert_not_awaited()
+    finally:
+        app.dependency_overrides.pop(require_authenticated_user, None)
+
 # (d) Partial permission rejection
 def test_sync_reports_partial_village_auth(client, mock_report_repo):
     sub = str(uuid4())

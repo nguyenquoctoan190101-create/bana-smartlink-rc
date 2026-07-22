@@ -63,7 +63,10 @@ def _http_error_content(
             code = raw_code.upper()
         raw_message = detail.get("message")
         message = raw_message if isinstance(raw_message, str) else "Yêu cầu không hợp lệ."
-        details = detail.get("details")
+        # Preserve safe rule errors emitted by older business endpoints, such
+        # as ``detail={"errors": [...]}``.  Dropping them here prevents the UI
+        # from identifying the exact CT fields that users must correct.
+        details = detail.get("details") if "details" in detail else detail
     elif isinstance(detail, str):
         message = detail
     else:
