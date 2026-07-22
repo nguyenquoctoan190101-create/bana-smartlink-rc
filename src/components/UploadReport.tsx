@@ -57,6 +57,19 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const clearSelectedFile = () => {
+    setFile(null);
+    setShowPrivacyWarning(false);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const INDICATOR_MAP: Record<string, string> = {
     CT01: "Tổng số hộ dân (Hộ)",
     CT02: "Tổng số nhân khẩu (Nhân khẩu)",
@@ -109,7 +122,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
     if (!isImage && !isExcel) {
       setError("Định dạng tệp không được hỗ trợ. Vui lòng chỉ tải lên file Excel (.xlsx) hoặc tệp ảnh (.png, .jpg, .jpeg)");
-      setFile(null);
+      clearSelectedFile();
       return;
     }
 
@@ -391,7 +404,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   type="button"
                   onClick={() => {
                     setShowPrivacyWarning(false);
-                    setFile(null);
+                    clearSelectedFile();
                   }}
                   className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
                 >
@@ -469,6 +482,26 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   </div>
                 )}
               </label>
+            </div>
+          )}
+
+          {file && !isProcessing && !showPrivacyWarning && !reviewRows && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+              <div className="flex min-w-0 items-center gap-2 text-emerald-950">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <span className="min-w-0 truncate">
+                  <strong>Đã chọn tệp:</strong> {file.name} ({formatFileSize(file.size)})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={clearSelectedFile}
+                className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-bold text-emerald-900 hover:bg-emerald-100"
+                aria-label="Bỏ tệp đã chọn"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                Bỏ tệp
+              </button>
             </div>
           )}
 
