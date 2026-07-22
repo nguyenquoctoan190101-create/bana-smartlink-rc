@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Upload } from "lucide-react";
 
 import { apiJson } from "../lib/apiClient";
@@ -63,6 +63,12 @@ type BatchDetail = {
 
 const MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function LegacyBatchImport() {
   const { periods, isLoading: periodsLoading } = useReportPeriods();
   const [periodId, setPeriodId] = useState("");
@@ -76,6 +82,7 @@ export default function LegacyBatchImport() {
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [phoneReasons, setPhoneReasons] = useState<Record<string, string>>({});
   const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const blockers = useMemo(() => {
@@ -87,6 +94,12 @@ export default function LegacyBatchImport() {
     const body = new FormData();
     selectedFiles.forEach((file) => body.append("files", file, file.name));
     return body;
+  };
+
+  const clearSelectedFiles = () => {
+    setSelectedFiles([]);
+    setPreview(null);
+    fileInputRef.current && (fileInputRef.current.value = "");
   };
 
   const runPreview = async () => {
@@ -196,6 +209,7 @@ export default function LegacyBatchImport() {
           <label className="space-y-2 font-semibold text-sm">
             Bộ tệp XLSX (tối đa 25 tệp)
             <input
+              ref={fileInputRef}
               type="file"
               accept={MIME + ",.xlsx"}
               multiple
@@ -203,16 +217,28 @@ export default function LegacyBatchImport() {
               onChange={(event) => {
                 setSelectedFiles(Array.from(event.target.files || []));
                 setPreview(null);
+                setError(null);
               }}
               className="block w-full rounded-lg border border-slate-300 bg-white p-2"
             />
-            <span className="block text-xs font-normal text-slate-500" aria-live="polite">
-              {selectedFiles.length
-                ? `Đã chọn ${selectedFiles.length} tệp: ${selectedFiles.slice(0, 3).map((file) => file.name).join(", ")}${selectedFiles.length > 3 ? "…" : ""}`
-                : "Chưa chọn tệp. Bạn có thể chọn tối đa 25 tệp XLSX."}
-            </span>
+            <div className="flex items-center justify-between gap-3" aria-live="polite">
+              <span className="block text-xs font-normal text-slate-500">
+                {selectedFiles.length
+                  ? `Đã chọn ${selectedFiles.length} tệp XLSX.`
+                  : "Chưa chọn tệp. Bạn có thể chọn tối đa 25 tệp XLSX."}
+              </span>
+              {selectedFiles.length > 0 && <Button type="button" variant="secondary" onClick={clearSelectedFiles} disabled={busy || Boolean(detail)} className="min-h-11">Bỏ tệp</Button>}
+            </div>
           </label>
         </div>
+        {selectedFiles.length > 0 && !detail && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3" aria-label="Danh sách tệp đã chọn">
+            <p className="text-sm font-semibold text-emerald-900">Tệp đã chọn</p>
+            <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm text-emerald-900">
+              {selectedFiles.map((file) => <li key={`${file.name}-${file.lastModified}`} className="flex flex-wrap justify-between gap-2"><span className="break-all">{file.name}</span><span className="text-emerald-700">{formatFileSize(file.size)}</span></li>)}
+            </ul>
+          </div>
+        )}
         <DataScope period={selectedPeriod?.name} scope={`${selectedFiles.length} tệp đã chọn`} quality={preview ? `${blockers} mục cần xử lý` : "Chưa kiểm tra"} />
         <div className="flex flex-wrap gap-3">
           <Button onClick={runPreview} disabled={!selectedFiles.length || busy}><Upload />{busy ? "Đang kiểm tra…" : "Kiểm tra bộ tệp"}</Button>
