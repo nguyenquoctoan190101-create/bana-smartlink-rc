@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, Calendar, CheckCircle2, FileSpreadsheet, Loader2, Plus, Trash2, Upload, Users } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
+import { invalidateReportPeriods } from "../lib/useReportPeriods";
 
 interface CreatedPeriod {
   id: string;
@@ -87,6 +88,9 @@ export default function CreatePeriod() {
           template_name: null,
         }),
       });
+      // The period exists even when its optional template upload fails. Make
+      // it immediately available to every screen using the shared store.
+      invalidateReportPeriods();
       let uploadedTemplate: TemplateUploadResult | null = null;
       if (templateFile) {
         const formData = new FormData();

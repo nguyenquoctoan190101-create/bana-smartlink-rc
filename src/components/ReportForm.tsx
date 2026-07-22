@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { AlertCircle, AlertTriangle, Sparkles, Save, Send, Trash2, CheckCircle2, CheckSquare, Loader2, RefreshCw } from "lucide-react";
 import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
-import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod } from "../types";
+import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues } from "../types";
 import { saveReport, addToSyncQueue } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
+import { useReportPeriods } from "../lib/useReportPeriods";
 import { Button, PageHeader, SectionCard, StickyActionBar } from "./ui";
 
 interface ReportFormProps {
@@ -18,6 +19,7 @@ interface ReportFormProps {
 export default function ReportForm({ initialReport, onSaved, onCancel }: ReportFormProps) {
   const { userName, userPhone, userVillageId, userRole } = useAuth();
   const { villages: new_villages } = useVillages();
+  const { periods, error: periodsError } = useReportPeriods();
   const validationRules = rulesData as any;
   const indicatorGroups = [
     { title: "Quy mô dân cư", description: "Thông tin nền để đối chiếu các tỷ lệ và phạm vi phục vụ.", codes: ["CT01", "CT02"] },
@@ -35,7 +37,6 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
   };
 
   const [villageId, setVillageId] = useState<string>(userVillageId || "");
-  const [periods, setPeriods] = useState<ReportPeriod[]>([]);
   const [periodId, setPeriodId] = useState<string>("");
   const [reportPeriod, setReportPeriod] = useState<string>("");
   const [reporterName, setReporterName] = useState<string>(userName || "");
@@ -70,25 +71,20 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
   const [isConfirmChecked, setIsConfirmChecked] = useState<boolean>(false);
 
   useEffect(() => {
-    let active = true;
-    void apiJson<ReportPeriod[]>("/report-periods")
-      .then((items) => {
-        if (!active) return;
-        const safeItems = Array.isArray(items) ? items : [];
-        setPeriods(safeItems);
-        const params = new URLSearchParams(window.location.search);
-        const requested = params.get("period_id") || params.get("period");
-        const selected = safeItems.find((item) => item.id === requested || item.name === requested) || safeItems[0];
-        if (selected && !initialReport) {
-          setPeriodId(selected.id);
-          setReportPeriod(selected.name);
-        }
-      })
-      .catch(() => {
-        if (active) setSubmitMessage({ type: "error", text: "Không tải được danh sách kỳ báo cáo từ máy chủ." });
-      });
-    return () => { active = false; };
-  }, [initialReport]);
+    if (initialReport || periods.length === 0) return;
+    if (periodId && periods.some((period) => period.id === periodId)) return;
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get("period_id") || params.get("period");
+    const selected = periods.find((item) => item.id === requested || item.name === requested) || periods[0];
+    setPeriodId(selected.id);
+    setReportPeriod(selected.name);
+  }, [initialReport, periodId, periods]);
+
+  useEffect(() => {
+    if (periodsError) {
+      setSubmitMessage({ type: "error", text: "Không tải được danh sách kỳ báo cáo từ máy chủ." });
+    }
+  }, [periodsError]);
 
   // Load initial report if editing
   useEffect(() => {

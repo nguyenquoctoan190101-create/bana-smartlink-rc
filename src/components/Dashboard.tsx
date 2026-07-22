@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ReportData, UserRole, workflowStatusOf } from "../types";
+import { ReportData, ReportPeriod, UserRole, workflowStatusOf } from "../types";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { 
   TrendingUp, Users, Home, HeartPulse, ShieldAlert, Award, FileText, 
@@ -17,6 +17,7 @@ interface DashboardProps {
   onLockReport?: (id: string) => void;
   onAddNewReport: () => void;
   userRole?: UserRole;
+  reportPeriods?: ReportPeriod[];
 }
 
 export function splitDashboardReports(reports: ReportData[]) {
@@ -28,7 +29,7 @@ export function splitDashboardReports(reports: ReportData[]) {
   };
 }
 
-export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon" }: DashboardProps) {
+export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon", reportPeriods = [] }: DashboardProps) {
   const { userVillageId } = useAuth();
   const { villages: new_villages } = useVillages();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("Tất cả kỳ");
@@ -49,8 +50,15 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
 
   const { localDrafts, serverReports } = splitDashboardReports(reports);
 
-  // Get list of periods present in the reports
-  const periods = ["Tất cả kỳ", ...Array.from(new Set(serverReports.map(r => r.report_period)))];
+  // Periods are first-class records and must remain selectable before any
+  // village submits a report. Keep historical report-only names as a fallback.
+  const periodNames = [
+    "Tất cả kỳ",
+    ...Array.from(new Set([
+      ...reportPeriods.map((period) => period.name),
+      ...serverReports.map((report) => report.report_period),
+    ])),
+  ];
 
   // "Tất cả kỳ" is a snapshot view: keep only the latest report per village,
   // otherwise population/household snapshots would be counted repeatedly.
@@ -113,7 +121,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         return;
     }
     
-    const periodId = serverReports.find((report) => report.report_period === selectedPeriod)?.period_id;
+    const periodId = reportPeriods.find((period) => period.name === selectedPeriod)?.id
+      || serverReports.find((report) => report.report_period === selectedPeriod)?.period_id;
     if (!periodId) {
       alert("Không xác định được mã kỳ báo cáo để xuất dữ liệu.");
       return;
@@ -213,7 +222,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
             >
-              {periods.map(p => (
+              {periodNames.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>

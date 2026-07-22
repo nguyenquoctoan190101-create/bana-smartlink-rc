@@ -4,8 +4,10 @@ import type { ReportPeriod } from "../types";
 
 let cachedPeriods: ReportPeriod[] | null = null;
 let inFlight: Promise<ReportPeriod[]> | null = null;
+const invalidationListeners = new Set<() => void>();
 
-export async function loadReportPeriods(): Promise<ReportPeriod[]> {
+export async function loadReportPeriods(force = false): Promise<ReportPeriod[]> {
+  if (force) cachedPeriods = null;
   if (cachedPeriods) return cachedPeriods;
   if (!inFlight) {
     inFlight = apiJson<ReportPeriod[]>("/report-periods")
@@ -18,6 +20,16 @@ export async function loadReportPeriods(): Promise<ReportPeriod[]> {
   return inFlight;
 }
 
+/**
+ * Clear the shared period cache and notify every mounted consumer. A period is
+ * created independently from reports, so report creation/deletion must never
+ * be the mechanism that refreshes this list.
+ */
+export function invalidateReportPeriods() {
+  cachedPeriods = null;
+  invalidationListeners.forEach((listener) => listener());
+}
+
 export function useReportPeriods() {
   const [periods, setPeriods] = useState<ReportPeriod[]>(cachedPeriods || []);
   const [isLoading, setIsLoading] = useState(cachedPeriods === null);
@@ -25,11 +37,21 @@ export function useReportPeriods() {
 
   useEffect(() => {
     let active = true;
-    void loadReportPeriods()
-      .then((rows) => { if (active) setPeriods(rows); })
-      .catch(() => { if (active) setError("Không tải được danh sách kỳ báo cáo."); })
-      .finally(() => { if (active) setIsLoading(false); });
-    return () => { active = false; };
+    const refresh = (force = false) => {
+      setIsLoading(true);
+      setError(null);
+      void loadReportPeriods(force)
+        .then((rows) => { if (active) setPeriods(rows); })
+        .catch(() => { if (active) setError("Không tải được danh sách kỳ báo cáo."); })
+        .finally(() => { if (active) setIsLoading(false); });
+    };
+    const handleInvalidation = () => refresh(true);
+    invalidationListeners.add(handleInvalidation);
+    refresh(false);
+    return () => {
+      active = false;
+      invalidationListeners.delete(handleInvalidation);
+    };
   }, []);
 
   return { periods, isLoading, error };

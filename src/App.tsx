@@ -1026,6 +1026,7 @@ export default function App() {
                       changeTab("report-form");
                     }}
                     userRole={userRole}
+                    reportPeriods={periods}
                   />
 
 

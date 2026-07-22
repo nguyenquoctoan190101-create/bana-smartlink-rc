@@ -61,6 +61,24 @@ describe("Dashboard device drafts", () => {
     expect(result.serverReports[0].CT01).toBe(318);
   });
 
+  it("keeps a newly created period selectable before it has reports", () => {
+    render(
+      <Dashboard
+        reports={[]}
+        reportPeriods={[{
+          id: "period-new",
+          name: "Tháng 8/2026",
+          due_date: "2026-08-25T17:00:00+07:00",
+        }]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("option", { name: "Tháng 8/2026" })).toBeInTheDocument();
+  });
+
   it("shows where the draft is stored and deletes only the local copy", () => {
     const onDeleteReport = vi.fn();
     const localDraft = report({
