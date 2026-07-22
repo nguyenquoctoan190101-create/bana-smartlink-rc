@@ -86,6 +86,21 @@ def test_all_export_formats_keep_ct01_to_ct14_nulls_and_formula_safety() -> None
     assert "CT14" in cells
     assert "" in cells  # CT02 stays blank in the DOCX table.
 
+    scoped_document = docx.Document(
+        BytesIO(
+            generate_docx_file(
+                period,
+                reports,
+                villages,
+                scope_name="Thôn An Sơn",
+            )
+        )
+    )
+    scoped_text = "\n".join(
+        paragraph.text for paragraph in scoped_document.paragraphs
+    )
+    assert "Phạm vi: Thôn An Sơn" in scoped_text
+
     pdf = generate_pdf_file(period, reports, villages)
     assert pdf.startswith(b"%PDF-")
     assert len(pdf) > 1_000

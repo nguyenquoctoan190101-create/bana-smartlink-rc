@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
+
+import docx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -145,6 +148,81 @@ def test_export_preview_with_data(client: TestClient) -> None:
     response = client.get("/reports/export/pdf?period_id=Quý III/2026")
     assert response.status_code == 200
     assert response.content.startswith(b"%PDF")
+
+
+def test_village_docx_export_contains_only_authorized_village(client: TestClient) -> None:
+    fake_supabase = None
+    for dependency, stub_func in client.app.dependency_overrides.items():
+        if "get_supabase_admin" in str(dependency):
+            fake_supabase = stub_func()
+            break
+    assert fake_supabase is not None
+
+    period_uuid = str(uuid4())
+    selected_village_uuid = str(uuid4())
+    other_village_uuid = str(uuid4())
+    selected_report_uuid = str(uuid4())
+    other_report_uuid = str(uuid4())
+
+    async def mock_rest_request(method, path, body=None, prefer=None):
+        if "report_periods" in path:
+            return [{"id": period_uuid, "name": "Tháng 7/2026"}]
+        if "villages" in path:
+            return [
+                {"id": selected_village_uuid, "name": "Thôn An Sơn"},
+                {"id": other_village_uuid, "name": "Thôn Hòa Nhơn"},
+            ]
+        if "/rest/v1/reports?" in path:
+            return [
+                {
+                    "id": selected_report_uuid,
+                    "village_id": selected_village_uuid,
+                    "workflow_status": "approved",
+                    "timeliness_status": "on_time",
+                    "submitted_at": "2026-07-15T10:00:00Z",
+                },
+                {
+                    "id": other_report_uuid,
+                    "village_id": other_village_uuid,
+                    "workflow_status": "approved",
+                    "timeliness_status": "on_time",
+                    "submitted_at": "2026-07-15T10:00:00Z",
+                },
+            ]
+        if "/rest/v1/report_values?" in path:
+            return [
+                {"report_id": selected_report_uuid, "ct_code": "CT01", "value": 318},
+                {"report_id": other_report_uuid, "ct_code": "CT01", "value": 421},
+            ]
+        return []
+
+    fake_supabase._rest_request = AsyncMock(side_effect=mock_rest_request)
+
+    response = client.get(
+        f"/reports/village/{selected_village_uuid}/export/docx",
+        params={"period_id": period_uuid},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert "Phieu_bao_cao_Th%C3%B4n_An_S%C6%A1n_Th%C3%A1ng_7%2F2026.docx" in (
+        response.headers["content-disposition"]
+    )
+    document = docx.Document(BytesIO(response.content))
+    paragraph_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    cell_text = [
+        cell.text
+        for table in document.tables
+        for row in table.rows
+        for cell in row.cells
+    ]
+    assert "Phạm vi: Thôn An Sơn" in paragraph_text
+    assert "Thôn An Sơn" in cell_text
+    assert "318" in cell_text
+    assert "Thôn Hòa Nhơn" not in cell_text
+    assert "421" not in cell_text
 
 
 @pytest.mark.asyncio

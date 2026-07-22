@@ -117,7 +117,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
 
   const handleExport = async (fileFormat: "xlsx" | "docx" | "pdf" = "xlsx") => {
     if (selectedPeriod === "Tất cả kỳ") {
-        alert("Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu Excel.");
+        alert("Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu.");
         return;
     }
     
@@ -127,8 +127,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       alert("Không xác định được mã kỳ báo cáo để xuất dữ liệu.");
       return;
     }
-    if (effectiveVillageFilter !== "all" && fileFormat !== "xlsx") {
-      alert("Báo cáo phạm vi một thôn hiện chỉ hỗ trợ xuất XLSX. Chọn toàn xã để xuất DOCX hoặc PDF.");
+    if (effectiveVillageFilter !== "all" && fileFormat === "pdf") {
+      alert("Báo cáo PDF hiện chỉ hỗ trợ phạm vi toàn xã. Với một thôn, hãy chọn XLSX hoặc DOCX.");
       return;
     }
     const route = effectiveVillageFilter !== "all"
@@ -262,15 +262,16 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <Download className="w-4 h-4" />
             <span>Xuất XLSX</span>
           </button>
+          {userRole !== "dan" && (
+            <button
+              onClick={() => handleExport("docx")}
+              className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Xuất DOCX</span>
+            </button>
+          )}
           {(userRole === "admin_xa" || userRole === "lanh_dao") && effectiveVillageFilter === "all" && (
-            <>
-              <button
-                onClick={() => handleExport("docx")}
-                className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Xuất DOCX</span>
-              </button>
               <button
                 onClick={() => handleExport("pdf")}
                 className="flex-1 md:flex-none bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
@@ -278,7 +279,6 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                 <FileText className="w-4 h-4" />
                 <span>Xuất PDF</span>
               </button>
-            </>
           )}
         </div>
       </div>

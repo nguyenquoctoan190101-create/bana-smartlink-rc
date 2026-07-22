@@ -1451,7 +1451,12 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
         
     return result
 
-def generate_docx_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
+def generate_docx_file(
+    period_name: str,
+    reports_data: list,
+    villages_map: dict,
+    scope_name: str | None = None,
+) -> bytes:
     doc = docx.Document()
 
     section = doc.sections[0]
@@ -1473,6 +1478,8 @@ def generate_docx_file(period_name: str, reports_data: list, villages_map: dict)
 
     doc.add_heading("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", level=1)
     doc.add_paragraph(f"Kỳ báo cáo: {_safe_document_text(period_name)}")
+    if scope_name:
+        doc.add_paragraph(f"Phạm vi: {_safe_document_text(scope_name)}")
     
     if not reports_data:
         doc.add_paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.")
@@ -1856,8 +1863,11 @@ async def export_village_report(
 ):
     await _authorize_village_read(repository, current_user, village_id)
     supabase = repository._supabase
-    if file_format != "xlsx":
-        raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xuất báo cáo thôn dạng xlsx.")
+    if file_format not in {"xlsx", "docx"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Báo cáo theo thôn chỉ hỗ trợ định dạng XLSX hoặc DOCX.",
+        )
         
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
@@ -1871,9 +1881,19 @@ async def export_village_report(
     if not village_report:
         raise HTTPException(status_code=404, detail="Không tìm thấy báo cáo của thôn trong kỳ này.")
         
-    file_bytes = generate_village_xlsx_file(period_name, village_report, village_name)
-    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    filename = f"Phieu_bao_cao_{village_name}_{period_name}.xlsx".replace(" ", "_")
+    if file_format == "xlsx":
+        file_bytes = generate_village_xlsx_file(period_name, village_report, village_name)
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        filename = f"Phieu_bao_cao_{village_name}_{period_name}.xlsx".replace(" ", "_")
+    else:
+        file_bytes = generate_docx_file(
+            period_name,
+            [village_report],
+            {village_id_text: village_name},
+            scope_name=village_name,
+        )
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename = f"Phieu_bao_cao_{village_name}_{period_name}.docx".replace(" ", "_")
     
     return Response(
         content=file_bytes,
