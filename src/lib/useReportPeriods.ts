@@ -4,18 +4,28 @@ import type { ReportPeriod } from "../types";
 
 let cachedPeriods: ReportPeriod[] | null = null;
 let inFlight: Promise<ReportPeriod[]> | null = null;
+let cacheGeneration = 0;
 const invalidationListeners = new Set<() => void>();
 
 export async function loadReportPeriods(force = false): Promise<ReportPeriod[]> {
-  if (force) cachedPeriods = null;
+  if (force) {
+    cachedPeriods = null;
+    cacheGeneration += 1;
+    inFlight = null;
+  }
   if (cachedPeriods) return cachedPeriods;
   if (!inFlight) {
-    inFlight = apiJson<ReportPeriod[]>("/report-periods")
+    const requestGeneration = cacheGeneration;
+    const request = apiJson<ReportPeriod[]>("/report-periods")
       .then((rows) => {
-        cachedPeriods = Array.isArray(rows) ? rows : [];
-        return cachedPeriods;
+        const normalized = Array.isArray(rows) ? rows : [];
+        if (requestGeneration === cacheGeneration) cachedPeriods = normalized;
+        return normalized;
       })
-      .finally(() => { inFlight = null; });
+      .finally(() => {
+        if (inFlight === request) inFlight = null;
+      });
+    inFlight = request;
   }
   return inFlight;
 }
@@ -27,6 +37,8 @@ export async function loadReportPeriods(force = false): Promise<ReportPeriod[]> 
  */
 export function invalidateReportPeriods() {
   cachedPeriods = null;
+  cacheGeneration += 1;
+  inFlight = null;
   invalidationListeners.forEach((listener) => listener());
 }
 
@@ -45,7 +57,7 @@ export function useReportPeriods() {
         .catch(() => { if (active) setError("Không tải được danh sách kỳ báo cáo."); })
         .finally(() => { if (active) setIsLoading(false); });
     };
-    const handleInvalidation = () => refresh(true);
+    const handleInvalidation = () => refresh(false);
     invalidationListeners.add(handleInvalidation);
     refresh(false);
     return () => {

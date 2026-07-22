@@ -183,6 +183,7 @@ export default function App() {
   const [reports, setReports] = useState<ReportData[]>([]);
   const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots">("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
+  const [requestedPeriodId, setRequestedPeriodId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
@@ -271,6 +272,9 @@ export default function App() {
       dan: new Set(["dashboard", "citizen-proposal"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
+    if (tab === "report-form") {
+      setRequestedPeriodId(search.get("period_id") || search.get("period"));
+    }
     setActiveTab(tab);
     const suffix = search.toString() ? `?${search.toString()}` : "";
     window.history.pushState({ tab }, "", `/app/${tab}${suffix}`);
@@ -290,7 +294,12 @@ export default function App() {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
       const target = pathTab || legacyTab;
-      if (target && validTabs.has(target) && roleTabs[userRole].has(target)) setActiveTab(target as typeof activeTab);
+      if (target && validTabs.has(target) && roleTabs[userRole].has(target)) {
+        setActiveTab(target as typeof activeTab);
+        setRequestedPeriodId(target === "report-form"
+          ? new URLSearchParams(window.location.search).get("period_id") || new URLSearchParams(window.location.search).get("period")
+          : null);
+      }
       else if (!roleTabs[userRole].has(activeTab)) setActiveTab("dashboard");
     };
     restore();
@@ -341,6 +350,7 @@ export default function App() {
 
   const handleEditReport = (report: ReportData) => {
     setEditingReport(report);
+    setRequestedPeriodId(null);
     changeTab("report-form");
   };
 
@@ -407,11 +417,13 @@ export default function App() {
   const handleSavedReport = async () => {
     await loadAllReports();
     setEditingReport(null);
+    setRequestedPeriodId(null);
     changeTab("dashboard");
   };
 
   const handleCancelForm = () => {
     setEditingReport(null);
+    setRequestedPeriodId(null);
     changeTab("dashboard");
   };
 
@@ -1021,9 +1033,11 @@ export default function App() {
                     onDeleteReport={handleDeleteReport}
                     onApproveReport={userRole === "admin_xa" ? handleApproveReport : undefined}
                     onLockReport={userRole === "admin_xa" ? handleLockReport : undefined}
-                    onAddNewReport={() => {
+                    onAddNewReport={(periodId) => {
                       setEditingReport(null);
-                      changeTab("report-form");
+                      const search = new URLSearchParams();
+                      if (periodId) search.set("period_id", periodId);
+                      changeTab("report-form", search);
                     }}
                     userRole={userRole}
                     reportPeriods={periods}
@@ -1064,6 +1078,7 @@ export default function App() {
               {activeTab === "report-form" && (
                 <ReportForm 
                   initialReport={editingReport}
+                  initialPeriodId={requestedPeriodId}
                   onSaved={handleSavedReport}
                   onCancel={handleCancelForm}
                 />

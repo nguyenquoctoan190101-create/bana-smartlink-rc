@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { AlertCircle, AlertTriangle, Sparkles, Save, Send, Trash2, CheckCircle2, CheckSquare, Loader2, RefreshCw } from "lucide-react";
 import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
-import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues } from "../types";
+import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod } from "../types";
 import { getLocalDraftForScope, queueReportForSync, saveDraftForScope } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useAuth } from "../lib/AuthContext";
@@ -12,11 +12,27 @@ import { Button, PageHeader, SectionCard, StickyActionBar } from "./ui";
 
 interface ReportFormProps {
   initialReport?: ReportData | null;
+  initialPeriodId?: string | null;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-export default function ReportForm({ initialReport, onSaved, onCancel }: ReportFormProps) {
+export function resolveRequestedReportPeriod(
+  periods: ReportPeriod[],
+  requested?: string | null,
+): ReportPeriod | null {
+  if (!requested) return periods[0] || null;
+  const periodById = periods.find((period) => period.id === requested);
+  if (periodById) return periodById;
+
+  // Old links used the display name. Keep them working only while that name
+  // identifies exactly one period; duplicate names must never select a period
+  // arbitrarily because reports are keyed by the period UUID.
+  const periodsByName = periods.filter((period) => period.name === requested);
+  return periodsByName.length === 1 ? periodsByName[0] : null;
+}
+
+export default function ReportForm({ initialReport, initialPeriodId, onSaved, onCancel }: ReportFormProps) {
   const { userName, userPhone, userVillageId, userRole } = useAuth();
   const { villages: new_villages } = useVillages();
   const { periods, error: periodsError } = useReportPeriods();
@@ -77,11 +93,20 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     if (initialReport || periods.length === 0) return;
     if (periodId && periods.some((period) => period.id === periodId)) return;
     const params = new URLSearchParams(window.location.search);
-    const requested = params.get("period_id") || params.get("period");
-    const selected = periods.find((item) => item.id === requested || item.name === requested) || periods[0];
+    const requested = initialPeriodId || params.get("period_id") || params.get("period");
+    const selected = resolveRequestedReportPeriod(periods, requested);
+    if (!selected) {
+      setPeriodId("");
+      setReportPeriod("");
+      setSubmitMessage({
+        type: "error",
+        text: "Kỳ báo cáo được yêu cầu không tồn tại hoặc bạn không còn quyền truy cập. Hãy chọn một kỳ hợp lệ.",
+      });
+      return;
+    }
     setPeriodId(selected.id);
     setReportPeriod(selected.name);
-  }, [initialReport, periodId, periods]);
+  }, [initialPeriodId, initialReport, periodId, periods]);
 
   useEffect(() => {
     if (periodsError) {
@@ -637,6 +662,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
                   const selected = periods.find((period) => period.id === e.target.value);
                   setPeriodId(e.target.value);
                   setReportPeriod(selected?.name || "");
+                  if (selected) setSubmitMessage(null);
                 }}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
                 disabled={periods.length === 0}

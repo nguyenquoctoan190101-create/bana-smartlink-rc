@@ -260,7 +260,7 @@ async def list_report_periods(
                 "/rest/v1/report_periods"
                 "?select=id,name,due_date,template_name,template_path,"
                 "template_sha256,template_size_bytes,created_at"
-                "&order=due_date.desc"
+                "&order=due_date.desc,created_at.desc"
             ),
         )
     except SupabaseAdminError as exc:

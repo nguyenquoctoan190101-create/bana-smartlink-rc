@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ReportData } from "../types";
-import Dashboard, { splitDashboardReports } from "./Dashboard";
+import type { ReportData, ReportPeriod } from "../types";
+import Dashboard, {
+  buildDashboardPeriodOptions,
+  filterDashboardReportsByPeriod,
+  splitDashboardReports,
+} from "./Dashboard";
 
 vi.mock("../lib/AuthContext", () => ({
   useAuth: () => ({ userVillageId: null }),
@@ -59,6 +63,34 @@ describe("Dashboard device drafts", () => {
     expect(result.localDrafts).toEqual([localDraft]);
     expect(result.serverReports).toEqual([serverReport]);
     expect(result.serverReports[0].CT01).toBe(318);
+  });
+
+  it("keeps duplicate period names separate by UUID", () => {
+    const periods: ReportPeriod[] = [
+      { id: "period-old", name: "Quý III/2026", due_date: "2026-09-20T17:00:00+07:00" },
+      { id: "period-new", name: "Quý III/2026", due_date: "2026-09-30T17:00:00+07:00" },
+    ];
+    const oldReport = report({ id: "report-old", period_id: "period-old", report_period: "Quý III/2026" });
+    const newReport = report({ id: "report-new", period_id: "period-new", report_period: "Quý III/2026" });
+    const options = buildDashboardPeriodOptions(periods, [oldReport, newReport]);
+    const oldOption = options.find((option) => option.periodId === "period-old");
+    const newOption = options.find((option) => option.periodId === "period-new");
+
+    expect(oldOption?.label).not.toBe(newOption?.label);
+    expect(filterDashboardReportsByPeriod([oldReport, newReport], periods, oldOption!)).toEqual([oldReport]);
+    expect(filterDashboardReportsByPeriod([oldReport, newReport], periods, newOption!)).toEqual([newReport]);
+  });
+
+  it("does not attach a legacy name-only row to two periods with the same name", () => {
+    const periods: ReportPeriod[] = [
+      { id: "period-old", name: "Quý III/2026", due_date: "2026-09-20T17:00:00+07:00" },
+      { id: "period-new", name: "Quý III/2026", due_date: "2026-09-30T17:00:00+07:00" },
+    ];
+    const legacyReport = report({ id: "legacy-report", period_id: undefined, report_period: "Quý III/2026" });
+    const selected = buildDashboardPeriodOptions(periods, [legacyReport])
+      .find((option) => option.periodId === "period-new");
+
+    expect(filterDashboardReportsByPeriod([legacyReport], periods, selected!)).toEqual([]);
   });
 
   it("keeps a newly created period selectable before it has reports", () => {

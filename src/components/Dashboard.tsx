@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReportData, ReportPeriod, UserRole, workflowStatusOf } from "../types";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { 
@@ -15,9 +15,91 @@ interface DashboardProps {
   onDeleteReport: (id: string, localOnly?: boolean) => void;
   onApproveReport?: (id: string) => void;
   onLockReport?: (id: string) => void;
-  onAddNewReport: () => void;
+  onAddNewReport: (periodId?: string) => void;
   userRole?: UserRole;
   reportPeriods?: ReportPeriod[];
+}
+
+const ALL_PERIODS = "__all_periods__";
+
+export interface DashboardPeriodOption {
+  value: string;
+  label: string;
+  periodId?: string;
+  periodName?: string;
+  legacyName?: string;
+}
+
+export function filterDashboardReportsByPeriod(
+  reports: ReportData[],
+  reportPeriods: ReportPeriod[],
+  selectedOption: DashboardPeriodOption,
+): ReportData[] {
+  if (selectedOption.value === ALL_PERIODS) {
+    return Array.from(reports.reduce((latest, report) => {
+      const previous = latest.get(report.village_id);
+      if (!previous || (report.updated_at || "") > (previous.updated_at || "")) {
+        latest.set(report.village_id, report);
+      }
+      return latest;
+    }, new Map<string, ReportData>()).values());
+  }
+
+  return reports.filter((report) => {
+    if (selectedOption.legacyName) {
+      return !report.period_id && report.report_period === selectedOption.legacyName;
+    }
+    if (!selectedOption.periodId) return false;
+    if (report.period_id === selectedOption.periodId) return true;
+
+    // Rows created before period_id became mandatory remain readable, but a
+    // name fallback is safe only when it resolves to exactly one period.
+    const sameNamePeriods = reportPeriods.filter((period) => period.name === selectedOption.periodName);
+    return !report.period_id
+      && sameNamePeriods.length === 1
+      && report.report_period === selectedOption.periodName;
+  });
+}
+
+export function buildDashboardPeriodOptions(reportPeriods: ReportPeriod[], reports: ReportData[]): DashboardPeriodOption[] {
+  const nameCounts = reportPeriods.reduce((counts, period) => {
+    counts.set(period.name, (counts.get(period.name) || 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const knownIds = new Set(reportPeriods.map((period) => period.id));
+  const knownNames = new Set(reportPeriods.map((period) => period.name));
+  const options: DashboardPeriodOption[] = [{ value: ALL_PERIODS, label: "Tất cả kỳ" }];
+
+  for (const period of reportPeriods) {
+    const duplicateName = (nameCounts.get(period.name) || 0) > 1;
+    const dueDate = duplicateName && period.due_date
+      ? new Date(period.due_date).toLocaleDateString("vi-VN")
+      : "";
+    options.push({
+      value: `period:${period.id}`,
+      label: dueDate ? `${period.name} — hạn ${dueDate}` : period.name,
+      periodId: period.id,
+      periodName: period.name,
+    });
+  }
+
+  const legacyKeys = new Set<string>();
+  for (const report of reports) {
+    if (report.period_id && knownIds.has(report.period_id)) continue;
+    if (!report.period_id && knownNames.has(report.report_period)) continue;
+    const value = report.period_id ? `period:${report.period_id}` : `legacy:${report.report_period}`;
+    if (legacyKeys.has(value)) continue;
+    legacyKeys.add(value);
+    options.push({
+      value,
+      label: `${report.report_period} — dữ liệu lịch sử`,
+      periodId: report.period_id || undefined,
+      periodName: report.report_period,
+      legacyName: report.period_id ? undefined : report.report_period,
+    });
+  }
+
+  return options;
 }
 
 export function splitDashboardReports(reports: ReportData[]) {
@@ -32,7 +114,7 @@ export function splitDashboardReports(reports: ReportData[]) {
 export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon", reportPeriods = [] }: DashboardProps) {
   const { userVillageId } = useAuth();
   const { villages: new_villages } = useVillages();
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("Tất cả kỳ");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(ALL_PERIODS);
   const [selectedVillageFilter, setSelectedVillageFilter] = useState<string>("all");
   const [showChartModal, setShowChartModal] = useState<boolean>(false);
 
@@ -48,27 +130,30 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     ? userVillageId
     : selectedVillageFilter;
 
-  const { localDrafts, serverReports } = splitDashboardReports(reports);
+  const { localDrafts, serverReports } = useMemo(
+    () => splitDashboardReports(reports),
+    [reports],
+  );
 
-  // Periods are first-class records and must remain selectable before any
-  // village submits a report. Keep historical report-only names as a fallback.
-  const periodNames = [
-    "Tất cả kỳ",
-    ...Array.from(new Set([
-      ...reportPeriods.map((period) => period.name),
-      ...serverReports.map((report) => report.report_period),
-    ])),
-  ];
+  // Period identity is the UUID, never the display name. Duplicate names are
+  // valid historical data and must not merge two distinct report periods.
+  const periodOptions = useMemo(
+    () => buildDashboardPeriodOptions(reportPeriods, serverReports),
+    [reportPeriods, serverReports],
+  );
+  const selectedPeriodOption = periodOptions.find((option) => option.value === selectedPeriod)
+    || periodOptions[0];
+  const selectedPeriodLabel = selectedPeriodOption.label;
+
+  useEffect(() => {
+    if (!periodOptions.some((option) => option.value === selectedPeriod)) {
+      setSelectedPeriod(ALL_PERIODS);
+    }
+  }, [periodOptions, selectedPeriod]);
 
   // "Tất cả kỳ" is a snapshot view: keep only the latest report per village,
   // otherwise population/household snapshots would be counted repeatedly.
-  const periodReports = selectedPeriod === "Tất cả kỳ"
-    ? Array.from(serverReports.reduce((latest, report) => {
-        const previous = latest.get(report.village_id);
-        if (!previous || (report.updated_at || "") > (previous.updated_at || "")) latest.set(report.village_id, report);
-        return latest;
-      }, new Map<string, ReportData>()).values())
-    : serverReports.filter((report) => report.report_period === selectedPeriod);
+  const periodReports = filterDashboardReportsByPeriod(serverReports, reportPeriods, selectedPeriodOption);
 
   const filteredReports = periodReports.filter(r => {
     const matchesVillage = effectiveVillageFilter === "all" || r.village_id === effectiveVillageFilter;
@@ -116,13 +201,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   };
 
   const handleExport = async (fileFormat: "xlsx" | "docx" | "pdf" = "xlsx") => {
-    if (selectedPeriod === "Tất cả kỳ") {
+    if (selectedPeriod === ALL_PERIODS) {
         alert("Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu.");
         return;
     }
     
-    const periodId = reportPeriods.find((period) => period.name === selectedPeriod)?.id
-      || serverReports.find((report) => report.report_period === selectedPeriod)?.period_id;
+    const periodId = selectedPeriodOption.periodId;
     if (!periodId) {
       alert("Không xác định được mã kỳ báo cáo để xuất dữ liệu.");
       return;
@@ -140,7 +224,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       const url = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = url;
-      const periodPart = selectedPeriod.replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-");
+      const periodPart = selectedPeriodLabel.replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-");
       const scopePart = effectiveVillageFilter === "all"
         ? "toan-xa"
         : getVillageName(effectiveVillageFilter).replace(/[^0-9A-Za-zÀ-ỹ]+/g, "-");
@@ -222,8 +306,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               onChange={(e) => setSelectedPeriod(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
             >
-              {periodNames.map(p => (
-                <option key={p} value={p}>{p}</option>
+              {periodOptions.map((period) => (
+                <option key={period.value} value={period.value}>{period.label}</option>
               ))}
             </select>
           </div>
@@ -247,7 +331,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         <div className="flex items-center gap-3 w-full md:w-auto">
           {userRole !== "dan" && userRole !== "lanh_dao" && (
             <button
-              onClick={onAddNewReport}
+              onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
               className="flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
             >
               <Plus className="w-4 h-4" />
@@ -283,7 +367,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         </div>
       </div>
 
-      <DataScope period={selectedPeriod} scope={effectiveVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(effectiveVillageFilter)} quality={filteredReports.length ? `${filteredReports.length} báo cáo trong lát cắt` : "Chưa có dữ liệu"} />
+      <DataScope period={selectedPeriodLabel} scope={effectiveVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(effectiveVillageFilter)} quality={filteredReports.length ? `${filteredReports.length} báo cáo trong lát cắt` : "Chưa có dữ liệu"} />
 
       {/* Grid: 4 Core KPIs Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -572,7 +656,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-xs text-slate-500">Chưa có bản báo cáo nào được ghi nhận khớp với bộ lọc.</p>
             <button 
-              onClick={onAddNewReport}
+              onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
               className="mt-3 text-xs text-emerald-600 hover:text-emerald-800 font-bold"
             >
               Khai báo ngay
@@ -704,8 +788,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-emerald-600" />
               <h3 className="font-bold text-slate-800 text-sm">Cơ cấu Hộ dân & Nhân khẩu theo Thôn</h3>
-              {selectedPeriod !== "Tất cả kỳ" && (
-                <span className="text-xs text-slate-500 font-medium">— {selectedPeriod}</span>
+              {selectedPeriod !== ALL_PERIODS && (
+                <span className="text-xs text-slate-500 font-medium">— {selectedPeriodLabel}</span>
               )}
             </div>
             <button
