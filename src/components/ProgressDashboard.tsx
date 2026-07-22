@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./ProgressDashboard.css";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 
 type DashboardColor = "green" | "yellow" | "red";
 type ReportStatus = "chua_nop" | "dung_han" | "tre_han";
@@ -126,17 +126,13 @@ export default function ProgressDashboard({
             setAlerts(alertsPayload);
           }
         }
-      } catch (error: any) {
+      } catch (error) {
         if (!abortController.signal.aborted) {
-          let msg = "Có lỗi xảy ra khi tải dữ liệu tiến độ.";
-          if (error && error.message) {
+          let msg = toUserFacingError(error, "Có lỗi xảy ra khi tải dữ liệu tiến độ.");
+          if (error instanceof Error) {
             const errStr = error.message.toLowerCase();
             if (errStr.includes("unexpected token") || errStr.includes("is not valid json")) {
               msg = "Kỳ báo cáo này chưa được khởi tạo hoặc chưa có số liệu nộp.";
-            } else if (errStr.includes("failed to fetch")) {
-              msg = "Không thể kết nối đến máy chủ lấy trạng thái tiến độ.";
-            } else {
-              msg = error.message;
             }
           }
           setErrorMessage(msg);

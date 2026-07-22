@@ -4,7 +4,7 @@ import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
 import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod } from "../types";
 import { saveReport, addToSyncQueue } from "../lib/db";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
 import { Button, PageHeader, SectionCard, StickyActionBar } from "./ui";
@@ -306,7 +306,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       });
       setAiAnalysis(analysis);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Không thể tạo diễn giải AI vào lúc này.";
+      const message = toUserFacingError(error, "Không thể tạo diễn giải AI vào lúc này.");
       setAiError(`${message} Bạn vẫn có thể tiếp tục dựa trên kiểm tra nghiệp vụ ở bên trên.`);
     } finally {
       setIsAiValidating(false);

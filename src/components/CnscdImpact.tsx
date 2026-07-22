@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw, Users } from "lucide-react";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 
 interface CnscdImpactProps {
   selectedPeriod: string;
@@ -52,7 +52,7 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
         setData((await response.json()) as CnscdImpactData);
       } catch (reason) {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : "Không thể tải dữ liệu.");
+          setError(toUserFacingError(reason, "Không thể tải dữ liệu."));
           setData(null);
         }
       } finally {

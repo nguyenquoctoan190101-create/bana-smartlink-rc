@@ -4,7 +4,7 @@ import {
   Calendar, MapPin, Eye, FileText, ArrowRight, 
   Activity, Shield, CheckCircle2, XCircle
 } from "lucide-react";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 
 interface PendingUpdatesProps {
@@ -162,8 +162,8 @@ export default function PendingUpdates({
         };
       }));
 
-    } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu.");
+    } catch (err) {
+      setError(toUserFacingError(err, "Đã xảy ra lỗi khi tải dữ liệu."));
     } finally {
       setIsLoading(false);
     }
@@ -195,8 +195,8 @@ export default function PendingUpdates({
       if (onUpdateProcessed) {
         onUpdateProcessed();
       }
-    } catch (err: any) {
-      setError(err.message || "Giao dịch thất bại.");
+    } catch (err) {
+      setError(toUserFacingError(err, "Giao dịch thất bại."));
     } finally {
       setActionLoading(null);
     }

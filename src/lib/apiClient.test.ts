@@ -51,6 +51,9 @@ describe("apiClient", () => {
     expect(toUserFacingError(new ApiError("Internal server error", 500), "Không tải được dữ liệu.")).toBe(
       "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.",
     );
+    expect(toUserFacingError(new Error("Internal server error"), "Không tải được dữ liệu.")).toBe(
+      "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.",
+    );
     expect(toUserFacingError(new Error("Failed to fetch"), "Không tải được dữ liệu.")).toBe(
       "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.",
     );

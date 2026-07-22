@@ -9,7 +9,7 @@ import {
   Loader2, 
   AlertCircle 
 } from "lucide-react";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
 
 interface PolicyMetric {
@@ -63,9 +63,9 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
       }
       const resData: ScorecardData = await response.json();
       setData(resData);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Lỗi tải thông tin scorecard:", err);
-      setError(err.message || "Đã xảy ra lỗi hệ thống.");
+      setError(toUserFacingError(err, "Đã xảy ra lỗi hệ thống."));
     } finally {
       setLoading(false);
     }

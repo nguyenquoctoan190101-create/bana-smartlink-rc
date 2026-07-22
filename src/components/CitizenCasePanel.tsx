@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, CheckCircle2, MapPin, RefreshCw, Send } from "lucide-react";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { Button, EmptyState, SectionCard } from "./ui";
 
 type Village = { id: string; name: string };
@@ -64,7 +64,7 @@ export default function CitizenCasePanel({ villages, onBack }: { villages: Villa
       }
       setMediaWarning(uploadWarning);
       setResult(data);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Không thể gửi phản ánh. Vui lòng thử lại."); }
+    } catch (cause) { setError(toUserFacingError(cause, "Không thể gửi phản ánh. Vui lòng thử lại.")); }
     finally { setBusy(false); }
   };
 

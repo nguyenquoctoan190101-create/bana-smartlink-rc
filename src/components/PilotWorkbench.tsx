@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Compass, Loader2, Radio, RefreshCw, ShieldAlert } from "lucide-react";
 import type { UserRole } from "../types";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { Button, EmptyState, ErrorState, PageHeader, SectionCard } from "./ui";
 import PilotObservatory from "./PilotObservatory";
 
@@ -39,7 +39,7 @@ export default function PilotWorkbench({ role }: Props) {
         next.tourism_enabled ? apiJson<Place[]>("/api/pilots/tourism/places") : Promise.resolve([]),
       ]);
       setDevices(nextDevices); setPlaces(nextPlaces);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Không tải được trạng thái pilot."); }
+    } catch (cause) { setError(toUserFacingError(cause, "Không tải được trạng thái pilot.")); }
     finally { setLoading(false); }
   };
   useEffect(() => { void refresh(); }, []);

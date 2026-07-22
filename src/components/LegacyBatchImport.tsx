@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Upload } from "lucide-react";
 
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
 import { Button, DataScope, ErrorState, PageHeader, SectionCard, StatusBadge } from "./ui";
 
@@ -110,7 +110,7 @@ export default function LegacyBatchImport() {
     try {
       setPreview(await apiJson<Preview>("/report-imports/preview", { method: "POST", body: formData() }));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Không thể kiểm tra bộ tệp.");
+      setError(toUserFacingError(caught, "Không thể kiểm tra bộ tệp."));
     } finally {
       setBusy(false);
     }
@@ -137,7 +137,7 @@ export default function LegacyBatchImport() {
       await apiJson<StoredFile[]>(`/report-imports/batches/${batch.id}/files`, { method: "POST", body: formData() });
       await refreshBatch(batch.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Không thể tạo đợt kiểm duyệt.");
+      setError(toUserFacingError(caught, "Không thể tạo đợt kiểm duyệt."));
     } finally {
       setBusy(false);
     }
@@ -165,7 +165,7 @@ export default function LegacyBatchImport() {
       });
       await refreshBatch(detail.batch.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Không thể lưu quyết định kiểm duyệt.");
+      setError(toUserFacingError(caught, "Không thể lưu quyết định kiểm duyệt."));
     } finally {
       setBusy(false);
     }
@@ -182,7 +182,7 @@ export default function LegacyBatchImport() {
       await apiJson(`/report-imports/batches/${detail.batch.id}/commit`, { method: "POST" });
       await refreshBatch(detail.batch.id);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Không thể chốt đợt nhập.");
+      setError(toUserFacingError(caught, "Không thể chốt đợt nhập."));
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Database, RefreshCw, Wifi, WifiOff, XCircle } from "lucide-react";
 import { deleteReport, getSyncQueue, removeFromSyncQueue, saveReport } from "../lib/db";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import type { ReportData, SyncReportsResponse } from "../types";
 
 interface SyncStatusProps {
@@ -70,7 +70,7 @@ export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
       await refreshQueue();
       onSyncCompleted();
     } catch (cause) {
-      setMessage(cause instanceof Error ? `Đồng bộ thất bại: ${cause.message}` : "Đồng bộ thất bại.");
+      setMessage(toUserFacingError(cause, "Đồng bộ thất bại. Vui lòng thử lại."));
     } finally {
       setIsSyncing(false);
     }

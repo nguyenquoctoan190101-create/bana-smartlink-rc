@@ -13,7 +13,7 @@ import {
   X, 
   ShieldAlert
 } from "lucide-react";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 
 interface UploadReportProps {
   onDataExtracted: (
@@ -200,9 +200,9 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         "photo_ocr",
         null,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.message || "Đã xảy ra lỗi khi kết nối máy chủ phân tích ảnh.");
+      setError(toUserFacingError(err, "Đã xảy ra lỗi khi kết nối máy chủ phân tích ảnh."));
     } finally {
       setIsProcessing(false);
     }
@@ -234,9 +234,9 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         "excel",
         resData.metadata || null,
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.message || "Đã xảy ra lỗi khi kết nối máy chủ chuẩn hóa biểu mẫu.");
+      setError(toUserFacingError(err, "Đã xảy ra lỗi khi kết nối máy chủ chuẩn hóa biểu mẫu."));
     } finally {
       setIsProcessing(false);
     }

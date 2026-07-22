@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ClipboardCheck, MessageSquare, RefreshCw } from "lucide-react";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 import { PUBLIC_INDICATOR_CODES } from "../types";
 import { Button, PageHeader, SectionCard } from "./ui";
@@ -65,7 +65,7 @@ export default function CitizenProposal({ reports, onProposalSubmitted }: Citize
       if (!response.ok) throw new Error(result.message || result.detail || "Không thể gửi kiến nghị.");
       setTrackingCode(typeof result.tracking_code === "string" ? result.tracking_code : null);
       setStep(4); onProposalSubmitted();
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Không thể gửi kiến nghị."); }
+    } catch (caught) { setError(toUserFacingError(caught, "Không thể gửi kiến nghị.")); }
     finally { setIsSending(false); }
   };
 

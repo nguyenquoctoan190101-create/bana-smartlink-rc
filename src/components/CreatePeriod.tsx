@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, Calendar, CheckCircle2, FileSpreadsheet, Loader2, Plus, Trash2, Upload, Users } from "lucide-react";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 
 interface CreatedPeriod {
@@ -99,9 +99,7 @@ export default function CreatePeriod() {
         } catch (cause) {
           setCreated({ ...result, village_ids: selectedVillages, notified_count: selectedVillages.length });
           setTemplateUploadFailed(true);
-          setError(cause instanceof Error
-            ? `Kỳ báo cáo đã được tạo nhưng chưa tải được biểu mẫu: ${cause.message}`
-            : "Kỳ báo cáo đã được tạo nhưng chưa tải được biểu mẫu.");
+          setError(`Kỳ báo cáo đã được tạo nhưng chưa tải được biểu mẫu. ${toUserFacingError(cause, "Vui lòng thử tải lại biểu mẫu.")}`);
           return;
         }
       }
@@ -111,7 +109,7 @@ export default function CreatePeriod() {
       setTemplateFile(null);
       setSelectedVillages(allVillageIds);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không thể tạo kỳ báo cáo.");
+      setError(toUserFacingError(cause, "Không thể tạo kỳ báo cáo."));
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +133,7 @@ export default function CreatePeriod() {
       setTemplateFile(null);
       setSelectedVillages(allVillageIds);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không thể tải lại biểu mẫu.");
+      setError(toUserFacingError(cause, "Không thể tải lại biểu mẫu."));
     } finally {
       setIsSubmitting(false);
     }

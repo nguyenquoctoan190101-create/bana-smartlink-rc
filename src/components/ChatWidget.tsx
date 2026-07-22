@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import "./ChatWidget.css";
 
 /* ─────────────────────────── Types ─────────────────────────────────── */
@@ -158,10 +158,7 @@ export default function ChatWidget({
         ),
       );
     } catch (err) {
-      const errorText =
-        err instanceof Error
-          ? err.message
-          : "Đã xảy ra lỗi. Vui lòng thử lại.";
+      const errorText = toUserFacingError(err, "Đã xảy ra lỗi. Vui lòng thử lại.");
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingMsg.id

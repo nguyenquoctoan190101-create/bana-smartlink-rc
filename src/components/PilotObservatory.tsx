@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, RefreshCw } from "lucide-react";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { Button, EmptyState, SectionCard, StatusBadge } from "./ui";
 
 type Observation = {
@@ -34,7 +34,7 @@ export default function PilotObservatory({ enabled }: { enabled: boolean }) {
       ]);
       setObservations(nextObservations); setAlerts(nextAlerts);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Không tải được dữ liệu quan trắc.");
+      setError(toUserFacingError(cause, "Không tải được dữ liệu quan trắc."));
     } finally { setLoading(false); }
   };
 

@@ -32,7 +32,10 @@ export function toUserFacingError(error: unknown, fallback: string): string {
     return error.message || fallback;
   }
   if (error instanceof Error) {
-    if (/internal server error|failed to fetch|network error|load failed|fetch failed/i.test(error.message)) {
+    if (/internal server error|server error|bad gateway|service unavailable/i.test(error.message)) {
+      return "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.";
+    }
+    if (/failed to fetch|network error|load failed|fetch failed/i.test(error.message)) {
       return "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.";
     }
     return error.message || fallback;

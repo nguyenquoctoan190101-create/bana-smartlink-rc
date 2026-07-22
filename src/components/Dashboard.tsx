@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ReportData, UserRole, workflowStatusOf } from "../types";
-import { apiFetch } from "../lib/apiClient";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { 
   TrendingUp, Users, Home, HeartPulse, ShieldAlert, Award, FileText, 
   Trash2, Edit, Cpu, HelpCircle, ChevronRight, BarChart3, Plus, Download, X, Maximize2, CheckCircle, Lock
@@ -130,7 +130,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Không thể xuất báo cáo.");
+      alert(toUserFacingError(error, "Không thể xuất báo cáo."));
     }
   };
 

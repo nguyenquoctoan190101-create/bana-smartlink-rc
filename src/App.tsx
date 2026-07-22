@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getAllReports, getLocalDrafts, deleteReport } from "./lib/db";
-import { apiFetch, apiJson } from "./lib/apiClient";
+import { apiFetch, apiJson, toUserFacingError } from "./lib/apiClient";
 import { useAuth } from "./lib/AuthContext";
 
 import { ReportData, UserRole } from "./types";
@@ -645,7 +645,7 @@ export default function App() {
               await handlePasswordChange(newPassword);
               setNewPassword("");
             } catch (error) {
-              setPasswordResetMessage(error instanceof Error ? error.message : "Không thể đổi mật khẩu.");
+              setPasswordResetMessage(toUserFacingError(error, "Không thể đổi mật khẩu. Vui lòng kiểm tra lại và thử lại."));
             }
           }}
         >
