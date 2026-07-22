@@ -363,13 +363,19 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
 
     try {
       await saveReport(report);
-      setSubmitMessage({ type: "success", text: "Đã lưu bản nháp báo cáo thành công vào IndexedDB ngoại tuyến!" });
+      setSubmitMessage({
+        type: "success",
+        text: "Đã lưu bản nháp trên thiết bị này. Bạn có thể tiếp tục tại mục Dữ liệu của thôn.",
+      });
       setTimeout(() => {
         setSubmitMessage(null);
         onSaved();
       }, 1500);
     } catch (e) {
-      setSubmitMessage({ type: "error", text: "Lỗi lưu trữ bản ghi vào IndexedDB thiết bị." });
+      setSubmitMessage({
+        type: "error",
+        text: "Không thể lưu bản nháp trên thiết bị. Hãy kiểm tra dung lượng trình duyệt và thử lại.",
+      });
     }
   };
 

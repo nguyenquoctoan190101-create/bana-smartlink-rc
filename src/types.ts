@@ -56,6 +56,8 @@ export interface ReportData extends IndicatorValues {
   raw_source?: ReportSource;
   source_confirmed?: boolean;
   pending_sync?: boolean;
+  /** Frontend-only marker: this report exists only in the current browser. */
+  local_only?: boolean;
 }
 
 export interface Village {

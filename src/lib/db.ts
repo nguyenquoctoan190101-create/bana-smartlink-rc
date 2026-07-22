@@ -102,7 +102,7 @@ export async function deleteReport(id: string): Promise<void> {
 export async function getLocalDrafts(): Promise<ReportData[]> {
   const db = await initDB();
   const values = await db.getAllFromIndex(REPORTS_STORE, "by-owner", activeOwnerKey) as StoredReport[];
-  return values.map(stripStorageFields);
+  return values.map((value) => ({ ...stripStorageFields(value), local_only: true }));
 }
 
 export async function getSyncQueue(): Promise<ReportData[]> {

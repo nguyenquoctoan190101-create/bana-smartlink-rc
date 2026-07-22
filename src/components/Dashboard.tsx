@@ -7,16 +7,25 @@ import {
 } from "lucide-react";
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
-import { DataScope, PageHeader } from "./ui";
+import { Button, DataScope, PageHeader, SectionCard, StatusBadge } from "./ui";
 
 interface DashboardProps {
   reports: ReportData[];
   onEditReport: (report: ReportData) => void;
-  onDeleteReport: (id: string) => void;
+  onDeleteReport: (id: string, localOnly?: boolean) => void;
   onApproveReport?: (id: string) => void;
   onLockReport?: (id: string) => void;
   onAddNewReport: () => void;
   userRole?: UserRole;
+}
+
+export function splitDashboardReports(reports: ReportData[]) {
+  return {
+    localDrafts: reports
+      .filter((report) => report.local_only)
+      .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || "")),
+    serverReports: reports.filter((report) => !report.local_only),
+  };
 }
 
 export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon" }: DashboardProps) {
@@ -38,18 +47,20 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     ? userVillageId
     : selectedVillageFilter;
 
+  const { localDrafts, serverReports } = splitDashboardReports(reports);
+
   // Get list of periods present in the reports
-  const periods = ["Tất cả kỳ", ...Array.from(new Set(reports.map(r => r.report_period)))];
+  const periods = ["Tất cả kỳ", ...Array.from(new Set(serverReports.map(r => r.report_period)))];
 
   // "Tất cả kỳ" is a snapshot view: keep only the latest report per village,
   // otherwise population/household snapshots would be counted repeatedly.
   const periodReports = selectedPeriod === "Tất cả kỳ"
-    ? Array.from(reports.reduce((latest, report) => {
+    ? Array.from(serverReports.reduce((latest, report) => {
         const previous = latest.get(report.village_id);
         if (!previous || (report.updated_at || "") > (previous.updated_at || "")) latest.set(report.village_id, report);
         return latest;
       }, new Map<string, ReportData>()).values())
-    : reports.filter((report) => report.report_period === selectedPeriod);
+    : serverReports.filter((report) => report.report_period === selectedPeriod);
 
   const filteredReports = periodReports.filter(r => {
     const matchesVillage = effectiveVillageFilter === "all" || r.village_id === effectiveVillageFilter;
@@ -102,7 +113,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         return;
     }
     
-    const periodId = reports.find((report) => report.report_period === selectedPeriod)?.period_id;
+    const periodId = serverReports.find((report) => report.report_period === selectedPeriod)?.period_id;
     if (!periodId) {
       alert("Không xác định được mã kỳ báo cáo để xuất dữ liệu.");
       return;
@@ -147,7 +158,50 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             : "Mỗi số liệu được hiển thị theo kỳ, phạm vi và trạng thái nguồn. Dữ liệu chưa có không được quy đổi thành số 0."}
       />
 
-
+      {userRole !== "dan" && userRole !== "lanh_dao" && localDrafts.length > 0 && (
+        <SectionCard className="p-5 md:p-6 border-amber-200 bg-amber-50/40">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Bản nháp trên thiết bị</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Chỉ lưu trong trình duyệt này theo tài khoản hiện tại; chưa gửi lên xã và không được tính vào số liệu tổng hợp.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-bold text-amber-800">
+              {localDrafts.length} bản nháp
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {localDrafts.map((draft) => (
+              <article key={`local-${draft.id}`} className="rounded-xl border border-amber-200 bg-white p-4 shadow-2xs">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        status={draft.pending_sync ? "pending" : "draft"}
+                        label={draft.pending_sync ? "Chờ đồng bộ" : "Bản nháp cục bộ"}
+                      />
+                      <span className="text-xs font-semibold text-slate-500">{getVillageName(draft.village_id)}</span>
+                    </div>
+                    <h3 className="mt-2 font-bold text-slate-900">{draft.report_period || "Chưa chọn kỳ báo cáo"}</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Lưu gần nhất: {draft.updated_at ? new Date(draft.updated_at).toLocaleString("vi-VN") : "Chưa xác định"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={() => onEditReport(draft)}>
+                      <Edit className="h-4 w-4" /> Tiếp tục nhập
+                    </Button>
+                    <Button type="button" variant="danger" onClick={() => onDeleteReport(draft.id, true)}>
+                      <Trash2 className="h-4 w-4" /> Xóa bản nháp
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
       {/* Filters Toolbar */}
       <div className="filter-bar">

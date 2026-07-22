@@ -316,8 +316,9 @@ export default function App() {
     try {
       const remote = await getAllReports(!isLoggedIn || userRole === "dan");
       const drafts = isLoggedIn && userRole !== "dan" ? await getLocalDrafts() : [];
-      const remoteIds = new Set(remote.map((report) => report.id));
-      const all = [...drafts.filter((report) => !remoteIds.has(report.id)), ...remote];
+      // Keep device drafts separate even when they originated from a server
+      // report. A local edit must never hide or replace the last server state.
+      const all = [...drafts, ...remote];
       all.sort((a, b) => {
         const dateA = a.updated_at || "";
         const dateB = b.updated_at || "";
@@ -343,11 +344,13 @@ export default function App() {
     changeTab("report-form");
   };
 
-  const handleDeleteReport = async (id: string) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa bản báo cáo số liệu này khỏi thiết bị không?")) {
+  const handleDeleteReport = async (id: string, localOnly = false) => {
+    const confirmation = localOnly
+      ? "Bạn có chắc chắn muốn xóa bản nháp này khỏi thiết bị?"
+      : "Bạn có chắc chắn muốn xóa báo cáo này khỏi hệ thống?";
+    if (window.confirm(confirmation)) {
       try {
-        const report = reports.find((item) => item.id === id);
-        if (report?.pending_sync || report?.workflow_status === "draft") {
+        if (localOnly) {
           await deleteReport(id);
         } else {
           await apiJson<void>(`/reports/${id}`, { method: "DELETE" });
@@ -457,7 +460,7 @@ export default function App() {
           <main className="flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
             <React.Suspense fallback={<LoadingPanel />}>
               <PublicVillagePage 
-                reports={reports} 
+                reports={reports.filter((report) => !report.local_only)}
                 onProposalSubmitted={loadAllReports}
                 onGoToLogin={() => setPublicMode("login")}
               />
@@ -1067,7 +1070,7 @@ export default function App() {
 
               {activeTab === "citizen-proposal" && (
                 <CitizenProposal 
-                  reports={reports}
+                  reports={reports.filter((report) => !report.local_only)}
                   onProposalSubmitted={loadAllReports}
                 />
               )}
