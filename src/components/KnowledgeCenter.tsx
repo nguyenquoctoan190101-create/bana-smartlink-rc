@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { BookOpen, Database, Loader2, MapPin, Plus, RotateCw, Sparkles, Users } from "lucide-react";
 import type { UserRole } from "../types";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { loadVillages } from "../lib/useVillages";
 import { Button, EmptyState, ErrorState, PageHeader, SectionCard, StatusBadge } from "./ui";
 
@@ -103,7 +103,7 @@ export default function KnowledgeCenter({ role }: Props) {
       setNotice(success);
       await refresh();
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "Không thể cập nhật. Vui lòng thử lại.");
+      setNotice(toUserFacingError(caught, "Không thể cập nhật. Vui lòng thử lại."));
     }
   };
 
@@ -142,7 +142,7 @@ export default function KnowledgeCenter({ role }: Props) {
       const response = await apiJson<{ result?: { projection?: Record<string, number> } }>(`/api/knowledge/scenarios/${id}/run`, { method: "POST", body: JSON.stringify({ baseline: { population, budget, service_demand }, assumptions: { population_change_pct, budget_change_pct, service_demand_change_pct } }) });
       setScenarioResult(response.result?.projection || null);
       setNotice("Đã chạy mô phỏng xác định từ các giả định đã nhập. Đây không phải dự báo AI.");
-    } catch (caught) { setNotice(caught instanceof Error ? caught.message : "Không thể chạy mô phỏng."); }
+    } catch (caught) { setNotice(toUserFacingError(caught, "Không thể chạy mô phỏng.")); }
     finally { setRunningScenario(null); }
   };
 

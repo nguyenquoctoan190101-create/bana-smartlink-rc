@@ -19,6 +19,27 @@ export class ApiError extends Error {
   }
 }
 
+/** Convert transport/backend failures into safe, actionable Vietnamese copy. */
+export function toUserFacingError(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    if (error.status >= 500 || error.code === "INVALID_RESPONSE") {
+      return "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.";
+    }
+    if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+    if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+    if (error.status === 404) return "Không tìm thấy dữ liệu yêu cầu hoặc dữ liệu đã thay đổi.";
+    if (error.status === 429) return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
+    return error.message || fallback;
+  }
+  if (error instanceof Error) {
+    if (/internal server error|failed to fetch|network error|load failed|fetch failed/i.test(error.message)) {
+      return "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.";
+    }
+    return error.message || fallback;
+  }
+  return fallback;
+}
+
 function toUrl(path: string): string {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${cleanPath}`;

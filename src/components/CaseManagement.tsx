@@ -9,7 +9,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { UserRole } from "../types";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import {
   Button,
   EmptyState,
@@ -144,11 +144,7 @@ export default function CaseManagement({
         return next;
       });
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Không tải được danh sách phản ánh.",
-      );
+      setError(toUserFacingError(cause, "Không tải được danh sách phản ánh."));
     } finally {
       setLoading(false);
     }
@@ -203,9 +199,7 @@ export default function CaseManagement({
       );
       await refresh();
     } catch (cause) {
-      setNotice(
-        cause instanceof Error ? cause.message : "Không thể phân công phản ánh.",
-      );
+      setNotice(toUserFacingError(cause, "Không thể phân công phản ánh."));
     } finally {
       setBusyId(null);
     }
@@ -231,11 +225,7 @@ export default function CaseManagement({
       setNextStatuses((current) => ({ ...current, [item.id]: "" }));
       await refresh();
     } catch (cause) {
-      setNotice(
-        cause instanceof Error
-          ? cause.message
-          : "Không thể cập nhật trạng thái.",
-      );
+      setNotice(toUserFacingError(cause, "Không thể cập nhật trạng thái."));
     } finally {
       setBusyId(null);
     }

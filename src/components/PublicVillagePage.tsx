@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Award, Check, CheckCircle2, ClipboardCheck, FileSearch, FileText, Home, Lock, MapPin, MessageSquare, Navigation, Phone, RefreshCw, ShieldCheck, Users } from "lucide-react";
-import { apiFetch, apiJson } from "../lib/apiClient";
+import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import { loadVillages } from "../lib/useVillages";
 import { Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, StatusBadge, TopographicPattern } from "./ui";
 import CitizenCasePanel from "./CitizenCasePanel";
@@ -242,7 +242,7 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
       setProposalStep(4);
       await onProposalSubmitted?.();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Không thể gửi kiến nghị. Vui lòng thử lại.");
+      setFormError(toUserFacingError(error, "Không thể gửi kiến nghị. Vui lòng thử lại."));
     } finally {
       setIsSending(false);
     }

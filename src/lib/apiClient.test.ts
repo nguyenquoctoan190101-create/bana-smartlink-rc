@@ -6,7 +6,7 @@ vi.mock("./supabase", () => ({
   supabase: { auth: { getSession: mocks.getSession } },
 }));
 
-import { ApiError, apiFetch, apiJson } from "./apiClient";
+import { ApiError, apiFetch, apiJson, toUserFacingError } from "./apiClient";
 
 describe("apiClient", () => {
   beforeEach(() => {
@@ -45,5 +45,20 @@ describe("apiClient", () => {
       headers: { "content-type": "text/html" },
     }));
     await expect(apiJson("/reports")).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  it("does not expose server or transport errors in the UI", () => {
+    expect(toUserFacingError(new ApiError("Internal server error", 500), "Không tải được dữ liệu.")).toBe(
+      "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.",
+    );
+    expect(toUserFacingError(new Error("Failed to fetch"), "Không tải được dữ liệu.")).toBe(
+      "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.",
+    );
+  });
+
+  it("keeps actionable validation messages", () => {
+    expect(toUserFacingError(new ApiError("Giá trị CT01 không hợp lệ.", 422), "Không hợp lệ.")).toBe(
+      "Giá trị CT01 không hợp lệ.",
+    );
   });
 });

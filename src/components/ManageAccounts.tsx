@@ -16,7 +16,7 @@ import {
   KeyRound,
   X
 } from "lucide-react";
-import { apiJson } from "../lib/apiClient";
+import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 
 interface Officer {
@@ -66,7 +66,7 @@ export default function ManageAccounts() {
       const resData = await apiJson<Officer[]>("/auth/officers");
       setOfficers(Array.isArray(resData) ? resData : []);
     } catch (err: any) {
-      setError(err.message || "Lỗi tải danh sách tài khoản.");
+      setError(toUserFacingError(err, "Không thể tải danh sách tài khoản."));
     } finally {
       setIsLoading(false);
     }
@@ -95,7 +95,7 @@ export default function ManageAccounts() {
       // Auto-clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError(err.message || "Lỗi cập nhật trạng thái tài khoản.");
+      setError(toUserFacingError(err, "Không thể cập nhật trạng thái tài khoản."));
     }
   };
 
@@ -114,7 +114,7 @@ export default function ManageAccounts() {
       setSuccess(`Đã cấp lại mật khẩu cho cán bộ ${name} thành công.`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      setError(err.message || "Lỗi cấp lại mật khẩu.");
+      setError(toUserFacingError(err, "Không thể cấp lại mật khẩu."));
     }
   };
 
@@ -172,7 +172,7 @@ export default function ManageAccounts() {
       setEmail("");
       setPhone("");
     } catch (err: any) {
-      setError(err.message || "Lỗi cấp tài khoản.");
+      setError(toUserFacingError(err, "Không thể cấp tài khoản."));
     } finally {
       setIsSubmitting(false);
     }
