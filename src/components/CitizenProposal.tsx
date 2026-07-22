@@ -6,7 +6,11 @@ import { useVillages } from "../lib/useVillages";
 import { PUBLIC_INDICATOR_CODES } from "../types";
 import { Button, PageHeader, SectionCard } from "./ui";
 
-interface CitizenProposalProps { reports: any[]; onProposalSubmitted: () => void; }
+interface CitizenProposalProps {
+  reports: any[];
+  onProposalSubmitted: () => void;
+  onOpenFieldReport?: () => void;
+}
 type Step = 1 | 2 | 3 | 4;
 
 const indicatorNames: Record<string, string> = {
@@ -14,7 +18,7 @@ const indicatorNames: Record<string, string> = {
   CT12: "Thành viên Tổ công nghệ số cộng đồng", CT13: "Lượt hướng dẫn dịch vụ công trực tuyến",
 };
 
-export default function CitizenProposal({ reports, onProposalSubmitted }: CitizenProposalProps) {
+export default function CitizenProposal({ reports, onProposalSubmitted, onOpenFieldReport }: CitizenProposalProps) {
   const { villages } = useVillages();
   const [step, setStep] = useState<Step>(1);
   const [isSending, setIsSending] = useState(false);
@@ -42,7 +46,7 @@ export default function CitizenProposal({ reports, onProposalSubmitted }: Citize
   const moveTo = (next: Step) => {
     setError(null);
     if (next === 2 && (!selectedReportId || suggestedValue === "" || !explanation.trim())) {
-      setError(!selectedReportId ? "Thôn này chưa có báo cáo để kiến nghị." : "Vui lòng nhập giá trị đề xuất và lý do điều chỉnh.");
+      setError(!selectedReportId ? "Thôn này chưa có bản công bố để đối chiếu." : "Vui lòng nhập giá trị đề xuất và lý do điều chỉnh.");
       return;
     }
     if (next === 3 && (!phone.trim() || !submitterName.trim() || !submitterHousehold.trim() || !submitterAddress.trim())) {
@@ -62,10 +66,10 @@ export default function CitizenProposal({ reports, onProposalSubmitted }: Citize
         body: JSON.stringify({ report_id: selectedReportId, village_id: selectedVillage, ct_code: selectedIndicator, proposed_value: Number(suggestedValue), proposed_by_phone: phone, submitter_name: submitterName, submitter_household: submitterHousehold, submitter_address: submitterAddress, submitter_relation: submitterRelation, explanation, privacy_consent: true }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || result.detail || "Không thể gửi kiến nghị.");
+      if (!response.ok) throw new Error(result.message || result.detail || "Không thể gửi đề nghị đối chiếu.");
       setTrackingCode(typeof result.tracking_code === "string" ? result.tracking_code : null);
       setStep(4); onProposalSubmitted();
-    } catch (caught) { setError(toUserFacingError(caught, "Không thể gửi kiến nghị.")); }
+    } catch (caught) { setError(toUserFacingError(caught, "Không thể gửi đề nghị đối chiếu.")); }
     finally { setIsSending(false); }
   };
 
@@ -74,16 +78,16 @@ export default function CitizenProposal({ reports, onProposalSubmitted }: Citize
   };
 
   return <div className="mx-auto max-w-4xl">
-    <PageHeader eyebrow="Kiến nghị dữ liệu" title="Gửi đề xuất để cán bộ đối chiếu" description="Kiến nghị không tự thay đổi số liệu. Quản trị xã sẽ kiểm tra nguồn trước khi quyết định." />
+    <PageHeader eyebrow="Đối chiếu dữ liệu công khai" title="Đề nghị sửa số liệu đã công bố" description="Biểu mẫu chỉ tiếp nhận đề nghị đối chiếu 5 chỉ tiêu công khai. Đề nghị không tự thay đổi số liệu; quản trị xã phải kiểm tra nguồn trước khi quyết định." />
     <SectionCard className="overflow-hidden">
       <div className="border-b border-slate-200 p-5 md:p-7">
-        <ol className="grid grid-cols-3 gap-2" aria-label="Tiến trình gửi kiến nghị">
+        <ol className="grid grid-cols-3 gap-2" aria-label="Tiến trình gửi đề nghị đối chiếu số liệu">
           {["Số liệu", "Liên hệ", "Xác nhận"].map((label, index) => { const number = index + 1; const active = step >= number; return <li key={label} className={`flex items-center gap-2 border-t-2 pt-3 text-xs font-semibold ${active ? "border-emerald-700 text-emerald-900" : "border-slate-200 text-slate-400"}`}><span className={`grid h-6 w-6 place-items-center rounded-full ${active ? "bg-emerald-800 text-white" : "bg-slate-100"}`}>{step > number ? <Check className="h-3.5 w-3.5" /> : number}</span>{label}</li>; })}
         </ol>
       </div>
       <form onSubmit={submit} className="p-5 md:p-7">
         {error && <div role="alert" className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</div>}
-        {step === 1 && <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Thôn<select className="mt-1.5" value={selectedVillage} onChange={(event) => setSelectedVillage(event.target.value)}>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Kỳ báo cáo<select className="mt-1.5" value={selectedReportId} onChange={(event) => setSelectedReportId(event.target.value)} disabled={!villageReports.length}>{!villageReports.length && <option value="">Chưa có báo cáo</option>}{villageReports.map((report) => <option key={report.id} value={report.id}>{report.report_period}</option>)}</select></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Chỉ tiêu<select className="mt-1.5" value={selectedIndicator} onChange={(event) => setSelectedIndicator(event.target.value)}>{PUBLIC_INDICATOR_CODES.map((code) => <option key={code} value={code}>{code} · {indicatorNames[code]}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Giá trị đề xuất<input className="mt-1.5" type="number" min={0} value={suggestedValue} onChange={(event) => setSuggestedValue(event.target.value)} required /></label></div><label className="block text-sm font-semibold text-slate-700">Lý do điều chỉnh<textarea className="mt-1.5" rows={4} value={explanation} onChange={(event) => setExplanation(event.target.value)} required /></label><div className="flex justify-end"><Button type="button" onClick={() => moveTo(2)}>Tiếp tục<ArrowRight /></Button></div></div>}
+        {step === 1 && <div className="space-y-5"><div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-bold">Chỉ dành cho 5 chỉ tiêu đã công khai</p><p className="mt-1 leading-relaxed">Bạn có thể đề nghị đối chiếu CT01, CT02, CT09, CT12 hoặc CT13. Vấn đề về đường, điện, nước, rác thải, an toàn hoặc dịch vụ khác thuộc luồng phản ánh hiện trường.</p>{onOpenFieldReport && <Button type="button" variant="secondary" className="mt-3" onClick={onOpenFieldReport}>Phản ánh hiện trường<ArrowRight /></Button>}</div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Thôn<select className="mt-1.5" value={selectedVillage} onChange={(event) => setSelectedVillage(event.target.value)}>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Kỳ công bố<select className="mt-1.5" value={selectedReportId} onChange={(event) => setSelectedReportId(event.target.value)} disabled={!villageReports.length}>{!villageReports.length && <option value="">Chưa có bản công bố</option>}{villageReports.map((report) => <option key={report.id} value={report.id}>{report.report_period}</option>)}</select></label></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Chỉ tiêu công khai cần đối chiếu<select className="mt-1.5" value={selectedIndicator} onChange={(event) => setSelectedIndicator(event.target.value)}>{PUBLIC_INDICATOR_CODES.map((code) => <option key={code} value={code}>{code} · {indicatorNames[code]}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Giá trị đề xuất<input className="mt-1.5" type="number" min={0} value={suggestedValue} onChange={(event) => setSuggestedValue(event.target.value)} required /></label></div><label className="block text-sm font-semibold text-slate-700">Lý do cần đối chiếu<textarea className="mt-1.5" rows={4} value={explanation} onChange={(event) => setExplanation(event.target.value)} required /></label><div className="flex justify-end"><Button type="button" onClick={() => moveTo(2)}>Tiếp tục<ArrowRight /></Button></div></div>}
         {step === 2 && (
           <div className="space-y-6">
             <section aria-labelledby="citizen-proposal-contact-heading" className="rounded-xl border border-slate-200 bg-slate-25 p-4 sm:p-5">
@@ -105,8 +109,8 @@ export default function CitizenProposal({ reports, onProposalSubmitted }: Citize
             <div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => moveTo(1)}><ArrowLeft />Quay lại</Button><Button type="button" onClick={() => moveTo(3)}>Tiếp tục<ArrowRight /></Button></div>
           </div>
         )}
-        {step === 3 && <div className="space-y-5"><div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><h3 className="font-bold text-slate-900">Xác nhận nội dung</h3><p className="mt-2 text-sm text-slate-600">{villageName} · {reportName} · {selectedIndicator} · Giá trị đề xuất {suggestedValue}</p><p className="mt-2 text-sm font-medium text-slate-800">{explanation}</p></div><label className="flex min-h-14 items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm text-slate-700"><input className="mt-0.5 h-5! min-h-5! w-5!" type="checkbox" checked={privacyConsent} onChange={(event) => setPrivacyConsent(event.target.checked)} required /><span>Tôi đồng ý gửi thông tin liên hệ và nội dung kiến nghị để UBND xã Bà Nà xử lý theo thông báo quyền riêng tư.</span></label><div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => moveTo(2)}><ArrowLeft />Quay lại</Button><Button type="submit" disabled={isSending || !privacyConsent}>{isSending ? <RefreshCw className="animate-spin" /> : <ClipboardCheck />}Gửi kiến nghị</Button></div></div>}
-        {step === 4 && <div className="py-6 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-800"><CheckCircle2 className="h-8 w-8" /></span><h3 className="mt-5 text-xl font-bold text-slate-900">Kiến nghị đã được ghi nhận</h3><p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">Thông tin cá nhân không được lặp lại trên màn hình xác nhận.</p>{trackingCode && <div className="mx-auto mt-5 max-w-sm rounded-lg border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-800">MÃ TRA CỨU</p><p className="mt-1 font-mono text-xl font-bold tracking-wider text-emerald-950">{trackingCode}</p></div>}<Button type="button" className="mt-6" onClick={reset}><MessageSquare />Gửi kiến nghị khác</Button></div>}
+        {step === 3 && <div className="space-y-5"><div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><h3 className="font-bold text-slate-900">Xác nhận nội dung</h3><p className="mt-2 text-sm text-slate-600">{villageName} · {reportName} · {selectedIndicator} · Giá trị đề xuất {suggestedValue}</p><p className="mt-2 text-sm font-medium text-slate-800">{explanation}</p></div><label className="flex min-h-14 items-start gap-3 rounded-lg border border-slate-200 p-4 text-sm text-slate-700"><input className="mt-0.5 h-5! min-h-5! w-5!" type="checkbox" checked={privacyConsent} onChange={(event) => setPrivacyConsent(event.target.checked)} required /><span>Tôi đồng ý gửi thông tin liên hệ và đề nghị đối chiếu số liệu để UBND xã Bà Nà xử lý theo thông báo quyền riêng tư.</span></label><div className="flex justify-between gap-3"><Button type="button" variant="secondary" onClick={() => moveTo(2)}><ArrowLeft />Quay lại</Button><Button type="submit" disabled={isSending || !privacyConsent}>{isSending ? <RefreshCw className="animate-spin" /> : <ClipboardCheck />}Gửi đề nghị đối chiếu</Button></div></div>}
+        {step === 4 && <div className="py-6 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-800"><CheckCircle2 className="h-8 w-8" /></span><h3 className="mt-5 text-xl font-bold text-slate-900">Đề nghị đối chiếu đã được ghi nhận</h3><p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">Thông tin cá nhân không được lặp lại trên màn hình xác nhận.</p>{trackingCode && <div className="mx-auto mt-5 max-w-sm rounded-lg border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-bold text-emerald-800">MÃ TRA CỨU</p><p className="mt-1 font-mono text-xl font-bold tracking-wider text-emerald-950">{trackingCode}</p></div>}<Button type="button" className="mt-6" onClick={reset}><MessageSquare />Gửi đề nghị khác</Button></div>}
       </form>
     </SectionCard>
   </div>;

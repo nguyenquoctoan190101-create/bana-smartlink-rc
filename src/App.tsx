@@ -709,7 +709,7 @@ export default function App() {
           { id: "cases", label: "Phản ánh hiện trường", icon: MapPinned },
           { id: "report-form", label: "Nhập báo cáo", icon: FileText },
           { id: "dashboard", label: "Dữ liệu của thôn", icon: BarChart3, group: "Theo dõi" },
-          { id: "citizen-proposal", label: "Gửi kiến nghị", icon: MessageSquare },
+          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
           { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
         ];
       case "lanh_dao":
@@ -727,7 +727,7 @@ export default function App() {
       default:
         return [
           { id: "dashboard", label: "Thông tin thôn", icon: BarChart3 },
-          { id: "citizen-proposal", label: "Gửi đề xuất sửa", icon: MessageSquare }
+          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare }
         ];
     }
   };
@@ -1073,6 +1073,7 @@ export default function App() {
                 <CitizenProposal 
                   reports={reports.filter((report) => !report.local_only)}
                   onProposalSubmitted={loadAllReports}
+                  onOpenFieldReport={() => changeTab("cases")}
                 />
               )}
 

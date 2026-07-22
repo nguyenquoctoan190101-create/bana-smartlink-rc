@@ -14,7 +14,7 @@ describe("citizen proposal workflow", () => {
     render(<CitizenProposal reports={[{ id: "report-1", village_id: "village-1", report_period: "Tháng 7/2026" }]} onProposalSubmitted={() => undefined} />);
 
     await user.type(screen.getByLabelText("Giá trị đề xuất"), "125");
-    await user.type(screen.getByLabelText("Lý do điều chỉnh"), "Số liệu cần cán bộ đối chiếu lại.");
+    await user.type(screen.getByLabelText("Lý do cần đối chiếu"), "Số liệu cần cán bộ đối chiếu lại.");
     await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
 
     const nameInput = screen.getByLabelText(/Họ và tên/);
@@ -34,5 +34,16 @@ describe("citizen proposal workflow", () => {
 
     expect(screen.getByText("Xác nhận nội dung")).toBeInTheDocument();
     expect(screen.getByText(/Thôn mẫu · Tháng 7\/2026 · CT01/)).toBeInTheDocument();
+  });
+
+  it("separates public-data corrections from field reports", async () => {
+    const user = userEvent.setup();
+    const openFieldReport = vi.fn();
+    render(<CitizenProposal reports={[]} onProposalSubmitted={() => undefined} onOpenFieldReport={openFieldReport} />);
+
+    expect(screen.getByText("Chỉ dành cho 5 chỉ tiêu đã công khai")).toBeInTheDocument();
+    expect(screen.getByText(/đường, điện, nước, rác thải/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Phản ánh hiện trường" }));
+    expect(openFieldReport).toHaveBeenCalledOnce();
   });
 });
