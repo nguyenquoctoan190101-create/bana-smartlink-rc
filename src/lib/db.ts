@@ -94,6 +94,62 @@ export async function saveReport(report: ReportData): Promise<void> {
 }
 
 /**
+ * Pick the newest editable device draft for a village/period pair. Queued
+ * submissions are deliberately excluded: once the user has submitted a
+ * report, it must stay immutable until the server ACKs or rejects that item.
+ */
+export function selectLatestDraftForScope(
+  reports: ReportData[],
+  villageId: string,
+  periodId: string,
+): ReportData | null {
+  return reports
+    .filter((report) => (
+      report.village_id === villageId
+      && report.period_id === periodId
+      && !report.pending_sync
+    ))
+    .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))[0] || null;
+}
+
+export async function getLocalDraftForScope(
+  villageId: string,
+  periodId: string,
+): Promise<ReportData | null> {
+  const db = await initDB();
+  const values = await db.getAllFromIndex(REPORTS_STORE, "by-owner", activeOwnerKey) as StoredReport[];
+  return selectLatestDraftForScope(values.map(stripStorageFields), villageId, periodId);
+}
+
+/**
+ * Upsert one editable draft per authenticated owner, village and period.
+ * Older duplicate drafts from previous releases are removed in the same
+ * transaction so the dashboard always offers one unambiguous continuation.
+ */
+export async function saveDraftForScope(report: ReportData): Promise<ReportData> {
+  const db = await initDB();
+  const existingValues = await db.getAllFromIndex(REPORTS_STORE, "by-owner", activeOwnerKey) as StoredReport[];
+  const existing = selectLatestDraftForScope(existingValues.map(stripStorageFields), report.village_id, report.period_id || "");
+  const draft = existing ? { ...report, id: existing.id } : report;
+  const tx = db.transaction(REPORTS_STORE, "readwrite");
+  const store = tx.objectStore(REPORTS_STORE);
+
+  for (const value of existingValues) {
+    if (
+      value.village_id === report.village_id
+      && value.period_id === report.period_id
+      && !value.pending_sync
+      && value.id !== draft.id
+    ) {
+      await store.delete(value.storage_key);
+    }
+  }
+  await store.put(stored(draft));
+  await tx.done;
+  return draft;
+}
+
+/**
  * A submission is not authoritative until the server acknowledges it. Keep the
  * device copy as a draft while making its queued state explicit so the UI does
  * not claim that the report has already been submitted.

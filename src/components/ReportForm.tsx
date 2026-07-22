@@ -3,7 +3,7 @@ import { AlertCircle, AlertTriangle, Sparkles, Save, Send, Trash2, CheckCircle2,
 import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
 import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues } from "../types";
-import { queueReportForSync, saveReport } from "../lib/db";
+import { getLocalDraftForScope, queueReportForSync, saveDraftForScope } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
@@ -63,6 +63,9 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
   // Status message
   const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [reportMetadata, setReportMetadata] = useState<{ raw_source: string; source_confirmed: boolean } | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(initialReport?.id || null);
+  const [recoverableDraft, setRecoverableDraft] = useState<ReportData | null>(null);
+  const [dismissedDraftId, setDismissedDraftId] = useState<string | null>(null);
 
   // User interaction and Submit Review States
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
@@ -89,6 +92,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
   // Load initial report if editing
   useEffect(() => {
     if (initialReport) {
+      setDraftId(initialReport.id);
       setVillageId(initialReport.village_id);
       setPeriodId(initialReport.period_id || "");
       setReportPeriod(initialReport.report_period);
@@ -116,6 +120,44 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       setAiAnalysis(null);
     }
   }, [initialReport, userName, userPhone]);
+
+  useEffect(() => {
+    if (initialReport || !villageId || !periodId) {
+      setRecoverableDraft(null);
+      return;
+    }
+    let cancelled = false;
+    void getLocalDraftForScope(villageId, periodId).then((draft) => {
+      if (!cancelled) setRecoverableDraft(draft?.id === dismissedDraftId ? null : draft);
+    }).catch(() => {
+      if (!cancelled) setRecoverableDraft(null);
+    });
+    return () => { cancelled = true; };
+  }, [dismissedDraftId, initialReport, periodId, villageId]);
+
+  const restoreLocalDraft = () => {
+    if (!recoverableDraft) return;
+    setDraftId(recoverableDraft.id);
+    setReporterName(userName || "");
+    setReporterPhone(userPhone || "");
+    setAssistedByCnscd(recoverableDraft.assisted_by_cnscd || false);
+    setAssistedMemberName(recoverableDraft.assisted_member_name || "");
+    setIndicators({
+      CT01: recoverableDraft.CT01, CT02: recoverableDraft.CT02,
+      CT03: recoverableDraft.CT03, CT04: recoverableDraft.CT04,
+      CT05: recoverableDraft.CT05, CT06: recoverableDraft.CT06,
+      CT07: recoverableDraft.CT07, CT08: recoverableDraft.CT08,
+      CT09: recoverableDraft.CT09, CT10: recoverableDraft.CT10,
+      CT11: recoverableDraft.CT11, CT12: recoverableDraft.CT12,
+      CT13: recoverableDraft.CT13, CT14: recoverableDraft.CT14,
+    });
+    setReportMetadata(recoverableDraft.raw_source ? {
+      raw_source: recoverableDraft.raw_source,
+      source_confirmed: Boolean(recoverableDraft.source_confirmed),
+    } : null);
+    setRecoverableDraft(null);
+    setSubmitMessage({ type: "success", text: "Đã khôi phục bản nháp gần nhất cho thôn và kỳ báo cáo này." });
+  };
 
   useEffect(() => {
     if (initialReport) return;
@@ -338,7 +380,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       return;
     }
     const report: ReportData = {
-      id: initialReport?.id || crypto.randomUUID(),
+      id: draftId || initialReport?.id || crypto.randomUUID(),
       village_id: villageId,
       period_id: periodId,
       report_period: reportPeriod,
@@ -358,10 +400,11 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     };
 
     try {
-      await saveReport(report);
+      const savedDraft = await saveDraftForScope(report);
+      setDraftId(savedDraft.id);
       setSubmitMessage({
         type: "success",
-        text: "Đã lưu bản nháp trên thiết bị này. Bạn có thể tiếp tục tại mục Dữ liệu của thôn.",
+        text: "Đã lưu bản nháp cho đúng thôn và kỳ này. Mở mục Dữ liệu của thôn để tiếp tục nhập.",
       });
       setTimeout(() => {
         setSubmitMessage(null);
@@ -460,7 +503,7 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     if (!isConfirmChecked) return;
 
     const report: ReportData = {
-      id: initialReport?.id || crypto.randomUUID(),
+      id: draftId || initialReport?.id || crypto.randomUUID(),
       village_id: villageId,
       period_id: periodId,
       report_period: reportPeriod,
@@ -535,6 +578,32 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
           <li><b className="text-emerald-800">3. Xã rà soát</b><br />Admin xã xem, yêu cầu chỉnh sửa hoặc duyệt theo quy trình.</li>
         </ol>
       </SectionCard>
+
+      {recoverableDraft && (
+        <SectionCard className="border-amber-300 bg-amber-50 p-4" role="status" aria-live="polite">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="font-bold text-amber-950">Đã có bản nháp cho thôn và kỳ này</h2>
+              <p className="mt-1 text-sm text-amber-900">
+                Lưu gần nhất {recoverableDraft.updated_at
+                  ? new Date(recoverableDraft.updated_at).toLocaleString("vi-VN")
+                  : "trên thiết bị này"}. Khôi phục để tiếp tục đúng dữ liệu đang làm dở.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={restoreLocalDraft}>
+                <RefreshCw className="h-4 w-4" /> Khôi phục bản nháp
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => {
+                setDismissedDraftId(recoverableDraft.id);
+                setRecoverableDraft(null);
+              }}>
+                Bắt đầu bản trống
+              </Button>
+            </div>
+          </div>
+        </SectionCard>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Indicators Form (Left 2 Columns) */}
