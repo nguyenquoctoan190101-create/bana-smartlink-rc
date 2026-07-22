@@ -3,7 +3,7 @@ import { AlertCircle, AlertTriangle, Sparkles, Save, Send, Trash2, CheckCircle2,
 import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
 import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues } from "../types";
-import { saveReport, addToSyncQueue } from "../lib/db";
+import { queueReportForSync, saveReport } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
@@ -466,10 +466,13 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
       report_period: reportPeriod,
       reporter_name: reporterName,
       reporter_phone: reporterPhone,
-      workflow_status: "submitted",
+      // The server is authoritative for submission and timeliness. Until its
+      // per-item ACK arrives, the local copy remains an explicit queued draft.
+      workflow_status: "draft",
       timeliness_status: "not_submitted",
       publication_status: "private",
-      status: "Submitted",
+      status: "Draft",
+      pending_sync: true,
       expected_version: initialReport?.version,
       idempotency_key: initialReport?.idempotency_key || crypto.randomUUID(),
       assisted_by_cnscd: assistedByCnscd,
@@ -481,10 +484,8 @@ export default function ReportForm({ initialReport, onSaved, onCancel }: ReportF
     };
 
     try {
-      // 1. Save to local Reports table
-      await saveReport(report);
-      // 2. Queue into Sync Queue for remote PostgreSQL/Supabase replication
-      await addToSyncQueue(report);
+      // Store the local copy and queue item together so they cannot diverge.
+      await queueReportForSync(report);
 
       const isOnline = navigator.onLine;
 

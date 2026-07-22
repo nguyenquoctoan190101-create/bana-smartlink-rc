@@ -93,6 +93,34 @@ export async function saveReport(report: ReportData): Promise<void> {
   await db.put(REPORTS_STORE, stored(report));
 }
 
+/**
+ * A submission is not authoritative until the server acknowledges it. Keep the
+ * device copy as a draft while making its queued state explicit so the UI does
+ * not claim that the report has already been submitted.
+ */
+export function prepareReportForSync(report: ReportData): ReportData {
+  return {
+    ...report,
+    workflow_status: "draft",
+    timeliness_status: "not_submitted",
+    publication_status: "private",
+    status: "Draft",
+    pending_sync: true,
+  };
+}
+
+/** Persist the device copy and its sync item atomically. */
+export async function queueReportForSync(report: ReportData): Promise<void> {
+  const db = await initDB();
+  const queued = stored(prepareReportForSync(report));
+  const tx = db.transaction([REPORTS_STORE, QUEUE_STORE], "readwrite");
+  await Promise.all([
+    tx.objectStore(REPORTS_STORE).put(queued),
+    tx.objectStore(QUEUE_STORE).put(queued),
+  ]);
+  await tx.done;
+}
+
 /** Delete only a device-local draft. Server reports require an authenticated API delete. */
 export async function deleteReport(id: string): Promise<void> {
   const db = await initDB();
@@ -113,7 +141,7 @@ export async function getSyncQueue(): Promise<ReportData[]> {
 
 export async function addToSyncQueue(report: ReportData): Promise<void> {
   const db = await initDB();
-  await db.put(QUEUE_STORE, stored({ ...report, pending_sync: true }));
+  await db.put(QUEUE_STORE, stored(prepareReportForSync(report)));
 }
 
 export async function removeFromSyncQueue(id: string): Promise<void> {
