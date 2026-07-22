@@ -28,6 +28,7 @@ class VillageCnscdImpactResponse(BaseModel):
 class CnscdImpactResponse(BaseModel):
     period_id: UUID
     period_name: str
+    has_report_data: bool
     submitted_report_count: int
     assisted_report_count: int
     ct13_total: int | None
@@ -68,6 +69,7 @@ async def get_cnscd_impact(
     return CnscdImpactResponse(
         period_id=UUID(impact.period_id),
         period_name=impact.period_name,
+        has_report_data=impact.has_report_data,
         submitted_report_count=impact.submitted_report_count,
         assisted_report_count=impact.assisted_report_count,
         ct13_total=impact.ct13_total,

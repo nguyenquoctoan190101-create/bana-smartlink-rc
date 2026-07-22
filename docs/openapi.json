@@ -1132,6 +1132,10 @@
             ],
             "title": "Difference"
           },
+          "has_report_data": {
+            "title": "Has Report Data",
+            "type": "boolean"
+          },
           "interpretation": {
             "title": "Interpretation",
             "type": "string"
@@ -1164,6 +1168,7 @@
         "required": [
           "period_id",
           "period_name",
+          "has_report_data",
           "submitted_report_count",
           "assisted_report_count",
           "ct13_total",

@@ -19,6 +19,7 @@ interface VillageImpact {
 interface CnscdImpactData {
   period_id: string;
   period_name: string;
+  has_report_data: boolean;
   submitted_report_count: number;
   assisted_report_count: number;
   ct13_total: number | null;
@@ -83,7 +84,7 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
     );
   }
 
-  const complete = data.missing_ct13_report_count === 0;
+  const complete = data.has_report_data && data.missing_ct13_report_count === 0;
   return (
     <section className="space-y-5" aria-labelledby="cnscd-title">
       <header>
@@ -92,7 +93,14 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
         <p className="mt-2 text-sm text-slate-600">{data.period_name} · Phạm vi toàn xã · Nguồn: báo cáo đã được quyền xem</p>
       </header>
 
-      {!complete && (
+      {!data.has_report_data && (
+        <div className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4" role="status">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-slate-600" aria-hidden="true" />
+          <p className="text-sm text-slate-800">Kỳ này chưa có báo cáo được nộp. Các chỉ số đối chiếu được để trống, không quy đổi thành 0.</p>
+        </div>
+      )}
+
+      {data.has_report_data && !complete && (
         <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4" role="status">
           <AlertTriangle className="h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
           <p className="text-sm text-amber-950">Chưa tính tổng hoặc độ lệch vì {data.missing_ct13_report_count} báo cáo thiếu CT13. Giá trị thiếu không được quy đổi thành 0.</p>
@@ -102,7 +110,7 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
       <div className="grid gap-4 md:grid-cols-4">
         {[
           ["Báo cáo đã nộp", data.submitted_report_count.toLocaleString("vi-VN"), "báo cáo"],
-          ["Có CNSCĐ hỗ trợ", data.assisted_report_count.toLocaleString("vi-VN"), "báo cáo"],
+          ["Có CNSCĐ hỗ trợ", data.has_report_data ? data.assisted_report_count.toLocaleString("vi-VN") : "—", data.has_report_data ? "báo cáo" : "Chưa có báo cáo"],
           ["Tổng CT13 tự khai", showNumber(data.ct13_total), data.ct13_total === null ? "Chưa đủ dữ liệu" : "lượt"],
           ["Chênh lệch đối chiếu", showNumber(data.difference), data.difference === null ? "Chưa đủ dữ liệu" : "lượt"],
         ].map(([label, value, context]) => (

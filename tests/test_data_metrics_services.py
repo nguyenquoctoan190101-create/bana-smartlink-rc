@@ -91,6 +91,7 @@ async def test_cnscd_impact_preserves_missing_ct13_instead_of_zero() -> None:
         [{"report_id": "r1", "value": 5}],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")
+    assert result.has_report_data is True
     assert result.submitted_report_count == 2
     assert result.assisted_report_count == 1
     assert result.missing_ct13_report_count == 1
@@ -112,6 +113,7 @@ async def test_cnscd_impact_complete_data_calculates_total_and_includes_unsubmit
         [{"report_id": "r1", "value": "7"}],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")
+    assert result.has_report_data is True
     assert result.ct13_total == 7
     assert result.difference == 6
     assert result.absolute_difference == 6
@@ -129,8 +131,12 @@ async def test_cnscd_impact_no_reports_skips_value_request() -> None:
         [],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")
+    assert result.has_report_data is False
     assert result.submitted_report_count == 0
-    assert result.ct13_total == 0
+    assert result.ct13_total is None
+    assert result.difference is None
+    assert result.absolute_difference is None
+    assert "chưa có báo cáo" in result.interpretation
     assert result.villages[0].ct13_value is None
     assert supabase._rest_request.await_count == 3
 

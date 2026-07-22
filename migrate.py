@@ -17,8 +17,17 @@ BASELINE = ROOT / "db" / "schema.sql"
 MIGRATIONS = ROOT / "migrations"
 LOCK_KEY = 7_202_607_13
 BASELINE_INCORPORATED_GLOB = "20260713_*.sql"
-FRESH_OVERLAY_GLOBS = ("20260715_*.sql", "20260718_*.sql", "20260722_*.sql")
-RELEASE_OVERLAY_GLOBS = ("20260718_*.sql", "20260722_*.sql")
+FRESH_OVERLAY_GLOBS = (
+    "20260715_*.sql",
+    "20260718_*.sql",
+    "20260722_*.sql",
+    "20260723_*.sql",
+)
+RELEASE_OVERLAY_GLOBS = (
+    "20260718_*.sql",
+    "20260722_*.sql",
+    "20260723_*.sql",
+)
 
 
 def _checksum(path: Path) -> str:

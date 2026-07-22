@@ -16,6 +16,9 @@ export interface IndicatorSchema {
   min: number;
   warning_multiplier_min?: number;
   warning_multiplier_max?: number;
+  warning_ratio_min?: number;
+  warning_ratio_max?: number;
+  warning_ratio_ref?: string;
   warning_message?: string;
   max_ref?: string;
   error_message?: string;

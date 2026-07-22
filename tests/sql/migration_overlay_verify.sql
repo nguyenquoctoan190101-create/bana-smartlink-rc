@@ -34,6 +34,15 @@ begin
 
   if not exists (
     select 1 from pg_trigger
+    where tgrelid = 'public.reports'::regclass
+      and tgname = 'reports_assistance_provenance'
+      and not tgisinternal
+  ) then
+    raise exception 'report assistance provenance trigger is missing';
+  end if;
+
+  if not exists (
+    select 1 from pg_trigger
     where tgrelid = 'public.report_import_files'::regclass
       and tgname = 'report_import_files_guard'
       and not tgisinternal
@@ -48,21 +57,24 @@ begin
   if has_function_privilege('anon', 'public.commit_report_import_batch(uuid)', 'execute')
      or has_function_privilege('anon', 'public.report_indicator_values_are_valid(uuid)', 'execute')
      or has_function_privilege('anon', 'public.guard_report_import_file_mutation()', 'execute')
-     or has_function_privilege('anon', 'public.enforce_submitted_report_values()', 'execute') then
+     or has_function_privilege('anon', 'public.enforce_submitted_report_values()', 'execute')
+     or has_function_privilege('anon', 'public.enforce_report_assistance_provenance()', 'execute') then
     raise exception 'anonymous role can execute protected import/validation helpers';
   end if;
 
   if not has_function_privilege('authenticated', 'public.commit_report_import_batch(uuid)', 'execute')
      or has_function_privilege('authenticated', 'public.report_indicator_values_are_valid(uuid)', 'execute')
      or has_function_privilege('authenticated', 'public.guard_report_import_file_mutation()', 'execute')
-     or has_function_privilege('authenticated', 'public.enforce_submitted_report_values()', 'execute') then
+     or has_function_privilege('authenticated', 'public.enforce_submitted_report_values()', 'execute')
+     or has_function_privilege('authenticated', 'public.enforce_report_assistance_provenance()', 'execute') then
     raise exception 'authenticated role has an invalid import/helper privilege set';
   end if;
 
   if has_function_privilege('service_role', 'public.commit_report_import_batch(uuid)', 'execute')
      or has_function_privilege('service_role', 'public.report_indicator_values_are_valid(uuid)', 'execute')
      or has_function_privilege('service_role', 'public.guard_report_import_file_mutation()', 'execute')
-     or has_function_privilege('service_role', 'public.enforce_submitted_report_values()', 'execute') then
+     or has_function_privilege('service_role', 'public.enforce_submitted_report_values()', 'execute')
+     or has_function_privilege('service_role', 'public.enforce_report_assistance_provenance()', 'execute') then
     raise exception 'service role retains direct execute on protected import/validation helpers';
   end if;
 
@@ -74,6 +86,16 @@ begin
       and proconfig @> array['search_path=pg_catalog, public']
   ) then
     raise exception 'submitted report trigger must validate as a hardened security definer';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc
+    where oid = 'public.enforce_report_assistance_provenance()'::regprocedure
+      and prosecdef
+      and proconfig @> array['search_path=pg_catalog, public']
+  ) then
+    raise exception 'report assistance trigger must be a hardened security definer';
   end if;
 
   if has_table_privilege('authenticated', 'public.report_import_lineage', 'insert') then

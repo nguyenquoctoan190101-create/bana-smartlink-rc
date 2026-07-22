@@ -296,3 +296,77 @@ def test_sync_reports_partial_village_auth(client, mock_report_repo):
     assert data["rejected"][0]["code"] == "FORBIDDEN"
     assert mock_report_repo.save_report.call_count == 1
     app.dependency_overrides.pop(require_authenticated_user, None)
+
+
+def test_sync_rejects_spoofed_cnscd_assistance_from_village_officer(
+    client,
+    mock_report_repo,
+):
+    village_id = str(uuid4())
+    report_id = str(uuid4())
+    app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="can_bo_thon",
+        village_id=village_id,
+        force_password_reset=False,
+        display_name="Cán bộ thôn",
+    )
+    item = _make_report_item(report_id, village_id)
+    item["assisted_by_cnscd"] = True
+    item["assisted_member_name"] = "Tên giả mạo"
+
+    try:
+        response = client.post("/reports/sync", json={"reports": [item]})
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["accepted"] == []
+        assert len(data["rejected"]) == 1
+        assert data["rejected"][0]["code"] == "FORBIDDEN"
+        assert "CNSCĐ" in data["rejected"][0]["message"]
+        assert data["rejected"][0]["retryable"] is False
+        mock_report_repo.save_report.assert_not_awaited()
+    finally:
+        app.dependency_overrides.pop(require_authenticated_user, None)
+
+
+def test_sync_derives_cnscd_assistant_name_from_authenticated_profile(
+    client,
+    mock_report_repo,
+):
+    village_id = str(uuid4())
+    report_id = str(uuid4())
+    period_id = str(uuid4())
+    authenticated_name = "Thành viên CNSCĐ được xác thực"
+    app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="to_cnscd",
+        village_id=village_id,
+        force_password_reset=False,
+        display_name=authenticated_name,
+    )
+    mock_report_repo.get_period_id_by_name.return_value = period_id
+    mock_report_repo.save_report.return_value = SimpleNamespace(
+        id=report_id,
+        village_id=village_id,
+        period_id=period_id,
+        workflow_status="submitted",
+        timeliness_status="on_time",
+        version=1,
+        replayed=False,
+    )
+    item = _make_report_item(report_id, village_id)
+    item["assisted_by_cnscd"] = True
+    item["assisted_member_name"] = "Tên do trình duyệt gửi lên"
+
+    try:
+        response = client.post("/reports/sync", json={"reports": [item]})
+
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["rejected"] == []
+        saved = mock_report_repo.save_report.await_args.kwargs
+        assert saved["assisted_by_cnscd"] is True
+        assert saved["assisted_member_name"] == authenticated_name
+    finally:
+        app.dependency_overrides.pop(require_authenticated_user, None)

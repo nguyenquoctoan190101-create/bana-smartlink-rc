@@ -432,6 +432,10 @@ async def submit_report(
 ) -> ReportSubmitResponse:
     """Submit a village report from JSON after validation."""
     await _authorize_report_write(repository, current_user, payload.village_id)
+    assisted_by_cnscd, assisted_member_name = _resolve_cnscd_assistance(
+        current_user,
+        payload.assisted_by_cnscd,
+    )
     source = _canonical_report_source(payload.raw_source)
     if source in ("photo_ocr", "excel") and not payload.source_confirmed:
         raise HTTPException(
@@ -448,8 +452,8 @@ async def submit_report(
         values=payload.values,
         notes=None,
         raw_source=source,
-        assisted_by_cnscd=payload.assisted_by_cnscd,
-        assisted_member_name=payload.assisted_member_name,
+        assisted_by_cnscd=assisted_by_cnscd,
+        assisted_member_name=assisted_member_name,
         expected_version=payload.expected_version,
         idempotency_key=payload.idempotency_key,
     )
@@ -506,6 +510,10 @@ async def sync_reports(
             if getattr(report, f"CT{i:02d}") is not None
         }
         try:
+            assisted_by_cnscd, assisted_member_name = _resolve_cnscd_assistance(
+                current_user,
+                report.assisted_by_cnscd,
+            )
             source = _canonical_report_source(report.raw_source)
             if source in {"excel", "photo_ocr"} and not report.source_confirmed:
                 raise HTTPException(
@@ -521,8 +529,8 @@ async def sync_reports(
                 values=values,
                 notes=None,
                 raw_source=source,
-                assisted_by_cnscd=report.assisted_by_cnscd,
-                assisted_member_name=report.assisted_member_name,
+                assisted_by_cnscd=assisted_by_cnscd,
+                assisted_member_name=assisted_member_name,
                 report_id=report.id,
                 expected_version=report.expected_version,
                 idempotency_key=report.idempotency_key or report.id,
@@ -652,6 +660,10 @@ async def upload_report_file(
     """Parse the official Excel template and submit through the same validator."""
     _ = request
     await _authorize_report_write(repository, current_user, village_id)
+    assisted_by_cnscd, assisted_member_name = _resolve_cnscd_assistance(
+        current_user,
+        assisted_by_cnscd,
+    )
     if not source_confirmed:
         raise HTTPException(
             status_code=422,
@@ -1223,6 +1235,27 @@ async def _authorize_report_write(
     ):
         return
     raise HTTPException(status_code=403, detail="Cannot modify an unassigned village")
+
+
+def _resolve_cnscd_assistance(
+    user: UserProfile,
+    requested: bool,
+) -> tuple[bool, str | None]:
+    """Derive assistance provenance from the authenticated profile only."""
+    if not requested:
+        return False, None
+    if user.role != "to_cnscd":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chỉ thành viên Tổ CNSCĐ mới được ghi nhận hỗ trợ nhập liệu.",
+        )
+    display_name = (user.display_name or "").strip()
+    if not display_name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Tài khoản Tổ CNSCĐ chưa có tên hiển thị hợp lệ.",
+        )
+    return True, display_name
 
 
 async def _authorize_village_read(

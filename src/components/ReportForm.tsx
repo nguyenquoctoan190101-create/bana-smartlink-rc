@@ -5,6 +5,7 @@ import rulesData from "../validation_rules.json";
 import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod } from "../types";
 import { getLocalDraftForScope, queueReportForSync, saveDraftForScope } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
+import { validateReportIndicators } from "../lib/reportValidation";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
 import { useReportPeriods } from "../lib/useReportPeriods";
@@ -59,7 +60,13 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   const [reporterPhone, setReporterPhone] = useState<string>(userPhone || "");
   
   const [assistedByCnscd, setAssistedByCnscd] = useState<boolean>(initialReport?.assisted_by_cnscd || false);
-  const [assistedMemberName, setAssistedMemberName] = useState<string>(initialReport?.assisted_member_name || "");
+  const canRecordCnscdAssistance = userRole === "to_cnscd";
+  const effectiveAssistedByCnscd = canRecordCnscdAssistance && assistedByCnscd;
+  const verifiedAssistantName = (
+    initialReport?.assisted_by_cnscd && initialReport.assisted_member_name
+      ? initialReport.assisted_member_name
+      : userName || ""
+  ).trim();
   
   // 14 socio-cultural indicators
   const [indicators, setIndicators] = useState<IndicatorValues>({
@@ -124,7 +131,6 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       setReporterName(initialReport.reporter_name || userName || "");
       setReporterPhone(initialReport.reporter_phone || userPhone || "");
       setAssistedByCnscd(initialReport.assisted_by_cnscd || false);
-      setAssistedMemberName(initialReport.assisted_member_name || "");
       setIndicators({
         CT01: initialReport.CT01,
         CT02: initialReport.CT02,
@@ -165,8 +171,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
     setDraftId(recoverableDraft.id);
     setReporterName(userName || "");
     setReporterPhone(userPhone || "");
-    setAssistedByCnscd(recoverableDraft.assisted_by_cnscd || false);
-    setAssistedMemberName(recoverableDraft.assisted_member_name || "");
+    // A local draft cannot establish assistance provenance. Only the
+    // authenticated CNSCĐ profile may opt in and the server derives its name.
+    setAssistedByCnscd(canRecordCnscdAssistance && Boolean(recoverableDraft.assisted_by_cnscd));
     setIndicators({
       CT01: recoverableDraft.CT01, CT02: recoverableDraft.CT02,
       CT03: recoverableDraft.CT03, CT04: recoverableDraft.CT04,
@@ -233,127 +240,10 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
   // Local Validation Logic mapped strictly to validation_rules.json
   const validateIndicatorsLocally = () => {
-    const errors: ValidationError[] = [];
-    const warnings: ValidationError[] = [];
-
-    for (const [code, value] of Object.entries(indicators)) {
-      if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-        errors.push({ field: code, message: `${code} là bắt buộc và phải là số nguyên không âm.`, severity: "error" });
-      }
-    }
-
-    const CT01 = indicators.CT01 ?? 0;
-    const CT02 = indicators.CT02 ?? 0;
-    const CT03 = indicators.CT03 ?? 0;
-    const CT04 = indicators.CT04 ?? 0;
-    const CT07 = indicators.CT07 ?? 0;
-    const CT08 = indicators.CT08 ?? 0;
-    const CT09 = indicators.CT09 ?? 0;
-    const CT10 = indicators.CT10 ?? 0;
-    const CT11 = indicators.CT11 ?? 0;
-    const CT14 = indicators.CT14 ?? 0;
-
-    // CT02 warning check: ratio should be between 3.0 and 4.5
-    if (CT01 > 0) {
-      const ratio = CT02 / CT01;
-      const minRatio = validationRules.CT02.warning_multiplier_min;
-      const maxRatio = validationRules.CT02.warning_multiplier_max;
-      if (ratio < minRatio || ratio > maxRatio) {
-        warnings.push({
-          field: "CT02",
-          message: `${validationRules.CT02.warning_message} (Tỷ lệ hiện tại: ${ratio.toFixed(2)} lần)`,
-          severity: "warning"
-        });
-      }
-    }
-
-    // CT03 <= CT01
-    if (CT03 > CT01) {
-      errors.push({
-        field: "CT03",
-        message: validationRules.CT03.error_message,
-        severity: "error"
-      });
-    }
-
-    // CT03 + CT04 <= CT01
-    if ((CT03 + CT04) > CT01) {
-      errors.push({
-        field: "CT04",
-        message: validationRules.CT04.error_message,
-        severity: "error"
-      });
-    }
-
-    // CT07 <= CT02
-    if (CT07 > CT02) {
-      errors.push({
-        field: "CT07",
-        message: validationRules.CT07.error_message,
-        severity: "error"
-      });
-    }
-
-    if (CT02 > 0) {
-      const childRatio = CT07 / CT02;
-      if (
-        childRatio < validationRules.CT07.warning_ratio_min ||
-        childRatio > validationRules.CT07.warning_ratio_max
-      ) {
-        warnings.push({
-          field: "CT07",
-          message: `Cảnh báo: tỷ lệ trẻ em dưới 16 tuổi là ${(childRatio * 100).toFixed(1)}%; cần đối chiếu lại danh sách dân cư trước khi nộp.`,
-          severity: "warning"
-        });
-      }
-    }
-
-    // CT08 <= CT07
-    if (CT08 > CT07) {
-      errors.push({
-        field: "CT08",
-        message: validationRules.CT08.error_message,
-        severity: "error"
-      });
-    }
-
-    // CT09 <= CT01
-    if (CT09 > CT01) {
-      errors.push({
-        field: "CT09",
-        message: validationRules.CT09.error_message,
-        severity: "error"
-      });
-    }
-
-    // CT10 <= CT02
-    if (CT10 > CT02) {
-      errors.push({
-        field: "CT10",
-        message: validationRules.CT10.error_message,
-        severity: "error"
-      });
-    }
-
-    // CT11 <= CT02
-    if (CT11 > CT02) {
-      errors.push({
-        field: "CT11",
-        message: validationRules.CT11.error_message,
-        severity: "error"
-      });
-    }
-
-    if (CT14 > CT01) {
-      errors.push({
-        field: "CT14",
-        message: validationRules.CT14.error_message,
-        severity: "error"
-      });
-    }
-
-    setLocalErrors(errors);
-    setLocalWarnings(warnings);
+    const result = validateReportIndicators(indicators);
+    setLocalErrors(result.errors);
+    setLocalWarnings(result.warnings);
+    return result;
   };
 
   // The server receives only aggregate values that have passed deterministic
@@ -416,8 +306,8 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       publication_status: "private",
       status: "Draft",
       expected_version: initialReport?.version,
-      assisted_by_cnscd: assistedByCnscd,
-      assisted_member_name: assistedByCnscd ? assistedMemberName : undefined,
+      assisted_by_cnscd: effectiveAssistedByCnscd,
+      assisted_member_name: effectiveAssistedByCnscd ? verifiedAssistantName || undefined : undefined,
       updated_at: new Date().toISOString(),
       raw_source: reportMetadata?.raw_source === "excel_upload" ? "excel" : reportMetadata?.raw_source === "photo_upload" ? "photo_ocr" : "manual",
       source_confirmed: reportMetadata ? reportMetadata.source_confirmed : false,
@@ -447,54 +337,15 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   const handleInitiateSubmit = async () => {
     setIsSubmitAttempted(true);
 
-    // Force validation
-    const errors: ValidationError[] = [...localErrors];
-    const CT01 = indicators.CT01 ?? 0;
-    const CT02 = indicators.CT02 ?? 0;
-    const CT03 = indicators.CT03 ?? 0;
-    const CT04 = indicators.CT04 ?? 0;
-    const CT07 = indicators.CT07 ?? 0;
-    const CT08 = indicators.CT08 ?? 0;
-    const CT09 = indicators.CT09 ?? 0;
-    const CT10 = indicators.CT10 ?? 0;
-    const CT11 = indicators.CT11 ?? 0;
-    const CT14 = indicators.CT14 ?? 0;
+    // Recalculate synchronously so submission never relies on stale React state.
+    const { errors, warnings } = validateReportIndicators(indicators);
+    setLocalErrors(errors);
+    setLocalWarnings(warnings);
 
     if (!reporterName.trim() || !reporterPhone.trim()) {
       setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ Tên và SĐT người lập báo cáo!" });
       setTimeout(() => setSubmitMessage(null), 4000);
       return;
-    }
-
-    // Capture precise client-side validation errors
-    if (CT03 > CT01) {
-      errors.push({ field: "CT03", message: validationRules.CT03.error_message, severity: "error" });
-    }
-    if ((CT03 + CT04) > CT01) {
-      errors.push({ field: "CT04", message: validationRules.CT04.error_message, severity: "error" });
-    }
-    if (CT07 > CT02) {
-      errors.push({ field: "CT07", message: validationRules.CT07.error_message, severity: "error" });
-    }
-    if (CT08 > CT07) {
-      errors.push({ field: "CT08", message: validationRules.CT08.error_message, severity: "error" });
-    }
-    if (CT09 > CT01) {
-      errors.push({ field: "CT09", message: validationRules.CT09.error_message, severity: "error" });
-    }
-    if (CT10 > CT02) {
-      errors.push({ field: "CT10", message: validationRules.CT10.error_message, severity: "error" });
-    }
-    if (CT11 > CT02) {
-      errors.push({ field: "CT11", message: validationRules.CT11.error_message, severity: "error" });
-    }
-
-    if (CT14 > CT01) {
-      errors.push({
-        field: "CT14",
-        message: validationRules.CT14.error_message,
-        severity: "error"
-      });
     }
 
     if (errors.length > 0) {
@@ -543,8 +394,8 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       pending_sync: true,
       expected_version: initialReport?.version,
       idempotency_key: initialReport?.idempotency_key || crypto.randomUUID(),
-      assisted_by_cnscd: assistedByCnscd,
-      assisted_member_name: assistedByCnscd ? assistedMemberName : undefined,
+      assisted_by_cnscd: effectiveAssistedByCnscd,
+      assisted_member_name: effectiveAssistedByCnscd ? verifiedAssistantName || undefined : undefined,
       updated_at: new Date().toISOString(),
       raw_source: reportMetadata?.raw_source === "excel_upload" ? "excel" : reportMetadata?.raw_source === "photo_upload" ? "photo_ocr" : "manual",
       source_confirmed: reportMetadata ? reportMetadata.source_confirmed : false,
@@ -699,7 +550,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
           </SectionCard>
 
           {/* Section: Tổ CNSCĐ hỗ trợ nhập hộ */}
-          {userRole === "to_cnscd" && <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3">
+          {canRecordCnscdAssistance && <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 space-y-3">
             <div className="flex items-start gap-3">
               <input
                 type="checkbox"
@@ -718,7 +569,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
               </div>
             </div>
 
-            {assistedByCnscd && (
+            {effectiveAssistedByCnscd && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 animate-fade-in">
                 <div>
                   <label className="block text-4xs font-extrabold uppercase tracking-wider text-emerald-700 mb-1">
@@ -726,16 +577,15 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                   </label>
                   <input
                     type="text"
-                    value={assistedMemberName}
-                    placeholder="Nhập tên thành viên Tổ CNSCĐ..."
-                    onChange={(e) => setAssistedMemberName(e.target.value)}
-                    className="w-full bg-white border border-emerald-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
-                    required={assistedByCnscd}
+                    readOnly
+                    value={verifiedAssistantName}
+                    aria-describedby="cnscd-assistance-provenance"
+                    className="w-full bg-slate-50 border border-emerald-200 rounded-lg px-3 py-2 text-sm text-slate-700"
                   />
                 </div>
                 <div className="flex items-center">
-                  <p className="text-3xs text-emerald-650 leading-normal italic">
-                    * Hệ thống chỉ ghi nhận người hỗ trợ để phục vụ kiểm tra và trách nhiệm giải trình; không tự thay đổi hoặc cộng thêm bất kỳ chỉ tiêu nào.
+                  <p id="cnscd-assistance-provenance" className="text-3xs text-emerald-650 leading-normal italic">
+                    * Danh tính người hỗ trợ được lấy từ hồ sơ đăng nhập và được máy chủ kiểm tra; người dùng không thể tự sửa tên này.
                   </p>
                 </div>
               </div>

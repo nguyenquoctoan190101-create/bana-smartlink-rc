@@ -22,6 +22,7 @@ class VillageCnscdImpact:
 class CnscdImpact:
     period_id: str
     period_name: str
+    has_report_data: bool
     submitted_report_count: int
     assisted_report_count: int
     ct13_total: int | None
@@ -65,26 +66,34 @@ class CnscdImpactService:
             )
 
         assisted_report_count = sum(item.assisted_report_count for item in village_impacts)
+        has_report_data = bool(reports)
         missing_ct13_report_count = sum(
             1 for item in village_impacts if item.report_id is not None and item.ct13_value is None
         )
-        complete_ct13 = missing_ct13_report_count == 0
+        complete_ct13 = has_report_data and missing_ct13_report_count == 0
         ct13_total = (
             sum(item.ct13_value for item in village_impacts if item.ct13_value is not None)
             if complete_ct13 else None
         )
         difference = ct13_total - assisted_report_count if ct13_total is not None else None
-        interpretation = (
-            f"Kỳ {period['name']}: Tổ CNSCĐ hỗ trợ nhập hộ {assisted_report_count} báo cáo; "
-            + (
-                f"CT13 do thôn tự khai là {ct13_total} người; chênh lệch {abs(difference or 0)}."
-                if complete_ct13
-                else f"chưa thể tính tổng CT13 vì {missing_ct13_report_count} báo cáo thiếu dữ liệu."
+        if not has_report_data:
+            interpretation = (
+                f"Kỳ {period['name']}: chưa có báo cáo nào được nộp; "
+                "chưa thể đối chiếu số lượt hỗ trợ nhập hộ với CT13."
             )
-        )
+        else:
+            interpretation = (
+                f"Kỳ {period['name']}: Tổ CNSCĐ hỗ trợ nhập hộ {assisted_report_count} báo cáo; "
+                + (
+                    f"CT13 do thôn tự khai là {ct13_total} người; chênh lệch {abs(difference or 0)}."
+                    if complete_ct13
+                    else f"chưa thể tính tổng CT13 vì {missing_ct13_report_count} báo cáo thiếu dữ liệu."
+                )
+            )
         return CnscdImpact(
             period_id=period_id,
             period_name=str(period["name"]),
+            has_report_data=has_report_data,
             submitted_report_count=len(reports),
             assisted_report_count=assisted_report_count,
             ct13_total=ct13_total,

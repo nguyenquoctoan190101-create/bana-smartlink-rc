@@ -1839,6 +1839,8 @@ export interface components {
             ct13_total: number | null;
             /** Difference */
             difference: number | null;
+            /** Has Report Data */
+            has_report_data: boolean;
             /** Interpretation */
             interpretation: string;
             /** Missing Ct13 Report Count */

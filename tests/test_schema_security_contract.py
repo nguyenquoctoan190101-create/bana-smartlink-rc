@@ -69,6 +69,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260718_0012_demo_case_routing.sql",
         "20260722_0013_optional_evacuation_contact_phone.sql",
         "20260722_0014_clear_fake_evacuation_phone.sql",
+        "20260723_0015_enforce_report_assistance_provenance.sql",
     ]
 
 
@@ -80,6 +81,18 @@ def test_database_enforces_deterministic_indicator_rules_on_workflow_transition(
         "ct03 + ct04 <= ct01",
         "ct07 <= ct02",
         "ct11 <= ct02",
+    ):
+        assert marker in SCHEMA
+
+
+def test_report_assistance_provenance_is_database_enforced() -> None:
+    for marker in (
+        "create function public.enforce_report_assistance_provenance",
+        "create trigger reports_assistance_provenance",
+        "profile.id = auth.uid()",
+        "profile.role, nullif(btrim(profile.display_name), '')",
+        "old.assisted_member_name",
+        "from public, anon, authenticated, service_role",
     ):
         assert marker in SCHEMA
 
@@ -152,7 +165,10 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
         encoding="utf-8"
     )
     assert workflow.count("psql -v ON_ERROR_STOP=1") == 8
-    assert "migrations/20260715_*.sql migrations/20260718_*.sql" in workflow
+    assert (
+        "migrations/20260715_*.sql migrations/20260718_*.sql "
+        "migrations/20260722_*.sql migrations/20260723_*.sql"
+    ) in workflow
     assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")
