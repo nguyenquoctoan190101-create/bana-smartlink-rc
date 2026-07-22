@@ -56,6 +56,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   const [previewMetadata, setPreviewMetadata] = useState<Record<string, string | null> | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -63,11 +64,28 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const clearSelectedFile = () => {
+  const clearSelectedFile = (preserveError = false) => {
     setFile(null);
     setShowPrivacyWarning(false);
-    setError(null);
+    if (!preserveError) setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const getApiErrorMessage = async (response: Response, fallback: string) => {
+    try {
+      const payload = await response.json();
+      const detail = payload?.detail ?? payload?.error ?? payload?.message;
+      if (typeof detail === "string" && detail.trim()) return detail;
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((item: unknown) => typeof item === "string" ? item : (item as { msg?: unknown })?.msg)
+          .filter((item: unknown): item is string => typeof item === "string" && Boolean(item.trim()));
+        if (messages.length) return messages.join("; ");
+      }
+    } catch {
+      // Some reverse proxies return an HTML/plain-text error page.
+    }
+    return fallback;
   };
 
   const INDICATOR_MAP: Record<string, string> = {
@@ -122,7 +140,19 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
     if (!isImage && !isExcel) {
       setError("Định dạng tệp không được hỗ trợ. Vui lòng chỉ tải lên file Excel (.xlsx) hoặc tệp ảnh (.png, .jpg, .jpeg)");
-      clearSelectedFile();
+      clearSelectedFile(true);
+      return;
+    }
+
+    if (selectedFile.size === 0) {
+      clearSelectedFile(true);
+      setError("Tệp đang rỗng. Vui lòng chọn tệp có dữ liệu rồi thử lại.");
+      return;
+    }
+
+    if (selectedFile.size > MAX_UPLOAD_BYTES) {
+      clearSelectedFile(true);
+      setError("Tệp vượt quá giới hạn 5 MB. Vui lòng chọn tệp nhỏ hơn.");
       return;
     }
 
@@ -158,8 +188,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.details || "Không thể số hóa hình ảnh.");
+        throw new Error(await getApiErrorMessage(response, "Không thể số hóa hình ảnh."));
       }
 
       const resData = await response.json();
@@ -193,8 +222,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || errorData.error || "Không thể phân tích dữ liệu tệp Excel.");
+        throw new Error(await getApiErrorMessage(response, "Không thể phân tích dữ liệu tệp Excel."));
       }
 
       const resData = await response.json();
