@@ -381,12 +381,17 @@ async def list_reports(
 ) -> list[dict[str, Any]]:
     """List reports visible to the JWT caller without duplicated profile PII."""
     if village_id is not None:
-        _authorize_village_read(current_user, village_id)
+        await _authorize_village_read(repository, current_user, village_id)
     target_village = village_id
-    if current_user.role in {"can_bo_thon", "to_cnscd"}:
+    if current_user.role == "can_bo_thon":
         if not current_user.village_id:
             raise HTTPException(status_code=403, detail="User has no village assignment")
         target_village = UUID(current_user.village_id)
+    elif current_user.role == "to_cnscd" and village_id is None:
+        # The caller-scoped Supabase client keeps this unfiltered query inside
+        # the RLS boundary: CNSCĐ can see their own village and every village
+        # explicitly recorded in user_village_assignments.
+        target_village = None
 
     query = (
         "/rest/v1/reports"
@@ -426,7 +431,7 @@ async def submit_report(
     current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
 ) -> ReportSubmitResponse:
     """Submit a village report from JSON after validation."""
-    _authorize_report_write(current_user, payload.village_id)
+    await _authorize_report_write(repository, current_user, payload.village_id)
     source = _canonical_report_source(payload.raw_source)
     if source in ("photo_ocr", "excel") and not payload.source_confirmed:
         raise HTTPException(
@@ -464,7 +469,7 @@ async def sync_reports(
 
     for report in payload.reports:
         try:
-            _authorize_report_write(current_user, report.village_id)
+            await _authorize_report_write(repository, current_user, report.village_id)
         except HTTPException as exc:
             rejected.append(RejectedReportItem(
                 client_id=report.id,
@@ -564,7 +569,11 @@ async def delete_report(
         if not rows:
             raise HTTPException(status_code=404, detail="Report not found")
         report = rows[0]
-        _authorize_report_write(current_user, UUID(str(report["village_id"])))
+        await _authorize_report_write(
+            repository,
+            current_user,
+            UUID(str(report["village_id"])),
+        )
         if int(report["version"]) != expected_version:
             raise HTTPException(status_code=409, detail="Report version conflict")
         if current_user.role != "admin_xa" and report["workflow_status"] != "draft":
@@ -642,7 +651,7 @@ async def upload_report_file(
 ) -> ReportUploadResponse:
     """Parse the official Excel template and submit through the same validator."""
     _ = request
-    _authorize_report_write(current_user, village_id)
+    await _authorize_report_write(repository, current_user, village_id)
     if not source_confirmed:
         raise HTTPException(
             status_code=422,
@@ -1169,22 +1178,69 @@ def _canonical_report_source(raw_source: str) -> str:
     return source
 
 
-def _authorize_report_write(user: UserProfile, village_id: UUID) -> None:
+async def _is_assigned_cnscd_village(
+    repository: ReportRepository,
+    user: UserProfile,
+    village_id: UUID,
+) -> bool:
+    """Check an explicit CNSCĐ assignment using the caller's JWT and RLS."""
+    try:
+        rows = await repository._supabase._rest_request(
+            "GET",
+            (
+                "/rest/v1/user_village_assignments"
+                "?select=village_id"
+                f"&user_id=eq.{quote(str(user.id), safe='')}"
+                f"&village_id=eq.{village_id}"
+                "&limit=1"
+            ),
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to verify village assignment",
+        ) from exc
+    return bool(rows)
+
+
+async def _authorize_report_write(
+    repository: ReportRepository,
+    user: UserProfile,
+    village_id: UUID,
+) -> None:
     if user.role == "lanh_dao":
         raise HTTPException(status_code=403, detail="Leadership role is read-only")
     if user.role not in {"admin_xa", "can_bo_thon", "to_cnscd"}:
         raise HTTPException(status_code=403, detail="Role cannot modify reports")
-    if user.role in {"can_bo_thon", "to_cnscd"}:
-        if not user.village_id or str(user.village_id) != str(village_id):
-            raise HTTPException(status_code=403, detail="Cannot modify another village")
+    if user.role == "admin_xa":
+        return
+    if user.village_id and str(user.village_id) == str(village_id):
+        return
+    if user.role == "to_cnscd" and await _is_assigned_cnscd_village(
+        repository,
+        user,
+        village_id,
+    ):
+        return
+    raise HTTPException(status_code=403, detail="Cannot modify an unassigned village")
 
 
-def _authorize_village_read(user: UserProfile, village_id: UUID) -> None:
+async def _authorize_village_read(
+    repository: ReportRepository,
+    user: UserProfile,
+    village_id: UUID,
+) -> None:
     if user.role in {"admin_xa", "lanh_dao"}:
         return
     if user.role in {"can_bo_thon", "to_cnscd"} and str(user.village_id) == str(village_id):
         return
-    raise HTTPException(status_code=403, detail="Cannot read another village")
+    if user.role == "to_cnscd" and await _is_assigned_cnscd_village(
+        repository,
+        user,
+        village_id,
+    ):
+        return
+    raise HTTPException(status_code=403, detail="Cannot read an unassigned village")
 
 
 def _sync_rejection(client_id: UUID, exc: HTTPException) -> RejectedReportItem:
@@ -1798,7 +1854,7 @@ async def export_village_report(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
     current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
 ):
-    _authorize_village_read(current_user, village_id)
+    await _authorize_village_read(repository, current_user, village_id)
     supabase = repository._supabase
     if file_format != "xlsx":
         raise HTTPException(status_code=400, detail="Chỉ hỗ trợ xuất báo cáo thôn dạng xlsx.")
