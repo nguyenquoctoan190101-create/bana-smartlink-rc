@@ -74,7 +74,22 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260723_0017_knowledge_access_hardening.sql",
         "20260723_0018_pilot_audit_trail.sql",
         "20260723_0019_report_period_name_guard.sql",
+        "20260723_0020_field_synonyms.sql",
     ]
+
+
+def test_field_synonyms_are_scoped_audited_and_admin_managed() -> None:
+    for marker in (
+        "create table public.field_synonyms",
+        "alter table public.field_synonyms enable row level security",
+        "revoke all on table public.field_synonyms from anon",
+        "create policy field_synonyms_select_scoped",
+        "create policy field_synonyms_manage_admin",
+        "create function public.confirm_field_synonym",
+        "p_ct_code is null",
+        "create trigger field_synonyms_audit",
+    ):
+        assert marker in SCHEMA
 
 
 def test_database_enforces_deterministic_indicator_rules_on_workflow_transition() -> None:

@@ -50,6 +50,11 @@ from services.export_service import (
     generate_summary_xlsx_file,
     generate_village_xlsx_file,
 )
+from services.form_normalizer import (
+    FormNormalizationError,
+    normalize_excel,
+    normalize_field_name,
+)
 from services.gemini import GeminiError, get_gemini_client
 from services.ocr_report import OcrError, ocr_report_async
 from services.rate_limit import limiter
@@ -701,23 +706,30 @@ async def delete_report(
 @limiter.limit("15/minute")
 async def normalize_report_excel(
     request: Request,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
     current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
     file: UploadFile = File(...),
 ) -> dict:
     _ = current_user
     try:
         content = await validate_report_upload(file)
-        from services.form_normalizer import normalize_excel
-
-        normalized = normalize_excel(content)
+        runtime_synonyms = await repository.field_synonyms()
+        normalized = normalize_excel(content, synonyms=runtime_synonyms)
         return {"success": True, "normalized_data": normalized}
     except UploadValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FormNormalizationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Không thể tải ánh xạ chỉ tiêu.",
+        ) from exc
     except Exception:
         logger.exception("Excel normalization failed")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to normalize Excel workbook",
+            detail="Không thể chuẩn hóa tệp Excel.",
         )
 
 
@@ -726,6 +738,7 @@ async def normalize_report_excel(
 async def confirm_field_synonym(
     request: Request,
     payload: dict,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
     _: Annotated[UserProfile, Depends(require_admin_xa)],
 ) -> dict:
     original_name = payload.get("original_name")
@@ -737,10 +750,18 @@ async def confirm_field_synonym(
     ):
         raise HTTPException(status_code=400, detail="Thiếu original_name hoặc ct_code")
 
-    from services.form_normalizer import save_synonym
-
-    save_synonym(original_name, ct_code)
-    return {"success": True}
+    try:
+        mapping = await repository.confirm_field_synonym(
+            original_name.strip(),
+            normalize_field_name(original_name),
+            ct_code,
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Không thể lưu ánh xạ chỉ tiêu.",
+        ) from exc
+    return {"success": True, "mapping": mapping}
 
 
 @router.post(

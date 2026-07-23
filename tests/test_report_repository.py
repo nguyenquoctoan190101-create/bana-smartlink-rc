@@ -14,6 +14,56 @@ from services.report_repository import (
 
 
 @pytest.mark.asyncio
+async def test_field_synonyms_are_loaded_from_scoped_rest_rows() -> None:
+    supabase = AsyncMock()
+    supabase._rest_request = AsyncMock(
+        return_value=[
+            {"normalized_name": "tong so ho", "ct_code": "CT01"},
+            {"normalized_name": "tong nhan khau", "ct_code": "CT02"},
+        ]
+    )
+
+    result = await ReportRepository(supabase).field_synonyms()
+
+    assert result == {"tong so ho": "CT01", "tong nhan khau": "CT02"}
+    supabase._rest_request.assert_awaited_once_with(
+        "GET",
+        "/rest/v1/field_synonyms?select=normalized_name,ct_code",
+    )
+
+
+@pytest.mark.asyncio
+async def test_confirm_field_synonym_uses_atomic_scoped_rpc() -> None:
+    supabase = AsyncMock()
+    supabase._rest_request = AsyncMock(
+        return_value=[
+            {
+                "original_name": "Tổng số hộ thực tế",
+                "normalized_name": "tong so ho thuc te",
+                "ct_code": "CT01",
+            }
+        ]
+    )
+
+    result = await ReportRepository(supabase).confirm_field_synonym(
+        "Tổng số hộ thực tế",
+        "tong so ho thuc te",
+        "CT01",
+    )
+
+    assert result["ct_code"] == "CT01"
+    supabase._rest_request.assert_awaited_once_with(
+        "POST",
+        "/rest/v1/rpc/confirm_field_synonym",
+        {
+            "p_original_name": "Tổng số hộ thực tế",
+            "p_normalized_name": "tong so ho thuc te",
+            "p_ct_code": "CT01",
+        },
+    )
+
+
+@pytest.mark.asyncio
 async def test_period_lookup_is_exact_and_url_encoded() -> None:
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(side_effect=[[{"id": "p1"}], []])

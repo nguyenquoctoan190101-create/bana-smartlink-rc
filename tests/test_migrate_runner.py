@@ -12,7 +12,7 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260723_0019_report_period_name_guard.sql"
+    assert names[-1] == "20260723_0020_field_synonyms.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -31,4 +31,5 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260723_0017_knowledge_access_hardening.sql",
         "20260723_0018_pilot_audit_trail.sql",
         "20260723_0019_report_period_name_guard.sql",
+        "20260723_0020_field_synonyms.sql",
     ]

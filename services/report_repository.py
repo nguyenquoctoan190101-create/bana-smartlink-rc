@@ -55,6 +55,50 @@ class ReportRepository:
         )
         return str(rows[0]["id"]) if rows else None
 
+    async def field_synonyms(self) -> dict[str, str]:
+        """Load caller-scoped Excel field mappings through database RLS."""
+        rows = await self._supabase._rest_request(
+            "GET",
+            "/rest/v1/field_synonyms?select=normalized_name,ct_code",
+        )
+        if not isinstance(rows, list):
+            raise RuntimeError("Field synonym query returned an invalid result")
+
+        synonyms: dict[str, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            normalized_name = row.get("normalized_name")
+            ct_code = row.get("ct_code")
+            if isinstance(normalized_name, str) and isinstance(ct_code, str):
+                synonyms[normalized_name] = ct_code
+        return synonyms
+
+    async def confirm_field_synonym(
+        self,
+        original_name: str,
+        normalized_name: str,
+        ct_code: str,
+    ) -> dict[str, str]:
+        """Persist an admin-approved mapping atomically with database audit."""
+        rows = await self._supabase._rest_request(
+            "POST",
+            "/rest/v1/rpc/confirm_field_synonym",
+            {
+                "p_original_name": original_name,
+                "p_normalized_name": normalized_name,
+                "p_ct_code": ct_code,
+            },
+        )
+        if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+            raise RuntimeError("Field synonym RPC returned no result")
+        row = rows[0]
+        return {
+            "normalized_name": str(row["normalized_name"]),
+            "original_name": str(row["original_name"]),
+            "ct_code": str(row["ct_code"]),
+        }
+
     async def save_report(
         self,
         village_id: str,
