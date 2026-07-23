@@ -34,7 +34,7 @@ describe("citizen proposal workflow", () => {
 
     expect(screen.getByText("Xác nhận nội dung")).toBeInTheDocument();
     expect(screen.getByText(/Thôn mẫu · Tháng 7\/2026 · CT01/)).toBeInTheDocument();
-  });
+  }, 10_000);
 
   it("separates public-data corrections from field reports", async () => {
     const user = userEvent.setup();

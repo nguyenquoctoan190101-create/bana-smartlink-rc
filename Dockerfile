@@ -40,9 +40,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd --create-home --uid 10001 appuser
 WORKDIR /app
 
-COPY requirements.txt ./
+COPY requirements-prod.txt ./
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir -r requirements.txt
+    && python -m pip install --no-cache-dir -r requirements-prod.txt
 
 COPY --chown=appuser:appuser . .
 COPY --from=frontend-build --chown=appuser:appuser /app/dist ./dist
@@ -53,4 +53,4 @@ EXPOSE 10000
 # Fail closed when the current release schema cannot be applied. The runner
 # uses an advisory lock and a checksum table, so repeat deploys safely skip
 # migrations that were already committed.
-CMD ["sh", "-c", "python migrate.py --release-overlays && exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "python migrate.py --release-overlays && exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]

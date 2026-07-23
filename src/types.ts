@@ -131,6 +131,9 @@ export interface SyncAcceptedItem {
   client_id: string;
   report_id: string;
   version: number;
+  workflow_status: WorkflowStatus;
+  timeliness_status: TimelinessStatus;
+  publication_status: PublicationStatus;
 }
 
 export interface SyncRejectedItem {

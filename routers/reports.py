@@ -101,6 +101,9 @@ class AcceptedReportItem(BaseModel):
     client_id: UUID
     report_id: UUID
     version: int
+    workflow_status: str
+    timeliness_status: str
+    publication_status: str
 
 
 class RejectedReportItem(BaseModel):
@@ -539,6 +542,9 @@ async def sync_reports(
                 client_id=report.id,
                 report_id=submitted.report_id,
                 version=submitted.version,
+                workflow_status=submitted.workflow_status,
+                timeliness_status=submitted.timeliness_status,
+                publication_status="private",
             ))
         except HTTPException as exc:
             rejected.append(_sync_rejection(report.id, exc))

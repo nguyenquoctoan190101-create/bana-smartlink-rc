@@ -8,20 +8,35 @@
             "title": "Client Id",
             "type": "string"
           },
+          "publication_status": {
+            "title": "Publication Status",
+            "type": "string"
+          },
           "report_id": {
             "format": "uuid",
             "title": "Report Id",
             "type": "string"
           },
+          "timeliness_status": {
+            "title": "Timeliness Status",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "workflow_status": {
+            "title": "Workflow Status",
+            "type": "string"
           }
         },
         "required": [
           "client_id",
           "report_id",
-          "version"
+          "version",
+          "workflow_status",
+          "timeliness_status",
+          "publication_status"
         ],
         "title": "AcceptedReportItem",
         "type": "object"
@@ -3312,6 +3327,24 @@
         "title": "TourismPlaceRequest",
         "type": "object"
       },
+      "TourismPlaceStatusRequest": {
+        "properties": {
+          "status": {
+            "enum": [
+              "draft",
+              "approved",
+              "archived"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "TourismPlaceStatusRequest",
+        "type": "object"
+      },
       "TrendAlertResponse": {
         "properties": {
           "change_pct": {
@@ -6224,6 +6257,133 @@
           }
         },
         "summary": "Create Tourism Place",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
+    "/api/pilots/tourism/places/internal": {
+      "get": {
+        "description": "Return every scoped catalogue item for the internal review workflow.",
+        "operationId": "list_internal_tourism_places_api_pilots_tourism_places_internal_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Internal Tourism Places Api Pilots Tourism Places Internal Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Internal Tourism Places",
+        "tags": [
+          "feature-flagged-pilots"
+        ]
+      }
+    },
+    "/api/pilots/tourism/places/{place_id}/status": {
+      "patch": {
+        "description": "Approve, withdraw, or archive a tourism place through an explicit review.",
+        "operationId": "update_tourism_place_status_api_pilots_tourism_places__place_id__status_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "place_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Place Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TourismPlaceStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Tourism Place Status Api Pilots Tourism Places  Place Id  Status Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Tourism Place Status",
         "tags": [
           "feature-flagged-pilots"
         ]

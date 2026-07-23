@@ -924,8 +924,22 @@ def _build_gemini_prompt(
 # Tìm kiếm tài liệu nghiệp vụ đã duyệt (luôn giới hạn theo vai trò)
 # ---------------------------------------------------------------------------
 
-def _knowledge_audience(caller_role: str) -> str:
-    return "public" if caller_role == "dan" else ("champions" if caller_role == "to_cnscd" else "internal")
+def _knowledge_audiences(caller_role: str) -> list[str]:
+    """Return every approved audience the caller may read.
+
+    Public knowledge is useful to every principal.  Role-specific knowledge is
+    additive; it must never replace the public corpus or widen a village
+    officer's access to leadership-only material.
+    """
+    if caller_role == "dan":
+        return ["public"]
+    if caller_role == "to_cnscd":
+        return ["public", "champions"]
+    if caller_role == "can_bo_thon":
+        return ["public", "internal"]
+    if caller_role in {"admin_xa", "lanh_dao"}:
+        return ["public", "internal", "champions"]
+    return ["public"]
 
 
 def _knowledge_tokens(text: str) -> set[str]:
@@ -945,12 +959,14 @@ async def _fetch_knowledge_articles(
         """
         select id, title, summary, body, category, audience, version, effective_from
         from public.knowledge_articles
-        where commune_id = $1 and status = 'approved' and audience = $2
+        where commune_id = $1
+          and status = 'approved'
+          and audience = any($2::text[])
         order by updated_at desc
         limit 50
         """,
         xa_id or "ba_na",
-        _knowledge_audience(caller_role),
+        _knowledge_audiences(caller_role),
     )
     question_tokens = _knowledge_tokens(question)
     ranked: list[tuple[int, dict[str, Any]]] = []

@@ -614,6 +614,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pilots/tourism/places/internal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Internal Tourism Places
+         * @description Return every scoped catalogue item for the internal review workflow.
+         */
+        get: operations["list_internal_tourism_places_api_pilots_tourism_places_internal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pilots/tourism/places/{place_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Tourism Place Status
+         * @description Approve, withdraw, or archive a tourism place through an explicit review.
+         */
+        patch: operations["update_tourism_place_status_api_pilots_tourism_places__place_id__status_patch"];
+        trace?: never;
+    };
     "/api/policy-scorecard": {
         parameters: {
             query?: never;
@@ -1463,13 +1503,19 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+            /** Publication Status */
+            publication_status: string;
             /**
              * Report Id
              * Format: uuid
              */
             report_id: string;
+            /** Timeliness Status */
+            timeliness_status: string;
             /** Version */
             version: number;
+            /** Workflow Status */
+            workflow_status: string;
         };
         /** ActionCreateRequest */
         ActionCreateRequest: {
@@ -2602,6 +2648,14 @@ export interface components {
             opening_hours?: string | null;
             /** Summary */
             summary: string;
+        };
+        /** TourismPlaceStatusRequest */
+        TourismPlaceStatusRequest: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "approved" | "archived";
         };
         /** TrendAlertResponse */
         TrendAlertResponse: {
@@ -4251,6 +4305,78 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_internal_tourism_places_api_pilots_tourism_places_internal_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tourism_place_status_api_pilots_tourism_places__place_id__status_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TourismPlaceStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -55,7 +55,7 @@ async def validate_case_media(upload: UploadFile) -> tuple[bytes, str, str]:
         raise CaseMediaValidationError("Image content does not match its extension")
 
     try:
-        from PIL import Image, UnidentifiedImageError
+        from PIL import Image, ImageOps, UnidentifiedImageError
     except ImportError as exc:
         raise CaseMediaValidationError("Image validation is unavailable") from exc
 
@@ -64,7 +64,29 @@ async def validate_case_media(upload: UploadFile) -> tuple[bytes, str, str]:
             width, height = image.size
             if width <= 0 or height <= 0 or width * height > MAX_IMAGE_PIXELS:
                 raise CaseMediaValidationError("Image dimensions are not allowed")
-            image.verify()
+            # Decode the complete first frame, apply EXIF orientation, and create a
+            # detached pixel copy. Re-encoding below deliberately drops EXIF/XMP,
+            # embedded thumbnails and any trailing bytes from the original file.
+            image.seek(0)
+            image.load()
+            sanitized = ImageOps.exif_transpose(image).copy()
+
+        output = BytesIO()
+        if mime_type == "image/jpeg":
+            if sanitized.mode not in {"RGB", "L"}:
+                sanitized = sanitized.convert("RGB")
+            sanitized.save(output, format="JPEG", quality=90, optimize=True)
+        elif mime_type == "image/png":
+            if sanitized.mode not in {"RGB", "RGBA", "L", "LA", "P"}:
+                sanitized = sanitized.convert("RGBA")
+            sanitized.save(output, format="PNG", optimize=True)
+        else:
+            if sanitized.mode not in {"RGB", "RGBA"}:
+                sanitized = sanitized.convert("RGBA" if "A" in sanitized.getbands() else "RGB")
+            sanitized.save(output, format="WEBP", quality=90, method=6)
+        content = output.getvalue()
+        if not content or len(content) > MAX_IMAGE_BYTES:
+            raise CaseMediaValidationError("Sanitized image must be 8MB or smaller")
     except CaseMediaValidationError:
         raise
     except (UnidentifiedImageError, OSError, ValueError) as exc:

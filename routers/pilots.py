@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -153,6 +153,10 @@ class TourismPlaceRequest(BaseModel):
     opening_hours: str | None = Field(default=None, max_length=300)
 
 
+class TourismPlaceStatusRequest(BaseModel):
+    status: Literal["draft", "approved", "archived"]
+
+
 def _bearer(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer ") or not authorization[7:].strip():
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -181,6 +185,25 @@ async def list_public_tourism_places(
     return rows
 
 
+@router.get("/tourism/places/internal")
+async def list_internal_tourism_places(
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> list[dict[str, Any]]:
+    """Return every scoped catalogue item for the internal review workflow."""
+    _pilot_enabled(settings, "feature_tourism_pilot")
+    return await _caller(supabase, authorization)._rest_request(
+        "GET",
+        "/rest/v1/tourism_places?select=id,name,category,summary,latitude,longitude,"
+        "accessibility_notes,opening_hours,status,approved_by,approved_at,created_at,"
+        "updated_at&commune_id=eq."
+        + settings.bana_commune_id
+        + "&order=updated_at.desc",
+    )
+
+
 @router.post("/tourism/places", status_code=201)
 async def create_tourism_place(
     payload: TourismPlaceRequest,
@@ -195,6 +218,39 @@ async def create_tourism_place(
         rows = await _caller(supabase, authorization)._rest_request("POST", "/rest/v1/tourism_places", data, prefer="return=representation")
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=400, detail="Unable to save tourism place") from exc
+    return rows[0]
+
+
+@router.patch("/tourism/places/{place_id}/status")
+async def update_tourism_place_status(
+    place_id: UUID,
+    payload: TourismPlaceStatusRequest,
+    profile: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Approve, withdraw, or archive a tourism place through an explicit review."""
+    _pilot_enabled(settings, "feature_tourism_pilot")
+    changes: dict[str, Any] = {
+        "status": payload.status,
+        "approved_by": None,
+        "approved_at": None,
+    }
+    if payload.status == "approved":
+        changes["approved_by"] = profile.id
+        changes["approved_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        rows = await _caller(supabase, authorization)._rest_request(
+            "PATCH",
+            f"/rest/v1/tourism_places?id=eq.{place_id}&commune_id=eq.{settings.bana_commune_id}",
+            changes,
+            prefer="return=representation",
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(status_code=400, detail="Unable to update tourism place") from exc
+    if not rows:
+        raise HTTPException(status_code=404, detail="Tourism place not found")
     return rows[0]
 
 

@@ -17,6 +17,10 @@ services:
         value: ba_na
       - key: VITE_API_BASE_URL
         value: ""
+      # Render terminates TLS and is the only public path to the container.
+      # Local/container runs retain Dockerfile's loopback-only default.
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
       - key: FEATURE_CASES
         value: "true"
       - key: FEATURE_VOICE

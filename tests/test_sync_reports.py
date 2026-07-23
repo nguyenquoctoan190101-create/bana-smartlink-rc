@@ -128,6 +128,9 @@ def test_sync_reports_valid(client, mock_report_repo):
     data = res.json()
     assert res.status_code == 200
     assert {item["client_id"] for item in data["accepted"]} == {rep1_id, rep2_id}
+    assert all(item["workflow_status"] == "submitted" for item in data["accepted"])
+    assert all(item["timeliness_status"] == "on_time" for item in data["accepted"])
+    assert all(item["publication_status"] == "private" for item in data["accepted"])
     assert len(data["rejected"]) == 0
     assert mock_report_repo.save_report.call_count == 2
     app.dependency_overrides.pop(require_authenticated_user, None)
@@ -195,7 +198,14 @@ def test_sync_reports_accepts_new_item_without_legacy_status(client, mock_report
         response = client.post("/reports/sync", json={"reports": [item]})
         assert response.status_code == 200
         assert response.json()["accepted"] == [
-            {"client_id": report_id, "report_id": report_id, "version": 1}
+            {
+                "client_id": report_id,
+                "report_id": report_id,
+                "version": 1,
+                "workflow_status": "submitted",
+                "timeliness_status": "on_time",
+                "publication_status": "private",
+            }
         ]
     finally:
         app.dependency_overrides.pop(require_authenticated_user, None)

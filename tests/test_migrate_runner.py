@@ -12,7 +12,7 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260723_0015_enforce_report_assistance_provenance.sql"
+    assert names[-1] == "20260723_0018_pilot_audit_trail.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -27,4 +27,7 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260722_0013_optional_evacuation_contact_phone.sql",
         "20260722_0014_clear_fake_evacuation_phone.sql",
         "20260723_0015_enforce_report_assistance_provenance.sql",
+        "20260723_0016_case_workflow_hardening.sql",
+        "20260723_0017_knowledge_access_hardening.sql",
+        "20260723_0018_pilot_audit_trail.sql",
     ]

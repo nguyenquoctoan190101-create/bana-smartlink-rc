@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
@@ -94,6 +95,7 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
             _request("/api/cases"),
             cases.CaseCreateRequest(
                 category="road",
+                priority="critical",
                 description="Ổ gà trước nhà văn hóa",
                 consent_version="2026-07",
                 submitter_name=" Người gửi ",
@@ -106,6 +108,8 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
     assert result["tracking_code"] == "A" * 32
     assert "submitter_name" not in result["case"]
     assert client.calls[0][2]["p_submitter_name"] == "Người gửi"
+    # Anonymous callers cannot self-escalate a routine report to critical.
+    assert client.calls[0][2]["p_priority"] == "normal"
 
     tracking_hash = cases._hash_tracking_code("A" * 32)
     track_path = (
@@ -138,9 +142,19 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
     assert listed[0]["id"] == case_id
     assert client.token == "staff-token"
 
+    transition_id = uuid4()
+    transition_path = "/rest/v1/rpc/transition_citizen_case"
+    client.responses[("POST", transition_path)] = [
+        {
+            "id": str(transition_id),
+            "category": "road",
+            "status": "in_progress",
+            "priority": "normal",
+        }
+    ]
     updated = asyncio.run(
         cases.update_case_status(
-            uuid4(),
+            transition_id,
             cases.CaseStatusRequest(status="in_progress", note="Đã chuyển đơn vị"),
             _profile("to_cnscd"),
             client,
@@ -148,6 +162,12 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
         )
     )
     assert updated["status"] == "in_progress"
+    assert client.calls[-1][0:2] == ("POST", transition_path)
+    assert client.calls[-1][2] == {
+        "p_case_id": str(transition_id),
+        "p_new_status": "in_progress",
+        "p_note": "Đã chuyển đơn vị",
+    }
 
     assignment_path = "/rest/v1/rpc/assign_citizen_case"
     client.responses[("POST", assignment_path)] = [
@@ -457,6 +477,50 @@ def test_pilot_feature_flags_and_happy_paths() -> None:
     )
     assert created_place["category"] == "craft"
 
+    internal_path = (
+        "/rest/v1/tourism_places?select=id,name,category,summary,latitude,longitude,"
+        "accessibility_notes,opening_hours,status,approved_by,approved_at,created_at,"
+        "updated_at&commune_id=eq.ba_na&order=updated_at.desc"
+    )
+    client.responses[("GET", internal_path)] = [
+        {"id": str(uuid4()), "name": "Làng nghề", "status": "draft"}
+    ]
+    internal_places = asyncio.run(
+        pilots.list_internal_tourism_places(
+            admin, settings, client, "Bearer token"
+        )
+    )
+    assert internal_places[0]["status"] == "draft"
+
+    place_id = uuid4()
+    approved = asyncio.run(
+        pilots.update_tourism_place_status(
+            place_id,
+            pilots.TourismPlaceStatusRequest(status="approved"),
+            admin,
+            settings,
+            client,
+            "Bearer token",
+        )
+    )
+    assert approved["status"] == "approved"
+    assert approved["approved_by"] == admin.id
+    assert approved["approved_at"]
+
+    archived = asyncio.run(
+        pilots.update_tourism_place_status(
+            place_id,
+            pilots.TourismPlaceStatusRequest(status="archived"),
+            admin,
+            settings,
+            client,
+            "Bearer token",
+        )
+    )
+    assert archived["status"] == "archived"
+    assert archived["approved_by"] is None
+    assert archived["approved_at"] is None
+
     device = asyncio.run(
         pilots.create_sensor_device(
             pilots.SensorDeviceRequest(
@@ -500,6 +564,31 @@ def test_pilot_feature_flags_and_happy_paths() -> None:
     assert disabled.value.status_code == 404
 
 
+def test_tourism_status_returns_not_found_when_rls_hides_row() -> None:
+    client = FakeSupabase()
+    settings = SimpleNamespace(
+        bana_commune_id="ba_na",
+        feature_tourism_pilot=True,
+    )
+    place_id = uuid4()
+    path = (
+        f"/rest/v1/tourism_places?id=eq.{place_id}&commune_id=eq.ba_na"
+    )
+    client.responses[("PATCH", path)] = []
+    with pytest.raises(HTTPException) as missing:
+        asyncio.run(
+            pilots.update_tourism_place_status(
+                place_id,
+                pilots.TourismPlaceStatusRequest(status="approved"),
+                _profile(),
+                settings,
+                client,
+                "Bearer token",
+            )
+        )
+    assert missing.value.status_code == 404
+
+
 def test_pilot_bearer_and_upstream_failure() -> None:
     with pytest.raises(HTTPException) as missing:
         pilots._bearer("Basic value")
@@ -522,3 +611,23 @@ def test_pilot_bearer_and_upstream_failure() -> None:
             )
         )
     assert failed.value.status_code == 502
+
+
+def test_pilot_audit_migration_covers_mutable_records() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "20260723_0018_pilot_audit_trail.sql"
+    ).read_text(encoding="utf-8")
+
+    for table in (
+        "evacuation_points",
+        "sensor_devices",
+        "sensor_observations",
+        "alert_rules",
+        "alerts",
+        "alert_deliveries",
+        "tourism_places",
+        "tourism_content",
+    ):
+        assert f"on public.{table}" in migration

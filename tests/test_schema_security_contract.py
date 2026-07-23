@@ -70,6 +70,9 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260722_0013_optional_evacuation_contact_phone.sql",
         "20260722_0014_clear_fake_evacuation_phone.sql",
         "20260723_0015_enforce_report_assistance_provenance.sql",
+        "20260723_0016_case_workflow_hardening.sql",
+        "20260723_0017_knowledge_access_hardening.sql",
+        "20260723_0018_pilot_audit_trail.sql",
     ]
 
 
@@ -172,3 +175,46 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
     assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")
+
+
+def test_citizen_case_staff_scope_rejects_unassigned_village_records() -> None:
+    migration = (
+        ROOT / "migrations" / "20260723_0016_case_workflow_hardening.sql"
+    ).read_text(encoding="utf-8")
+    for policy in (
+        "citizen_cases_select_internal",
+        "case_locations_select_internal",
+        "case_media_select_internal",
+        "case_history_select_internal",
+        "case_assignments_select_internal",
+    ):
+        policy_sql = migration.split(f"create policy {policy}", 1)[1].split(");", 1)[0]
+        assert "village_id is not null" in policy_sql
+        assert "can_select_village" in policy_sql
+        assert "profile_role() in ('admin_xa', 'lanh_dao')" in policy_sql
+
+
+def test_pilot_audit_triggers_only_target_tables_with_uuid_ids() -> None:
+    pilot_schema = (
+        ROOT / "migrations" / "20260718_0010_iot_tourism_pilots.sql"
+    ).read_text(encoding="utf-8")
+    audit_migration = (
+        ROOT / "migrations" / "20260723_0018_pilot_audit_trail.sql"
+    ).read_text(encoding="utf-8")
+    audited_tables = (
+        "sensor_devices",
+        "sensor_observations",
+        "alert_rules",
+        "alerts",
+        "alert_deliveries",
+        "tourism_places",
+        "tourism_content",
+    )
+    assert "evacuation_points_audit" in audit_migration
+    assert "sensor_health_audit" not in audit_migration
+    for table in audited_tables:
+        table_sql = pilot_schema.split(
+            f"create table if not exists public.{table}", 1
+        )[1].split(");", 1)[0]
+        assert "id uuid primary key" in table_sql
+        assert f"{table}_audit" in audit_migration

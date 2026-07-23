@@ -49,10 +49,16 @@ export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
           ...queued,
           id: accepted.report_id,
           version: accepted.version,
-          workflow_status: "submitted",
-          timeliness_status: queued.timeliness_status || "not_submitted",
-          publication_status: "private",
-          status: "Submitted",
+          workflow_status: accepted.workflow_status,
+          timeliness_status: accepted.timeliness_status,
+          publication_status: accepted.publication_status,
+          status: accepted.workflow_status === "submitted"
+            ? "Submitted"
+            : accepted.workflow_status === "approved"
+              ? "Approved"
+              : accepted.workflow_status === "locked"
+                ? "Locked"
+                : "Draft",
           pending_sync: false,
           updated_at: new Date().toISOString(),
         };

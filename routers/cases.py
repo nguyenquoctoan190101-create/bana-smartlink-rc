@@ -86,6 +86,33 @@ def _hash_tracking_code(code: str) -> str:
     return hashlib.sha256(normalized.encode("ascii")).hexdigest()
 
 
+def _raise_case_mutation_error(
+    exc: SupabaseAdminError,
+    *,
+    action: str,
+) -> None:
+    """Map database workflow errors without misreporting outages as permission failures."""
+    if exc.error_code == "42501" or exc.status_code in {401, 403}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You are not allowed to {action} this field report",
+        ) from exc
+    if exc.error_code == "P0002":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Field report not found",
+        ) from exc
+    if exc.error_code in {"P0001", "23514"} or exc.status_code == 409:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The field report cannot be {action} in its current state",
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Field reporting service is temporarily unavailable",
+    ) from exc
+
+
 def _safe_case(row: dict[str, Any]) -> dict[str, Any]:
     """Whitelist the public tracking response; never expose PII or internal notes."""
     return {
@@ -121,7 +148,9 @@ async def create_case(
         "p_village_id": str(payload.village_id) if payload.village_id else None,
         "p_category": payload.category,
         "p_description": payload.description,
-        "p_priority": payload.priority,
+        # Citizens cannot self-declare operational urgency.  Staff triage is a
+        # separate, audited action; the RPC enforces this again at the DB edge.
+        "p_priority": "normal",
         "p_submitter_name": payload.submitter_name.strip() if payload.submitter_name else None,
         "p_submitter_phone": payload.submitter_phone,
         "p_submitter_address": payload.submitter_address.strip() if payload.submitter_address else None,
@@ -320,12 +349,17 @@ async def update_case_status(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admin_xa or to_cnscd can update case status")
     try:
         rows = await supabase.as_user(_extract_bearer(authorization))._rest_request(
-            "PATCH", f"/rest/v1/citizen_cases?id=eq.{quote(str(case_id), safe='')}",
-            {"status": payload.status, "updated_at": datetime.now(timezone.utc).isoformat()},
+            "POST",
+            "/rest/v1/rpc/transition_citizen_case",
+            {
+                "p_case_id": str(case_id),
+                "p_new_status": payload.status,
+                "p_note": payload.note.strip() if payload.note else None,
+            },
             prefer="return=representation",
         )
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to update field report") from exc
+        _raise_case_mutation_error(exc, action="updated")
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field report not found")
     return _safe_case(rows[0])
@@ -355,7 +389,7 @@ async def assign_case(
             prefer="return=representation",
         )
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to assign field report") from exc
+        _raise_case_mutation_error(exc, action="assigned")
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Field report not found")
     return rows[0]
