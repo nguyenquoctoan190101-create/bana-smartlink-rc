@@ -33,6 +33,10 @@ export function resolveRequestedReportPeriod(
   return periodsByName.length === 1 ? periodsByName[0] : null;
 }
 
+export function getDraftSavedMessage(villageName: string, reportPeriod: string): string {
+  return `Đã lưu bản nháp cục bộ trên thiết bị này cho ${villageName} · kỳ ${reportPeriod}. Bản nháp chưa được gửi lên xã và sẽ tự nạp lại khi bạn mở đúng thôn/kỳ trên thiết bị này.`;
+}
+
 export default function ReportForm({ initialReport, initialPeriodId, onSaved, onCancel }: ReportFormProps) {
   const { userName, userPhone, userVillageId, userRole } = useAuth();
   const { villages: new_villages } = useVillages();
@@ -319,12 +323,10 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       setDraftId(savedDraft.id);
       setSubmitMessage({
         type: "success",
-        text: "Đã lưu bản nháp cho đúng thôn và kỳ này. Mở mục Dữ liệu của thôn để tiếp tục nhập.",
+        text: getDraftSavedMessage(getVillageName(villageId), reportPeriod),
       });
-      setTimeout(() => {
-        setSubmitMessage(null);
-        onSaved();
-      }, 1500);
+      // Keep the form open so the user can continue editing this local-only draft.
+      setTimeout(() => setSubmitMessage(null), 8000);
     } catch (e) {
       setSubmitMessage({
         type: "error",

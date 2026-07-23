@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   extractPublishedPeriods,
-  formatPublicLookupMessage,
   formatPublicIndicatorValue,
   getDefaultPublicVillageId,
+  getPublicReportTimestamp,
+} from "./PublicVillagePage";
+import {
+  formatPublicLookupMessage,
   getPublicCaseCategoryLabel,
   getPublicLookupEndpoint,
-  getPublicReportTimestamp,
   getPublicStatusLabel,
-} from "./PublicVillagePage";
+} from "../lib/publicLookup";
 
 describe("shared public lookup", () => {
   it("routes 16-character proposal codes to the proposal tracker", () => {

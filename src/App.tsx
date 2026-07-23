@@ -10,6 +10,7 @@ import PrivacyPolicy from "./components/PrivacyPolicy";
 import { Button, TopographicPattern, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
+import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
 import { 
   BarChart3, 
   FileText, 
@@ -28,8 +29,10 @@ import {
   Plus,
   Bell,
   FileArchive,
-  MapPinned
-  ,Radio
+  MapPinned,
+  Radio,
+  FileSearch,
+  ChevronDown,
 } from "lucide-react";
 
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -47,6 +50,9 @@ const LegacyBatchImport = React.lazy(() => import("./components/LegacyBatchImpor
 const KnowledgeCenter = React.lazy(() => import("./components/KnowledgeCenter"));
 const CaseManagement = React.lazy(() => import("./components/CaseManagement"));
 const PilotWorkbench = React.lazy(() => import("./components/PilotWorkbench"));
+const RecordLookup = React.lazy(() => import("./components/RecordLookup"));
+
+type AppTab = "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots" | "record-lookup";
 
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
@@ -181,7 +187,7 @@ export default function App() {
   const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots">("dashboard");
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [requestedPeriodId, setRequestedPeriodId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -195,6 +201,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
+  const [showRoleScope, setShowRoleScope] = useState<boolean>(false);
 
   const fetchNotifications = async () => {
     if (!isLoggedIn || userRole === "dan") return;
@@ -263,13 +270,13 @@ export default function App() {
   }, []);
 
   // Synchronize tab state with URL path
-  const changeTab = (tab: "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots", search = new URLSearchParams()) => {
+  const changeTab = (tab: AppTab, search = new URLSearchParams()) => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]),
-      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
-      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots"]),
-      dan: new Set(["dashboard", "citizen-proposal"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]),
+      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
+      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots", "record-lookup"]),
+      dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
     if (tab === "report-form") {
@@ -283,13 +290,13 @@ export default function App() {
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
     const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]),
-      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
-      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots"]),
-      dan: new Set(["dashboard", "citizen-proposal"]),
+      admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]),
+      can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
+      to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots", "record-lookup"]),
+      dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
-    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots"]);
+    const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
       const legacyTab = new URLSearchParams(window.location.search).get("tab");
@@ -425,24 +432,6 @@ export default function App() {
     setEditingReport(null);
     setRequestedPeriodId(null);
     changeTab("dashboard");
-  };
-
-  // Get Vietnamese label for user role
-  const getRoleLabel = (role: UserRole) => {
-    switch (role) {
-      case "admin_xa":
-        return "Quản trị Xã";
-      case "can_bo_thon":
-        return "Cán bộ Thôn";
-      case "to_cnscd":
-        return "Tổ CNSCĐ";
-      case "lanh_dao":
-        return "Lãnh đạo xã";
-      case "dan":
-        return "Người dân";
-      default:
-        return "Khách";
-    }
   };
 
   // -------------------------------------------------------------
@@ -704,6 +693,7 @@ export default function App() {
           { id: "operations", label: "Hộp việc điều hành", icon: UserCheck, group: "Công việc" },
           { id: "pending-updates", label: "Duyệt kiến nghị", icon: MessageSquare },
           { id: "cases", label: "Xử lý phản ánh", icon: MapPinned },
+          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
           { id: "dashboard", label: "Tổng hợp số liệu", icon: BarChart3, group: "Báo cáo & phê duyệt" },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Điều hành" },
@@ -722,12 +712,14 @@ export default function App() {
           { id: "report-form", label: "Nhập báo cáo", icon: FileText },
           { id: "dashboard", label: "Dữ liệu của thôn", icon: BarChart3, group: "Theo dõi" },
           { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
+          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
           { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
         ];
       case "lanh_dao":
         return [
           { id: "operations", label: "Brief quyết định", icon: UserCheck, group: "Điều hành" },
           { id: "cases", label: "Giám sát phản ánh", icon: MapPinned },
+          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
           { id: "dashboard", label: "Tổng hợp toàn xã", icon: BarChart3 },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Đánh giá" },
@@ -739,7 +731,8 @@ export default function App() {
       default:
         return [
           { id: "dashboard", label: "Thông tin thôn", icon: BarChart3 },
-          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare }
+          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
+          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
         ];
     }
   };
@@ -775,6 +768,16 @@ export default function App() {
                   {villages.find((v) => v.id === userVillageId)?.name || "Thôn được phân công"}
                 </span></p>
               )}
+              <button
+                type="button"
+                onClick={() => setShowRoleScope((visible) => !visible)}
+                aria-expanded={showRoleScope}
+                className="mt-2 flex min-h-8 w-full items-center justify-between rounded-lg border border-white/10 px-2 py-1.5 text-left font-semibold text-white hover:bg-white/8"
+              >
+                <span>Phạm vi quyền</span>
+                <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${showRoleScope ? "rotate-180" : ""}`} />
+              </button>
+              {showRoleScope && <p className="rounded-lg bg-emerald-950/45 p-2 leading-relaxed text-emerald-50">{getRoleScope(userRole)}</p>}
             </div>
           </div>
 
@@ -1073,6 +1076,10 @@ export default function App() {
 
               {activeTab === "pilots" && (
                 <PilotWorkbench role={userRole} />
+              )}
+
+              {activeTab === "record-lookup" && (
+                <RecordLookup />
               )}
 
               {activeTab === "report-form" && (

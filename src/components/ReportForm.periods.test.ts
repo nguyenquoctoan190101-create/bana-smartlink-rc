@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReportPeriod } from "../types";
-import { resolveRequestedReportPeriod } from "./ReportForm";
+import { getDraftSavedMessage, resolveRequestedReportPeriod } from "./ReportForm";
 
 const periods: ReportPeriod[] = [
   { id: "period-new", name: "Tháng 8/2026", due_date: "2026-08-25T17:00:00+07:00" },
@@ -27,5 +27,16 @@ describe("resolveRequestedReportPeriod", () => {
 
   it("rejects an invalid deep-link instead of silently selecting the latest period", () => {
     expect(resolveRequestedReportPeriod(periods, "missing-period")).toBeNull();
+  });
+});
+
+describe("getDraftSavedMessage", () => {
+  it("states the device-only scope and that the report has not been submitted", () => {
+    const message = getDraftSavedMessage("Thôn An Sơn", "Tháng 7/2026");
+
+    expect(message).toContain("cục bộ trên thiết bị này");
+    expect(message).toContain("chưa được gửi lên xã");
+    expect(message).toContain("Thôn An Sơn");
+    expect(message).toContain("Tháng 7/2026");
   });
 });

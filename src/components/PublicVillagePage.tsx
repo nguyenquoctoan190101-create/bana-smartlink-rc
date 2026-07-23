@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Award, Check, CheckCircle2, ClipboardCheck, FileSearch, FileText, Home, Lock, MapPin, MessageSquare, Navigation, Phone, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
+import {
+  formatPublicLookupMessage,
+  getPublicCaseCategoryLabel,
+  getPublicLookupEndpoint,
+  getPublicStatusLabel,
+} from "../lib/publicLookup";
 import { loadVillages } from "../lib/useVillages";
 import { Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, StatusBadge, TopographicPattern } from "./ui";
 import CitizenCasePanel from "./CitizenCasePanel";
@@ -73,51 +79,6 @@ export function getPublicReportTimestamp(report: unknown): string {
     return candidate.published_at;
   }
   return typeof candidate.updated_at === "string" ? candidate.updated_at : "";
-}
-
-/** Resolve the shared public lookup route by the opaque code format. */
-export function getPublicLookupEndpoint(code: string): string | null {
-  const normalized = code.trim().toUpperCase();
-  if (normalized.length === 16) return `/auth/citizen/pending-updates/${encodeURIComponent(normalized)}`;
-  if (normalized.length === 32) return `/api/cases/track/${encodeURIComponent(normalized)}`;
-  return null;
-}
-
-const PUBLIC_CASE_CATEGORY_LABELS: Record<string, string> = {
-  road: "Đường giao thông",
-  drainage: "Thoát nước, ngập úng",
-  lighting: "Điện, chiếu sáng",
-  waste: "Rác thải",
-  water: "Nước và cấp nước",
-  public_facility: "Công trình công cộng",
-  emergency: "An toàn, nguy cơ khẩn cấp",
-  other: "Nội dung khác",
-};
-
-export function getPublicCaseCategoryLabel(category: string): string {
-  return PUBLIC_CASE_CATEGORY_LABELS[category] ?? "Loại sự cố khác";
-}
-
-const PUBLIC_STATUS_LABELS: Record<string, string> = {
-  received: "Đã tiếp nhận",
-  verifying: "Đang xác minh",
-  assigned: "Đã phân công",
-  in_progress: "Đang xử lý",
-  completed: "Hoàn thành",
-  out_of_scope: "Không thuộc thẩm quyền",
-  accepted: "Đã chấp nhận",
-  rejected: "Đã từ chối",
-  not_found: "Không tìm thấy",
-};
-
-export function getPublicStatusLabel(status: string): string {
-  return PUBLIC_STATUS_LABELS[status] ?? "Đang cập nhật";
-}
-
-export function formatPublicLookupMessage(result: { status: string; message?: string; case?: { category?: string } }): string {
-  const status = getPublicStatusLabel(result.status);
-  const category = result.case?.category ? ` · Loại sự cố: ${getPublicCaseCategoryLabel(result.case.category)}` : "";
-  return result.message ? `● ${status}${category} · ${result.message}` : `● ${status}${category}`;
 }
 
 interface PublicVillagePageProps {
