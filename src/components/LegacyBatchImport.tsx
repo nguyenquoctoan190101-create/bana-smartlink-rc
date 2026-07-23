@@ -203,7 +203,7 @@ export default function LegacyBatchImport() {
             Kỳ báo cáo
             <select value={periodId} onChange={(event) => setPeriodId(event.target.value)} disabled={periodsLoading || Boolean(detail)}>
               <option value="">Chọn kỳ cần nhập</option>
-              {periods.map((period) => <option key={period.id} value={period.id}>{period.name}</option>)}
+              {periods.map((period) => <option key={period.id} value={period.id}>{period.display_name ?? period.name}</option>)}
             </select>
           </label>
           <label className="space-y-2 font-semibold text-sm">

@@ -73,6 +73,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260723_0016_case_workflow_hardening.sql",
         "20260723_0017_knowledge_access_hardening.sql",
         "20260723_0018_pilot_audit_trail.sql",
+        "20260723_0019_report_period_name_guard.sql",
     ]
 
 

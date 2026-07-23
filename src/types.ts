@@ -72,6 +72,10 @@ export interface ReportPeriod {
   id: string;
   name: string;
   due_date: string;
+  /** Frontend-only safe label for legacy periods whose name needs review. */
+  display_name?: string;
+  /** Frontend-only marker; never changes the stored period name or identifier. */
+  requires_review?: boolean;
 }
 
 export interface OldVillage {

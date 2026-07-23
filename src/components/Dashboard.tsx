@@ -77,7 +77,9 @@ export function buildDashboardPeriodOptions(reportPeriods: ReportPeriod[], repor
       : "";
     options.push({
       value: `period:${period.id}`,
-      label: dueDate ? `${period.name} — hạn ${dueDate}` : period.name,
+      label: dueDate
+        ? `${period.display_name ?? period.name} — hạn ${dueDate}`
+        : (period.display_name ?? period.name),
       periodId: period.id,
       periodName: period.name,
     });

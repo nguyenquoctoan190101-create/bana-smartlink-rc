@@ -3,6 +3,7 @@ import { AlertCircle, Calendar, CheckCircle2, FileSpreadsheet, Loader2, Plus, Tr
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 import { invalidateReportPeriods } from "../lib/useReportPeriods";
+import { normalizeReportPeriodName, reportPeriodNameIssue } from "../lib/reportPeriods";
 
 interface CreatedPeriod {
   id: string;
@@ -68,7 +69,9 @@ export default function CreatePeriod() {
     setError(null);
     setCreated(null);
     setTemplateUploadFailed(false);
-    if (!periodName.trim()) return setError("Vui lòng nhập tên kỳ báo cáo.");
+    const normalizedPeriodName = normalizeReportPeriodName(periodName);
+    const periodNameIssue = reportPeriodNameIssue(normalizedPeriodName);
+    if (periodNameIssue) return setError(periodNameIssue);
     if (!deadline || Number.isNaN(new Date(deadline).getTime())) return setError("Vui lòng chọn hạn nộp hợp lệ.");
     if (new Date(deadline).getTime() <= Date.now()) return setError("Hạn nộp phải ở tương lai.");
     if (selectedVillages.length === 0) return setError("Vui lòng chọn ít nhất một thôn.");
@@ -82,7 +85,7 @@ export default function CreatePeriod() {
       const result = await apiJson<CreatedPeriod>("/report-periods", {
         method: "POST",
         body: JSON.stringify({
-          name: periodName.trim(),
+          name: normalizedPeriodName,
           due_date: new Date(deadline).toISOString(),
           village_ids: selectedVillages,
           template_name: null,
@@ -180,6 +183,7 @@ export default function CreatePeriod() {
               <Calendar aria-hidden="true" className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
               <input id="period-name" required maxLength={120} value={periodName} onChange={(e) => setPeriodName(e.target.value)} className="w-full pl-11" placeholder="Tháng 07/2026" />
             </div>
+            <p className="mt-1 text-sm text-slate-500">Nếu đặt tên theo tháng, tháng phải từ 1 đến 12. Tên mô tả khác vẫn được chấp nhận.</p>
           </div>
           <div>
             <label htmlFor="period-deadline" className="block text-sm font-bold text-slate-700">Hạn nộp</label>

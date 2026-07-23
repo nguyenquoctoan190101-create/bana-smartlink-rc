@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Annotated, Literal
@@ -16,9 +17,20 @@ from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -30,8 +42,14 @@ from routers.auth import (
     require_admin_xa,
     require_authenticated_user,
 )
-from services.excel_report_parser import ExcelReportParseError, parse_official_report_excel
-from services.export_service import generate_summary_xlsx_file, generate_village_xlsx_file
+from services.excel_report_parser import (
+    ExcelReportParseError,
+    parse_official_report_excel,
+)
+from services.export_service import (
+    generate_summary_xlsx_file,
+    generate_village_xlsx_file,
+)
 from services.gemini import GeminiError, get_gemini_client
 from services.ocr_report import OcrError, ocr_report_async
 from services.rate_limit import limiter
@@ -61,6 +79,29 @@ REPORT_SOURCE_MAP = {
     "photo_ocr": "photo_ocr",
     "direct_api": "direct_api",
 }
+REPORT_PERIOD_CALENDAR_RE = re.compile(
+    r"^(?:th[aá]ng\s*)?(\d{1,2})\s*/\s*(\d{4})$",
+    re.IGNORECASE,
+)
+
+
+def normalize_report_period_name(value: str) -> str:
+    """Normalize harmless whitespace without changing a period's meaning."""
+
+    return " ".join(value.split())
+
+
+def report_period_name_issue(value: str) -> str | None:
+    """Reject impossible months while still allowing descriptive period names."""
+
+    normalized = normalize_report_period_name(value)
+    if not normalized:
+        return "Tên kỳ báo cáo không được để trống."
+    match = REPORT_PERIOD_CALENDAR_RE.fullmatch(normalized)
+    if match and not 1 <= int(match.group(1)) <= 12:
+        return "Tháng của kỳ báo cáo phải từ 1 đến 12."
+    return None
+
 
 class OfflineReportItem(BaseModel):
     id: UUID
@@ -94,8 +135,10 @@ class OfflineReportItem(BaseModel):
     expected_version: int | None = Field(default=None, ge=1)
     idempotency_key: UUID | None = None
 
+
 class SyncReportsRequest(BaseModel):
     reports: list[OfflineReportItem]
+
 
 class AcceptedReportItem(BaseModel):
     client_id: UUID
@@ -112,10 +155,10 @@ class RejectedReportItem(BaseModel):
     message: str
     retryable: bool
 
+
 class SyncReportsResponse(BaseModel):
     accepted: list[AcceptedReportItem]
     rejected: list[RejectedReportItem]
-
 
 
 class ReportSubmitRequest(BaseModel):
@@ -177,6 +220,15 @@ class CreateReportPeriodRequest(BaseModel):
     due_date: datetime
     village_ids: list[UUID] = Field(min_length=1, max_length=100)
     template_name: str | None = Field(default=None, max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        normalized = normalize_report_period_name(value)
+        issue = report_period_name_issue(normalized)
+        if issue:
+            raise ValueError(issue)
+        return normalized
 
 
 class ReportPeriodTemplateResponse(BaseModel):
@@ -267,7 +319,9 @@ async def list_report_periods(
             ),
         )
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=502, detail="Unable to load report periods") from exc
+        raise HTTPException(
+            status_code=502, detail="Unable to load report periods"
+        ) from exc
 
 
 @period_router.post("", status_code=status.HTTP_201_CREATED)
@@ -281,22 +335,34 @@ async def create_report_period(
             "POST",
             "/rest/v1/rpc/create_report_period",
             {
-                "p_name": payload.name.strip(),
+                "p_name": payload.name,
                 "p_due_date": payload.due_date.isoformat(),
                 "p_village_ids": [str(item) for item in payload.village_ids],
-                "p_template_name": payload.template_name.strip() if payload.template_name else None,
+                "p_template_name": payload.template_name.strip()
+                if payload.template_name
+                else None,
             },
         )
     except SupabaseAdminError as exc:
         if exc.error_code == "42501" or exc.status_code == 403:
-            raise HTTPException(status_code=403, detail="Only admin can create periods") from exc
+            raise HTTPException(
+                status_code=403, detail="Only admin can create periods"
+            ) from exc
         if exc.error_code == "23505" or exc.status_code == 409:
-            raise HTTPException(status_code=409, detail="Report period already exists") from exc
+            raise HTTPException(
+                status_code=409, detail="Report period already exists"
+            ) from exc
         if exc.error_code == "22023" or exc.status_code == 422:
-            raise HTTPException(status_code=422, detail="Invalid report period") from exc
-        raise HTTPException(status_code=502, detail="Unable to create report period") from exc
+            raise HTTPException(
+                status_code=422, detail="Invalid report period"
+            ) from exc
+        raise HTTPException(
+            status_code=502, detail="Unable to create report period"
+        ) from exc
     if not rows:
-        raise HTTPException(status_code=502, detail="Report period creation returned no result")
+        raise HTTPException(
+            status_code=502, detail="Report period creation returned no result"
+        )
     return rows[0]
 
 
@@ -322,13 +388,12 @@ async def upload_report_period_template(
     try:
         period_rows = await repository._supabase._rest_request(
             "GET",
-            (
-                f"/rest/v1/report_periods?id=eq.{period_id}"
-                "&select=id,commune_id&limit=1"
-            ),
+            (f"/rest/v1/report_periods?id=eq.{period_id}&select=id,commune_id&limit=1"),
         )
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=502, detail="Unable to verify report period") from exc
+        raise HTTPException(
+            status_code=502, detail="Unable to verify report period"
+        ) from exc
     if not period_rows:
         raise HTTPException(status_code=404, detail="Report period not found")
 
@@ -347,7 +412,9 @@ async def upload_report_period_template(
         # Re-uploading the exact immutable object is idempotent. The database
         # metadata still has to be written after a previous partial request.
         if exc.status_code != 409:
-            raise HTTPException(status_code=502, detail="Unable to store report template") from exc
+            raise HTTPException(
+                status_code=502, detail="Unable to store report template"
+            ) from exc
 
     try:
         updated_rows = await repository._supabase._rest_request(
@@ -362,9 +429,13 @@ async def upload_report_period_template(
             prefer="return=representation",
         )
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=502, detail="Template stored but metadata update failed") from exc
+        raise HTTPException(
+            status_code=502, detail="Template stored but metadata update failed"
+        ) from exc
     if not updated_rows:
-        raise HTTPException(status_code=409, detail="Report period changed during template upload")
+        raise HTTPException(
+            status_code=409, detail="Report period changed during template upload"
+        )
 
     return ReportPeriodTemplateResponse(
         period_id=period_id,
@@ -388,7 +459,9 @@ async def list_reports(
     target_village = village_id
     if current_user.role == "can_bo_thon":
         if not current_user.village_id:
-            raise HTTPException(status_code=403, detail="User has no village assignment")
+            raise HTTPException(
+                status_code=403, detail="User has no village assignment"
+            )
         target_village = UUID(current_user.village_id)
     elif current_user.role == "to_cnscd" and village_id is None:
         # The caller-scoped Supabase client keeps this unfiltered query inside
@@ -425,7 +498,9 @@ async def list_reports(
     return result
 
 
-@router.post("", response_model=ReportSubmitResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=ReportSubmitResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit("10/minute")
 async def submit_report(
     request: Request,
@@ -478,12 +553,14 @@ async def sync_reports(
         try:
             await _authorize_report_write(repository, current_user, report.village_id)
         except HTTPException as exc:
-            rejected.append(RejectedReportItem(
-                client_id=report.id,
-                code="FORBIDDEN",
-                message=str(exc.detail),
-                retryable=False,
-            ))
+            rejected.append(
+                RejectedReportItem(
+                    client_id=report.id,
+                    code="FORBIDDEN",
+                    message=str(exc.detail),
+                    retryable=False,
+                )
+            )
             continue
 
         period_id = str(report.period_id) if report.period_id else None
@@ -491,20 +568,24 @@ async def sync_reports(
             try:
                 period_id = await repository.get_period_id_by_name(report.report_period)
             except SupabaseAdminError:
-                rejected.append(RejectedReportItem(
-                    client_id=report.id,
-                    code="UPSTREAM_UNAVAILABLE",
-                    message="Unable to resolve report period",
-                    retryable=True,
-                ))
+                rejected.append(
+                    RejectedReportItem(
+                        client_id=report.id,
+                        code="UPSTREAM_UNAVAILABLE",
+                        message="Unable to resolve report period",
+                        retryable=True,
+                    )
+                )
                 continue
         if period_id is None:
-            rejected.append(RejectedReportItem(
-                client_id=report.id,
-                code="PERIOD_NOT_FOUND",
-                message="Report period does not exist",
-                retryable=False,
-            ))
+            rejected.append(
+                RejectedReportItem(
+                    client_id=report.id,
+                    code="PERIOD_NOT_FOUND",
+                    message="Report period does not exist",
+                    retryable=False,
+                )
+            )
             continue
 
         values = {
@@ -538,24 +619,28 @@ async def sync_reports(
                 expected_version=report.expected_version,
                 idempotency_key=report.idempotency_key or report.id,
             )
-            accepted.append(AcceptedReportItem(
-                client_id=report.id,
-                report_id=submitted.report_id,
-                version=submitted.version,
-                workflow_status=submitted.workflow_status,
-                timeliness_status=submitted.timeliness_status,
-                publication_status="private",
-            ))
+            accepted.append(
+                AcceptedReportItem(
+                    client_id=report.id,
+                    report_id=submitted.report_id,
+                    version=submitted.version,
+                    workflow_status=submitted.workflow_status,
+                    timeliness_status=submitted.timeliness_status,
+                    publication_status="private",
+                )
+            )
         except HTTPException as exc:
             rejected.append(_sync_rejection(report.id, exc))
         except Exception:
             logger.exception("Unexpected offline sync failure")
-            rejected.append(RejectedReportItem(
-                client_id=report.id,
-                code="INTERNAL_ERROR",
-                message="Unable to sync report",
-                retryable=True,
-            ))
+            rejected.append(
+                RejectedReportItem(
+                    client_id=report.id,
+                    code="INTERNAL_ERROR",
+                    message="Unable to sync report",
+                    retryable=True,
+                )
+            )
 
     return SyncReportsResponse(accepted=accepted, rejected=rejected)
 
@@ -591,7 +676,9 @@ async def delete_report(
         if int(report["version"]) != expected_version:
             raise HTTPException(status_code=409, detail="Report version conflict")
         if current_user.role != "admin_xa" and report["workflow_status"] != "draft":
-            raise HTTPException(status_code=409, detail="Only draft reports can be deleted")
+            raise HTTPException(
+                status_code=409, detail="Only draft reports can be deleted"
+            )
 
         path = f"/rest/v1/reports?id=eq.{report_id}&version=eq.{expected_version}"
         if current_user.role != "admin_xa":
@@ -602,7 +689,9 @@ async def delete_report(
             prefer="return=representation",
         )
         if not deleted:
-            raise HTTPException(status_code=409, detail="Report changed before deletion")
+            raise HTTPException(
+                status_code=409, detail="Report changed before deletion"
+            )
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=502, detail="Unable to delete report") from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -619,6 +708,7 @@ async def normalize_report_excel(
     try:
         content = await validate_report_upload(file)
         from services.form_normalizer import normalize_excel
+
         normalized = normalize_excel(content)
         return {"success": True, "normalized_data": normalized}
     except UploadValidationError as exc:
@@ -640,15 +730,22 @@ async def confirm_field_synonym(
 ) -> dict:
     original_name = payload.get("original_name")
     ct_code = payload.get("ct_code")
-    if not isinstance(original_name, str) or not original_name.strip() or ct_code not in _indicator_codes():
+    if (
+        not isinstance(original_name, str)
+        or not original_name.strip()
+        or ct_code not in _indicator_codes()
+    ):
         raise HTTPException(status_code=400, detail="Thiếu original_name hoặc ct_code")
-    
+
     from services.form_normalizer import save_synonym
+
     save_synonym(original_name, ct_code)
     return {"success": True}
 
 
-@router.post("/upload", response_model=ReportUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=ReportUploadResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit("20/minute")
 async def upload_report_file(
     request: Request,
@@ -810,12 +907,12 @@ async def create_report_narrative(
             detail="Chỉ chấp nhận các chỉ tiêu CT01 đến CT14 cho diễn giải AI.",
         )
 
-    aggregate_values = {code: payload.values.get(code) for code in sorted(indicator_codes)}
+    aggregate_values = {
+        code: payload.values.get(code) for code in sorted(indicator_codes)
+    }
     flags = validate_report(aggregate_values)
     blocking_messages = [
-        flag["message"]
-        for flag in flags
-        if flag["error_type"] in BLOCKING_ERROR_TYPES
+        flag["message"] for flag in flags if flag["error_type"] in BLOCKING_ERROR_TYPES
     ]
     warning_messages = [
         flag["message"]
@@ -827,7 +924,9 @@ async def create_report_narrative(
             is_valid=False,
             errors=blocking_messages,
             warnings=warning_messages,
-            recommendations=["Hoàn thiện các chỉ tiêu được nêu trước khi yêu cầu diễn giải."],
+            recommendations=[
+                "Hoàn thiện các chỉ tiêu được nêu trước khi yêu cầu diễn giải."
+            ],
             source="deterministic",
             period_name=payload.period_name,
         )
@@ -850,11 +949,14 @@ async def create_report_narrative(
     # CT14 is internal-only. Validate it locally but never send it to an AI
     # provider, including when the caller is an authenticated staff member.
     ai_values = {
-        code: aggregate_values[code]
-        for code in sorted(indicator_codes - {"CT14"})
+        code: aggregate_values[code] for code in sorted(indicator_codes - {"CT14"})
     }
     user_text = json.dumps(
-        {"period": payload.period_name or "Chưa nêu kỳ", "values": ai_values, "known_warnings": warning_messages},
+        {
+            "period": payload.period_name or "Chưa nêu kỳ",
+            "values": ai_values,
+            "known_warnings": warning_messages,
+        },
         ensure_ascii=False,
     )
     try:
@@ -873,7 +975,11 @@ async def create_report_narrative(
     def clean_items(value: Any) -> list[str]:
         if not isinstance(value, list):
             return []
-        return [item.strip()[:300] for item in value if isinstance(item, str) and item.strip()][:3]
+        return [
+            item.strip()[:300]
+            for item in value
+            if isinstance(item, str) and item.strip()
+        ][:3]
 
     return ReportNarrativeResponse(
         is_valid=True,
@@ -921,8 +1027,7 @@ async def excel_preview(
 
     raw_values = parsed["values"]
     normalized_values = {
-        code: coerce_storage_value(value)
-        for code, value in raw_values.items()
+        code: coerce_storage_value(value) for code, value in raw_values.items()
     }
     validation_flags = validate_report(raw_values)
     reporter_phone = parsed["metadata"].get("reporter_phone")
@@ -996,23 +1101,25 @@ async def get_public_reports(
                 "&order=published_at.desc"
             ),
         )
-        
+
         # Format response
         result = []
         for r in reports:
             values_dict = {
-                v["ct_code"]: v["value"] 
-                for v in r.get("report_values", []) 
+                v["ct_code"]: v["value"]
+                for v in r.get("report_values", [])
                 if v["ct_code"] in public_codes
             }
-            
-            result.append({
-                "id": r["id"],
-                "village_id": r["village_id"],
-                "report_period": r.get("report_periods", {}).get("name", "Unknown"),
-                "published_at": r.get("published_at"),
-                "values": values_dict
-            })
+
+            result.append(
+                {
+                    "id": r["id"],
+                    "village_id": r["village_id"],
+                    "report_period": r.get("report_periods", {}).get("name", "Unknown"),
+                    "published_at": r.get("published_at"),
+                    "values": values_dict,
+                }
+            )
         return result
     except SupabaseAdminError as exc:
         raise HTTPException(
@@ -1062,6 +1169,7 @@ async def get_trend_alerts(
 ) -> list[TrendAlertResponse]:
     """Compare reports from two periods and return indicators with >20% changes."""
     from services.trend_alert import get_trend_alerts_async  # noqa: PLC0415
+
     curr_uuid, _ = await safe_resolve_period(supabase, curr_period_id)
     prev_uuid, _ = await safe_resolve_period(supabase, prev_period_id)
     try:
@@ -1110,11 +1218,16 @@ async def _submit_report_values(
     if unknown_codes:
         raise HTTPException(
             status_code=422,
-            detail={"errors": [{
-                "ct_code": code,
-                "error_type": "TEXT",
-                "message": f"Unknown indicator code: {code}",
-            } for code in unknown_codes]},
+            detail={
+                "errors": [
+                    {
+                        "ct_code": code,
+                        "error_type": "TEXT",
+                        "message": f"Unknown indicator code: {code}",
+                    }
+                    for code in unknown_codes
+                ]
+            },
         )
     known_values = _known_report_values(values)
     validation_errors = validate_report(known_values)
@@ -1129,11 +1242,12 @@ async def _submit_report_values(
         )
 
     storage_values = {
-        ct_code: coerce_storage_value(value)
-        for ct_code, value in known_values.items()
+        ct_code: coerce_storage_value(value) for ct_code, value in known_values.items()
     }
     non_blocking_flags = [
-        error for error in validation_errors if error["error_type"] not in BLOCKING_ERROR_TYPES
+        error
+        for error in validation_errors
+        if error["error_type"] not in BLOCKING_ERROR_TYPES
     ]
 
     try:
@@ -1271,7 +1385,9 @@ async def _authorize_village_read(
 ) -> None:
     if user.role in {"admin_xa", "lanh_dao"}:
         return
-    if user.role in {"can_bo_thon", "to_cnscd"} and str(user.village_id) == str(village_id):
+    if user.role in {"can_bo_thon", "to_cnscd"} and str(user.village_id) == str(
+        village_id
+    ):
         return
     if user.role == "to_cnscd" and await _is_assigned_cnscd_village(
         repository,
@@ -1356,10 +1472,15 @@ def _export_matrix(
         village_name = villages_map.get(village_id, village_id)
         values = report.get("values")
         safe_values = values if isinstance(values, dict) else {}
-        matrix.append([
-            _safe_document_text(village_name),
-            *[_format_export_value(safe_values.get(code)) for code in indicator_codes],
-        ])
+        matrix.append(
+            [
+                _safe_document_text(village_name),
+                *[
+                    _format_export_value(safe_values.get(code))
+                    for code in indicator_codes
+                ],
+            ]
+        )
     return matrix
 
 
@@ -1390,30 +1511,32 @@ def _status_response(item: VillageSubmissionStatus) -> VillageStatusResponse:
 
 
 # Export & Preview Helpers
-async def safe_resolve_period(supabase: SupabaseAdminClient, period_id_or_name: str) -> tuple[UUID, str]:
+async def safe_resolve_period(
+    supabase: SupabaseAdminClient, period_id_or_name: str
+) -> tuple[UUID, str]:
     try:
         uuid_val = UUID(period_id_or_name)
         rows = await supabase._rest_request(
-            "GET",
-            f"/rest/v1/report_periods?id=eq.{uuid_val}&select=id,name"
+            "GET", f"/rest/v1/report_periods?id=eq.{uuid_val}&select=id,name"
         )
         if rows:
             return UUID(rows[0]["id"]), str(rows[0]["name"])
     except ValueError:
         rows = await supabase._rest_request(
             "GET",
-            f"/rest/v1/report_periods?name=eq.{quote(period_id_or_name, safe='')}&select=id,name"
+            f"/rest/v1/report_periods?name=eq.{quote(period_id_or_name, safe='')}&select=id,name",
         )
         if rows:
             return UUID(rows[0]["id"]), str(rows[0]["name"])
 
     raise HTTPException(
-        status_code=404,
-        detail=f"Không tìm thấy kỳ báo cáo '{period_id_or_name}'."
+        status_code=404, detail=f"Không tìm thấy kỳ báo cáo '{period_id_or_name}'."
     )
 
 
-async def resolve_period(supabase: SupabaseAdminClient, period_id_or_name: str) -> tuple[str, str]:
+async def resolve_period(
+    supabase: SupabaseAdminClient, period_id_or_name: str
+) -> tuple[str, str]:
     period_id, period_name = await safe_resolve_period(supabase, period_id_or_name)
     return str(period_id), period_name
 
@@ -1423,7 +1546,9 @@ async def get_villages_map(supabase: SupabaseAdminClient) -> dict[str, str]:
     return {str(r["id"]): str(r["name"]) for r in rows}
 
 
-async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str) -> list[dict]:
+async def get_period_reports_data(
+    supabase: SupabaseAdminClient, period_id: str
+) -> list[dict]:
     reports = await supabase._rest_request(
         "GET",
         (
@@ -1435,16 +1560,16 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
             "&timeliness_status=in.(on_time,late)"
             "&select=id,village_id,workflow_status,timeliness_status,report_source,"
             "version,created_at,updated_at,submitted_at"
-        )
+        ),
     )
     if not reports:
         return []
-        
+
     report_ids = [r["id"] for r in reports]
     quoted_ids = ",".join(f'"{r_id}"' for r_id in report_ids)
     values = await supabase._rest_request(
         "GET",
-        f"/rest/v1/report_values?report_id=in.({quoted_ids})&select=report_id,ct_code,value"
+        f"/rest/v1/report_values?report_id=in.({quoted_ids})&select=report_id,ct_code,value",
     )
     flags = await supabase._rest_request(
         "GET",
@@ -1454,7 +1579,7 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
             "&order=created_at.asc"
         ),
     )
-    
+
     indicator_codes = _indicator_codes()
     indicator_code_set = set(indicator_codes)
     vals_map: dict[str, dict[str, int | None]] = {}
@@ -1467,16 +1592,18 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
             vals_map[r_id] = {}
         raw_value = val.get("value")
         vals_map[r_id][code] = int(raw_value) if raw_value is not None else None
-        
+
     result = []
     flags_map: dict[str, list[dict[str, Any]]] = {}
     for flag in flags:
-        flags_map.setdefault(str(flag["report_id"]), []).append({
-            "ct_code": str(flag.get("ct_code") or ""),
-            "error_type": str(flag.get("error_type") or ""),
-            "message": str(flag.get("message") or ""),
-            "resolved": bool(flag.get("resolved", False)),
-        })
+        flags_map.setdefault(str(flag["report_id"]), []).append(
+            {
+                "ct_code": str(flag.get("ct_code") or ""),
+                "error_type": str(flag.get("error_type") or ""),
+                "message": str(flag.get("message") or ""),
+                "resolved": bool(flag.get("resolved", False)),
+            }
+        )
     for raw_report in reports:
         report = dict(raw_report)
         r_vals = vals_map.get(str(report["id"]), {})
@@ -1487,8 +1614,9 @@ async def get_period_reports_data(supabase: SupabaseAdminClient, period_id: str)
         report["validation_flags"] = flags_map.get(str(report["id"]), [])
         report["rule_version"] = "2026-07"
         result.append(report)
-        
+
     return result
+
 
 def generate_docx_file(
     period_name: str,
@@ -1519,7 +1647,7 @@ def generate_docx_file(
     doc.add_paragraph(f"Kỳ báo cáo: {_safe_document_text(period_name)}")
     if scope_name:
         doc.add_paragraph(f"Phạm vi: {_safe_document_text(scope_name)}")
-    
+
     if not reports_data:
         doc.add_paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.")
     else:
@@ -1545,7 +1673,9 @@ def generate_docx_file(
     return buffer.getvalue()
 
 
-def generate_pdf_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
+def generate_pdf_file(
+    period_name: str, reports_data: list, villages_map: dict
+) -> bytes:
     from matplotlib import font_manager
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.pdfbase import pdfmetrics
@@ -1570,34 +1700,41 @@ def generate_pdf_file(period_name: str, reports_data: list, villages_map: dict) 
         bottomMargin=24,
     )
     story = []
-    
+
     styles = getSampleStyleSheet()
-    
+
     title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Heading1'],
-        fontName='BaNaUnicode-Bold',
+        "DocTitle",
+        parent=styles["Heading1"],
+        fontName="BaNaUnicode-Bold",
         fontSize=18,
-        textColor=colors.HexColor('#1E293B'),
+        textColor=colors.HexColor("#1E293B"),
         spaceAfter=15,
-        alignment=1
+        alignment=1,
     )
-    
+
     body_style = ParagraphStyle(
-        'BodyTextCustom',
-        parent=styles['BodyText'],
-        fontName='BaNaUnicode',
+        "BodyTextCustom",
+        parent=styles["BodyText"],
+        fontName="BaNaUnicode",
         fontSize=10,
-        textColor=colors.HexColor('#334155'),
-        spaceAfter=8
+        textColor=colors.HexColor("#334155"),
+        spaceAfter=8,
     )
-    
+
     story.append(Paragraph("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", title_style))
-    story.append(Paragraph(f"Kỳ báo cáo: {html.escape(_safe_document_text(period_name))}", ParagraphStyle('Sub', parent=title_style, fontSize=12, spaceAfter=20)))
+    story.append(
+        Paragraph(
+            f"Kỳ báo cáo: {html.escape(_safe_document_text(period_name))}",
+            ParagraphStyle("Sub", parent=title_style, fontSize=12, spaceAfter=20),
+        )
+    )
     story.append(Spacer(1, 10))
-    
+
     if not reports_data:
-        story.append(Paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.", body_style))
+        story.append(
+            Paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.", body_style)
+        )
     else:
         matrix = _export_matrix(reports_data, villages_map)
         header_cell_style = ParagraphStyle(
@@ -1616,7 +1753,10 @@ def generate_pdf_file(period_name: str, reports_data: list, villages_map: dict) 
         )
         table_data = [
             [
-                Paragraph(html.escape(cell), header_cell_style if row_index == 0 else body_cell_style)
+                Paragraph(
+                    html.escape(cell),
+                    header_cell_style if row_index == 0 else body_cell_style,
+                )
                 for cell in row
             ]
             for row_index, row in enumerate(matrix)
@@ -1630,30 +1770,38 @@ def generate_pdf_file(period_name: str, reports_data: list, villages_map: dict) 
             repeatRows=1,
             splitByRow=1,
         )
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0F172A')),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('FONTNAME', (0,0), (-1,0), 'BaNaUnicode-Bold'),
-            ('BOTTOMPADDING', (0,0), (-1,0), 6),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
-            ('FONTNAME', (0,1), (-1,-1), 'BaNaUnicode'),
-            ('FONTSIZE', (0,0), (-1,-1), 6),
-            ('ALIGN', (0,1), (0,-1), 'LEFT'),
-            ('LEFTPADDING', (0,0), (-1,-1), 3),
-            ('RIGHTPADDING', (0,0), (-1,-1), 3),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0F172A")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("FONTNAME", (0, 0), (-1, 0), "BaNaUnicode-Bold"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+                    ("FONTNAME", (0, 1), (-1, -1), "BaNaUnicode"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 6),
+                    ("ALIGN", (0, 1), (0, -1), "LEFT"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                ]
+            )
+        )
         story.append(t)
-        
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
 
-def generate_preview_html(period_name: str, reports_data: list, villages_map: dict) -> str:
+def generate_preview_html(
+    period_name: str, reports_data: list, villages_map: dict
+) -> str:
     indicator_codes = _indicator_codes()
-    table_headers_html = "".join(f"<th>{html.escape(code)}</th>" for code in indicator_codes)
+    table_headers_html = "".join(
+        f"<th>{html.escape(code)}</th>" for code in indicator_codes
+    )
     if not reports_data:
         table_rows_html = f"""
         <tr>
@@ -1665,10 +1813,10 @@ def generate_preview_html(period_name: str, reports_data: list, villages_map: di
     else:
         matrix = _export_matrix(reports_data, villages_map)
         table_rows_html = "".join(
-            "<tr style=\"border-bottom: 1px solid #e2e8f0;\">"
-            f"<td style=\"padding: 12px 16px; font-weight: 500; color: #0f172a;\">{html.escape(row[0])}</td>"
+            '<tr style="border-bottom: 1px solid #e2e8f0;">'
+            f'<td style="padding: 12px 16px; font-weight: 500; color: #0f172a;">{html.escape(row[0])}</td>'
             + "".join(
-                f"<td style=\"padding: 12px 16px; text-align: center;\">{html.escape(value)}</td>"
+                f'<td style="padding: 12px 16px; text-align: center;">{html.escape(value)}</td>'
                 for value in row[1:]
             )
             + "</tr>"
@@ -1812,7 +1960,9 @@ async def approve_or_lock_report(
         )
     except SupabaseAdminError as exc:
         if exc.error_code == "42501" or exc.status_code == 403:
-            raise HTTPException(status_code=403, detail="Only admin can approve reports") from exc
+            raise HTTPException(
+                status_code=403, detail="Only admin can approve reports"
+            ) from exc
         raise HTTPException(status_code=502, detail="Unable to update report") from exc
 
     if not rows:
@@ -1851,7 +2001,9 @@ async def publish_report(
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=502, detail="Unable to publish report") from exc
     if not rows:
-        raise HTTPException(status_code=409, detail="Report must be approved and unchanged")
+        raise HTTPException(
+            status_code=409, detail="Report must be approved and unchanged"
+        )
     return {
         "report_id": str(report_id),
         "publication_status": "published",
@@ -1870,27 +2022,33 @@ async def export_reports(
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
     reports_data = await get_period_reports_data(supabase, period_uuid)
-    
+
     if file_format == "xlsx":
         file_bytes = generate_summary_xlsx_file(period_name, reports_data, villages_map)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"Bang_tong_hop_Bana_SmartLink_{period_name}.xlsx"
     elif file_format == "docx":
         file_bytes = generate_docx_file(period_name, reports_data, villages_map)
-        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
         filename = f"Bao_cao_Bana_SmartLink_{period_name}.docx"
     elif file_format == "pdf":
         file_bytes = generate_pdf_file(period_name, reports_data, villages_map)
         media_type = "application/pdf"
         filename = f"Bao_cao_Bana_SmartLink_{period_name}.pdf"
     else:
-        raise HTTPException(status_code=400, detail="Định dạng xuất bản không hỗ trợ. Chỉ hỗ trợ xlsx, docx, pdf.")
-        
+        raise HTTPException(
+            status_code=400,
+            detail="Định dạng xuất bản không hỗ trợ. Chỉ hỗ trợ xlsx, docx, pdf.",
+        )
+
     return Response(
         content=file_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(filename)}
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
+
 
 @router.get("/village/{village_id}/export/{file_format}")
 async def export_village_report(
@@ -1907,21 +2065,27 @@ async def export_village_report(
             status_code=400,
             detail="Báo cáo theo thôn chỉ hỗ trợ định dạng XLSX hoặc DOCX.",
         )
-        
+
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
     village_id_text = str(village_id)
     village_name = villages_map.get(village_id_text, f"Thôn {village_id_text}")
-    
+
     reports_data = await get_period_reports_data(supabase, period_uuid)
-    
+
     # Find the report for this village
-    village_report = next((r for r in reports_data if r["village_id"] == village_id_text), None)
+    village_report = next(
+        (r for r in reports_data if r["village_id"] == village_id_text), None
+    )
     if not village_report:
-        raise HTTPException(status_code=404, detail="Không tìm thấy báo cáo của thôn trong kỳ này.")
-        
+        raise HTTPException(
+            status_code=404, detail="Không tìm thấy báo cáo của thôn trong kỳ này."
+        )
+
     if file_format == "xlsx":
-        file_bytes = generate_village_xlsx_file(period_name, village_report, village_name)
+        file_bytes = generate_village_xlsx_file(
+            period_name, village_report, village_name
+        )
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"Phieu_bao_cao_{village_name}_{period_name}.xlsx".replace(" ", "_")
     else:
@@ -1931,13 +2095,15 @@ async def export_village_report(
             {village_id_text: village_name},
             scope_name=village_name,
         )
-        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
         filename = f"Phieu_bao_cao_{village_name}_{period_name}.docx".replace(" ", "_")
-    
+
     return Response(
         content=file_bytes,
         media_type=media_type,
-        headers={"Content-Disposition": _content_disposition(filename)}
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
 
 
@@ -1953,14 +2119,16 @@ async def preview_reports(
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
     reports_data = await get_period_reports_data(supabase, period_uuid)
-    
+
     html_content = generate_preview_html(period_name, reports_data, villages_map)
     return HTMLResponse(content=html_content)
 
 
 def _content_disposition(filename: str) -> str:
     safe_ascii = "".join(
-        character if character.isascii() and (character.isalnum() or character in "._-") else "_"
+        character
+        if character.isascii() and (character.isalnum() or character in "._-")
+        else "_"
         for character in filename
     )
     return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{quote(filename, safe='')}"

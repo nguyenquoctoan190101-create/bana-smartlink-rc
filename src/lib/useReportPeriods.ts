@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiJson } from "./apiClient";
 import type { ReportPeriod } from "../types";
+import { decorateReportPeriod } from "./reportPeriods";
 
 let cachedPeriods: ReportPeriod[] | null = null;
 let inFlight: Promise<ReportPeriod[]> | null = null;
@@ -18,7 +19,7 @@ export async function loadReportPeriods(force = false): Promise<ReportPeriod[]> 
     const requestGeneration = cacheGeneration;
     const request = apiJson<ReportPeriod[]>("/report-periods")
       .then((rows) => {
-        const normalized = Array.isArray(rows) ? rows : [];
+        const normalized = Array.isArray(rows) ? rows.map(decorateReportPeriod) : [];
         if (requestGeneration === cacheGeneration) cachedPeriods = normalized;
         return normalized;
       })

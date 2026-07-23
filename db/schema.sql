@@ -169,6 +169,19 @@ create table public.report_periods (
   constraint report_periods_commune_name_unique unique (commune_id, name),
   constraint report_periods_commune_id_not_blank check (btrim(commune_id) <> ''),
   constraint report_periods_name_not_blank check (btrim(name) <> ''),
+  constraint report_periods_calendar_name_valid check (
+    case
+      when btrim(name) ~* '^(th[aá]ng[[:space:]]*)?[0-9]{1,2}[[:space:]]*/[[:space:]]*[0-9]{4}$'
+      then trim(
+        split_part(
+          regexp_replace(btrim(name), '^th[aá]ng[[:space:]]*', '', 'i'),
+          '/',
+          1
+        )
+      )::integer between 1 and 12
+      else true
+    end
+  ),
   constraint report_periods_template_name_check check (
     template_name is null
     or (

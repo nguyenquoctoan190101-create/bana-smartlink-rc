@@ -521,7 +521,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                 disabled={periods.length === 0}
               >
                 {periods.length === 0 && <option value="">Chưa có kỳ báo cáo</option>}
-                {periods.map((period) => <option key={period.id} value={period.id}>{period.name}</option>)}
+                {periods.map((period) => <option key={period.id} value={period.id}>{period.display_name ?? period.name}</option>)}
               </select>
             </div>
 
