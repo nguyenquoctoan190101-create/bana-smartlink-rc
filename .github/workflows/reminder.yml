@@ -27,9 +27,9 @@ jobs:
           echo "Reminder delivery is intentionally disabled for this release candidate.
           Set the staging variable REMINDER_JOB_ENABLED=true only after DATABASE_URL,
           UAT, and delivery monitoring are ready."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.REMINDER_JOB_ENABLED == 'true'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: env.REMINDER_JOB_ENABLED == 'true'
         with:
           python-version: "3.12"

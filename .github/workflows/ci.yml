@@ -17,12 +17,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -54,7 +54,7 @@ jobs:
         run: python scripts/release_check.py
       - name: Upload backend test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-evidence-${{ matrix.os }}
           path: |
@@ -66,13 +66,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -91,7 +91,7 @@ jobs:
         run: npx --yes @cyclonedx/cyclonedx-npm --output-file node-sbom.json
       - name: Generate Python SBOM
         run: cyclonedx-py requirements requirements-prod.txt --output-file python-sbom.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: |
@@ -117,7 +117,7 @@ jobs:
     env:
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Bootstrap Supabase-compatible roles
         run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_test_bootstrap.sql
       - name: Migrate a blank database
