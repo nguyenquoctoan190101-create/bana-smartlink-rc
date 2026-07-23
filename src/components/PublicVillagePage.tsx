@@ -83,11 +83,9 @@ export function getPublicReportTimestamp(report: unknown): string {
 
 interface PublicVillagePageProps {
   onGoToLogin?: () => void;
-  reports?: unknown;
-  onProposalSubmitted?: () => Promise<void>;
 }
 
-export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: PublicVillagePageProps) {
+export default function PublicVillagePage({ onGoToLogin }: PublicVillagePageProps) {
   const [villages, setVillages] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [periods, setPeriods] = useState<string[]>([]);
@@ -201,7 +199,6 @@ export default function PublicVillagePage({ onGoToLogin, onProposalSubmitted }: 
       if (!response.ok) throw new Error(result.message || result.detail || "Không thể gửi đề nghị đối chiếu.");
       setTrackingCode(typeof result.tracking_code === "string" ? result.tracking_code : null);
       setProposalStep(4);
-      await onProposalSubmitted?.();
     } catch (error) {
       setFormError(toUserFacingError(error, "Không thể gửi đề nghị đối chiếu. Vui lòng thử lại."));
     } finally {

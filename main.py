@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -238,7 +239,8 @@ def create_app() -> FastAPI:
 
     @app.get("/health/live", tags=["health"])
     async def health_live() -> dict[str, str]:
-        return {"status": "ok"}
+        commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("APP_VERSION") or "development"
+        return {"status": "ok", "version": commit[:40]}
 
     @app.get("/health/ready", tags=["health"])
     async def health_ready() -> dict[str, str]:

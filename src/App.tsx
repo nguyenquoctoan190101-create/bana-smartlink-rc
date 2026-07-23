@@ -314,8 +314,17 @@ export default function App() {
     return () => window.removeEventListener("popstate", restore);
   }, [userRole]);
 
-  // Initialize and seed database on mount
+  // The public portal owns its public-data request. Loading the same endpoint
+  // here as well caused duplicate requests and a misleading transient error
+  // while a free-tier instance was waking up.
   useEffect(() => {
+    if (isAuthLoading) return;
+    if (!isLoggedIn || userRole === "dan") {
+      setReports([]);
+      setIsLoading(false);
+      return;
+    }
+
     const initApp = async () => {
       try {
         await loadAllReports();
@@ -325,7 +334,7 @@ export default function App() {
         setIsLoading(false);
       }
     };
-    if (!isAuthLoading) void initApp();
+    void initApp();
   }, [isAuthLoading, isLoggedIn, userRole, userVillageId]);
 
   const loadAllReports = async () => {
@@ -460,11 +469,7 @@ export default function App() {
           {/* Main content */}
           <main className="flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
             <React.Suspense fallback={<LoadingPanel />}>
-              <PublicVillagePage 
-                reports={reports.filter((report) => !report.local_only)}
-                onProposalSubmitted={loadAllReports}
-                onGoToLogin={() => setPublicMode("login")}
-              />
+              <PublicVillagePage onGoToLogin={() => setPublicMode("login")} />
             </React.Suspense>
           </main>
 
