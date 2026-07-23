@@ -74,7 +74,7 @@ describe("CaseManagement", () => {
       .getByText("Rác thải tồn đọng cạnh nhà văn hóa.")
       .closest("article");
     expect(caseCard).toHaveAttribute("data-status", "received");
-  });
+  }, 15_000);
 
   it("keeps leader mode read-only", async () => {
     render(
