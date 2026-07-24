@@ -1,0 +1,70 @@
+/* Ba Na SmartLink visual layer v2. Presentation only: no API or workflow changes. */
+:root {
+  --bn-brand: #0b4a35;
+  --bn-brand-deep: #063629;
+  --bn-brand-soft: #e8f2ee;
+  --bn-gold: #daaf37;
+  --bn-ink: #132a25;
+  --bn-muted: #5c6d69;
+  --bn-line: #d8e4df;
+  --bn-surface: #ffffff;
+  --bn-page: #f4f7f5;
+  --bn-danger: #b42318;
+  --bn-warning: #b54708;
+  --bn-info: #1769aa;
+}
+
+html { background: var(--bn-page); }
+body { background: var(--bn-page); color: var(--bn-ink); }
+button, input, select, textarea { font: inherit; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--bn-gold) 78%, #fff); outline-offset: 2px; }
+
+.gov-shell { min-height: 100vh; background: var(--bn-page); }
+.gov-shell__sidebar {
+  position: relative;
+  width: 18rem;
+  background: linear-gradient(180deg, var(--bn-brand) 0%, var(--bn-brand-deep) 100%);
+  border-right: 1px solid rgba(218, 175, 55, .18);
+  box-shadow: 8px 0 28px rgba(6, 54, 41, .08);
+}
+.gov-shell__sidebar::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--bn-gold); }
+.gov-shell__sidebar-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+.gov-shell__main { background: var(--bn-page); }
+.gov-shell__content { width: min(100%, 1480px); padding: 1.75rem clamp(1rem, 3vw, 2.75rem) 6rem; }
+.gov-shell__main > header { background: rgba(255,255,255,.9); backdrop-filter: blur(14px); border-bottom: 1px solid var(--bn-line); }
+.gov-shell__sidebar a { border-radius: 10px; transition: background .18s ease, color .18s ease, transform .18s ease; }
+.gov-shell__sidebar a:hover { background: rgba(255,255,255,.09); }
+.gov-shell__sidebar a[aria-current="page"], .gov-shell__sidebar a.active { color: var(--bn-brand); background: #fff; box-shadow: 0 5px 16px rgba(3,34,25,.16); }
+
+.gov-shell :is(.section-card, .metric-card, .action-card, .filter-bar) { border: 1px solid var(--bn-line); border-radius: 16px; background: var(--bn-surface); box-shadow: 0 8px 24px rgba(19,42,37,.06); }
+.gov-shell :is(input, select, textarea) { min-height: 2.75rem; border: 1px solid #cbd9d4; border-radius: 10px; background: #fff; color: var(--bn-ink); transition: border-color .18s, box-shadow .18s; }
+.gov-shell :is(input, select, textarea):hover { border-color: #89ad9f; }
+.gov-shell :is(input, select, textarea):focus { border-color: var(--bn-brand); box-shadow: 0 0 0 3px rgba(11,74,53,.12); outline: 0; }
+.gov-shell .button--primary { background: var(--bn-brand); border-color: var(--bn-brand); box-shadow: 0 5px 12px rgba(11,74,53,.18); }
+.gov-shell .button--primary:hover { background: var(--bn-brand-deep); }
+.gov-shell .button--secondary { border-color: var(--bn-brand); color: var(--bn-brand); background: #fff; }
+.gov-shell .button--quiet { color: var(--bn-brand); }
+.gov-shell table thead { background: #edf5f1; color: var(--bn-brand); }
+.gov-shell table tbody tr:hover { background: #f7fbf9; }
+
+#public-village-portal { max-width: 1480px; }
+#public-village-portal > section:first-child { background: linear-gradient(120deg, var(--bn-brand) 0%, #0f644d 60%, var(--bn-brand) 100%); border: 1px solid rgba(218,175,55,.3); border-radius: 20px; box-shadow: 0 14px 34px rgba(6,54,41,.16); }
+#public-village-portal .public-hero-nav .button--secondary { color: var(--bn-brand); box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+#public-village-portal .public-hero-nav .button--quiet { color: #fff; border-color: rgba(255,255,255,.32); background: rgba(255,255,255,.08); }
+#public-village-portal .public-hero-nav .button--quiet:hover { color: #fff; background: rgba(255,255,255,.17); }
+#public-village-portal :is(.metric-card, .section-card, .filter-bar) { border-radius: 16px; box-shadow: 0 7px 22px rgba(19,42,37,.06); }
+#public-village-portal .metric-card { position: relative; overflow: hidden; }
+#public-village-portal .metric-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--bn-brand); }
+#public-village-portal .metric-card:nth-child(3n+2)::before { background: var(--bn-gold); }
+#public-village-portal .metric-card:nth-child(3n)::before { background: var(--bn-info); }
+
+@media (max-width: 1023px) { .gov-shell__sidebar { width: 16.5rem; } .gov-shell__content { padding-inline: 1.25rem; } }
+@media (max-width: 767px) {
+  .gov-shell__content { padding: 1rem .875rem 5rem; }
+  #public-village-portal > section:first-child { border-radius: 16px; padding: 1.5rem; }
+  #public-village-portal .public-hero-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #public-village-portal .public-hero-nav > * { width: 100%; }
+  .gov-shell :is(.section-card, .metric-card, .action-card, .filter-bar) { border-radius: 12px; }
+}
+@media (max-width: 390px) { #public-village-portal .public-hero-nav { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
