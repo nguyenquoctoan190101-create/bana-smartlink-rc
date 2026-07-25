@@ -14,6 +14,7 @@ import '@fontsource/noto-sans/latin-700.css';
 import '@fontsource/noto-sans/vietnamese-700.css';
 import './index.css';
 import './brand-v2.css';
+import './brand-v3.css';
 
 installChunkRecovery();
 

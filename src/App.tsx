@@ -449,9 +449,9 @@ export default function App() {
   if (!isLoggedIn) {
     if (publicMode === "public") {
       return (
-        <div className="min-h-screen bg-[#f6f8f7] flex flex-col font-sans antialiased text-slate-800">
+        <div className="public-shell min-h-screen bg-[#f6f8f7] flex flex-col font-sans antialiased text-slate-800">
           {/* Public Header */}
-          <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
+          <header className="public-header bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 min-h-20 flex items-center justify-between gap-4">
               <Wordmark />
               <Button
@@ -467,14 +467,14 @@ export default function App() {
           </header>
 
           {/* Main content */}
-          <main className="flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
+          <main className="public-content flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
             <React.Suspense fallback={<LoadingPanel />}>
               <PublicVillagePage onGoToLogin={() => setPublicMode("login")} />
             </React.Suspense>
           </main>
 
           {/* Public Footer */}
-          <footer className="bg-[#10241e] text-slate-300 text-center py-7 px-4 border-t border-emerald-900 text-xs space-y-3">
+          <footer className="public-footer bg-[#10241e] text-slate-300 text-center py-7 px-4 border-t border-emerald-900 text-xs space-y-3">
             <div className="font-semibold">
               © 2026 UBND xã Bà Nà · Bà Nà SmartLink
             </div>
@@ -500,10 +500,10 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen flex flex-col lg:flex-row font-sans antialiased text-slate-800 bg-[#f6f8f7]">
+      <div className="login-shell min-h-screen flex flex-col lg:flex-row font-sans antialiased text-slate-800 bg-[#f6f8f7]">
         
         {/* LEFT COLUMN: Visual Showcase & Brand illustration */}
-        <div className="hidden lg:flex lg:w-[58%] bg-[#0b4437] relative flex-col justify-between p-12 xl:p-16 overflow-hidden text-white">
+        <div className="login-visual hidden lg:flex lg:w-[58%] bg-[#0b4437] relative flex-col justify-between p-12 xl:p-16 overflow-hidden text-white">
           <TopographicPattern className="text-white" />
           
           {/* Top left overlay metadata */}
@@ -538,15 +538,15 @@ export default function App() {
         </div>
 
         {/* RIGHT COLUMN: The Login Form */}
-        <div className="w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
+        <div className="login-panel w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
           <TopographicPattern className="text-emerald-800 lg:hidden" />
           
           {/* Logo showing up for mobile screen only */}
-          <div className="block lg:hidden mb-10 relative z-10">
+          <div className="login-mobile-brand block lg:hidden mb-10 relative z-10">
             <Wordmark />
           </div>
 
-          <div className="relative z-10 w-full max-w-md mx-auto bg-white p-6 sm:p-8 border border-[#dfe6e3] rounded-xl shadow-sm space-y-6">
+          <div className="login-card relative z-10 w-full max-w-md mx-auto bg-white p-6 sm:p-8 border border-[#dfe6e3] rounded-xl shadow-sm space-y-6">
             <form onSubmit={handleLoginSubmit} className="space-y-5">
               <div>
                 <p className="text-xs font-bold text-emerald-800">KHU VỰC NỘI BỘ</p>
@@ -644,9 +644,9 @@ export default function App() {
 
   if (requiresPasswordReset) {
     return (
-      <main className="min-h-screen bg-emerald-950 flex items-center justify-center p-4">
+      <main className="password-reset-shell min-h-screen bg-emerald-950 flex items-center justify-center p-4">
         <form
-          className="w-full max-w-md rounded-2xl bg-white p-6 space-y-5 shadow-2xl"
+          className="password-reset-card w-full max-w-md rounded-2xl bg-white p-6 space-y-5 shadow-2xl"
           onSubmit={async (event) => {
             event.preventDefault();
             setPasswordResetMessage(null);
@@ -748,7 +748,7 @@ export default function App() {
   const mobileNavItems = navItems;
 
   return (
-    <div className="gov-shell flex flex-col md:flex-row font-sans antialiased">
+    <div className="gov-shell flex flex-col md:flex-row font-sans antialiased" data-user-role={userRole}>
       
       {/* -------------------------------------------------------------
           DESKTOP SIDEBAR: FIXED LEFT SIDEBAR FOR DESKTOP
@@ -844,7 +844,7 @@ export default function App() {
       {/* -------------------------------------------------------------
           MOBILE HEADER: TOP BAR FOR MOBILE DEVICES
           ------------------------------------------------------------- */}
-      <header className="block md:hidden bg-[#0b3d32] text-white sticky top-0 z-40 border-b border-white/10">
+      <header className="gov-mobile-header block md:hidden bg-[#0b3d32] text-white sticky top-0 z-40 border-b border-white/10">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="min-w-0">
             <Wordmark compact inverse />
@@ -931,7 +931,7 @@ export default function App() {
       <div className="gov-shell__main flex flex-col min-h-0">
         
         {/* Desktop Top Header Bar */}
-        <header className="hidden md:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
+        <header className="gov-topbar hidden md:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-slate-500">Không gian làm việc</span>
             <span className="text-slate-300">/</span>
@@ -1020,7 +1020,7 @@ export default function App() {
             </div>
           ) : (
             <React.Suspense fallback={<LoadingPanel />}>
-              <div className="space-y-6">
+              <div className="role-screen space-y-6">
               {activeTab === "dashboard" && (
                 <>
                   <Dashboard 
@@ -1128,7 +1128,7 @@ export default function App() {
           )}
 
           {/* Universal Footer for Privacy Policy and info */}
-          <footer className="pt-8 pb-4 mt-12 border-t border-slate-200 text-center text-xs text-slate-500 space-y-2">
+          <footer className="gov-footer pt-8 pb-4 mt-12 border-t border-slate-200 text-center text-xs text-slate-500 space-y-2">
             <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1.5 font-bold text-slate-600">
               <button 
                 onClick={() => setShowPrivacy(true)}
@@ -1151,7 +1151,7 @@ export default function App() {
       {/* -------------------------------------------------------------
           MOBILE BOTTOM NAVIGATION: FLOATING STICKY NAVIGATION FOR PHONES
           ------------------------------------------------------------- */}
-      <nav aria-label="Điều hướng chính trên thiết bị di động" className="md:hidden fixed bottom-0 left-0 right-0 z-45 bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg flex items-center min-h-16 overflow-x-auto">
+      <nav aria-label="Điều hướng chính trên thiết bị di động" className="gov-mobile-nav md:hidden fixed bottom-0 left-0 right-0 z-45 bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg flex items-center min-h-16 overflow-x-auto">
         {mobileNavItems.map((item) => {
           const IconComp = item.icon;
           const isActive = activeTab === item.id;

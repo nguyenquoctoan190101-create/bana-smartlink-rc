@@ -1,0 +1,1187 @@
+/*
+ * Ba Na SmartLink visual identity.
+ * Presentation-only layer: brand, layout polish and responsive behavior.
+ */
+
+:root {
+  --bn-green: #0b4a35;
+  --bn-green-deep: #063629;
+  --bn-green-dark: #083f2f;
+  --bn-green-mid: #116247;
+  --bn-green-soft: #e9f3ef;
+  --bn-green-mist: #f3f8f5;
+  --bn-gold: #daaf37;
+  --bn-gold-dark: #a77b13;
+  --bn-gold-soft: #fbf3d9;
+  --bn-ink: #152722;
+  --bn-muted: #5d6d67;
+  --bn-line: #d8e4df;
+  --bn-line-strong: #c5d6cf;
+  --bn-canvas: #f4f7f5;
+  --bn-surface: #ffffff;
+  --bn-shadow-sm: 0 1px 2px rgb(11 74 53 / 0.04), 0 7px 20px rgb(11 74 53 / 0.055);
+  --bn-shadow-md: 0 16px 42px rgb(6 54 41 / 0.11);
+  --bn-radius-sm: 0.75rem;
+  --bn-radius-md: 1rem;
+  --bn-radius-lg: 1.35rem;
+
+  /* Keep every existing emerald utility aligned with the approved identity. */
+  --color-emerald-25: #f7fbf9;
+  --color-emerald-50: #edf6f2;
+  --color-emerald-100: #d7eae2;
+  --color-emerald-200: #b1d5c6;
+  --color-emerald-300: #7fb8a1;
+  --color-emerald-400: #519a7d;
+  --color-emerald-450: #35866a;
+  --color-emerald-500: #247358;
+  --color-emerald-600: #176247;
+  --color-emerald-650: #12583f;
+  --color-emerald-700: #0f513b;
+  --color-emerald-750: #0d4b37;
+  --color-emerald-800: #0b4a35;
+  --color-emerald-850: #083f2f;
+  --color-emerald-900: #07392b;
+  --color-emerald-950: #052c22;
+
+  --ui-canvas: var(--bn-canvas);
+  --ui-surface: var(--bn-surface);
+  --ui-surface-muted: var(--bn-green-mist);
+  --ui-ink: var(--bn-ink);
+  --ui-muted: var(--bn-muted);
+  --ui-border: var(--bn-line);
+  --ui-primary: var(--bn-green);
+  --ui-primary-dark: var(--bn-green-deep);
+  --ui-radius: var(--bn-radius-sm);
+  --ui-shadow: var(--bn-shadow-sm);
+}
+
+html {
+  background: var(--bn-canvas);
+}
+
+body {
+  color: var(--bn-ink);
+  background:
+    radial-gradient(circle at 92% -8%, rgb(218 175 55 / 0.1), transparent 28rem),
+    var(--bn-canvas);
+}
+
+::selection {
+  color: #fff;
+  background: var(--bn-green);
+}
+
+:focus-visible {
+  outline-color: rgb(218 175 55 / 0.82) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand lockups                                                               */
+/* -------------------------------------------------------------------------- */
+
+.brand-wordmark {
+  gap: 0.7rem;
+}
+
+.brand-wordmark__mark {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  overflow: hidden;
+  border: 1px solid rgb(11 74 53 / 0.16);
+  border-radius: 0.82rem;
+  background: #fff;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.7),
+    0 5px 14px rgb(6 54 41 / 0.12);
+}
+
+.brand-wordmark__mark img {
+  display: block;
+  width: 152%;
+  max-width: none;
+  height: 152%;
+  object-fit: cover;
+  transform: translate(-17.1%, -17.1%);
+}
+
+.brand-wordmark[data-inverse] .brand-wordmark__mark {
+  border-color: rgb(255 255 255 / 0.36);
+  background: #fff;
+}
+
+.brand-wordmark__copy {
+  line-height: 1.12;
+}
+
+.brand-wordmark__copy strong {
+  color: currentColor;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.brand-wordmark__copy small {
+  margin-top: 0.26rem;
+  color: var(--bn-muted);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.brand-wordmark[data-inverse] small {
+  color: rgb(255 255 255 / 0.72);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public portal                                                               */
+/* -------------------------------------------------------------------------- */
+
+.public-shell {
+  background:
+    linear-gradient(180deg, #f8faf9 0%, var(--bn-canvas) 52%, #edf3f0 100%);
+}
+
+.public-header {
+  border-bottom-color: rgb(11 74 53 / 0.13) !important;
+  background: rgb(255 255 255 / 0.92) !important;
+  box-shadow: 0 7px 28px rgb(6 54 41 / 0.055);
+}
+
+.public-header::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(218 175 55 / 0.78), transparent);
+}
+
+.public-header > div {
+  min-height: 5.25rem;
+}
+
+.public-content {
+  position: relative;
+}
+
+#public-village-portal {
+  max-width: 1480px;
+}
+
+.public-hero {
+  isolation: isolate;
+  min-height: clamp(430px, 42vw, 570px);
+  padding: clamp(2rem, 4vw, 3.5rem) clamp(1.5rem, 5vw, 4.5rem) 2.8rem !important;
+  border: 1px solid rgb(218 175 55 / 0.72) !important;
+  border-radius: 1.75rem !important;
+  background:
+    linear-gradient(90deg, rgb(4 47 35 / 0.97) 0%, rgb(7 65 46 / 0.9) 43%, rgb(7 59 43 / 0.36) 74%, rgb(7 49 37 / 0.16) 100%),
+    url("/images/ba-na-golden-bridge.webp") center 55% / cover no-repeat !important;
+  box-shadow: 0 28px 72px rgb(3 44 32 / 0.22);
+}
+
+.public-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 84% 13%, rgb(244 213 120 / 0.33), transparent 17rem),
+    linear-gradient(115deg, rgb(41 143 103 / 0.14), transparent 45%);
+}
+
+.public-hero::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  height: 5px;
+  pointer-events: none;
+  background: linear-gradient(90deg, #b98415, #f3d26c 42%, var(--bn-gold) 70%, #b98415);
+}
+
+.public-hero .topographic-pattern {
+  z-index: 1;
+  width: min(48rem, 65vw);
+  opacity: 0.11;
+}
+
+.public-hero .public-brand-lockup,
+.public-hero h1,
+.public-hero p,
+.public-hero .public-hero-nav {
+  position: relative;
+  z-index: 3;
+}
+
+.public-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.35rem;
+  padding: 0.55rem 0.8rem 0.55rem 0.58rem;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  border-radius: 1rem;
+  background: rgb(3 48 35 / 0.42);
+  backdrop-filter: blur(9px);
+}
+
+.public-brand-lockup img {
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgb(255 255 255 / 0.38);
+  border-radius: 0.85rem;
+  object-fit: cover;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.24);
+}
+
+.public-brand-name {
+  display: block;
+  color: #fff;
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.public-brand-tagline {
+  display: block;
+  margin-top: 0.25rem;
+  color: rgb(255 255 255 / 0.74);
+  font-size: 0.59rem;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.public-hero h1 {
+  max-width: 790px;
+  color: #fff !important;
+  font-size: clamp(2.55rem, 5vw, 5.35rem) !important;
+  font-weight: 800 !important;
+  line-height: 0.99 !important;
+  letter-spacing: -0.06em !important;
+  text-shadow: 0 4px 24px rgb(0 0 0 / 0.22);
+  text-wrap: balance;
+}
+
+.public-hero p {
+  max-width: 620px;
+  color: rgb(255 255 255 / 0.9) !important;
+  font-size: clamp(0.92rem, 1.25vw, 1.08rem);
+  line-height: 1.65;
+}
+
+.public-hero .public-hero-nav {
+  max-width: 940px;
+  margin-top: 2rem !important;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgb(255 255 255 / 0.29);
+  gap: 0.65rem !important;
+}
+
+.public-hero .public-hero-nav > * {
+  min-height: 48px;
+  border: 1px solid rgb(255 255 255 / 0.38) !important;
+  border-radius: 0.8rem !important;
+  color: #fff !important;
+  background: rgb(3 55 40 / 0.52) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(7px);
+}
+
+.public-hero .public-hero-nav > *:first-child {
+  border-color: #fff !important;
+  color: var(--bn-green-deep) !important;
+  background: #fff !important;
+  box-shadow: 0 9px 24px rgb(0 0 0 / 0.17) !important;
+}
+
+.public-hero .public-hero-nav > *:hover {
+  border-color: rgb(218 175 55 / 0.9) !important;
+  background: rgb(255 255 255 / 0.16) !important;
+}
+
+.public-hero .public-hero-nav > *:first-child:hover {
+  color: var(--bn-green-deep) !important;
+  background: var(--bn-gold-soft) !important;
+}
+
+#public-village-portal > :not(.public-hero) {
+  position: relative;
+}
+
+#public-village-portal :is(.ui-card, .metric-card, .filter-bar, .action-card) {
+  border-color: var(--bn-line);
+  border-radius: var(--bn-radius-md);
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: var(--bn-shadow-sm);
+}
+
+#public-village-portal .metric-card {
+  min-height: 9rem;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+#public-village-portal .metric-card:hover {
+  transform: translateY(-3px);
+  border-color: rgb(11 74 53 / 0.28);
+  box-shadow: 0 15px 34px rgb(11 74 53 / 0.09);
+}
+
+#public-village-portal .metric-card::before {
+  width: 4px;
+}
+
+#public-village-portal .page-heading {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--bn-line);
+}
+
+#public-village-portal table thead th {
+  color: var(--bn-green);
+  background: var(--bn-green-soft);
+}
+
+.public-footer {
+  position: relative;
+  border-top: 3px solid var(--bn-gold) !important;
+  color: rgb(255 255 255 / 0.72) !important;
+  background:
+    radial-gradient(circle at 80% 0%, rgb(218 175 55 / 0.13), transparent 18rem),
+    var(--bn-green-deep) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sign in and password reset                                                  */
+/* -------------------------------------------------------------------------- */
+
+.login-shell {
+  background: #f2f6f4;
+}
+
+.login-visual {
+  isolation: isolate;
+  border-right: 1px solid rgb(218 175 55 / 0.32);
+  background:
+    linear-gradient(180deg, rgb(3 45 33 / 0.68) 0%, rgb(4 54 39 / 0.58) 42%, rgb(3 42 31 / 0.93) 100%),
+    url("/images/ba-na-golden-bridge.webp") 58% center / cover no-repeat !important;
+}
+
+.login-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgb(5 54 40 / 0.42), transparent 65%),
+    radial-gradient(circle at 80% 14%, rgb(218 175 55 / 0.3), transparent 18rem);
+}
+
+.login-visual::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: auto 0 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--bn-gold-dark), #f0cf68, var(--bn-gold));
+}
+
+.login-visual > * {
+  position: relative;
+  z-index: 2;
+}
+
+.login-visual .topographic-pattern {
+  z-index: 1;
+  opacity: 0.13;
+}
+
+.login-visual h1 {
+  max-width: 740px;
+  font-size: clamp(2.7rem, 4.5vw, 5rem) !important;
+  line-height: 0.99 !important;
+  text-shadow: 0 5px 26px rgb(0 0 0 / 0.28);
+}
+
+.login-visual > div:last-child {
+  padding: 2rem;
+  border: 1px solid rgb(255 255 255 / 0.19);
+  border-radius: 1.25rem;
+  background: linear-gradient(135deg, rgb(4 46 34 / 0.64), rgb(4 47 35 / 0.32));
+  box-shadow: 0 24px 50px rgb(0 0 0 / 0.15);
+  backdrop-filter: blur(9px);
+}
+
+.login-visual > div:last-child > div:last-child b {
+  color: #f4d778 !important;
+}
+
+.login-panel {
+  background:
+    radial-gradient(circle at 100% 0%, rgb(218 175 55 / 0.13), transparent 21rem),
+    linear-gradient(180deg, #f9fbfa, #edf3f0) !important;
+}
+
+.login-panel::before,
+.password-reset-shell::before {
+  content: "";
+  position: absolute;
+  right: -9rem;
+  bottom: -8rem;
+  width: 31rem;
+  height: 24rem;
+  pointer-events: none;
+  opacity: 0.16;
+  background:
+    linear-gradient(160deg, transparent 0 42%, var(--bn-green) 43% 45%, transparent 46%),
+    linear-gradient(150deg, transparent 0 51%, var(--bn-green) 52% 54%, transparent 55%),
+    linear-gradient(140deg, transparent 0 60%, var(--bn-gold) 61% 62%, transparent 63%);
+  transform: rotate(-4deg);
+}
+
+.login-card,
+.password-reset-card {
+  overflow: hidden;
+  border-color: var(--bn-line) !important;
+  border-radius: 1.25rem !important;
+  box-shadow: 0 24px 62px rgb(6 54 41 / 0.13) !important;
+}
+
+.login-card::before,
+.password-reset-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--bn-green), var(--bn-gold), var(--bn-green));
+}
+
+.login-card form > div:first-child > p:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--bn-green);
+  letter-spacing: 0.075em;
+}
+
+.login-card form > div:first-child > p:first-child::before {
+  content: "";
+  width: 1.6rem;
+  height: 2px;
+  background: var(--bn-gold);
+}
+
+.login-card input {
+  min-height: 3rem !important;
+  border-color: var(--bn-line-strong) !important;
+  border-radius: 0.75rem !important;
+}
+
+.login-card .button {
+  min-height: 3rem;
+  border-radius: 0.75rem;
+}
+
+.login-card .button--primary {
+  box-shadow: 0 10px 22px rgb(11 74 53 / 0.2);
+}
+
+.password-reset-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(115deg, rgb(4 42 31 / 0.95), rgb(8 78 55 / 0.9)),
+    url("/images/ba-na-golden-bridge.webp") center / cover !important;
+}
+
+.password-reset-card {
+  position: relative;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Authenticated application shell                                             */
+/* -------------------------------------------------------------------------- */
+
+.gov-shell {
+  background:
+    radial-gradient(circle at 96% 0%, rgb(218 175 55 / 0.095), transparent 26rem),
+    linear-gradient(180deg, #f7f9f8, var(--bn-canvas));
+}
+
+.gov-shell__sidebar {
+  position: sticky;
+  width: 18rem;
+  border-right: 1px solid rgb(218 175 55 / 0.22) !important;
+  background:
+    radial-gradient(circle at 25% 8%, rgb(218 175 55 / 0.1), transparent 13rem),
+    linear-gradient(180deg, var(--bn-green) 0%, var(--bn-green-deep) 100%);
+  box-shadow: 10px 0 36px rgb(6 54 41 / 0.09);
+}
+
+.gov-shell__sidebar::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--bn-gold-dark), #f1d06b, var(--bn-gold));
+}
+
+.gov-shell__sidebar::after {
+  content: "";
+  position: absolute;
+  inset: auto -2rem 1rem auto;
+  width: 16rem;
+  height: 9rem;
+  pointer-events: none;
+  opacity: 0.08;
+  background:
+    radial-gradient(ellipse at 30% 100%, transparent 0 45%, #fff 46% 47%, transparent 48%),
+    radial-gradient(ellipse at 65% 100%, transparent 0 54%, #fff 55% 56%, transparent 57%);
+}
+
+.gov-shell__sidebar .brand-wordmark__mark {
+  width: 3rem;
+  height: 3rem;
+}
+
+.gov-shell__sidebar .brand-wordmark__copy strong {
+  font-size: 1.05rem;
+}
+
+.gov-shell__sidebar-scroll {
+  position: relative;
+  z-index: 3;
+  scrollbar-color: rgb(255 255 255 / 0.22) transparent;
+}
+
+.gov-shell__sidebar nav {
+  padding-inline: 0.75rem !important;
+}
+
+.gov-shell__sidebar nav button {
+  position: relative;
+  min-height: 2.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem !important;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.gov-shell__sidebar nav button:hover {
+  border-color: rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.09) !important;
+  transform: translateX(2px);
+}
+
+.gov-shell__sidebar nav button[aria-current="page"] {
+  border-color: rgb(255 255 255 / 0.72);
+  color: var(--bn-green-deep) !important;
+  background: #fff !important;
+  box-shadow: 0 9px 22px rgb(2 29 21 / 0.19);
+}
+
+.gov-shell__sidebar nav button[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -1px;
+  width: 4px;
+  border-radius: 0.75rem 0 0 0.75rem;
+  background: var(--bn-gold);
+}
+
+.gov-shell__sidebar nav button[aria-current="page"] svg {
+  color: var(--bn-green);
+}
+
+.gov-nav-group {
+  margin-top: 1.35rem;
+  color: rgb(255 255 255 / 0.55);
+  letter-spacing: 0.105em;
+}
+
+.gov-shell__main {
+  background: transparent;
+}
+
+.gov-topbar {
+  min-height: 4.25rem !important;
+  border-bottom-color: rgb(11 74 53 / 0.11) !important;
+  background: rgb(255 255 255 / 0.89) !important;
+  box-shadow: 0 6px 24px rgb(6 54 41 / 0.045);
+  backdrop-filter: blur(16px);
+}
+
+.gov-topbar::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(218 175 55 / 0.5), transparent);
+}
+
+.gov-shell__content {
+  width: min(100%, 1540px);
+  padding: 1.75rem clamp(1rem, 2.7vw, 2.75rem) 6.25rem;
+}
+
+.gov-shell__content > div,
+.gov-shell__content > section {
+  min-width: 0;
+}
+
+.role-screen {
+  position: relative;
+}
+
+.role-screen::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -1.75rem;
+  right: -2.75rem;
+  width: min(34rem, 52vw);
+  height: 12rem;
+  pointer-events: none;
+  opacity: 0.12;
+  background:
+    radial-gradient(ellipse at 18% 100%, transparent 0 48%, var(--bn-green) 49% 50%, transparent 51%),
+    radial-gradient(ellipse at 56% 100%, transparent 0 57%, var(--bn-green) 58% 59%, transparent 60%),
+    linear-gradient(167deg, transparent 0 68%, var(--bn-gold) 69% 69.6%, transparent 70%);
+}
+
+.gov-shell .page-heading {
+  position: relative;
+  margin-bottom: 1.4rem;
+  padding: 0 0 1.15rem 1rem;
+  border-bottom: 1px solid var(--bn-line);
+}
+
+.gov-shell .page-heading::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 1.15rem 0;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--bn-gold), var(--bn-green));
+}
+
+.gov-shell .page-heading h1 {
+  color: var(--bn-green-deep);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.gov-shell .page-heading__eyebrow {
+  color: var(--bn-green);
+  letter-spacing: 0.085em;
+}
+
+.gov-shell :is(.ui-card, .metric-card, .filter-bar, .action-card) {
+  border-color: var(--bn-line);
+  border-radius: var(--bn-radius-md);
+  background: rgb(255 255 255 / 0.97);
+  box-shadow: var(--bn-shadow-sm);
+}
+
+.gov-shell :is(.bg-white.rounded-2xl, .bg-white.rounded-xl, .bg-white.rounded-lg) {
+  border-color: var(--bn-line) !important;
+  box-shadow: var(--bn-shadow-sm);
+}
+
+.gov-shell :is(.border-slate-100, .border-slate-150, .border-slate-200) {
+  border-color: var(--bn-line) !important;
+}
+
+.gov-shell .metric-card {
+  min-height: 9.25rem;
+  transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+}
+
+.gov-shell .metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(11 74 53 / 0.27);
+  box-shadow: 0 13px 30px rgb(6 54 41 / 0.085);
+}
+
+.gov-shell .metric-card__icon {
+  background: var(--bn-green-soft);
+}
+
+.gov-shell .metric-card__value {
+  color: var(--bn-green-deep);
+}
+
+.gov-shell .filter-bar {
+  border-top: 3px solid rgb(11 74 53 / 0.82);
+}
+
+.gov-shell .action-card {
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.gov-shell .action-card:hover {
+  border-color: var(--bn-line-strong);
+  box-shadow: 0 10px 26px rgb(6 54 41 / 0.075);
+}
+
+.gov-shell :is(input, select, textarea) {
+  border-color: var(--bn-line-strong) !important;
+  border-radius: 0.72rem !important;
+  box-shadow: inset 0 1px 1px rgb(11 74 53 / 0.025);
+}
+
+.gov-shell :is(input, select, textarea):hover {
+  border-color: #8faf9f !important;
+}
+
+.gov-shell :is(input, select, textarea):focus {
+  border-color: var(--bn-green) !important;
+  box-shadow: 0 0 0 3px rgb(11 74 53 / 0.12) !important;
+}
+
+.gov-shell .button {
+  border-radius: 0.72rem;
+}
+
+.gov-shell .button--primary {
+  border-color: var(--bn-green);
+  background: var(--bn-green);
+  box-shadow: 0 6px 15px rgb(11 74 53 / 0.16);
+}
+
+.gov-shell .button--primary:hover:not(:disabled) {
+  background: var(--bn-green-deep);
+}
+
+.gov-shell .button--secondary {
+  border-color: rgb(11 74 53 / 0.37);
+  color: var(--bn-green);
+}
+
+.gov-shell :is(.bg-emerald-600, .bg-emerald-700, .bg-emerald-800) {
+  background-color: var(--bn-green) !important;
+}
+
+.gov-shell :is(.text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) {
+  color: var(--bn-green) !important;
+}
+
+.gov-shell table {
+  overflow: hidden;
+  border: 1px solid var(--bn-line);
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.gov-shell table th {
+  border-bottom-color: var(--bn-line);
+  color: var(--bn-green);
+  background: var(--bn-green-soft);
+  font-weight: 800;
+  letter-spacing: 0.025em;
+}
+
+.gov-shell table td {
+  border-bottom-color: #eaf0ed;
+}
+
+.gov-shell table tbody tr:hover td {
+  background: #f7fbf9;
+}
+
+.gov-shell .sticky-action-bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 20;
+  border: 1px solid rgb(11 74 53 / 0.13);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 13px 34px rgb(6 54 41 / 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.gov-shell .empty-state {
+  min-height: 13rem;
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at 50% 15%, rgb(11 74 53 / 0.07), transparent 8rem),
+    #fbfdfc;
+}
+
+.gov-shell .empty-state > svg {
+  color: var(--bn-green);
+}
+
+.gov-footer {
+  position: relative;
+  margin-top: 3.5rem !important;
+  border-top-color: var(--bn-line) !important;
+}
+
+.gov-footer::before {
+  content: "";
+  position: absolute;
+  inset: -1px 35% auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--bn-gold), transparent);
+}
+
+.gov-mobile-header {
+  border-bottom-color: rgb(218 175 55 / 0.38) !important;
+  background:
+    radial-gradient(circle at 85% 0%, rgb(218 175 55 / 0.14), transparent 10rem),
+    var(--bn-green-deep) !important;
+  box-shadow: 0 8px 24px rgb(6 54 41 / 0.18);
+}
+
+.gov-mobile-nav {
+  border-top: 2px solid rgb(218 175 55 / 0.65) !important;
+  background: rgb(255 255 255 / 0.96) !important;
+  box-shadow: 0 -10px 28px rgb(6 54 41 / 0.11) !important;
+  backdrop-filter: blur(14px);
+}
+
+.gov-mobile-nav button[aria-current="page"] > div {
+  color: var(--bn-green) !important;
+  background: var(--bn-green-soft) !important;
+  box-shadow: inset 0 0 0 1px rgb(11 74 53 / 0.11);
+}
+
+.gov-mobile-nav button[aria-current="page"] > span {
+  color: var(--bn-green);
+}
+
+/* Keep specialist pages visually coherent without changing their structure. */
+.gov-shell :is(.knowledge-section__header, .bg-slate-50, .bg-slate-50\/50, .bg-slate-50\/70) {
+  background-color: var(--bn-green-mist) !important;
+}
+
+.gov-shell .knowledge-section {
+  border-radius: var(--bn-radius-md);
+}
+
+.gov-shell .knowledge-section__header {
+  border-bottom-color: var(--bn-line);
+  background: linear-gradient(110deg, #fcfefd, var(--bn-green-mist)) !important;
+}
+
+.gov-shell .knowledge-section__icon {
+  color: var(--bn-green);
+  background: var(--bn-green-soft);
+}
+
+.role-screen > section > header:first-child:not(.page-heading),
+.role-screen #pending-updates-panel > div:first-child,
+.role-screen #manage-accounts-container > div:first-child,
+.role-screen section[aria-labelledby="create-period-title"] > header {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(218 175 55 / 0.24);
+  border-radius: var(--bn-radius-md);
+  padding: 1.35rem;
+  background:
+    radial-gradient(circle at 92% 0%, rgb(218 175 55 / 0.12), transparent 12rem),
+    linear-gradient(120deg, #fff, var(--bn-green-mist));
+  box-shadow: var(--bn-shadow-sm);
+}
+
+.role-screen #manage-accounts-container > div:first-child,
+.role-screen section[aria-labelledby="create-period-title"] > header {
+  border-color: rgb(218 175 55 / 0.34);
+  background:
+    radial-gradient(circle at 88% 0%, rgb(218 175 55 / 0.18), transparent 13rem),
+    linear-gradient(120deg, var(--bn-green), var(--bn-green-deep)) !important;
+}
+
+.role-screen .progress-dashboard__summary {
+  border-color: rgb(218 175 55 / 0.32);
+  background:
+    radial-gradient(circle at 90% 0%, rgb(218 175 55 / 0.16), transparent 13rem),
+    linear-gradient(115deg, var(--bn-green), var(--bn-green-deep));
+  box-shadow: var(--bn-shadow-md);
+}
+
+.role-screen .progress-dashboard__summary :is(h2, .progress-dashboard__eyebrow) {
+  color: #fff;
+}
+
+.role-screen .progress-dashboard__metric {
+  border-color: rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.1);
+}
+
+.role-screen .progress-dashboard__metric :is(dt, dd) {
+  color: #fff;
+}
+
+.gov-shell :is(.case-status-card, .scenario-card, .knowledge-article) {
+  border-radius: 0.85rem;
+}
+
+.gov-shell [class*="shadow-"] {
+  --tw-shadow-color: rgb(6 54 41 / 0.08);
+}
+
+/* Floating support and privacy surfaces use the same brand system. */
+.chat-widget__fab {
+  border: 2px solid rgb(218 175 55 / 0.72);
+  background: var(--bn-green);
+  box-shadow: 0 12px 28px rgb(6 54 41 / 0.28);
+}
+
+.chat-widget__fab:hover {
+  background: var(--bn-green-deep);
+}
+
+.chat-widget__panel {
+  overflow: hidden;
+  border-color: var(--bn-line);
+  border-radius: 1.1rem;
+  box-shadow: 0 24px 64px rgb(6 54 41 / 0.2);
+}
+
+.chat-widget__header {
+  border-bottom: 3px solid var(--bn-gold);
+  background:
+    radial-gradient(circle at 88% 0%, rgb(218 175 55 / 0.19), transparent 8rem),
+    var(--bn-green);
+}
+
+.chat-widget__header-avatar,
+.chat-widget__bot-avatar {
+  color: var(--bn-green);
+  background: var(--bn-gold-soft);
+}
+
+.chat-widget__suggestion-btn {
+  color: var(--bn-green);
+}
+
+.chat-widget__suggestion-btn:hover:not(:disabled) {
+  border-color: var(--bn-gold);
+  background: var(--bn-green-mist);
+}
+
+.chat-widget__bubble--user,
+.chat-widget__send-btn {
+  background: var(--bn-green);
+}
+
+.chat-widget__send-btn:hover:not(:disabled) {
+  background: var(--bn-green-deep);
+}
+
+.chat-widget__input:focus {
+  border-color: var(--bn-green);
+  box-shadow: 0 0 0 3px rgb(11 74 53 / 0.12);
+}
+
+.privacy-policy-modal__container {
+  overflow: hidden;
+  border: 1px solid var(--bn-line);
+  border-radius: 1.1rem;
+  box-shadow: 0 26px 72px rgb(6 54 41 / 0.22);
+}
+
+.privacy-policy-modal__header {
+  border-bottom: 3px solid var(--bn-gold);
+  background:
+    radial-gradient(circle at 90% 0%, rgb(218 175 55 / 0.16), transparent 10rem),
+    var(--bn-green);
+}
+
+.privacy-policy-modal__law-tag,
+.privacy-policy-modal__contact-box {
+  border-color: var(--bn-line);
+  background: var(--bn-green-mist);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive                                                                  */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .gov-shell__sidebar {
+    width: 16.75rem;
+  }
+
+  .gov-shell__content {
+    padding-inline: 1.25rem;
+  }
+
+  .login-visual {
+    width: 54% !important;
+  }
+
+  .login-panel {
+    width: 46% !important;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    background: var(--bn-canvas);
+  }
+
+  .brand-wordmark__mark {
+    width: 2.45rem;
+    height: 2.45rem;
+  }
+
+  .brand-wordmark__copy strong {
+    font-size: 0.94rem;
+  }
+
+  .public-header > div {
+    min-height: 4.4rem;
+  }
+
+  .public-header .brand-wordmark__copy small {
+    display: none;
+  }
+
+  .public-content {
+    padding: 0.9rem 0.75rem 2rem !important;
+  }
+
+  .public-footer {
+    padding-bottom: 6rem !important;
+  }
+
+  .public-hero {
+    min-height: 0;
+    padding: 1.35rem 1.15rem 1.55rem !important;
+    border-radius: 1.15rem !important;
+    background:
+      linear-gradient(180deg, rgb(3 47 35 / 0.95) 0%, rgb(7 66 47 / 0.84) 61%, rgb(5 52 39 / 0.6) 100%),
+      url("/images/ba-na-golden-bridge.webp") 63% center / cover no-repeat !important;
+    box-shadow: 0 16px 38px rgb(3 44 32 / 0.2);
+  }
+
+  .public-brand-lockup {
+    max-width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .public-brand-lockup img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .public-brand-name {
+    font-size: 0.92rem;
+  }
+
+  .public-brand-tagline {
+    font-size: 0.52rem;
+  }
+
+  .public-hero h1 {
+    font-size: clamp(2.15rem, 10.8vw, 3.15rem) !important;
+    line-height: 1.01 !important;
+  }
+
+  .public-hero .public-hero-nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    margin-top: 1.35rem !important;
+    padding-top: 1rem;
+  }
+
+  .public-hero .public-hero-nav > * {
+    width: 100%;
+  }
+
+  #public-village-portal :is(.ui-card, .metric-card, .filter-bar, .action-card) {
+    border-radius: 0.85rem;
+  }
+
+  .login-panel {
+    width: 100% !important;
+    min-height: 100dvh;
+    padding: 1.25rem 1rem 2rem !important;
+  }
+
+  .login-mobile-brand {
+    margin: 0 auto 1.4rem !important;
+  }
+
+  .login-card {
+    padding: 1.35rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .password-reset-card {
+    padding: 1.35rem !important;
+  }
+
+  .gov-shell__content {
+    padding: 1rem 0.75rem 6rem;
+  }
+
+  .role-screen::before {
+    top: -1rem;
+    right: -0.75rem;
+    width: 18rem;
+    opacity: 0.08;
+  }
+
+  .role-screen > section > header:first-child:not(.page-heading),
+  .role-screen #pending-updates-panel > div:first-child,
+  .role-screen #manage-accounts-container > div:first-child,
+  .role-screen section[aria-labelledby="create-period-title"] > header {
+    padding: 1rem;
+    border-radius: 0.85rem;
+  }
+
+  .gov-shell .page-heading {
+    padding-left: 0.8rem;
+  }
+
+  .gov-shell :is(.ui-card, .metric-card, .filter-bar, .action-card) {
+    border-radius: 0.85rem;
+  }
+
+  .gov-shell .sticky-action-bar {
+    bottom: 4.8rem;
+  }
+
+  .gov-mobile-nav {
+    padding-bottom: max(0.4rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .gov-mobile-nav button {
+    min-width: 4.75rem !important;
+  }
+
+  .gov-mobile-nav button > span {
+    font-size: 0.67rem !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .public-header .brand-wordmark__copy {
+    display: none;
+  }
+
+  .public-brand-tagline {
+    display: none;
+  }
+
+  .gov-mobile-header .brand-wordmark__copy {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gov-shell .metric-card,
+  #public-village-portal .metric-card,
+  .gov-shell__sidebar nav button {
+    transition: none;
+  }
+}

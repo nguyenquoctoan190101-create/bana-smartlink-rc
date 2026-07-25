@@ -240,8 +240,15 @@ export default function PublicVillagePage({ onGoToLogin }: PublicVillagePageProp
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6" id="public-village-portal">
-      <section className="relative overflow-hidden rounded-xl bg-[#0f5a48] px-5 py-8 text-white md:px-10 md:py-12">
+      <section className="public-hero relative overflow-hidden rounded-xl bg-[#0f5a48] px-5 py-8 text-white md:px-10 md:py-12">
         <TopographicPattern className="text-white" />
+        <div className="public-brand-lockup" aria-label="Ba Na SmartLink">
+          <img src="/images/ba-na-brand-logo.png" alt="" aria-hidden="true" />
+          <div>
+            <span className="public-brand-name">Ba Na SmartLink</span>
+            <span className="public-brand-tagline">Kết nối · Báo cáo · Chia sẻ · Phát triển</span>
+          </div>
+        </div>
         <div className="relative z-10 max-w-3xl">
           <p className="text-sm font-semibold text-emerald-100">Cổng thông tin công khai xã Bà Nà</p>
           <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.035em] md:text-5xl">Dữ liệu địa phương<br className="hidden sm:block" /> dễ xem, dễ kiểm chứng.</h1>

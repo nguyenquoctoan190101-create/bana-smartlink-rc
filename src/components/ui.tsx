@@ -14,11 +14,13 @@ import {
 
 export function Wordmark({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
   return (
-    <div className="brand-wordmark" data-inverse={inverse || undefined}>
-      <span className="brand-wordmark__mark" aria-hidden="true">BN</span>
+    <div className="brand-wordmark" data-inverse={inverse || undefined} aria-label="Ba Na SmartLink">
+      <span className="brand-wordmark__mark" aria-hidden="true">
+        <img src="/images/ba-na-brand-logo.png" alt="" />
+      </span>
       <span className="brand-wordmark__copy">
-        <strong>Bà Nà SmartLink</strong>
-        {!compact && <small>Hệ thống điều hành dữ liệu cấp xã</small>}
+        <strong>Ba Na SmartLink</strong>
+        {!compact && <small>Kết nối · Báo cáo · Chia sẻ · Phát triển</small>}
       </span>
     </div>
   );
