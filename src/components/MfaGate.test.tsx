@@ -8,6 +8,8 @@ vi.mock("../lib/supabase", () => ({
     auth: {
       mfa: {
         enroll: vi.fn(),
+        listFactors: vi.fn(),
+        unenroll: vi.fn(),
         challengeAndVerify: vi.fn(),
       },
     },
@@ -15,6 +17,8 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 const enroll = vi.mocked(supabase.auth.mfa.enroll);
+const listFactors = vi.mocked(supabase.auth.mfa.listFactors);
+const unenroll = vi.mocked(supabase.auth.mfa.unenroll);
 const challengeAndVerify = vi.mocked(supabase.auth.mfa.challengeAndVerify);
 
 describe("MfaGate", () => {
@@ -22,7 +26,13 @@ describe("MfaGate", () => {
 
   beforeEach(() => {
     enroll.mockReset();
+    listFactors.mockReset();
+    unenroll.mockReset();
     challengeAndVerify.mockReset();
+    listFactors.mockResolvedValue({
+      data: { all: [], totp: [], phone: [] },
+      error: null,
+    } as never);
   });
 
   it("requires a six-digit TOTP challenge before continuing", async () => {
@@ -79,5 +89,43 @@ describe("MfaGate", () => {
     );
     expect(screen.getByText("ABCDEF123456")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Mật khẩu/)).not.toBeInTheDocument();
+  });
+
+  it("removes an interrupted TOTP setup before creating a new QR code", async () => {
+    listFactors.mockResolvedValue({
+      data: {
+        all: [{ id: "factor-stale", status: "unverified", factor_type: "totp" }],
+        totp: [],
+        phone: [],
+      },
+      error: null,
+    } as never);
+    unenroll.mockResolvedValue({ data: {}, error: null } as never);
+    enroll.mockResolvedValue({
+      data: {
+        id: "factor-new",
+        type: "totp",
+        totp: {
+          qr_code: "data:image/svg+xml;base64,PHN2Zy8+",
+          secret: "NEWSECRET",
+          uri: "otpauth://totp/BaNa",
+        },
+      },
+      error: null,
+    } as never);
+
+    render(
+      <MfaGate
+        status="setup_required"
+        factorId={null}
+        onRefresh={vi.fn()}
+        onLogout={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tạo mã QR bảo mật" }));
+
+    await waitFor(() => expect(unenroll).toHaveBeenCalledWith({ factorId: "factor-stale" }));
+    expect(await screen.findByText("NEWSECRET")).toBeInTheDocument();
   });
 });

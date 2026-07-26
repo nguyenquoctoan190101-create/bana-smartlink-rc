@@ -32,9 +32,26 @@ export default function MfaGate({ status, factorId, onRefresh, onLogout }: MfaGa
     setBusy(true);
     setError(null);
     try {
+      const factors = await supabase.auth.mfa.listFactors();
+      if (factors.error) throw factors.error;
+
+      const verifiedFactor = factors.data.totp.find((factor) => factor.status === "verified");
+      if (verifiedFactor) {
+        await onRefresh();
+        return;
+      }
+
+      // A setup interrupted before verification leaves an unverified factor in
+      // Supabase. Remove it before enrolling again so retries do not conflict.
+      for (const factor of factors.data.all.filter(
+        (item) => item.factor_type === "totp" && item.status === "unverified",
+      )) {
+        const removed = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (removed.error) throw removed.error;
+      }
+
       const result = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "Ba Na SmartLink",
       });
       if (result.error) throw result.error;
       setEnrollment({
