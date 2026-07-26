@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 from starlette.requests import Request
 
 from routers import cases, knowledge, pilots
@@ -97,6 +98,7 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
                 category="road",
                 priority="critical",
                 description="Ổ gà trước nhà văn hóa",
+                privacy_consent=True,
                 consent_version="2026-07",
                 submitter_name=" Người gửi ",
             ),
@@ -108,6 +110,7 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
     assert result["tracking_code"] == "A" * 32
     assert "submitter_name" not in result["case"]
     assert client.calls[0][2]["p_submitter_name"] == "Người gửi"
+    assert client.calls[0][2]["p_privacy_consent"] is True
     # Anonymous callers cannot self-escalate a routine report to critical.
     assert client.calls[0][2]["p_priority"] == "normal"
 
@@ -238,6 +241,7 @@ def test_case_routing_catalogue_is_scoped_and_demo_labeled() -> None:
             cases.CaseCreateRequest(
                 category="waste",
                 description="Rác tồn đọng nhiều ngày",
+                privacy_consent=True,
                 consent_version="v1",
                 latitude=16.0,
             ),
@@ -247,6 +251,7 @@ def test_case_routing_catalogue_is_scoped_and_demo_labeled() -> None:
             cases.CaseCreateRequest(
                 category="waste",
                 description="Rác tồn đọng nhiều ngày",
+                privacy_consent=True,
                 consent_version="v1",
                 latitude=16.0,
                 longitude=108.0,
@@ -267,6 +272,22 @@ def test_case_location_validation(payload: cases.CaseCreateRequest, detail: str)
             )
         )
     assert exc.value.status_code == 422
+
+
+@pytest.mark.parametrize("privacy_consent", [None, False])
+def test_case_create_requires_explicit_privacy_consent(
+    privacy_consent: bool | None,
+) -> None:
+    payload = {
+        "category": "road",
+        "description": "Streetlight outage near the community hall",
+        "consent_version": "v1",
+    }
+    if privacy_consent is not None:
+        payload["privacy_consent"] = privacy_consent
+
+    with pytest.raises(ValidationError):
+        cases.CaseCreateRequest.model_validate(payload)
 
 
 def test_case_authorization_and_service_failures() -> None:
@@ -301,6 +322,7 @@ def test_case_authorization_and_service_failures() -> None:
                 cases.CaseCreateRequest(
                     category="water",
                     description="Đường ống nước bị vỡ",
+                    privacy_consent=True,
                     consent_version="v1",
                 ),
                 SimpleNamespace(feature_cases=True, bana_commune_id="ba_na"),
@@ -309,6 +331,43 @@ def test_case_authorization_and_service_failures() -> None:
             )
         )
     assert unavailable.value.status_code == 503
+
+
+def test_case_create_maps_database_village_scope_rejection_to_422(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = FakeSupabase()
+    village_id = uuid4()
+    client.responses[("POST", "/rest/v1/rpc/create_citizen_case")] = (
+        SupabaseAdminError(
+            "village_not_in_commune",
+            status_code=500,
+            error_code="23514",
+        )
+    )
+    monkeypatch.setattr(cases, "_tracking_code", lambda: ("A" * 32, "stored-hash"))
+
+    with pytest.raises(HTTPException) as rejected:
+        asyncio.run(
+            cases.create_case(
+                _request("/api/cases"),
+                cases.CaseCreateRequest(
+                    village_id=village_id,
+                    category="road",
+                    description="Village belongs to a different commune",
+                    privacy_consent=True,
+                    consent_version="v1",
+                ),
+                SimpleNamespace(feature_cases=True, bana_commune_id="ba_na"),
+                client,
+                None,
+            )
+        )
+
+    assert rejected.value.status_code == 422
+    rpc_payload = client.calls[0][2]
+    assert rpc_payload["p_commune_id"] == "ba_na"
+    assert rpc_payload["p_village_id"] == str(village_id)
 
 
 def test_knowledge_crud_and_deterministic_scenario() -> None:

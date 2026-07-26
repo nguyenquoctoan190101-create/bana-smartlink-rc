@@ -10,13 +10,17 @@
 | Không tự suy đoán Đông Sơn | `new_village_id=null`, chỉ có `proposed_new_village_id`; RPC chặn target liên quan | golden mapping + migration overlay verify | Đạt |
 | Lineage và bằng chứng bất biến | Bảng batch/file/resolution/lineage; trigger chặn sửa raw evidence và review | PostgreSQL contract test, schema security tests | Đạt |
 | Transaction khi tổng hợp | RPC tạo report, CT01-CT14, lineage và audit trong một transaction | database-contract trên PostgreSQL 17 | Đạt |
-| Quyền/RLS | Admin-only batch/review/commit; không cấp anon; chặn insert lineage trực tiếp | `rls_matrix.sql`, `migration_overlay_verify.sql` | Đạt trong CI; cần xác nhận staging thật |
+| Quyền/RLS | Admin-only batch/review/commit; không cấp anon; chặn insert lineage trực tiếp | `rls_matrix.sql`, `migration_overlay_verify.sql` | Đạt trên PostgreSQL 17.10 cục bộ biệt lập; cần xác nhận CI/staging trên full SHA |
 | Template đúng CT01-CT14 | Tạo XLSX có metadata, validation version, hash và kích thước | `test_report_period_template.py` | Đạt |
 | Export đúng và chống formula injection | XLSX/DOCX/PDF nội bộ, public scope riêng, sanitize ô nguy hiểm | `test_export_artifacts.py` | Đạt tự động; cần visual UAT trên staging |
 | OpenAPI là contract | Router mới và type TypeScript sinh tự động | CI regenerate + reject drift | Đạt |
 | Frontend import/review | `LegacyBatchImport.tsx`, cảnh báo thiếu/trùng/lỗi, reason bắt buộc, eligible/excluded | Typecheck, frontend test, build | Đạt tự động; cần browser UAT |
 | CI đa nền tảng | Ubuntu + Windows, PostgreSQL, coverage, SAST/SCA, secret scan, SBOM | GitHub Actions run `29481161327` | Đạt |
-| Coverage | Tổng routers/services >=80%; nhánh security-critical 100% | CI artifacts `coverage.xml`, `test-results.xml` | 80.77% tổng; 100% nhánh trọng yếu |
+| Coverage | Tổng routers/services >=80%; nhánh security-critical 100% | `coverage.xml`, `test-results.xml`; cần lưu lại bằng CI artifact | 84,18% tổng; 100% nhánh trọng yếu trên candidate cục bộ |
 | Bản Render sau sửa | Chỉ deploy sau migration staging và merge PR | `STAGING_UPGRADE_20260716.md` | Chưa thực hiện, gate bên ngoài |
 | Dữ liệu thật/production | UAT, privacy/legal, rotate secret, backup/restore, approval | `production_gate.py`, runbook | Chưa xác nhận; không được tuyên bố production-ready |
+| Gói phát hành truy xuất được | Chỉ từ `main` sạch; manifest commit + SHA-256 từng tệp; checksum ZIP bên ngoài | `zip_project.py`, `test_release_package_privacy.py` | Đạt bằng mã; tạo artifact cuối sau commit |
+| Đánh giá OCR không phóng đại | Tối thiểu 100 tài liệu, holdout độc lập, exact-match theo trường và lỗi phải yêu cầu xem lại | `AI_BENCHMARK_PROTOCOL.md`, `ocr_benchmark.py`, `test_ocr_benchmark_protocol.py` | Quy trình đạt; chưa có bằng chứng bộ dữ liệu thực địa |
+| UAT năm nhóm người dùng | Người dân, cán bộ thôn, CNSCĐ, quản trị xã, lãnh đạo; responsive và đo thời gian | `UAT_OPERATIONS.md`, `production_gate.py` | Kịch bản sẵn sàng; cần chữ ký người dùng |
+| Production đúng commit | `/health/live` phải trả đúng đủ 40 ký tự SHA đã push | `production_sha_smoke.py`, `test_operational_gates.py` | Đạt bằng mã; cần chạy sau deploy |
 

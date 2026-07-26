@@ -23,6 +23,22 @@ interface DashboardProps {
 
 const ALL_PERIODS = "__all_periods__";
 
+export function buildDashboardChartScale(reports: ReportData[]) {
+  const observedMax = reports.reduce((maximum, report) => {
+    const population = Number.isFinite(report.CT02) ? report.CT02 : 0;
+    const households = Number.isFinite(report.CT01) ? report.CT01 : 0;
+    return Math.max(maximum, population, households);
+  }, 0);
+  const rawStep = Math.max(1, observedMax) / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const step = Math.ceil((rawStep / magnitude) * 2) / 2 * magnitude;
+  const max = Math.max(step * 4, 4);
+  return {
+    max,
+    ticks: [max, max - step, max - step * 2, max - step * 3, 0],
+  };
+}
+
 export interface DashboardPeriodOption {
   value: string;
   label: string;
@@ -69,7 +85,7 @@ export function buildDashboardPeriodOptions(reportPeriods: ReportPeriod[], repor
   }, new Map<string, number>());
   const knownIds = new Set(reportPeriods.map((period) => period.id));
   const knownNames = new Set(reportPeriods.map((period) => period.name));
-  const options: DashboardPeriodOption[] = [{ value: ALL_PERIODS, label: "Tất cả kỳ" }];
+  const options: DashboardPeriodOption[] = [{ value: ALL_PERIODS, label: "Bản mới nhất của từng thôn (theo dõi)" }];
 
   for (const period of reportPeriods) {
     const duplicateName = (nameCounts.get(period.name) || 0) > 1;
@@ -123,6 +139,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   const chartDialogRef = useRef<HTMLDivElement>(null);
   const chartCloseRef = useRef<HTMLButtonElement>(null);
   const chartTriggerRef = useRef<HTMLButtonElement>(null);
+  const defaultPeriodInitializedRef = useRef(false);
 
   useEffect(() => {
     if (!showChartModal) return undefined;
@@ -171,12 +188,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   // A village officer must never be invited by the interface to browse a
   // different village. The API is still the authorization authority.
   useEffect(() => {
-    if (userRole === "can_bo_thon" && userVillageId) {
+    if ((userRole === "can_bo_thon" || userRole === "to_cnscd") && userVillageId) {
       setSelectedVillageFilter(userVillageId);
     }
   }, [userRole, userVillageId]);
 
-  const effectiveVillageFilter = userRole === "can_bo_thon" && userVillageId
+  const effectiveVillageFilter = (userRole === "can_bo_thon" || userRole === "to_cnscd") && userVillageId
     ? userVillageId
     : selectedVillageFilter;
   const canExportSelectedScope = userRole === "admin_xa"
@@ -202,6 +219,19 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   const selectedPeriodLabel = selectedPeriodOption.label;
 
   useEffect(() => {
+    if (defaultPeriodInitializedRef.current) return;
+    const latestPeriod = [...reportPeriods]
+      .filter((period) => Boolean(period.id))
+      .sort((left, right) => (right.due_date || "").localeCompare(left.due_date || ""))[0];
+    const preferredValue = latestPeriod
+      ? `period:${latestPeriod.id}`
+      : periodOptions.find((option) => option.value !== ALL_PERIODS)?.value;
+    if (!preferredValue) return;
+    setSelectedPeriod(preferredValue);
+    defaultPeriodInitializedRef.current = true;
+  }, [periodOptions, reportPeriods]);
+
+  useEffect(() => {
     if (!periodOptions.some((option) => option.value === selectedPeriod)) {
       setSelectedPeriod(ALL_PERIODS);
     }
@@ -215,6 +245,15 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     const matchesVillage = effectiveVillageFilter === "all" || r.village_id === effectiveVillageFilter;
     return matchesVillage;
   });
+  const chartScale = useMemo(() => buildDashboardChartScale(filteredReports), [filteredReports]);
+
+  const coveredVillageCount = new Set(filteredReports.map((report) => report.village_id)).size;
+  const expectedVillageCount = effectiveVillageFilter === "all" ? new_villages.length : 1;
+  const hasCompleteCoverage = expectedVillageCount > 0
+    ? coveredVillageCount >= expectedVillageCount
+    : filteredReports.length > 0;
+  const isCrossPeriodSnapshot = selectedPeriod === ALL_PERIODS;
+  const canAggregateCurrentSlice = !isCrossPeriodSnapshot && hasCompleteCoverage;
 
   // Calculate aggregated metrics
   const value = (input: number | null) => typeof input === "number" && Number.isFinite(input) ? input : 0;
@@ -227,7 +266,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   // Keep the chart tolerant of missing points, but KPI cards/rates become
   // null until every report in scope has a valid value for that indicator.
   const sumMetric = (key: keyof ReportData): number | null => {
-    if (!filteredReports.length || !hasValueFor(key) || availability(key).missing > 0) return null;
+    if (!canAggregateCurrentSlice || !filteredReports.length || !hasValueFor(key) || availability(key).missing > 0) return null;
     return filteredReports.reduce((sum, report) => sum + value(report[key] as number | null), 0);
   };
   const totalHouseholds = sumMetric("CT01");
@@ -298,7 +337,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     <>
     <div className="space-y-6">
       <PageHeader
-        eyebrow={userRole === "lanh_dao" ? "Tổng hợp phục vụ quyết định" : userRole === "admin_xa" ? "Báo cáo và phê duyệt" : "Dữ liệu địa bàn"}
+        eyebrow={userRole === "lanh_dao" ? "Báo cáo tổng hợp" : userRole === "admin_xa" ? "Báo cáo và phê duyệt" : "Dữ liệu địa bàn"}
         title={userRole === "can_bo_thon" || userRole === "to_cnscd" ? "Dữ liệu của thôn" : "Tổng hợp số liệu"}
         description={userRole === "can_bo_thon"
           ? "Bạn chỉ xem và lập báo cáo cho thôn đã được phân công. Dữ liệu chưa có không được quy đổi thành số 0."
@@ -425,10 +464,27 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         </div>
       </div>
 
-      <DataScope period={selectedPeriodLabel} scope={effectiveVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(effectiveVillageFilter)} quality={filteredReports.length ? `${filteredReports.length} báo cáo trong lát cắt` : "Chưa có dữ liệu"} />
+      <DataScope
+        period={selectedPeriodLabel}
+        scope={effectiveVillageFilter === "all" ? "Toàn bộ phạm vi được phép xem" : getVillageName(effectiveVillageFilter)}
+        quality={expectedVillageCount > 0 ? `${coveredVillageCount}/${expectedVillageCount} thôn có báo cáo` : (filteredReports.length ? `${filteredReports.length} báo cáo` : "Chưa có dữ liệu")}
+        qualityLabel="Độ phủ"
+      />
+
+      {isCrossPeriodSnapshot && (
+        <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950" role="status">
+          Chế độ theo dõi đang hiển thị bản mới nhất của từng thôn, có thể thuộc các kỳ khác nhau. Hệ thống không tính số tổng hợp trong chế độ này.
+        </div>
+      )}
+
+      {!isCrossPeriodSnapshot && expectedVillageCount > 0 && !hasCompleteCoverage && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+          Kỳ báo cáo hiện có dữ liệu của {coveredVillageCount}/{expectedVillageCount} thôn. Các chỉ số tổng hợp được để trống cho đến khi đủ phạm vi.
+        </div>
+      )}
 
       {/* Grid: 4 Core KPIs Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI 1: Households & Pop */}
         <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-blue">
           <div className="flex justify-between items-start mb-3">
@@ -456,7 +512,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             </div>
             <span className="text-3xs font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-sm">AN SINH</span>
           </div>
-          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Tỷ lệ Hộ nghèo</h3>
+          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Tỷ lệ hộ nghèo</h3>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-bold text-rose-600">{povertyRate !== null ? `${povertyRate.toFixed(2)}%` : "—"}</span>
             <span className="text-2xs text-rose-500">{totalPoor !== null ? `(${totalPoor} hộ)` : "Chưa có dữ liệu"}</span>
@@ -475,7 +531,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             </div>
             <span className="text-3xs font-bold text-emerald-850 bg-emerald-50 px-2 py-0.5 rounded-sm">Y TẾ</span>
           </div>
-          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Bảo hiểm Y tế</h3>
+          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Tỷ lệ tham gia BHYT</h3>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-bold text-emerald-600">{bhytRate !== null ? `${bhytRate.toFixed(1)}%` : "—"}</span>
           </div>
@@ -492,7 +548,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             </div>
             <span className="text-3xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-sm">VĂN HÓA</span>
           </div>
-          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Gia đình Văn hóa</h3>
+          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Tỷ lệ hộ gia đình văn hóa</h3>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-bold text-amber-600">{culturalFamilyRate !== null ? `${culturalFamilyRate.toFixed(1)}%` : "—"}</span>
           </div>
@@ -503,14 +559,14 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
       </div>
 
       {/* Bento Grid: Custom SVG Graphs & Tech Progress */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Left Bento: Population distribution bar graph */}
-        <div className="lg:col-span-8 bg-white rounded-xl border border-slate-100 p-6 shadow-2xs flex flex-col justify-between">
+        <div className="xl:col-span-8 bg-white rounded-xl border border-slate-100 p-6 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Cơ cấu hộ dân và nhân khẩu theo thôn</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Số hộ dân và nhân khẩu theo thôn</h3>
               </div>
               <span className="text-3xs font-mono text-slate-400">Đơn vị: Người / Hộ</span>
             </div>
@@ -536,25 +592,21 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                 
                 return (
                   <svg viewBox={`0 0 ${requiredWidth} ${chartHeight}`} className="h-full" style={{ minWidth: `${requiredWidth}px` }}>
-                    {/* Horizontal grid lines */}
-                    <line x1="50" y1="30" x2={requiredWidth - 20} y2="30" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="50" y1="80" x2={requiredWidth - 20} y2="80" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="50" y1="130" x2={requiredWidth - 20} y2="130" stroke="#f1f5f9" strokeWidth="1" />
-                    <line x1="50" y1="180" x2={requiredWidth - 20} y2="180" stroke="#e2e8f0" strokeWidth="1" />
-
-                    {/* Y-Axis Labels */}
-                    <text x="40" y="34" style={{ fontSize: "9px" }} className="font-mono fill-slate-500 font-bold" textAnchor="end">1,000</text>
-                    <text x="40" y="84" style={{ fontSize: "9px" }} className="font-mono fill-slate-500 font-bold" textAnchor="end">500</text>
-                    <text x="40" y="134" style={{ fontSize: "9px" }} className="font-mono fill-slate-500 font-bold" textAnchor="end">250</text>
-                    <text x="40" y="184" style={{ fontSize: "9px" }} className="font-mono fill-slate-500 font-bold" textAnchor="end">0</text>
+                    {chartScale.ticks.map((tick, index) => {
+                      const y = 30 + index * 37.5;
+                      return (
+                        <g key={tick}>
+                          <line x1="50" y1={y} x2={requiredWidth - 20} y2={y} stroke={index === chartScale.ticks.length - 1 ? "#e2e8f0" : "#f1f5f9"} strokeWidth="1" />
+                          <text x="40" y={y + 4} style={{ fontSize: "9px" }} className="font-mono fill-slate-500 font-bold" textAnchor="end">{tick.toLocaleString("vi-VN")}</text>
+                        </g>
+                      );
+                    })}
 
                     {/* Render bars for the filtered reports */}
                     {filteredReports.map((report, idx) => {
                       const xBase = 70 + idx * minSpacing;
-                      // Max height ratio mapping (let's assume 1200 max population)
-                      const maxVal = 1200;
-                      const popHeight = Math.min(150, (report.CT02 / maxVal) * 150);
-                      const hhHeight = Math.min(150, (report.CT01 / maxVal) * 150);
+                      const popHeight = Math.min(150, (report.CT02 / chartScale.max) * 150);
+                      const hhHeight = Math.min(150, (report.CT01 / chartScale.max) * 150);
                       
                       return (
                         <g key={report.id} className="group cursor-pointer">
@@ -637,7 +689,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         </div>
 
         {/* Right Bento: Digital & Social Progress indicators */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-slate-100 p-6 shadow-2xs flex flex-col justify-between">
+        <div className="xl:col-span-4 bg-white rounded-xl border border-slate-100 p-6 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Cpu className="w-5 h-5 text-emerald-600" />
@@ -662,8 +714,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               {/* Metric 2: Online public services instruction */}
               <div className="bg-slate-25 p-3.5 rounded-lg border border-slate-100/50">
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-500 font-medium">Số lượt hướng dẫn dịch vụ công trực tuyến (CT13)</span>
-                  <span className="font-bold text-emerald-700 text-right">{totalOnlineServiceGuided === null ? "—" : `${totalOnlineServiceGuided} lượt`}</span>
+                  <span className="text-slate-500 font-medium">Số người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ (CT13)</span>
+                  <span className="font-bold text-emerald-700 text-right">{totalOnlineServiceGuided === null ? "—" : `${totalOnlineServiceGuided} người`}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div 
@@ -671,7 +723,6 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                     style={{ width: `${totalOnlineServiceGuided === null ? 0 : Math.min(100, (totalOnlineServiceGuided / 500) * 100)}%` }}
                   ></div>
                 </div>
-                <p className="text-4xs text-slate-400 mt-1">*Chỉ tiêu phấn đấu xã: 500 lượt hướng dẫn/kỳ</p>
               </div>
 
               {/* Metric 3: Revolutionary Contributors & Social Protection */}
@@ -703,11 +754,11 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           <div>
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <FileText className="w-5 h-5 text-emerald-600" />
-              <span>Nhật ký báo cáo và trạng thái thẩm định các thôn</span>
+              <span>Danh sách báo cáo của các thôn</span>
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Danh sách toàn bộ báo cáo từ các thôn đã quy đổi hoặc nhập mới được lưu tại thiết bị.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Danh sách báo cáo thuộc phạm vi quyền truy cập và bộ lọc hiện tại.</p>
           </div>
-          <span className="text-xs text-slate-400 font-semibold">{filteredReports.length} bản ghi khớp</span>
+          <span className="text-xs text-slate-400 font-semibold">{filteredReports.length} báo cáo</span>
         </div>
 
         {filteredReports.length === 0 ? (
@@ -781,7 +832,6 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                     </td>
                     <td className="py-3.5 px-3 text-slate-500">
                       <div className="font-medium text-slate-700">{report.reporter_name}</div>
-                      <div className="text-3xs">{report.reporter_phone}</div>
                     </td>
                     {(userRole === "admin_xa" || userRole === "can_bo_thon" || userRole === "to_cnscd") && (
                       <td className="py-3.5 px-4 text-right">
@@ -789,7 +839,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                           {userRole === "admin_xa" && workflowStatusOf(report) === "submitted" && onApproveReport && (
                             <button
                               onClick={() => onApproveReport(report)}
-                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-50 rounded transition-colors"
+                              aria-label={`Duyệt báo cáo ${report.report_period}`}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-lg transition-colors"
                               title="Duyệt báo cáo"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -798,7 +849,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                           {userRole === "admin_xa" && workflowStatusOf(report) === "approved" && report.publication_status === "private" && onLockReport && (
                             <button
                               onClick={() => onLockReport(report)}
-                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded transition-colors"
+                              aria-label={`Khóa báo cáo ${report.report_period}`}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-amber-700 hover:bg-slate-50 rounded-lg transition-colors"
                               title="Khóa báo cáo (không cho sửa)"
                             >
                               <Lock className="w-3.5 h-3.5" />
@@ -810,7 +862,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                             && onPublishReport && (
                             <button
                               onClick={() => onPublishReport(report)}
-                              className="p-1.5 text-slate-400 hover:text-sky-700 hover:bg-slate-50 rounded transition-colors"
+                              aria-label={`Công bố báo cáo ${report.report_period}`}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-sky-700 hover:bg-slate-50 rounded-lg transition-colors"
                               title="Công bố báo cáo"
                             >
                               <Globe2 className="w-3.5 h-3.5" />
@@ -820,7 +873,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                             && (workflowStatusOf(report) === "draft" || workflowStatusOf(report) === "needs_revision") && (
                               <button
                                 onClick={() => onEditReport(report)}
-                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-50 rounded transition-colors"
+                                aria-label={`Chỉnh sửa báo cáo ${report.report_period}`}
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-emerald-700 hover:bg-slate-50 rounded-lg transition-colors"
                                 title="Chỉnh sửa số liệu"
                               >
                                 <Edit className="w-3.5 h-3.5" />
@@ -830,7 +884,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                             || ((userRole === "can_bo_thon" || userRole === "to_cnscd") && workflowStatusOf(report) === "draft")) && (
                               <button
                                 onClick={() => onDeleteReport(report)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded transition-colors"
+                                aria-label={`Xóa báo cáo ${report.report_period}`}
+                                className="inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-rose-700 hover:bg-slate-50 rounded-lg transition-colors"
                                 title="Xóa báo cáo"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -851,12 +906,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
     {/* Chart Modal Fullscreen */}
     {showChartModal && (
       <div
-        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+        className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={() => setShowChartModal(false)}
       >
         <div
           ref={chartDialogRef}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90dvh] flex flex-col overflow-hidden"
           role="dialog"
           aria-modal="true"
           aria-labelledby="dashboard-chart-title"
@@ -867,7 +922,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-emerald-600" />
-              <h3 id="dashboard-chart-title" className="font-bold text-slate-800 text-sm">Cơ cấu hộ dân và nhân khẩu theo thôn</h3>
+              <h3 id="dashboard-chart-title" className="font-bold text-slate-800 text-sm">Số hộ dân và nhân khẩu theo thôn</h3>
               {selectedPeriod !== ALL_PERIODS && (
                 <span className="text-xs text-slate-500 font-medium">— {selectedPeriodLabel}</span>
               )}
@@ -877,7 +932,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               type="button"
               aria-label="Đóng biểu đồ toàn màn hình"
               onClick={() => setShowChartModal(false)}
-              className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
             >
               <X className="w-5 h-5" />
             </button>
@@ -894,20 +949,22 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
 
                 return (
                   <svg viewBox={`0 0 ${requiredWidth} ${chartHeight}`} className="h-full" style={{ minWidth: `${requiredWidth}px` }}>
-                    {[280, 210, 140, 70].map((y, i) => (
-                      <g key={i}>
+                    {chartScale.ticks.map((tick, index) => {
+                      const y = 70 + index * 52.5;
+                      return (
+                      <g key={tick}>
                         <line x1="60" y1={y} x2={requiredWidth - 20} y2={y} stroke="#f1f5f9" strokeWidth="1" />
                         <text x="50" y={y + 4} style={{ fontSize: "10px" }} className="font-mono fill-slate-400 font-bold" textAnchor="end">
-                          {[0, 300, 600, 900][i]}
+                          {tick.toLocaleString("vi-VN")}
                         </text>
                       </g>
-                    ))}
+                      );
+                    })}
 
                     {filteredReports.map((report, idx) => {
                       const xBase = 80 + idx * minSpacing;
-                      const maxVal = 1200;
-                      const popHeight = Math.min(210, (report.CT02 / maxVal) * 210);
-                      const hhHeight = Math.min(210, (report.CT01 / maxVal) * 210);
+                      const popHeight = Math.min(210, (report.CT02 / chartScale.max) * 210);
+                      const hhHeight = Math.min(210, (report.CT01 / chartScale.max) * 210);
                       return (
                         <g key={report.id} className="group cursor-pointer">
                           <rect x={xBase - 20} y="10" width="66" height="285" fill="transparent" className="hover:fill-slate-500/5 transition-colors" />

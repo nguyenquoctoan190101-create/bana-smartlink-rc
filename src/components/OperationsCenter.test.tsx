@@ -41,8 +41,8 @@ describe("OperationsCenter", () => {
 
     await waitFor(() => expect(screen.getAllByText("92%")).toHaveLength(2));
     expect(screen.getByText("Thôn An Sơn")).toBeInTheDocument();
-    expect(screen.getByText(/Không tải được brief chờ duyệt/)).toBeInTheDocument();
-    expect(screen.getByText("Chưa tải được brief")).toBeInTheDocument();
+    expect(screen.getByText(/Không tải được nội dung điều hành chờ duyệt/)).toBeInTheDocument();
+    expect(screen.getByText("Chưa tải được nội dung gợi ý")).toBeInTheDocument();
     expect(screen.queryByText(/Không tải được dữ liệu điều hành/)).not.toBeInTheDocument();
   });
 

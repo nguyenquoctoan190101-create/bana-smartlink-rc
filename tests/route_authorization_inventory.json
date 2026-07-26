@@ -34,6 +34,7 @@
     {"method":"POST","path":"/api/pilots/sensors/observations","authorization":"admin","scope":"commune_admin_sensor_data","mutates":true,"may_include_ct14":false},
     {"method":"GET","path":"/api/pilots/sensors/observations","authorization":"admin_or_leader","scope":"commune_internal_sensor_data","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/api/pilots/alerts","authorization":"admin_or_leader","scope":"commune_internal_alerts","mutates":false,"may_include_ct14":false},
+    {"method":"GET","path":"/ai/capabilities","authorization":"public","scope":"non_sensitive_chat_feature_flags","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/ai/chat","authorization":"optional","scope":"public_published_or_role_scoped","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/api/cnscd-impact","authorization":"admin_or_leader","scope":"commune_internal","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/api/notifications","authorization":"authenticated","scope":"own_notification","mutates":false,"may_include_ct14":false},
@@ -93,7 +94,7 @@
     {"method":"POST","path":"/reports/upload","authorization":"authenticated","scope":"own_or_assigned_village","mutates":true,"may_include_ct14":true},
     {"method":"GET","path":"/reports/village/{village_id}/export/{file_format}","authorization":"authenticated","scope":"role_and_assigned_village","mutates":false,"may_include_ct14":true},
     {"method":"GET","path":"/reports/villages","authorization":"public","scope":"public_reference","mutates":false,"may_include_ct14":false},
-    {"method":"DELETE","path":"/reports/{report_id}","authorization":"authenticated","scope":"own_village_draft_or_admin","mutates":true,"may_include_ct14":false},
+    {"method":"DELETE","path":"/reports/{report_id}","authorization":"authenticated","scope":"own_village_draft_or_admin_mutable_private","mutates":true,"may_include_ct14":false},
     {"method":"PATCH","path":"/reports/{report_id}/approve","authorization":"admin","scope":"commune_admin","mutates":true,"may_include_ct14":false},
     {"method":"PATCH","path":"/reports/{report_id}/publish","authorization":"admin","scope":"commune_admin","mutates":true,"may_include_ct14":false}
   ]

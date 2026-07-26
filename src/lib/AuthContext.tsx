@@ -17,6 +17,7 @@ interface AuthContextType {
   loginError: string | null;
   publicMode: "public" | "login";
   isAuthLoading: boolean;
+  isLoginSubmitting: boolean;
   requiresPasswordReset: boolean;
   setLoginPhone: (phone: string) => void;
   setLoginPassword: (password: string) => void;
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [publicMode, setPublicMode] = useState<"public" | "login">("public");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isLoginSubmitting, setIsLoginSubmitting] = useState(false);
 
   const resetIdentity = useCallback(() => {
     setIdentity(PUBLIC_STATE);
@@ -129,22 +131,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleLoginSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isLoginSubmitting) return;
     setLoginError(null);
     if (!isAuthConfigured) {
       setLoginError("Đăng nhập cán bộ chưa được cấu hình trên môi trường này.");
       return;
     }
-    const identifier = loginPhone.trim();
-    const email = identifier.includes("@") ? identifier : `${identifier}@bana.local`;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: loginPassword });
-    if (error || !data.session) {
-      setLoginError("Số điện thoại/email hoặc mật khẩu không chính xác.");
-      return;
-    }
-    const loaded = await loadProfile(data.session);
-    if (loaded) {
-      setLoginPhone("");
-      setLoginPassword("");
+    setIsLoginSubmitting(true);
+    try {
+      const identifier = loginPhone.trim();
+      const email = identifier.includes("@") ? identifier : `${identifier}@bana.local`;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: loginPassword });
+      if (error || !data.session) {
+        setLoginError("Số điện thoại/email hoặc mật khẩu không chính xác.");
+        return;
+      }
+      const loaded = await loadProfile(data.session);
+      if (loaded) {
+        setLoginPhone("");
+        setLoginPassword("");
+      }
+    } catch {
+      setLoginError("Không thể kết nối dịch vụ đăng nhập. Vui lòng thử lại.");
+    } finally {
+      setIsLoginSubmitting(false);
     }
   };
 
@@ -173,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loginError,
     publicMode,
     isAuthLoading,
+    isLoginSubmitting,
     requiresPasswordReset,
     setLoginPhone,
     setLoginPassword,
@@ -182,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     handlePasswordChange,
     handleLogout,
     getUserId: () => identity.userId || "guest",
-  }), [identity, isLoggedIn, loginPhone, loginPassword, loginError, publicMode, isAuthLoading, requiresPasswordReset]);
+  }), [identity, isLoggedIn, loginPhone, loginPassword, loginError, publicMode, isAuthLoading, isLoginSubmitting, requiresPasswordReset]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

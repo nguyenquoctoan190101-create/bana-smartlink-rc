@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 XLSX_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "xlsx"
 XLSX_MANIFEST = PROJECT_ROOT / "tests" / "fixtures" / "xlsx_manifest.json"
 PDF_ROOT = PROJECT_ROOT / "tests" / "fixtures" / "pdfs"
+PDF_MANIFEST = PROJECT_ROOT / "tests" / "fixtures" / "pdf_manifest.json"
 VILLAGE_MAP = PROJECT_ROOT / "DU_LIEU_CHINH_THUC" / "village_merge_map_CHINH_THUC.json"
 
 
@@ -37,6 +38,20 @@ def test_xlsx_fixture_manifest_proves_synthetic_origin_and_integrity() -> None:
         assert hashlib.sha256(path.read_bytes()).hexdigest() == record["sha256"]
         workbook = load_workbook(path, read_only=True, data_only=True)
         assert workbook.properties.title == "DỮ LIỆU TỔNG HỢP - CHỈ DÙNG KIỂM THỬ"
+
+
+def test_pdf_fixture_manifest_proves_synthetic_origin_and_integrity() -> None:
+    manifest = json.loads(PDF_MANIFEST.read_text(encoding="utf-8"))
+    assert manifest["classification"] == "synthetic-test-data"
+    assert manifest["contains_pii"] is False
+    assert manifest["official_record"] is False
+    assert manifest["generator"] == "tests/generate_synthetic_pdf_fixtures.py"
+    assert len(manifest["files"]) == 21
+
+    for record in manifest["files"]:
+        path = PDF_ROOT / record["name"]
+        assert path.stat().st_size == record["size"]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == record["sha256"]
 
 
 def test_official_village_map_keeps_east_son_as_unresolved() -> None:

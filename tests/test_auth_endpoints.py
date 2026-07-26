@@ -77,6 +77,9 @@ def test_list_officers_success(client, mock_get_user_profile, mock_db_conn):
     res = client.get("/auth/officers", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
     assert len(res.json()) == 1
+    query, actor_id = mock_db_conn.fetch.await_args.args
+    assert "p.commune_id = actor.commune_id" in query
+    assert actor_id == sub
 
 
 # 2. POST /auth/officers/{id}/toggle-active
@@ -123,6 +126,13 @@ def test_list_report_values(client, mock_get_user_profile, mock_db_conn):
     res = client.get("/auth/report-values", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
     mock_db_conn.fetch.assert_called_once()
+    setup_sql = "\n".join(
+        str(call.args[0]) for call in mock_db_conn.execute.await_args_list
+    ).lower()
+    assert "request.jwt.claim.sub" in setup_sql
+    assert "request.jwt.claims" in setup_sql
+    assert "set local role authenticated" in setup_sql
+    mock_db_conn.transaction.assert_called_once_with(readonly=True)
 
 # 4.1 Lanh Dao sees all
 def test_lanh_dao_sees_all_proposals_and_report_values(client, mock_get_user_profile, mock_db_conn):

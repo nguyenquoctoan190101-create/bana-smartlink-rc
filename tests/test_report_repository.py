@@ -85,13 +85,13 @@ async def test_save_report_uses_atomic_rpc_and_preserves_idempotency_contract() 
         village_id="v1", period_id="p1", submitted_by_name="Không gửi vào RPC",
         submitted_by_phone="0900000001", values={"CT01": 100},
         flags=[{"ct_code": "CT02", "error_type": "OUTLIER", "message": "Cần xem"}],
-        raw_source="excel", assisted_by_cnscd=True, assisted_member_name="  Thành viên A  ",
+        raw_source="manual", assisted_by_cnscd=True, assisted_member_name="  Thành viên A  ",
         report_id="r1", expected_version=2, idempotency_key="idem-1",
     )
     assert result.id == "r1" and result.version == 3 and result.replayed is True
     assert result.status == "submitted"
     method, path, payload = supabase._rest_request.await_args.args
-    assert method == "POST" and path == "/rest/v1/rpc/save_report_submission"
+    assert method == "POST" and path == "/rest/v1/rpc/save_manual_report_submission"
     assert payload["p_expected_version"] == 2
     assert payload["p_idempotency_key"] == "idem-1"
     assert payload["p_assisted_member_name"] == "Thành viên A"
@@ -107,6 +107,93 @@ async def test_save_report_empty_rpc_result_is_not_acknowledged() -> None:
         await ReportRepository(supabase).save_report(
             "v1", "p1", "A", "0900000001", {"CT01": 1}, [], "manual"
         )
+
+
+@pytest.mark.asyncio
+async def test_save_report_records_import_review_with_idempotent_rpc() -> None:
+    supabase = AsyncMock()
+    supabase._rest_request = AsyncMock(
+        return_value=[{
+            "report_id": "r1",
+            "workflow_status": "submitted",
+            "timeliness_status": "on_time",
+            "version": 1,
+            "replayed": False,
+        }]
+    )
+    admin = AsyncMock()
+    admin._rest_request = AsyncMock(return_value=[])
+    repository = ReportRepository(supabase, admin_supabase=admin)
+    evidence = {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "user_id": "00000000-0000-4000-8000-000000000002",
+        "source_type": "photo_ocr",
+        "source_checksum": "a" * 64,
+        "extractor_versions": ["ocr:v1"],
+        "original_values_sha256": "b" * 64,
+        "field_count": 14,
+        "requires_review_count": 14,
+        "expires_at": "2026-07-27T00:00:00+00:00",
+    }
+
+    result = await repository.save_report(
+        village_id="v1",
+        period_id="p1",
+        submitted_by_name="Không gửi vào RPC",
+        submitted_by_phone="0900000001",
+        values={"CT01": 100},
+        flags=[],
+        raw_source="photo_ocr",
+        idempotency_key="idem-1",
+        extraction_corrections=[{
+            "code": "CT01",
+            "before": 99,
+            "after": 100,
+            "reason": "Đối chiếu tài liệu gốc",
+        }],
+        extraction_metadata={
+            "source_checksum": "a" * 64,
+            "source_type": "photo_ocr",
+            "extractor_versions": ["ocr:v1"],
+            "field_count": 14,
+            "requires_review_count": 14,
+        },
+        extraction_evidence=evidence,
+    )
+
+    assert result.id == "r1"
+    supabase._rest_request.assert_awaited_once()
+    _, path, payload = supabase._rest_request.await_args.args
+    assert path == "/rest/v1/rpc/save_report_submission_with_extraction"
+    assert payload["p_idempotency_key"] == "idem-1"
+    assert payload["p_extraction_corrections"][0]["before"] == 99
+    assert payload["p_extraction_metadata"]["source_checksum"] == "a" * 64
+    assert payload["p_extraction_evidence_id"] == evidence["id"]
+    admin._rest_request.assert_awaited_once_with(
+        "POST",
+        "/rest/v1/report_extraction_evidence",
+        evidence,
+        prefer="resolution=ignore-duplicates,return=minimal",
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_import_requires_atomic_review_inputs_before_rpc() -> None:
+    supabase = AsyncMock()
+    repository = ReportRepository(supabase)
+
+    with pytest.raises(ValueError, match="evidence and an idempotency key"):
+        await repository.save_report(
+            village_id="v1",
+            period_id="p1",
+            submitted_by_name="Cán bộ",
+            submitted_by_phone="0900000001",
+            values={"CT01": 100},
+            flags=[],
+            raw_source="photo_ocr",
+        )
+
+    supabase._rest_request.assert_not_awaited()
 
 
 @pytest.mark.asyncio

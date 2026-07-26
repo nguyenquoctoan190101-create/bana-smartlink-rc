@@ -26,7 +26,7 @@ export function Wordmark({ compact = false, inverse = false }: { compact?: boole
       </span>
       <span className="brand-wordmark__copy">
         <strong>Ba Na SmartLink</strong>
-        {!compact && <small>Kết nối · Báo cáo · Chia sẻ · Phát triển</small>}
+        {!compact && <small>Hệ thống dữ liệu và báo cáo cấp xã</small>}
       </span>
     </div>
   );
@@ -227,12 +227,12 @@ export function StatusBadge({ status, label }: { status: string; label?: string 
   );
 }
 
-export function DataScope({ period, scope, quality }: { period?: string; scope?: string; quality?: string }) {
+export function DataScope({ period, scope, quality, qualityLabel = "Chất lượng" }: { period?: string; scope?: string; quality?: string; qualityLabel?: string }) {
   return (
     <dl className="data-scope" aria-label="Phạm vi dữ liệu">
       <div><dt>Kỳ dữ liệu</dt><dd>{period || "Chưa xác định"}</dd></div>
       <div><dt>Phạm vi</dt><dd>{scope || "Chưa xác định"}</dd></div>
-      {quality && <div><dt>Chất lượng</dt><dd>{quality}</dd></div>}
+      {quality && <div><dt>{qualityLabel}</dt><dd>{quality}</dd></div>}
     </dl>
   );
 }

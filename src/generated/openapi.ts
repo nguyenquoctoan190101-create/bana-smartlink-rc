@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/ai/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Chat Capabilities
+         * @description Expose only non-sensitive UI capabilities used by the public widget.
+         */
+        get: operations["chat_capabilities_ai_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/chat": {
         parameters: {
             query?: never;
@@ -1240,19 +1260,7 @@ export interface paths {
         put?: never;
         /**
          * Ocr Photo Preview
-         * @description OCR a photo of a paper report form and return a preview for human review.
-         *
-         *     Privacy guarantee
-         *     -----------------
-         *     The personal-data header (reporter name, phone) is cropped off BEFORE
-         *     any data is sent to Gemini.  Only the CT01-CT14 data table is transmitted.
-         *
-         *     Confirmation requirement (AI does-not-decide principle)
-         *     -------------------------------------------------------
-         *     This endpoint NEVER saves data automatically.  It returns an OcrPreview
-         *     so the can bo can review, correct, and then explicitly call POST /reports
-         *     to confirm and persist.  The UI MUST present the values for review before
-         *     allowing submission.
+         * @description Experimental OCR preview; disabled unless explicitly enabled in dev/test.
          */
         post: operations["ocr_photo_preview_reports_ocr_preview_post"];
         delete?: never;
@@ -1389,7 +1397,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Report File
-         * @description Parse the official Excel template and submit through the same validator.
+         * @description Retired mutation path; every import must use preview then canonical submit.
          */
         post: operations["upload_report_file_reports_upload_post"];
         delete?: never;
@@ -1447,7 +1455,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Report
-         * @description Delete an own-village draft, or any report as admin, version-safely.
+         * @description Delete an own-village draft or a mutable private report as admin.
          */
         delete: operations["delete_report_reports__report_id__delete"];
         options?: never;
@@ -1676,6 +1684,11 @@ export interface components {
             /** File */
             file: string;
             /**
+             * Idempotency Key
+             * Format: uuid
+             */
+            idempotency_key: string;
+            /**
              * Period Id
              * Format: uuid
              */
@@ -1737,6 +1750,11 @@ export interface components {
              * @enum {string}
              */
             priority: "low" | "normal" | "high" | "critical";
+            /**
+             * Privacy Consent
+             * @constant
+             */
+            privacy_consent: true;
             /** Submitter Address */
             submitter_address?: string | null;
             /** Submitter Name */
@@ -1777,6 +1795,11 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** ChatCapabilitiesResponse */
+        ChatCapabilitiesResponse: {
+            /** Voice Enabled */
+            voice_enabled: boolean;
+        };
         /** ChatHistoryItem */
         ChatHistoryItem: {
             /** Content */
@@ -1800,12 +1823,39 @@ export interface components {
         ChatResponse: {
             /** Answer */
             answer: string;
+            /** As Of */
+            as_of?: string | null;
+            /**
+             * Data Scope
+             * @default unavailable
+             */
+            data_scope: string;
             /** Intent */
             intent: string;
+            /** Limitations */
+            limitations?: string[];
             /** Question */
             question: string;
             /** Rows Retrieved */
             rows_retrieved: number;
+            /** Sources */
+            sources?: components["schemas"]["ChatSourceResponse"][];
+        };
+        /** ChatSourceResponse */
+        ChatSourceResponse: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "report_data" | "knowledge_article";
+            /** Period */
+            period?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Scope */
+            scope: string;
+            /** Title */
+            title: string;
         };
         /** CitizenPendingUpdateRequest */
         CitizenPendingUpdateRequest: {
@@ -2014,6 +2064,39 @@ export interface components {
             /** Is Verified */
             is_verified: boolean;
         };
+        /** ExtractionCorrection */
+        ExtractionCorrection: {
+            /** After */
+            after: number;
+            /** Before */
+            before?: number | null;
+            /** Code */
+            code: string;
+            /** Reason */
+            reason: string;
+        };
+        /** ExtractionMetadata */
+        ExtractionMetadata: {
+            /** Extractor Versions */
+            extractor_versions?: string[];
+            /**
+             * Field Count
+             * @default 14
+             */
+            field_count: number;
+            /**
+             * Requires Review Count
+             * @default 0
+             */
+            requires_review_count: number;
+            /** Source Checksum */
+            source_checksum: string;
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "excel" | "photo_ocr" | "pdf_ocr";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2101,6 +2184,16 @@ export interface components {
          *     This endpoint never persists data automatically.
          */
         OcrPreviewResponse: {
+            /** Checksum Sha256 */
+            checksum_sha256: string;
+            /** Evidence */
+            evidence?: {
+                [key: string]: components["schemas"]["ReportFieldEvidence"];
+            };
+            /** Extraction Review Token */
+            extraction_review_token: string;
+            /** Extractor Versions */
+            extractor_versions?: string[];
             /** Filename */
             filename: string;
             /** Flags */
@@ -2118,7 +2211,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "excel" | "photo_ocr";
+            source: "excel" | "photo_ocr" | "pdf_ocr";
             /** Values */
             values: {
                 [key: string]: number | null;
@@ -2191,6 +2284,11 @@ export interface components {
             assisted_member_name?: string | null;
             /** Expected Version */
             expected_version?: number | null;
+            /** Extraction Corrections */
+            extraction_corrections?: components["schemas"]["ExtractionCorrection"][];
+            extraction_metadata?: components["schemas"]["ExtractionMetadata"] | null;
+            /** Extraction Review Token */
+            extraction_review_token?: string | null;
             /**
              * Id
              * Format: uuid
@@ -2207,9 +2305,15 @@ export interface components {
             raw_source: string;
             /** Report Period */
             report_period?: string | null;
-            /** Reporter Name */
+            /**
+             * Reporter Name
+             * @default
+             */
             reporter_name: string;
-            /** Reporter Phone */
+            /**
+             * Reporter Phone
+             * @default
+             */
             reporter_phone: string;
             /**
              * Source Confirmed
@@ -2305,6 +2409,29 @@ export interface components {
             /** Retryable */
             retryable: boolean;
         };
+        /** ReportFieldEvidence */
+        ReportFieldEvidence: {
+            /** Confidence */
+            confidence: number;
+            /** Extractor */
+            extractor: string;
+            /** Flags */
+            flags?: string[];
+            /** Method */
+            method: string;
+            /** Normalized Value */
+            normalized_value?: number | null;
+            /** Raw Value */
+            raw_value?: number | string | null;
+            /** Requires Review */
+            requires_review: boolean;
+            /** Source Page */
+            source_page?: number | null;
+            /** Source Region */
+            source_region?: string | null;
+            /** Version */
+            version: string;
+        };
         /**
          * ReportNarrativeRequest
          * @description Aggregate-only input for optional, non-authoritative AI narration.
@@ -2380,8 +2507,16 @@ export interface components {
             assisted_member_name?: string | null;
             /** Expected Version */
             expected_version?: number | null;
-            /** Idempotency Key */
-            idempotency_key?: string | null;
+            /** Extraction Corrections */
+            extraction_corrections?: components["schemas"]["ExtractionCorrection"][];
+            extraction_metadata?: components["schemas"]["ExtractionMetadata"] | null;
+            /** Extraction Review Token */
+            extraction_review_token?: string | null;
+            /**
+             * Idempotency Key
+             * Format: uuid
+             */
+            idempotency_key: string;
             /**
              * Period Id
              * Format: uuid
@@ -2752,6 +2887,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    chat_capabilities_ai_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatCapabilitiesResponse"];
+                };
+            };
+        };
+    };
     chat_ai_chat_post: {
         parameters: {
             query?: never;

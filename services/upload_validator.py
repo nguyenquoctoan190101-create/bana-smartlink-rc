@@ -14,9 +14,12 @@ MAX_XLSX_UNCOMPRESSED_BYTES = 25 * 1024 * 1024
 MAX_XLSX_ENTRIES = 1_000
 MAX_COMPRESSION_RATIO = 100
 MAX_IMAGE_PIXELS = 25_000_000
-ALLOWED_EXTENSIONS = {".xlsx", ".jpg", ".jpeg", ".png"}
+MAX_PDF_PAGES = 5
+MAX_PDF_OBJECTS = 2_000
+ALLOWED_EXTENSIONS = {".xlsx", ".jpg", ".jpeg", ".png", ".pdf"}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPEG_SIGNATURE = b"\xff\xd8\xff"
+PDF_SIGNATURE = b"%PDF-"
 ZIP_SIGNATURES = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 
 
@@ -42,6 +45,8 @@ async def validate_report_upload(upload_file: UploadFile) -> bytes:
 
     if suffix in {".jpg", ".jpeg", ".png"}:
         _validate_image(content)
+    elif suffix == ".pdf":
+        _validate_pdf(content)
 
     await upload_file.seek(0)
     return content
@@ -56,6 +61,9 @@ def _has_valid_magic_bytes(suffix: str, content: bytes) -> bool:
 
     if suffix == ".xlsx":
         return _is_xlsx_workbook(content)
+
+    if suffix == ".pdf":
+        return content.startswith(PDF_SIGNATURE)
 
     return False
 
@@ -135,4 +143,73 @@ def _validate_image(content: bytes) -> None:
         raise UploadValidationError("Image is corrupt or truncated") from exc
 
 
-__all__ = ["MAX_UPLOAD_BYTES", "UploadValidationError", "validate_report_upload"]
+def _validate_pdf(content: bytes) -> None:
+    """Reject active, encrypted, malformed, or excessively complex PDFs.
+
+    OCR accepts PDF as an input container only. The OCR service separately
+    extracts and sanitizes raster page images before any external call.
+    """
+    try:
+        from pypdf import PdfReader
+        from pypdf.errors import PdfReadError
+    except ImportError as exc:
+        raise UploadValidationError("PDF validation is unavailable") from exc
+
+    try:
+        reader = PdfReader(BytesIO(content), strict=True)
+        if reader.is_encrypted:
+            raise UploadValidationError("Không chấp nhận tệp PDF được mã hóa")
+
+        page_count = len(reader.pages)
+        if page_count < 1 or page_count > MAX_PDF_PAGES:
+            raise UploadValidationError(
+                f"Tệp PDF phải có từ 1 đến {MAX_PDF_PAGES} trang"
+            )
+
+        xref = getattr(reader, "xref", {})
+        object_count = (
+            sum(len(objects) for objects in xref.values())
+            if isinstance(xref, dict)
+            else 0
+        )
+        if object_count > MAX_PDF_OBJECTS:
+            raise UploadValidationError("Tệp PDF có cấu trúc quá phức tạp")
+
+        root = reader.trailer["/Root"].get_object()
+        if any(key in root for key in ("/OpenAction", "/AA", "/AcroForm")):
+            raise UploadValidationError(
+                "Không chấp nhận tệp PDF có nội dung chủ động"
+            )
+
+        names_ref = root.get("/Names")
+        if names_ref is not None:
+            names = names_ref.get_object()
+            if any(key in names for key in ("/JavaScript", "/EmbeddedFiles")):
+                raise UploadValidationError(
+                    "Không chấp nhận tệp PDF có nội dung chủ động"
+                )
+
+        for page in reader.pages:
+            if any(key in page for key in ("/AA", "/Annots")):
+                raise UploadValidationError(
+                    "Không chấp nhận tệp PDF có nội dung tương tác"
+                )
+    except UploadValidationError:
+        raise
+    except (
+        AttributeError,
+        OverflowError,
+        PdfReadError,
+        KeyError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise UploadValidationError("Tệp PDF bị lỗi hoặc không hợp lệ") from exc
+
+
+__all__ = [
+    "MAX_UPLOAD_BYTES",
+    "UploadValidationError",
+    "validate_report_upload",
+]

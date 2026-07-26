@@ -104,7 +104,7 @@ export default function PendingUpdates({
       CT10: "Lao động trong độ tuổi",
       CT11: "Người tham gia BHYT",
       CT12: "Thành viên Tổ Công nghệ số",
-      CT13: "Lượt hướng dẫn DVC trực tuyến",
+      CT13: "Người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ",
       CT14: "Số vụ bạo lực gia đình"
     };
     return names[code] || code;
@@ -138,7 +138,7 @@ export default function PendingUpdates({
         sla_status: item.sla_status,
       })));
 
-      // 2. Fetch mock report values (central DB)
+      // 2. Fetch the scoped report values from the central database.
       const dataValues = await apiJson<ReportValue[]>("/auth/report-values");
       setReportValues(Array.isArray(dataValues) ? dataValues : []);
 
@@ -222,7 +222,7 @@ export default function PendingUpdates({
   };
 
   const formatSla = (proposal: Proposal) => {
-    if (!proposal.sla_due_at) return "Chưa xác định SLA";
+    if (!proposal.sla_due_at) return "Chưa xác định thời hạn xử lý";
     const due = new Date(proposal.sla_due_at);
     const dueText = Number.isNaN(due.getTime()) ? proposal.sla_due_at : due.toLocaleString("vi-VN");
     if (proposal.sla_status === "overdue") return `Quá hạn phản hồi từ ${dueText}`;
@@ -235,13 +235,13 @@ export default function PendingUpdates({
       {/* Upper header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-3xs">
         <div>
-          <h2 className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
+          <h1 className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
             <ClipboardCheck className="w-5.5 h-5.5 text-emerald-800" />
             <span>Thẩm định kiến nghị sửa đổi số liệu</span>
-          </h2>
+          </h1>
           <p className="text-2xs text-slate-500 mt-1">
             {userRole === "admin_xa" 
-              ? "Quyền hạn: Admin Xã - Xem toàn bộ đề xuất chỉnh sửa từ nhân dân 10 thôn."
+              ? "Phạm vi: Quản trị xã xem toàn bộ đề nghị đối chiếu từ người dân tại 10 thôn."
               : `Quyền hạn: Cán bộ thôn - Xem đề xuất chỉnh sửa riêng của địa bàn ${getVillageName(userVillageId || "")}.`}
           </p>
         </div>
@@ -381,7 +381,7 @@ export default function PendingUpdates({
                       {Object.entries(proposal.proposed_changes).map(([ct_code, proposed_val]) => {
                         const old_val = getOldValue(proposal, ct_code);
                         const oldValueLabel = old_val == null
-                          ? proposal.status === "Pending" ? "Chưa có dữ liệu" : "Không lưu snapshot"
+                          ? proposal.status === "Pending" ? "Chưa có dữ liệu" : "Không có bản lưu dữ liệu"
                           : old_val;
                         return (
                           <div key={ct_code} className="border border-slate-100 rounded-xl p-3 bg-slate-25/40 flex flex-col justify-between gap-2.5">
@@ -433,7 +433,7 @@ export default function PendingUpdates({
                         ) : (
                           <Check className="w-3.5 h-3.5" />
                         )}
-                        <span>Phê duyệt (Giao dịch đồng thời)</span>
+                        <span>Phê duyệt đề nghị</span>
                       </button>
                     </div>
                   )}
@@ -458,8 +458,8 @@ export default function PendingUpdates({
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Shield className="w-4.5 h-4.5 text-emerald-800" />
               <div>
-                <h3 className="font-bold text-slate-800 text-xs">Nhật ký thay đổi (Audit Log)</h3>
-                <p className="text-4xs text-slate-400 mt-0.5">Lưu vết tự động trong cùng 1 transaction</p>
+                <h3 className="font-bold text-slate-800 text-xs">Nhật ký thay đổi</h3>
+                <p className="text-4xs text-slate-400 mt-0.5">Ghi nhật ký trong cùng một giao dịch dữ liệu</p>
               </div>
             </div>
 
@@ -468,7 +468,7 @@ export default function PendingUpdates({
             ) : auditLogs.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-2xs space-y-1">
                 <Activity className="w-8 h-8 text-slate-200 mx-auto" />
-                <p>Chưa có lịch sử audit log nào được ghi nhận.</p>
+                <p>Chưa có nhật ký thay đổi nào được ghi nhận.</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">

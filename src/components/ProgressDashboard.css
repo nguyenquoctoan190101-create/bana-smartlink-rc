@@ -1,4 +1,5 @@
 .progress-dashboard {
+  container-type: inline-size;
   color: #17212b;
   font-family: "Noto Sans", "Segoe UI", Arial, sans-serif;
   width: 100%;
@@ -25,7 +26,7 @@
   text-transform: uppercase;
 }
 
-.progress-dashboard h2 {
+.progress-dashboard h1 {
   font-size: 1.35rem;
   line-height: 1.25;
   margin: 0;
@@ -189,21 +190,23 @@
   white-space: nowrap;
 }
 
-.progress-dashboard__change-badge--positive {
-  background: #e6f6ee;
-  color: #0e7a50;
+.progress-dashboard__change-badge--neutral {
+  background: #eef4f8;
+  color: #334155;
 }
 
-.progress-dashboard__change-badge--negative {
-  background: #fdf2f1;
-  color: #dc3f35;
-}
-
-@media (max-width: 720px) {
+@container (max-width: 42rem) {
   .progress-dashboard__summary {
     grid-template-columns: 1fr;
   }
 
+  .progress-dashboard__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .progress-dashboard__summary,
   .progress-dashboard__metrics {
     grid-template-columns: 1fr;
   }

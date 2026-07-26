@@ -147,7 +147,7 @@ begin
     raise exception 'invalid indicator value' using errcode = '22023';
   end if;
   if p_submit and (
-    jsonb_object_length(p_values) <> 14
+    (select count(*) from jsonb_object_keys(p_values)) <> 14
     or exists (
       select 1 from generate_series(1, 14) as indicator(number)
       where not (p_values ? ('CT' || lpad(indicator.number::text, 2, '0')))

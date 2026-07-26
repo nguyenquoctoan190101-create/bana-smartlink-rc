@@ -40,6 +40,7 @@ class CaseCreateRequest(BaseModel):
     submitter_name: str | None = Field(default=None, max_length=120)
     submitter_phone: str | None = Field(default=None, max_length=20)
     submitter_address: str | None = Field(default=None, max_length=500)
+    privacy_consent: Literal[True]
     consent_version: str = Field(min_length=1, max_length=40)
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
@@ -156,6 +157,7 @@ async def create_case(
         "p_submitter_address": payload.submitter_address.strip() if payload.submitter_address else None,
         "p_consent_version": payload.consent_version,
         "p_consent_at": datetime.now(timezone.utc).isoformat(),
+        "p_privacy_consent": payload.privacy_consent,
         "p_tracking_code_hash": tracking_hash,
         "p_latitude": payload.latitude,
         "p_longitude": payload.longitude,
@@ -166,7 +168,7 @@ async def create_case(
     try:
         rows = await supabase._rest_request("POST", "/rest/v1/rpc/create_citizen_case", rpc_payload)
     except SupabaseAdminError as exc:
-        if exc.status_code in {400, 409}:
+        if exc.error_code == "23514" or exc.status_code in {400, 409}:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unable to create field report") from exc
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Field reporting service is unavailable") from exc
     if not rows:

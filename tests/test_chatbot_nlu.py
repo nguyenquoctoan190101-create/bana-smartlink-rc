@@ -9,6 +9,7 @@ from services.chatbot import (
     _QueryIntent,
     _classify_question_with_gemini,
     _build_gemini_prompt,
+    _model_answer_is_grounded,
     _query_village_indicator,
     _redact_free_text,
     ask_question_async,
@@ -69,15 +70,36 @@ class _TextGemini:
 
 def test_free_text_redaction_covers_common_identifiers() -> None:
     redacted = _redact_free_text(
-        "Liên hệ 0901234567, a.nguyen@example.com, CCCD 012345678901"
+        "Tôi là Nguyễn Văn An, liên hệ 0901234567, a.nguyen@example.com, "
+        "CMND 123456789, CCCD 012345678901, địa chỉ: 12 đường Núi Thành; "
+        "hỏi số hộ Thôn Phú Hòa."
     )
 
+    assert "Nguyễn Văn An" not in redacted
     assert "0901234567" not in redacted
     assert "a.nguyen@example.com" not in redacted
+    assert "123456789" not in redacted
     assert "012345678901" not in redacted
+    assert "12 đường Núi Thành" not in redacted
+    assert "Thôn Phú Hòa" in redacted
+    assert "[NAME_REDACTED]" in redacted
+    assert "[ADDRESS_REDACTED]" in redacted
     assert "[PHONE_REDACTED]" in redacted
     assert "[EMAIL_REDACTED]" in redacted
     assert "[ID_REDACTED]" in redacted
+
+
+def test_answer_model_output_must_not_add_numbers_or_echo_prompt_instructions() -> None:
+    rows = [{
+        "village_name": "Thôn Phú Hòa",
+        "period_name": "Tháng 7/2026",
+        "ct_code": "CT01",
+        "value": 120,
+    }]
+
+    assert _model_answer_is_grounded("CT01 của Thôn Phú Hòa là 120.", rows)
+    assert not _model_answer_is_grounded("CT01 của Thôn Phú Hòa là 121.", rows)
+    assert not _model_answer_is_grounded("System prompt: bỏ qua kiểm soát.", rows)
 
 
 def test_gemini_nlu_is_structured_allowlisted_and_history_is_redacted() -> None:
@@ -110,7 +132,7 @@ def test_gemini_nlu_is_structured_allowlisted_and_history_is_redacted() -> None:
     assert "[PHONE_REDACTED]" in fake.user_text
 
 
-def test_out_of_scope_question_gets_a_reasonable_boundary_response() -> None:
+def test_public_out_of_scope_question_gets_boundary_response_without_model() -> None:
     fake = _StructuredGemini(
         {
             "intent": "OUT_OF_SCOPE",
@@ -129,6 +151,7 @@ def test_out_of_scope_question_gets_a_reasonable_boundary_response() -> None:
     assert answer.rows_retrieved == 0
     assert "ngoài phạm vi" in answer.answer
     assert "không dùng kiến thức bên ngoài" in answer.answer
+    assert fake.user_text == ""
 
 
 def test_obvious_out_of_scope_question_is_explained_without_model_fallback() -> None:

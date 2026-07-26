@@ -26,6 +26,7 @@ def client():
         from routers.auth import get_supabase_admin, require_authenticated_user
         from services.supabase_admin import UserProfile
         fake_supabase = MagicMock()
+        fake_supabase.as_user.return_value = fake_supabase
         app.dependency_overrides[get_supabase_admin] = lambda: fake_supabase
         app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
             id=str(uuid4()), role="lanh_dao", village_id=None, force_password_reset=False
@@ -63,13 +64,15 @@ def test_get_trend_alerts_success(client: TestClient) -> None:
         mock_service.return_value = mock_alerts
 
         response = client.get(
-            f"/reports/trend-alerts?curr_period_id={curr_id}&prev_period_id={prev_id}"
+            f"/reports/trend-alerts?curr_period_id={curr_id}&prev_period_id={prev_id}",
+            headers={"Authorization": "Bearer caller-jwt"},
         )
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         assert data[0]["village_name"] == "Thôn Phước Thái"
         assert data[0]["change_pct"] == 50.0
+        fake_supabase.as_user.assert_called_with("caller-jwt")
 
 
 def test_get_report_periods_success(client: TestClient) -> None:
@@ -81,8 +84,12 @@ def test_get_report_periods_success(client: TestClient) -> None:
         {"id": "p1", "name": "Period 1", "due_date": "2026-06-30"}
     ])
 
-    response = client.get("/reports/periods")
+    response = client.get(
+        "/reports/periods",
+        headers={"Authorization": "Bearer caller-jwt"},
+    )
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "Period 1"
+    fake_supabase.as_user.assert_called_with("caller-jwt")

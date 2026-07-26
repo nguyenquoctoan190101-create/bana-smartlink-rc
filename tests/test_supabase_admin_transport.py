@@ -206,6 +206,25 @@ async def test_rest_transport_empty_list_error_code_and_shape() -> None:
             await client._rest_request("GET", "/rest/v1/x")
 
 
+@pytest.mark.asyncio
+async def test_injected_http_pool_is_reused_by_admin_and_user_clients() -> None:
+    shared = FakeAsyncClient(httpx.Response(200, json=[]))
+    admin = SupabaseAdminClient(_settings(), http_client=shared)
+    user = admin.as_user("caller.jwt")
+
+    with patch("services.supabase_admin.httpx.AsyncClient") as constructor:
+        await admin._rest_request("GET", "/rest/v1/villages")
+        await user._rest_request("GET", "/rest/v1/reports")
+
+    constructor.assert_not_called()
+    assert shared.request.await_count == 2
+    assert shared.request.await_args_list[0].kwargs["timeout"] == 10.0
+    assert (
+        shared.request.await_args_list[1].kwargs["headers"]["Authorization"]
+        == "Bearer caller.jwt"
+    )
+
+
 def test_missing_credentials_never_fall_back_to_anonymous_or_secret_bearer() -> None:
     with pytest.raises(SupabaseAdminError, match="publishable"):
         SupabaseAdminClient(Settings(_env_file=None)).as_user("jwt")._headers()

@@ -12,7 +12,12 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from main import app
-from routers.auth import get_settings, get_supabase_admin, require_authenticated_user
+from routers.auth import (
+    get_settings,
+    get_supabase_admin,
+    require_admin_xa,
+    require_authenticated_user,
+)
 from routers.reports import get_report_repository
 from services.settings import Settings
 from services.supabase_admin import SupabaseAdminError, UserProfile
@@ -56,12 +61,14 @@ class _FakeAdminClient:
         *,
         fail_password: bool = False,
         fail_profile_update: bool = False,
+        village_valid: bool = True,
     ) -> None:
         self.profile = profile
         self.events: list[tuple] = []
         self.access_token: str | None = None
         self.user_client = _FakeUserClient(self.events, fail_password)
         self.fail_profile_update = fail_profile_update
+        self.village_valid = village_valid
 
     async def get_user_profile(self, user_id: str) -> UserProfile | None:
         assert user_id == self.profile.id
@@ -80,6 +87,10 @@ class _FakeAdminClient:
         self.events.append(("create_auth_user", kwargs))
         return str(uuid4())
 
+    async def village_in_commune(self, village_id: str, commune_id: str) -> bool:
+        self.events.append(("village_in_commune", village_id, commune_id))
+        return self.village_valid
+
     async def create_user_profile(self, **kwargs) -> UserProfile:
         self.events.append(("create_user_profile", kwargs))
         return UserProfile(
@@ -89,6 +100,7 @@ class _FakeAdminClient:
             force_password_reset=kwargs["force_password_reset"],
             display_name=kwargs["display_name"],
             phone=kwargs["phone"],
+            commune_id=kwargs["commune_id"],
         )
 
     async def delete_auth_user(self, user_id: str) -> None:
@@ -209,13 +221,48 @@ def test_create_staff_account_normalizes_and_persists_phone_in_both_records() ->
     assert create_auth["phone"] == "0901234567"
     assert create_profile["phone"] == "0901234567"
     assert create_profile["display_name"] == "Nguyễn Văn A"
+    assert create_profile["commune_id"] == "ba_na"
+
+
+def test_create_staff_account_rejects_cross_commune_village_before_auth_creation() -> None:
+    admin_id = str(uuid4())
+    admin = _FakeAdminClient(
+        UserProfile(
+            admin_id,
+            "admin_xa",
+            None,
+            False,
+            commune_id="ba_na",
+        ),
+        village_valid=False,
+    )
+    with _client_with_admin(admin) as client:
+        response = client.post(
+            "/auth/staff-users",
+            json={
+                "email": "officer@example.gov.vn",
+                "display_name": "Cán bộ ngoài phạm vi",
+                "role": "can_bo_thon",
+                "village_id": str(uuid4()),
+            },
+            headers={"Authorization": f"Bearer {_jwt(admin_id)}"},
+        )
+    assert response.status_code == 422
+    assert not any(event[0] == "create_auth_user" for event in admin.events)
 
 
 class _FakeReportRest:
-    def __init__(self, report: dict[str, object], *, delete_result: list[dict] | None = None) -> None:
+    def __init__(
+        self,
+        report: dict[str, object],
+        *,
+        delete_result: list[dict] | None = None,
+        mutation_error: SupabaseAdminError | None = None,
+    ) -> None:
         self.report = report
         self.delete_result = [report] if delete_result is None else delete_result
-        self.calls: list[tuple[str, str, str | None]] = []
+        self.mutation_error = mutation_error
+        self.calls: list[tuple[str, str, object, str | None]] = []
 
     async def _rest_request(
         self,
@@ -224,7 +271,9 @@ class _FakeReportRest:
         payload=None,
         prefer: str | None = None,
     ) -> list[dict]:
-        self.calls.append((method, path, prefer))
+        self.calls.append((method, path, payload, prefer))
+        if method != "GET" and self.mutation_error is not None:
+            raise self.mutation_error
         return [self.report] if method == "GET" else self.delete_result
 
 
@@ -234,6 +283,7 @@ def _client_with_report(report_rest: _FakeReportRest, profile: UserProfile):
     repository = SimpleNamespace(_supabase=report_rest)
     app.dependency_overrides[get_report_repository] = lambda: repository
     app.dependency_overrides[require_authenticated_user] = lambda: profile
+    app.dependency_overrides[require_admin_xa] = lambda: profile
     try:
         with TestClient(app) as client:
             yield client
@@ -250,6 +300,7 @@ def test_delete_report_returns_bodyless_204_under_fastapi_0139() -> None:
             "id": str(report_id),
             "village_id": str(village_id),
             "workflow_status": "draft",
+            "publication_status": "private",
             "version": 4,
         }
     )
@@ -261,10 +312,13 @@ def test_delete_report_returns_bodyless_204_under_fastapi_0139() -> None:
     assert response.content == b""
     assert "content-type" not in response.headers
     delete_call = rest.calls[-1]
-    assert delete_call[0] == "DELETE"
-    assert "version=eq.4" in delete_call[1]
-    assert "workflow_status=eq.draft" in delete_call[1]
-    assert delete_call[2] == "return=representation"
+    assert delete_call[0] == "POST"
+    assert delete_call[1] == "/rest/v1/rpc/delete_report_submission"
+    assert delete_call[2] == {
+        "p_report_id": str(report_id),
+        "p_expected_version": 4,
+    }
+    assert delete_call[3] is None
 
 
 def test_delete_report_detects_concurrent_change_from_empty_delete_result() -> None:
@@ -275,6 +329,7 @@ def test_delete_report_detects_concurrent_change_from_empty_delete_result() -> N
             "id": str(report_id),
             "village_id": str(village_id),
             "workflow_status": "draft",
+            "publication_status": "private",
             "version": 4,
         },
         delete_result=[],
@@ -283,3 +338,125 @@ def test_delete_report_detects_concurrent_change_from_empty_delete_result() -> N
     with _client_with_report(rest, profile) as client:
         response = client.delete(f"/reports/{report_id}?expected_version=4")
     assert response.status_code == 409
+
+
+def test_delete_report_preserves_locked_and_published_records_even_for_admin() -> None:
+    village_id = uuid4()
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+    immutable_states = (
+        ("locked", "private"),
+        ("approved", "published"),
+    )
+
+    for workflow_status, publication_status in immutable_states:
+        report_id = uuid4()
+        rest = _FakeReportRest(
+            {
+                "id": str(report_id),
+                "village_id": str(village_id),
+                "workflow_status": workflow_status,
+                "publication_status": publication_status,
+                "version": 4,
+            }
+        )
+        with _client_with_report(rest, profile) as client:
+            response = client.delete(f"/reports/{report_id}?expected_version=4")
+
+        assert response.status_code == 409
+        assert len(rest.calls) == 1
+        assert rest.calls[0][0] == "GET"
+        assert "publication_status" in rest.calls[0][1]
+
+
+def test_admin_cannot_enter_standard_village_report_data() -> None:
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+    rest = _FakeReportRest({})
+    village_id = uuid4()
+
+    with _client_with_report(rest, profile) as client:
+        response = client.post(
+            "/reports",
+            json={
+                "village_id": str(village_id),
+                "period_id": str(uuid4()),
+                "submitted_by_name": "Admin",
+                "submitted_by_phone": "0901234567",
+                "values": {f"CT{index:02d}": 0 for index in range(1, 15)},
+                "idempotency_key": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 403
+    assert "review reports" in response.json()["message"]
+    assert rest.calls == []
+
+
+def test_admin_workflow_routes_call_versioned_atomic_rpc() -> None:
+    report_id = uuid4()
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+    rest = _FakeReportRest({"version": 9})
+
+    with _client_with_report(rest, profile) as client:
+        approve_response = client.patch(
+            f"/reports/{report_id}/approve",
+            json={"action": "approve", "expected_version": 8},
+        )
+        publish_response = client.patch(
+            f"/reports/{report_id}/publish?expected_version=9",
+        )
+
+    assert approve_response.status_code == 200
+    assert approve_response.json() == {
+        "report_id": str(report_id),
+        "workflow_status": "approved",
+        "version": 9,
+    }
+    assert publish_response.status_code == 200
+    assert publish_response.json() == {
+        "report_id": str(report_id),
+        "publication_status": "published",
+        "version": 9,
+    }
+    assert rest.calls == [
+        (
+            "POST",
+            "/rest/v1/rpc/transition_report_workflow",
+            {
+                "p_report_id": str(report_id),
+                "p_expected_version": 8,
+                "p_action": "approve",
+            },
+            None,
+        ),
+        (
+            "POST",
+            "/rest/v1/rpc/transition_report_workflow",
+            {
+                "p_report_id": str(report_id),
+                "p_expected_version": 9,
+                "p_action": "publish",
+            },
+            None,
+        ),
+    ]
+
+
+def test_publish_maps_database_scope_denial_to_forbidden() -> None:
+    report_id = uuid4()
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+    rest = _FakeReportRest(
+        {},
+        mutation_error=SupabaseAdminError(
+            "outside scope",
+            status_code=403,
+            error_code="42501",
+        ),
+    )
+
+    with _client_with_report(rest, profile) as client:
+        response = client.patch(
+            f"/reports/{report_id}/publish?expected_version=3",
+        )
+
+    assert response.status_code == 403
+    assert response.json()["message"] == "Only admin can publish reports"

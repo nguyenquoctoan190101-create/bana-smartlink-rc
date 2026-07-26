@@ -35,6 +35,21 @@ export type TimelinessStatus = "not_submitted" | "on_time" | "late";
 export type PublicationStatus = "private" | "published";
 export type ReportSource = "manual" | "excel" | "photo_ocr" | "direct_api";
 
+export interface ExtractionCorrection {
+  code: IndicatorCode;
+  before: number | null;
+  after: number;
+  reason: string;
+}
+
+export interface ExtractionMetadata {
+  source_checksum: string;
+  source_type: "excel" | "photo_ocr" | "pdf_ocr";
+  extractor_versions: string[];
+  field_count: number;
+  requires_review_count: number;
+}
+
 /**
  * Frontend report view model. The legacy `status` field is accepted only while
  * reading older offline drafts; new code must use the three explicit statuses.
@@ -58,6 +73,9 @@ export interface ReportData extends IndicatorValues {
   assisted_member_name?: string;
   raw_source?: ReportSource;
   source_confirmed?: boolean;
+  extraction_corrections?: ExtractionCorrection[];
+  extraction_metadata?: ExtractionMetadata;
+  extraction_review_token?: string;
   pending_sync?: boolean;
   /** Frontend-only marker: this report exists only in the current browser. */
   local_only?: boolean;

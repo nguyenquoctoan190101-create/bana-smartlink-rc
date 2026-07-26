@@ -110,7 +110,7 @@
     },
     {
       "code": "CT13",
-      "name": "Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ",
+      "name": "Số người dân được hướng dẫn dùng dịch vụ công trực tuyến trong kỳ",
       "unit": "Người",
       "type": "integer",
       "min": 0

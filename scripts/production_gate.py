@@ -19,11 +19,17 @@ REQUIRED_CONTROLS = (
     "credential_rotation",
     "access_log_review",
     "staging_rls_matrix",
-    "uat_four_roles",
+    "uat_five_principals",
     "backup_restore",
     "security_review",
     "privacy_legal_review",
 )
+LEGACY_CONTROL_ALIASES = {
+    # Keep old attestation files readable while requiring their evidence to
+    # cover citizen, village staff, community digital team, commune admin and
+    # leader. New files must use the clearer key above.
+    "uat_five_principals": "uat_four_roles",
+}
 
 
 def parse_timestamp(value: object) -> datetime | None:
@@ -46,6 +52,9 @@ def validate_attestations(payload: Any, now: datetime, max_age_days: int = 90) -
     latest_allowed_age = now - timedelta(days=max_age_days)
     for name in REQUIRED_CONTROLS:
         control = controls.get(name)
+        if not isinstance(control, dict):
+            legacy_name = LEGACY_CONTROL_ALIASES.get(name)
+            control = controls.get(legacy_name) if legacy_name else None
         if not isinstance(control, dict):
             errors.append(f"{name}: missing")
             continue

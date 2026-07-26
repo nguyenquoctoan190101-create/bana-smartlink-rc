@@ -18,14 +18,15 @@ thẩm quyền cuối cùng.
 | CT10 | Người trong độ tuổi lao động | Người | Không |
 | CT11 | Người tham gia BHYT | Người | Không |
 | CT12 | Thành viên Tổ công nghệ số cộng đồng | Người | Có |
-| CT13 | Người được hướng dẫn dùng DVC trực tuyến trong kỳ | Người | Có |
+| CT13 | Người được hướng dẫn dùng dịch vụ công trực tuyến trong kỳ | Người | Có |
 | CT14 | Vụ bạo lực gia đình ghi nhận trong kỳ | Vụ | Không, dữ liệu nhạy cảm |
 
 ## Nguồn dữ liệu
 
 - `manual`: cán bộ nhập trực tiếp.
 - `excel`: nhập từ biểu mẫu XLSX và xác nhận mapping.
-- `photo_ocr`: OCR ảnh, luôn qua màn hình xác nhận của người dùng.
+- `photo_ocr`: giá trị enum dự phòng cho luồng OCR có bằng chứng; endpoint OCR
+  ngoài đang bị khóa trên staging/production và không xuất hiện trong UI release.
 - `direct_api`: tích hợp được phê duyệt trong tương lai.
 
 Không được đổi `null` thành 0. `null` có nghĩa là thiếu/chưa xác nhận; 0 là một

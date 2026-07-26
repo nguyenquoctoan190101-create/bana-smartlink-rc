@@ -18,7 +18,7 @@
 | XSS/path traversal/formula injection | Escape, containment check, CSP, XLSX sanitization |
 | Lost update/mất queue offline | Transaction, version, ACK từng item, giữ reject |
 | Upload bomb/AI quota abuse | Magic-byte, size/decompression/pixel limits, rate limit |
-| OCR gửi PII | Crop/redaction có preview, fail-closed, human confirmation |
+| OCR ngoài gửi PII | Khóa bắt buộc trên staging/production; chỉ mở lại sau local semantic redaction gate, privacy review và benchmark |
 | Prompt injection/hallucination | Scoped retrieval, provenance, từ chối khi thiếu dữ liệu |
 | Tài khoản khóa vẫn hoạt động | DB profile check ở backend và RLS |
 
@@ -28,4 +28,3 @@
 - RLS phải được chạy trên PostgreSQL/Supabase thật; test mô phỏng không đủ.
 - Nội dung privacy/legal phải được đầu mối pháp lý của đơn vị phê duyệt.
 - Phân bổ dữ liệu Đông Sơn cần xác nhận chính thức từ xã.
-

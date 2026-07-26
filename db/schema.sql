@@ -350,6 +350,7 @@ create table public.pending_updates (
 
 create table public.audit_log (
   id uuid primary key default gen_random_uuid(),
+  commune_id text,
   action text not null,
   table_name text not null,
   record_id uuid,
@@ -358,6 +359,9 @@ create table public.audit_log (
   details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   constraint audit_log_action_not_blank check (btrim(action) <> ''),
+  constraint audit_log_commune_not_blank check (
+    commune_id is null or btrim(commune_id) <> ''
+  ),
   constraint audit_log_table_name_not_blank check (btrim(table_name) <> ''),
   constraint audit_log_details_object check (jsonb_typeof(details) = 'object')
 );
@@ -461,6 +465,7 @@ create index report_flags_unresolved_idx on public.report_validation_flags (repo
 create index pending_updates_report_status_idx on public.pending_updates (report_id, status);
 create index audit_log_record_idx on public.audit_log (table_name, record_id);
 create index audit_log_created_idx on public.audit_log (created_at desc);
+create index audit_log_commune_created_idx on public.audit_log (commune_id, created_at desc);
 create index notifications_user_created_idx on public.notifications (user_id, created_at desc);
 create index reminder_log_delivery_idx on public.reminder_log (delivery_status, created_at);
 create unique index reminder_log_idempotent_idx on public.reminder_log (
@@ -469,6 +474,27 @@ create unique index reminder_log_idempotent_idx on public.reminder_log (
   coalesce(recipient_user_id, '00000000-0000-0000-0000-000000000000'::uuid),
   milestone
 );
+
+create function public.assign_audit_log_commune()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $$
+begin
+  if new.commune_id is null then
+    select profile.commune_id
+    into new.commune_id
+    from public.user_profiles as profile
+    where profile.id = coalesce(new.user_id, auth.uid());
+  end if;
+  return new;
+end
+$$;
+
+create trigger audit_log_assign_commune
+before insert on public.audit_log
+for each row execute function public.assign_audit_log_commune();
 
 create function public.set_updated_at()
 returns trigger
@@ -811,7 +837,8 @@ as $$
       max(value) filter (where ct_code = 'CT08') as ct08,
       max(value) filter (where ct_code = 'CT09') as ct09,
       max(value) filter (where ct_code = 'CT10') as ct10,
-      max(value) filter (where ct_code = 'CT11') as ct11
+      max(value) filter (where ct_code = 'CT11') as ct11,
+      max(value) filter (where ct_code = 'CT14') as ct14
     from public.report_values
     where report_id = target_report_id
   )
@@ -819,6 +846,7 @@ as $$
     populated_count = 14
     and ct01 is not null and ct02 is not null and ct03 is not null and ct04 is not null
     and ct07 is not null and ct08 is not null and ct09 is not null and ct10 is not null and ct11 is not null
+    and ct14 is not null
     and ct03 <= ct01
     and ct03 + ct04 <= ct01
     and ct07 <= ct02
@@ -826,6 +854,7 @@ as $$
     and ct09 <= ct01
     and ct10 <= ct02
     and ct11 <= ct02
+    and ct14 <= ct01
   from values_by_code
 $$;
 
@@ -849,6 +878,8 @@ before insert or update on public.reports
 for each row execute function public.enforce_submitted_report_values();
 
 revoke all on function public.set_updated_at() from public;
+revoke all on function public.assign_audit_log_commune()
+  from public, anon, authenticated, service_role;
 revoke all on function public.profile_role() from public;
 revoke all on function public.profile_village_id() from public;
 revoke all on function public.profile_commune_id() from public;
@@ -924,7 +955,10 @@ using (true);
 create policy villages_legacy_select_internal
 on public.villages_legacy for select
 to authenticated
-using (public.profile_role() is not null);
+using (
+  public.profile_role() is not null
+  and commune_id = public.profile_commune_id()
+);
 
 create policy profiles_select_self_admin_leader
 on public.user_profiles for select
@@ -955,14 +989,43 @@ on public.user_village_assignments for select
 to authenticated
 using (
   user_id = auth.uid()
-  or public.profile_role() in ('admin_xa', 'lanh_dao')
+  or (
+    public.profile_role() in ('admin_xa', 'lanh_dao')
+    and exists (
+      select 1
+      from public.villages as village
+      where village.id = user_village_assignments.village_id
+        and village.commune_id = public.profile_commune_id()
+    )
+  )
 );
 
 create policy assignments_write_admin
 on public.user_village_assignments for all
 to authenticated
-using (public.profile_role() = 'admin_xa' and public.profile_can_mutate())
-with check (public.profile_role() = 'admin_xa' and public.profile_can_mutate());
+using (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and exists (
+    select 1
+    from public.villages as village
+    where village.id = user_village_assignments.village_id
+      and village.commune_id = public.profile_commune_id()
+  )
+)
+with check (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and exists (
+    select 1
+    from public.villages as village
+    join public.user_profiles as assignee
+      on assignee.id = user_village_assignments.user_id
+    where village.id = user_village_assignments.village_id
+      and village.commune_id = public.profile_commune_id()
+      and assignee.commune_id = village.commune_id
+  )
+);
 
 create policy periods_select_internal
 on public.report_periods for select
@@ -1125,10 +1188,7 @@ using (public.can_modify_report(report_id));
 create policy pending_updates_select_scoped
 on public.pending_updates for select
 to authenticated
-using (
-  public.profile_role() in ('admin_xa', 'lanh_dao')
-  or public.can_select_report(report_id)
-);
+using (public.can_select_report(report_id));
 
 create policy audit_log_select_admin
 on public.audit_log for select
@@ -1136,6 +1196,7 @@ to authenticated
 using (
   public.profile_role() = 'admin_xa'
   and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
 );
 
 create policy evacuation_points_select
@@ -1419,7 +1480,7 @@ begin
   end if;
 
   if p_submit and (
-    jsonb_object_length(p_values) <> 14
+    (select count(*) from jsonb_object_keys(p_values)) <> 14
     or exists (
       select 1
       from generate_series(1, 14) as indicator(number)
@@ -1673,27 +1734,75 @@ alter table public.ai_action_drafts enable row level security;
 grant select, insert, update on public.action_items, public.digital_maturity_assessments, public.innovation_initiatives, public.ai_action_drafts to authenticated;
 
 create policy action_items_select_scoped on public.action_items for select to authenticated using (
-  public.profile_role() in ('admin_xa', 'lanh_dao')
-  or owner_id = auth.uid()
-  or (village_id is not null and public.can_select_village(village_id))
+  commune_id = public.profile_commune_id()
+  and (
+    public.profile_role() in ('admin_xa', 'lanh_dao')
+    or owner_id = auth.uid()
+    or (village_id is not null and public.can_select_village(village_id))
+  )
 );
 create policy action_items_insert_admin on public.action_items for insert to authenticated with check (
-  public.profile_role() = 'admin_xa' and public.profile_can_mutate()
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
 );
 create policy action_items_update_scoped on public.action_items for update to authenticated using (
-  (public.profile_role() = 'admin_xa' and public.profile_can_mutate())
-  or (owner_id = auth.uid() and public.profile_can_mutate())
+  commune_id = public.profile_commune_id()
+  and (
+    (public.profile_role() = 'admin_xa' and public.profile_can_mutate())
+    or (owner_id = auth.uid() and public.profile_can_mutate())
+  )
 ) with check (
-  (public.profile_role() = 'admin_xa' and public.profile_can_mutate())
-  or (owner_id = auth.uid() and public.profile_can_mutate())
+  commune_id = public.profile_commune_id()
+  and (
+    (public.profile_role() = 'admin_xa' and public.profile_can_mutate())
+    or (owner_id = auth.uid() and public.profile_can_mutate())
+  )
 );
-create policy maturity_select_internal on public.digital_maturity_assessments for select to authenticated using (public.profile_role() in ('admin_xa', 'lanh_dao'));
-create policy maturity_mutate_admin on public.digital_maturity_assessments for all to authenticated using (public.profile_role() = 'admin_xa' and public.profile_can_mutate()) with check (public.profile_role() = 'admin_xa' and public.profile_can_mutate());
-create policy initiatives_select_internal on public.innovation_initiatives for select to authenticated using (public.profile_role() in ('admin_xa', 'lanh_dao'));
-create policy initiatives_mutate_admin on public.innovation_initiatives for all to authenticated using (public.profile_role() = 'admin_xa' and public.profile_can_mutate()) with check (public.profile_role() = 'admin_xa' and public.profile_can_mutate());
-create policy ai_drafts_select_internal on public.ai_action_drafts for select to authenticated using (public.profile_role() in ('admin_xa', 'lanh_dao'));
-create policy ai_drafts_insert_internal on public.ai_action_drafts for insert to authenticated with check (public.profile_role() in ('admin_xa', 'lanh_dao') and public.profile_can_mutate());
-create policy ai_drafts_update_admin on public.ai_action_drafts for update to authenticated using (public.profile_role() = 'admin_xa' and public.profile_can_mutate()) with check (public.profile_role() = 'admin_xa' and public.profile_can_mutate());
+create policy maturity_select_internal on public.digital_maturity_assessments for select to authenticated using (
+  public.profile_role() in ('admin_xa', 'lanh_dao')
+  and commune_id = public.profile_commune_id()
+);
+create policy maturity_mutate_admin on public.digital_maturity_assessments for all to authenticated using (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+) with check (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+);
+create policy initiatives_select_internal on public.innovation_initiatives for select to authenticated using (
+  public.profile_role() in ('admin_xa', 'lanh_dao')
+  and commune_id = public.profile_commune_id()
+);
+create policy initiatives_mutate_admin on public.innovation_initiatives for all to authenticated using (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+) with check (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+);
+create policy ai_drafts_select_internal on public.ai_action_drafts for select to authenticated using (
+  public.profile_role() in ('admin_xa', 'lanh_dao')
+  and commune_id = public.profile_commune_id()
+);
+create policy ai_drafts_insert_internal on public.ai_action_drafts for insert to authenticated with check (
+  public.profile_role() in ('admin_xa', 'lanh_dao')
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+);
+create policy ai_drafts_update_admin on public.ai_action_drafts for update to authenticated using (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+) with check (
+  public.profile_role() = 'admin_xa'
+  and public.profile_can_mutate()
+  and commune_id = public.profile_commune_id()
+);
 
 -- Controlled import of legacy-village workbooks. Raw evidence is retained and
 -- no unresolved boundary can be converted into a current-village report.
@@ -1830,7 +1939,10 @@ begin
   if exists (
     select 1 from public.report_import_files file where file.batch_id = p_batch_id
       and file.review_status = 'accepted' and (
-      jsonb_object_length(file.normalized_values) <> 14
+      (
+        select count(*)
+        from jsonb_object_keys(file.normalized_values)
+      ) <> 14
       or exists (select 1 from jsonb_each(file.normalized_values) item
                  where item.key !~ '^CT(0[1-9]|1[0-4])$' or jsonb_typeof(item.value) <> 'number')
     )

@@ -18,6 +18,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import UploadFile
 from openpyxl import Workbook
 from PIL import Image
+from pypdf import PdfWriter
+from pypdf.generic import ArrayObject, DictionaryObject, NameObject
 
 import services.validator as validator_module
 import services.security as security_module
@@ -341,6 +343,7 @@ def _clear_settings_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "SUPABASE_JWT_AUDIENCE",
         "VAPID_CONTACT",
         "VAPID_CLAIMS_EMAIL",
+        "FEATURE_EXTERNAL_OCR",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -452,6 +455,12 @@ def test_production_settings_reject_insecure_values(
 def test_unknown_environment_is_rejected_instead_of_falling_back_to_development() -> None:
     settings = Settings(_env_file=None, app_env="prodution")
     with pytest.raises(SettingsError, match="unsupported"):
+        settings.validate_for_startup()
+
+
+def test_external_ocr_cannot_be_enabled_in_staging_or_production() -> None:
+    settings = _production_settings(feature_external_ocr=True)
+    with pytest.raises(SettingsError, match="FEATURE_EXTERNAL_OCR"):
         settings.validate_for_startup()
 
 
@@ -638,6 +647,18 @@ def _oversized_png_header() -> bytes:
     return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IEND", b"")
 
 
+def _scanned_pdf(*, pages: int = 1) -> bytes:
+    images = [Image.new("RGB", (16, 16), "white") for _ in range(pages)]
+    output = BytesIO()
+    images[0].save(
+        output,
+        format="PDF",
+        save_all=True,
+        append_images=images[1:],
+    )
+    return output.getvalue()
+
+
 def test_upload_validator_accepts_real_xlsx_and_rewinds_stream() -> None:
     content = _real_xlsx()
     validated, upload = _validate_upload("report.xlsx", content)
@@ -652,10 +673,17 @@ def test_upload_validator_accepts_decoded_image() -> None:
     assert validated.startswith(b"\x89PNG")
 
 
+def test_upload_validator_accepts_bounded_static_pdf_and_rewinds_stream() -> None:
+    content = _scanned_pdf()
+    validated, upload = _validate_upload("report.pdf", content)
+    assert validated == content
+    assert upload.file.tell() == 0
+
+
 @pytest.mark.parametrize(
     ("filename", "content", "message"),
     [
-        ("report.pdf", b"%PDF-1.7", "Unsupported"),
+        ("report.pdf", b"%PDF-1.7", "bị lỗi hoặc không hợp lệ"),
         ("report.xlsx", b"", "Empty"),
         ("report.xlsx", b"not-a-zip", "does not match"),
         ("report.png", b"not-a-png", "does not match"),
@@ -671,9 +699,91 @@ def test_upload_validator_rejects_invalid_public_inputs(
         _validate_upload(filename, content)
 
 
+def test_upload_validator_rejects_unsupported_extension() -> None:
+    with pytest.raises(UploadValidationError, match="Unsupported"):
+        _validate_upload("report.xls", b"legacy")
+
+
 def test_upload_validator_rejects_file_over_compressed_size_limit() -> None:
     with pytest.raises(UploadValidationError, match="larger than 5MB"):
         _validate_upload("large.png", b"\x89PNG\r\n\x1a\n" + b"x" * MAX_UPLOAD_BYTES)
+
+
+def test_upload_validator_rejects_active_and_excessive_pdf() -> None:
+    active_output = BytesIO()
+    active = PdfWriter()
+    active.add_blank_page(width=200, height=200)
+    active.add_js("app.alert('unsafe')")
+    active.write(active_output)
+    with pytest.raises(UploadValidationError, match="nội dung chủ động"):
+        _validate_upload("active.pdf", active_output.getvalue())
+
+    with pytest.raises(UploadValidationError, match="từ 1 đến 5 trang"):
+        _validate_upload("many-pages.pdf", _scanned_pdf(pages=6))
+
+    encrypted_output = BytesIO()
+    encrypted = PdfWriter()
+    encrypted.add_blank_page(width=200, height=200)
+    encrypted.encrypt("secret")
+    encrypted.write(encrypted_output)
+    with pytest.raises(UploadValidationError, match="PDF được mã hóa"):
+        _validate_upload("encrypted.pdf", encrypted_output.getvalue())
+
+
+def _pdf_with_root_entry(key: str, value) -> bytes:
+    output = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    writer._root_object[NameObject(key)] = value
+    writer.write(output)
+    return output.getvalue()
+
+
+def test_upload_validator_rejects_pdf_root_actions_and_page_annotations(
+    monkeypatch,
+) -> None:
+    with pytest.raises(UploadValidationError, match="nội dung chủ động"):
+        _validate_upload(
+            "open-action.pdf",
+            _pdf_with_root_entry("/OpenAction", DictionaryObject()),
+        )
+
+    output = BytesIO()
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=200, height=200)
+    page[NameObject("/Annots")] = ArrayObject()
+    writer.write(output)
+    with pytest.raises(UploadValidationError, match="nội dung tương tác"):
+        _validate_upload("annotations.pdf", output.getvalue())
+
+    monkeypatch.setattr(upload_module, "MAX_PDF_OBJECTS", 0)
+    with pytest.raises(UploadValidationError, match="quá phức tạp"):
+        _validate_upload("complex.pdf", _scanned_pdf())
+
+
+def test_upload_validator_accepts_pdf_with_empty_names_dictionary() -> None:
+    validated, _ = _validate_upload(
+        "empty-names.pdf",
+        _pdf_with_root_entry("/Names", DictionaryObject()),
+    )
+    assert validated.startswith(b"%PDF-")
+
+
+def test_upload_validator_fails_closed_when_pdf_library_is_unavailable(
+    monkeypatch,
+) -> None:
+    import builtins
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "pypdf":
+            raise ImportError("pypdf deliberately unavailable")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    with pytest.raises(UploadValidationError, match="PDF validation is unavailable"):
+        _validate_upload("report.pdf", _scanned_pdf())
 
 
 @pytest.mark.parametrize(

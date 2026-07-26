@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -102,7 +106,27 @@ def _validation_details(exc: RequestValidationError) -> list[dict[str, str]]:
 def create_app() -> FastAPI:
     """Create the FastAPI app with security middleware configured."""
     settings = load_settings()
-    app = FastAPI(title="Ba Na SmartLink API")
+
+    @asynccontextmanager
+    async def _lifespan(application: FastAPI):
+        limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=30.0,
+        )
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            limits=limits,
+        ) as client:
+            application.state.supabase_http_client = client
+            try:
+                yield
+            finally:
+                application.state.supabase_http_client = None
+
+    app = FastAPI(title="Ba Na SmartLink API", lifespan=_lifespan)
+    app.state.ready_check_lock = asyncio.Lock()
+    app.state.ready_cache_expires_at = 0.0
 
     @app.middleware("http")
     async def _security_headers(request: Request, call_next):
@@ -246,16 +270,24 @@ def create_app() -> FastAPI:
     async def health_ready() -> dict[str, str]:
         if not settings.database_url or not settings.supabase_url:
             raise HTTPException(status_code=503, detail="Required services are not configured")
-        try:
-            import asyncpg
-
-            connection = await asyncpg.connect(dsn=settings.database_url, timeout=2)
+        if time.monotonic() < app.state.ready_cache_expires_at:
+            return {"status": "ready"}
+        async with app.state.ready_check_lock:
+            if time.monotonic() < app.state.ready_cache_expires_at:
+                return {"status": "ready"}
             try:
-                await connection.fetchval("SELECT 1")
-            finally:
-                await connection.close()
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail="Database is not ready") from exc
+                import asyncpg
+
+                connection = await asyncpg.connect(dsn=settings.database_url, timeout=2)
+                try:
+                    await connection.fetchval("SELECT 1")
+                finally:
+                    await connection.close()
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail="Database is not ready") from exc
+            # A short success cache avoids repeating the TLS/database handshake
+            # for every readiness probe in a burst while remaining responsive.
+            app.state.ready_cache_expires_at = time.monotonic() + 3.0
         return {"status": "ready"}
 
     from fastapi.staticfiles import StaticFiles

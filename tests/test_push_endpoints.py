@@ -30,6 +30,45 @@ def test_notify_villages_requires_admin_and_uses_database_scope():
         assert response.json()["notified_count"] == 1
         notify.assert_awaited_once()
         connection.fetch.assert_awaited_once()
+        query, village_ids, actor_id = connection.fetch.await_args.args
+        assert "target.commune_id = actor.commune_id" in query
+        assert village_ids == [str(village_id)]
+        assert actor_id
+    finally:
+        app.dependency_overrides.pop(require_admin_xa, None)
+        app.dependency_overrides.pop(get_db, None)
+
+
+def test_send_test_push_rejects_target_outside_admin_commune():
+    client = TestClient(app)
+    connection = AsyncMock()
+    connection.fetchval.return_value = False
+    admin_id = str(uuid4())
+    target_id = uuid4()
+    app.dependency_overrides[require_admin_xa] = lambda: UserProfile(
+        id=admin_id,
+        role="admin_xa",
+        village_id=None,
+        force_password_reset=False,
+        commune_id="ba_na",
+    )
+    app.dependency_overrides[get_db] = lambda: connection
+    try:
+        with patch("routers.push.notify_user", new_callable=AsyncMock) as notify:
+            response = client.post(
+                "/api/push/send-test",
+                json={
+                    "user_id": str(target_id),
+                    "title": "Kiểm tra",
+                    "body": "Không được gửi chéo xã",
+                },
+            )
+        assert response.status_code == 404
+        notify.assert_not_awaited()
+        query, queried_target, queried_actor = connection.fetchval.await_args.args
+        assert "target.commune_id = actor.commune_id" in query
+        assert queried_target == target_id
+        assert queried_actor == admin_id
     finally:
         app.dependency_overrides.pop(require_admin_xa, None)
         app.dependency_overrides.pop(get_db, None)

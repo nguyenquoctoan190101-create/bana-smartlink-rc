@@ -4,6 +4,7 @@ import inspect
 import json
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import fastapi
@@ -115,14 +116,23 @@ def test_public_report_handler_filters_ct14_even_if_upstream_over_returns() -> N
                 "id": "11111111-1111-4111-8111-111111111111",
                 "village_id": "22222222-2222-4222-8222-222222222222",
                 "published_at": "2026-07-13T00:00:00Z",
-                "report_periods": {"name": "Kỳ kiểm thử"},
+                "report_periods": {
+                    "name": "Kỳ kiểm thử",
+                    "commune_id": "ba_na",
+                },
+                "villages": {"commune_id": "ba_na"},
                 "report_values": [
                     {"ct_code": "CT01", "value": 10},
                     {"ct_code": "CT14", "value": 99},
                 ],
             }]
 
-    result = asyncio.run(reports.get_public_reports(FakeSupabase()))
+    result = asyncio.run(
+        reports.get_public_reports(
+            FakeSupabase(),
+            SimpleNamespace(bana_commune_id="ba_na"),
+        )
+    )
     assert result[0]["values"] == {"CT01": 10}
 
 

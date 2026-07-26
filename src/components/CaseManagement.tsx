@@ -195,7 +195,7 @@ export default function CaseManagement({
         body: JSON.stringify({ department }),
       });
       setNotice(
-        "Đã xác nhận phân công. Thời hạn xử lý được tính lại theo cấu hình SLA.",
+        "Đã xác nhận phân công. Thời hạn xử lý được tính lại theo cấu hình nội bộ.",
       );
       await refresh();
     } catch (cause) {
@@ -249,7 +249,7 @@ export default function CaseManagement({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="DỊCH VỤ & MINH BẠCH"
+        eyebrow="TIẾP NHẬN VÀ XỬ LÝ"
         title={
           role === "lanh_dao"
             ? "Giám sát phản ánh hiện trường"
@@ -271,10 +271,10 @@ export default function CaseManagement({
         >
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
-            <strong>SLA minh họa cho cuộc thi.</strong>
+            <strong>Thời hạn xử lý đang dùng cấu hình thử nghiệm.</strong>
             <p className="mt-1">
               Danh mục đơn vị và thời hạn bên dưới chưa phải cam kết hành chính
-              chính thức; cần UBND xã rà soát trước khi vận hành thật.
+              chính thức; cần UBND xã rà soát trước khi vận hành chính thức.
             </p>
           </div>
         </div>
@@ -305,7 +305,7 @@ export default function CaseManagement({
           icon={<Clock3 />}
         />
         <MetricCard
-          label="Quá SLA"
+          label="Quá hạn xử lý"
           value={overdue.length}
           context={
             overdue.length
@@ -331,8 +331,8 @@ export default function CaseManagement({
               Hàng đợi xử lý
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Lãnh đạo và cán bộ thôn chỉ xem; admin xác nhận phân công, CNSCĐ
-              được cập nhật tiến độ.
+              Lãnh đạo và cán bộ thôn chỉ xem; quản trị xã xác nhận phân công,
+              Tổ công nghệ số cộng đồng được cập nhật tiến độ.
             </p>
           </div>
           <label className="text-sm font-semibold text-slate-700">
@@ -389,7 +389,7 @@ export default function CaseManagement({
                         status={isOverdue ? "overdue" : item.status}
                         label={
                           isOverdue
-                            ? "Quá SLA"
+                            ? "Quá hạn xử lý"
                             : statusLabels[item.status] || item.status
                         }
                       />
@@ -426,7 +426,7 @@ export default function CaseManagement({
                       </div>
                       <div>
                         <dt className="text-xs font-semibold text-slate-500">
-                          Hạn SLA
+                          Hạn xử lý
                         </dt>
                         <dd
                           className={`mt-1 font-medium ${
@@ -531,11 +531,11 @@ export default function CaseManagement({
       <SectionCard className="overflow-hidden">
         <div className="border-b border-slate-200 p-5">
           <h2 className="text-lg font-bold text-slate-900">
-            Danh mục tiếp nhận và SLA
+            Danh mục và thời hạn xử lý
           </h2>
           <p className="mt-1 text-sm text-slate-600">
             Phiên bản {rules[0]?.sla_version || "chưa cấu hình"}. Thời gian là
-            mục tiêu xử lý nội bộ của dữ liệu demo, không phải cam kết pháp lý.
+            mục tiêu xử lý nội bộ của cấu hình thử nghiệm, không phải cam kết pháp lý.
           </p>
         </div>
         <div className="overflow-x-auto">

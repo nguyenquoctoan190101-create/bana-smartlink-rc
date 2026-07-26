@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import "./PrivacyPolicy.css";
 
 /* ─────────────────────────── Constants ──────────────────────────────── */
@@ -16,7 +22,7 @@ const INDICATORS = [
   { code: "CT10", name: "Số người trong độ tuổi lao động", unit: "Người" },
   { code: "CT11", name: "Số người tham gia BHYT", unit: "Người" },
   { code: "CT12", name: "Số thành viên Tổ công nghệ số cộng đồng", unit: "Người" },
-  { code: "CT13", name: "Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ", unit: "Người" },
+  { code: "CT13", name: "Số người dân được hướng dẫn dùng dịch vụ công trực tuyến trong kỳ", unit: "Người" },
   { code: "CT14", name: "Số vụ bạo lực gia đình ghi nhận trong kỳ", unit: "Vụ" },
 ];
 
@@ -27,7 +33,7 @@ const ROLES_INFO = [
   },
   {
     role: "Lãnh đạo xã",
-    desc: "Chỉ đọc dashboard và báo cáo nội bộ; được xuất báo cáo nhưng không được thay đổi dữ liệu.",
+    desc: "Chỉ xem bảng điều hành và báo cáo nội bộ; được xuất báo cáo nhưng không được thay đổi dữ liệu.",
   },
   {
     role: "Cán bộ thôn",
@@ -57,12 +63,16 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const isOpen = propIsOpen !== undefined ? propIsOpen : localIsOpen;
   const isModalOnlyActive = isModalOnly || isModal;
-  const handleClose = onClose || (() => setLocalIsOpen(false));
+  const handleClose = useCallback(() => {
+    if (onClose) onClose();
+    else setLocalIsOpen(false);
+  }, [onClose]);
   const handleOpen = () => setLocalIsOpen(true);
 
-  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleDialogKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Tab" || !dialogRef.current) return;
     const focusable = Array.from(
       dialogRef.current.querySelectorAll<HTMLElement>(
@@ -85,17 +95,21 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
   useEffect(() => {
     if (!isOpen) return;
 
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : triggerRef.current;
     closeButtonRef.current?.focus();
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         handleClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      triggerRef.current?.focus();
+      previouslyFocusedRef.current?.focus();
     };
   }, [isOpen, handleClose]);
 
@@ -110,7 +124,7 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
             ref={triggerRef}
             onClick={handleOpen}
           >
-            Chính sách bảo mật thông tin & Quyền dữ liệu
+            Thông báo bảo vệ dữ liệu cá nhân và quyền riêng tư
           </button>
         </footer>
       )}
@@ -134,9 +148,10 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
           {/* Header */}
           <header className="privacy-policy-modal__header">
             <h2 id="privacy-policy-title" className="privacy-policy-modal__title">
-              Cam kết Bảo mật & Quyền của Bạn
+              Thông báo bảo vệ dữ liệu cá nhân và quyền riêng tư
             </h2>
             <button
+              type="button"
               id="privacy-policy-close-btn"
               className="privacy-policy-modal__close-btn"
               ref={closeButtonRef}
@@ -153,21 +168,21 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
           {/* Scrollable Content */}
           <div className="privacy-policy-modal__content">
             <div className="privacy-policy-modal__law-tag" role="note">
-              Dự thảo thông báo quyền riêng tư — phải được đơn vị pháp lý/phụ trách dữ liệu rà soát trước khi dùng dữ liệu thật.
+              Phiên bản 1.0 · cập nhật ngày 26/7/2026 · áp dụng cho giai đoạn vận hành thử nghiệm
             </div>
 
             <p>
-              Chào bạn! Để hệ thống <strong>Ba Na SmartLink</strong> vận hành hiệu quả và minh
-              bạch, chúng tôi cam kết bảo vệ dữ liệu của bạn bằng ngôn từ rõ ràng nhất, không dùng
-              ngôn ngữ pháp lý phức tạp.
+              Ủy ban nhân dân xã Bà Nà là đơn vị quản lý dữ liệu trong phạm vi vận hành
+              <strong> Ba Na SmartLink</strong>. Thông báo này nêu rõ dữ liệu được tiếp nhận,
+              mục đích sử dụng, phạm vi truy cập và cách gửi yêu cầu liên quan đến dữ liệu cá nhân.
             </p>
 
             <h3>1. Chúng tôi thu thập dữ liệu gì?</h3>
             <p>
-              Hệ thống lưu hồ sơ cán bộ (họ tên, số điện thoại, vai trò, thôn được giao) và có thể
-              nhận thông tin người dân tự nguyện cung cấp khi gửi kiến nghị (số điện thoại, họ tên,
-              hộ gia đình, địa chỉ, quan hệ và nội dung giải trình). <strong>Thông tin định danh và
-              CT14 không được gửi lên Gemini.</strong>
+              Hệ thống lưu hồ sơ cán bộ (họ tên, số điện thoại, vai trò, thôn được giao). Khi người
+              dân gửi đề nghị đối chiếu, hệ thống nhận số điện thoại để liên hệ, họ tên nếu người
+              gửi tự nguyện cung cấp và nội dung cần kiểm tra. <strong>Thông tin liên hệ không được
+              gửi tới dịch vụ AI bên ngoài.</strong>
             </p>
             <p>Chúng tôi thu thập đúng 14 chỉ tiêu thống kê cấp thôn sau:</p>
 
@@ -190,13 +205,15 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
             <p>
               Trình duyệt chỉ lưu bản nháp và hàng đợi đồng bộ theo từng tài khoản trong IndexedDB;
               tên và số điện thoại người lập không được sao chép vào bộ nhớ ngoại tuyến. Khi đăng xuất,
-              dữ liệu cục bộ của tài khoản hiện tại được xóa. Gemini chỉ được dùng cho OCR/diễn giải sau
-              khi loại vùng thông tin cá nhân; kết quả luôn cần người dùng xác nhận và không quyết định
-              tính hợp lệ của báo cáo.
+              dữ liệu cục bộ của tài khoản hiện tại được xóa. Khi cán bộ chủ động dùng chức năng OCR,
+              hệ thống chỉ gửi ảnh vùng bảng CT01–CT14 sau khi đã cắt bỏ phần họ tên, số điện thoại và
+              thông tin đầu biểu mẫu. Chức năng diễn giải chỉ gửi CT01–CT13; CT14 được loại trước khi
+              gửi. Dịch vụ xử lý AI bên ngoài được cấu hình là Google Gemini. Kết quả luôn cần cán bộ
+              xác nhận và không quyết định tính hợp lệ của báo cáo.
             </p>
             <p>
               Thời hạn lưu báo cáo, kiến nghị, nhật ký kiểm toán và bản sao lưu phải được UBND xã phê
-              duyệt và cấu hình trước khi vận hành thật; bản thử nghiệm không tự động hứa hoặc áp dụng
+              duyệt và cấu hình trước khi đưa vào sử dụng; chức năng thử nghiệm không tự động cam kết hoặc áp dụng
               một thời hạn chưa được phê duyệt.
             </p>
 
@@ -224,8 +241,8 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
 
             <h3>5. Quyền kiểm soát và xử lý sự cố</h3>
             <p>
-              Bạn có quyền yêu cầu xem lại, điều chỉnh hoặc rút/xóa thông tin liên hệ của mình khỏi
-              hệ thống bất kỳ lúc nào.
+              Người dùng có thể gửi yêu cầu xem, điều chỉnh, hạn chế xử lý hoặc xóa thông tin liên hệ.
+              Yêu cầu được xem xét theo căn cứ pháp luật, thẩm quyền và thời hạn lưu hồ sơ đã được phê duyệt.
             </p>
             <p>
               Khi nghi ngờ lộ dữ liệu, người dùng có thể báo trực tiếp cho bộ phận tiếp nhận của UBND

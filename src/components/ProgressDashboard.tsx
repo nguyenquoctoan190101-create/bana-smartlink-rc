@@ -147,7 +147,7 @@ export default function ProgressDashboard({
 
     void loadData();
     return () => abortController.abort();
-  }, [apiBaseUrl, periodId]);
+  }, [activePeriodId, apiBaseUrl]);
 
   const summary = useMemo(() => {
     const totalVillages = villages.length;
@@ -165,7 +165,7 @@ export default function ProgressDashboard({
       <div className="progress-dashboard__summary" aria-label="Tổng quan tiến độ">
         <div>
           <p className="progress-dashboard__eyebrow">Tiến độ nộp báo cáo</p>
-          <h2>Dashboard 10 thôn mới</h2>
+          <h1>Tiến độ báo cáo theo thôn</h1>
         </div>
         <dl className="progress-dashboard__metrics">
           <div className="progress-dashboard__metric">
@@ -275,7 +275,10 @@ export default function ProgressDashboard({
                     <td>{alert.prev_value}</td>
                     <td>{alert.curr_value}</td>
                     <td>
-                      <span className={`progress-dashboard__change-badge progress-dashboard__change-badge--${alert.change_pct >= 0 ? "positive" : "negative"}`}>
+                      <span
+                        className="progress-dashboard__change-badge progress-dashboard__change-badge--neutral"
+                        aria-label={`${alert.change_pct >= 0 ? "Tăng" : "Giảm"} ${Math.abs(alert.change_pct)} phần trăm so với kỳ trước`}
+                      >
                         {alert.change_pct >= 0 ? `+${alert.change_pct}%` : `${alert.change_pct}%`}
                       </span>
                     </td>

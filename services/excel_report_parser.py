@@ -10,10 +10,13 @@ from zipfile import BadZipFile
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
+from services.validator import coerce_storage_value
+
 
 RULES_PATH = Path(__file__).resolve().parents[1] / "config" / "validation_rules.json"
 REPORT_SHEET_NAME = "Phiếu báo cáo"
 FIRST_INDICATOR_ROW = 13
+EXCEL_EXTRACTOR_VERSION = "1.0"
 
 
 class ParsedExcelMetadata(TypedDict):
@@ -29,6 +32,20 @@ class ParsedExcelReport(TypedDict):
     values: dict[str, Any]
     notes: dict[str, str | None]
     metadata: ParsedExcelMetadata
+    evidence: dict[str, "ParsedExcelFieldEvidence"]
+
+
+class ParsedExcelFieldEvidence(TypedDict):
+    raw_value: int | float | str | None
+    normalized_value: int | None
+    confidence: float
+    source_page: None
+    source_region: str
+    extractor: str
+    method: str
+    version: str
+    flags: list[str]
+    requires_review: bool
 
 
 class ExcelReportParseError(RuntimeError):
@@ -48,6 +65,7 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
     worksheet = workbook[sheet_name]
     values: dict[str, Any] = {code: None for code in expected_codes}
     notes: dict[str, str | None] = {code: None for code in expected_codes}
+    evidence: dict[str, ParsedExcelFieldEvidence] = {}
     metadata: ParsedExcelMetadata = {
         "period_name": _clean_prefixed_text(worksheet["A5"].value, "Kỳ báo cáo:"),
         "village_name": _clean_text(worksheet["B7"].value),
@@ -64,8 +82,41 @@ def parse_official_report_excel(file_bytes: bytes) -> ParsedExcelReport:
 
         values[ct_code] = row[3].value if len(row) > 3 else None
         notes[ct_code] = _clean_note(row[4].value if len(row) > 4 else None)
+        normalized_value = coerce_storage_value(values[ct_code])
+        evidence[ct_code] = {
+            "raw_value": values[ct_code],
+            "normalized_value": normalized_value,
+            "confidence": 1.0 if normalized_value is not None else 0.0,
+            "source_page": None,
+            "source_region": f"{sheet_name}!D{row[0].row}",
+            "extractor": "openpyxl",
+            "method": "official_template_cell",
+            "version": EXCEL_EXTRACTOR_VERSION,
+            "flags": [],
+            "requires_review": normalized_value is None,
+        }
 
-    return {"values": values, "notes": notes, "metadata": metadata}
+    for code in expected_codes:
+        if code not in evidence:
+            evidence[code] = {
+                "raw_value": None,
+                "normalized_value": None,
+                "confidence": 0.0,
+                "source_page": None,
+                "source_region": f"{sheet_name}!D?",
+                "extractor": "openpyxl",
+                "method": "official_template_cell",
+                "version": EXCEL_EXTRACTOR_VERSION,
+                "flags": ["SOURCE_CELL_NOT_FOUND"],
+                "requires_review": True,
+            }
+
+    return {
+        "values": values,
+        "notes": notes,
+        "metadata": metadata,
+        "evidence": evidence,
+    }
 
 
 def _normalize_sheet_name(value: Any) -> str:
@@ -163,4 +214,8 @@ def _clean_prefixed_text(value: Any, prefix: str) -> str | None:
     return text or None
 
 
-__all__ = ["ExcelReportParseError", "parse_official_report_excel"]
+__all__ = [
+    "EXCEL_EXTRACTOR_VERSION",
+    "ExcelReportParseError",
+    "parse_official_report_excel",
+]

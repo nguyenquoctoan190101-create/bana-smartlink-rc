@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
-from routers.auth import get_supabase_admin, require_admin_or_leader
+from routers.auth import _extract_bearer_token, get_supabase_admin, require_admin_or_leader
 from routers.reports import safe_resolve_period
 from services.cnscd_impact import CnscdImpactError, CnscdImpactService
 from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
@@ -48,10 +48,14 @@ def get_cnscd_impact_service(
 @router.get("/cnscd-impact", response_model=CnscdImpactResponse)
 async def get_cnscd_impact(
     period_id: str,
-    service: Annotated[CnscdImpactService, Depends(get_cnscd_impact_service)],
     _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    authorization: Annotated[str | None, Header()] = None,
 ) -> CnscdImpactResponse:
     """Compare assisted submissions with self-declared CT13 for a period."""
+    service = CnscdImpactService(
+        supabase.as_user(_extract_bearer_token(authorization))
+    )
     resolved_uuid, _ = await safe_resolve_period(service._supabase, period_id)
     try:
         impact = await service.calculate(str(resolved_uuid))

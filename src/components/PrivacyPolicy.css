@@ -84,8 +84,12 @@
   border: none;
   color: #64748b;
   cursor: pointer;
-  display: flex;
-  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px;
   transition: color 0.2s;
 }
 

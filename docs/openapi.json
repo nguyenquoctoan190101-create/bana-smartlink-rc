@@ -499,6 +499,11 @@
             "title": "File",
             "type": "string"
           },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
+          },
           "period_id": {
             "format": "uuid",
             "title": "Period Id",
@@ -532,6 +537,7 @@
           "period_id",
           "submitted_by_name",
           "submitted_by_phone",
+          "idempotency_key",
           "file"
         ],
         "title": "Body_upload_report_file_reports_upload_post",
@@ -676,6 +682,11 @@
             "title": "Priority",
             "type": "string"
           },
+          "privacy_consent": {
+            "const": true,
+            "title": "Privacy Consent",
+            "type": "boolean"
+          },
           "submitter_address": {
             "anyOf": [
               {
@@ -728,6 +739,7 @@
         "required": [
           "category",
           "description",
+          "privacy_consent",
           "consent_version"
         ],
         "title": "CaseCreateRequest",
@@ -839,6 +851,19 @@
         "title": "ChangePasswordRequest",
         "type": "object"
       },
+      "ChatCapabilitiesResponse": {
+        "properties": {
+          "voice_enabled": {
+            "title": "Voice Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "voice_enabled"
+        ],
+        "title": "ChatCapabilitiesResponse",
+        "type": "object"
+      },
       "ChatHistoryItem": {
         "properties": {
           "content": {
@@ -904,9 +929,32 @@
             "title": "Answer",
             "type": "string"
           },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "data_scope": {
+            "default": "unavailable",
+            "title": "Data Scope",
+            "type": "string"
+          },
           "intent": {
             "title": "Intent",
             "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
           },
           "question": {
             "title": "Question",
@@ -915,6 +963,13 @@
           "rows_retrieved": {
             "title": "Rows Retrieved",
             "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ChatSourceResponse"
+            },
+            "title": "Sources",
+            "type": "array"
           }
         },
         "required": [
@@ -924,6 +979,55 @@
           "rows_retrieved"
         ],
         "title": "ChatResponse",
+        "type": "object"
+      },
+      "ChatSourceResponse": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "report_data",
+              "knowledge_article"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "scope"
+        ],
+        "title": "ChatSourceResponse",
         "type": "object"
       },
       "CitizenPendingUpdateRequest": {
@@ -1487,6 +1591,91 @@
         "title": "EvacuationPointVerificationRequest",
         "type": "object"
       },
+      "ExtractionCorrection": {
+        "properties": {
+          "after": {
+            "minimum": 0.0,
+            "title": "After",
+            "type": "integer"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "code": {
+            "pattern": "^CT(0[1-9]|1[0-4])$",
+            "title": "Code",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 240,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "after",
+          "reason"
+        ],
+        "title": "ExtractionCorrection",
+        "type": "object"
+      },
+      "ExtractionMetadata": {
+        "properties": {
+          "extractor_versions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Extractor Versions",
+            "type": "array"
+          },
+          "field_count": {
+            "default": 14,
+            "maximum": 14.0,
+            "minimum": 0.0,
+            "title": "Field Count",
+            "type": "integer"
+          },
+          "requires_review_count": {
+            "default": 0,
+            "maximum": 14.0,
+            "minimum": 0.0,
+            "title": "Requires Review Count",
+            "type": "integer"
+          },
+          "source_checksum": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Checksum",
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "excel",
+              "photo_ocr",
+              "pdf_ocr"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_checksum",
+          "source_type"
+        ],
+        "title": "ExtractionMetadata",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1694,6 +1883,31 @@
       "OcrPreviewResponse": {
         "description": "Returned by /reports/ocr-preview for human review BEFORE saving.\n\nThe staff member (can bo) MUST review and confirm these values.\nThis endpoint never persists data automatically.",
         "properties": {
+          "checksum_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReportFieldEvidence"
+            },
+            "title": "Evidence",
+            "type": "object"
+          },
+          "extraction_review_token": {
+            "maxLength": 8192,
+            "minLength": 32,
+            "title": "Extraction Review Token",
+            "type": "string"
+          },
+          "extractor_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Extractor Versions",
+            "type": "array"
+          },
           "filename": {
             "title": "Filename",
             "type": "string"
@@ -1749,7 +1963,8 @@
           "source": {
             "enum": [
               "excel",
-              "photo_ocr"
+              "photo_ocr",
+              "pdf_ocr"
             ],
             "title": "Source",
             "type": "string"
@@ -1775,7 +1990,9 @@
           "null_codes",
           "filename",
           "size_bytes",
-          "source"
+          "source",
+          "checksum_sha256",
+          "extraction_review_token"
         ],
         "title": "OcrPreviewResponse",
         "type": "object"
@@ -2063,6 +2280,36 @@
             ],
             "title": "Expected Version"
           },
+          "extraction_corrections": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractionCorrection"
+            },
+            "maxItems": 14,
+            "title": "Extraction Corrections",
+            "type": "array"
+          },
+          "extraction_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractionMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extraction_review_token": {
+            "anyOf": [
+              {
+                "maxLength": 8192,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction Review Token"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2111,14 +2358,14 @@
             "title": "Report Period"
           },
           "reporter_name": {
+            "default": "",
             "maxLength": 120,
-            "minLength": 1,
             "title": "Reporter Name",
             "type": "string"
           },
           "reporter_phone": {
+            "default": "",
             "maxLength": 20,
-            "minLength": 10,
             "title": "Reporter Phone",
             "type": "string"
           },
@@ -2151,8 +2398,6 @@
         "required": [
           "id",
           "village_id",
-          "reporter_name",
-          "reporter_phone",
           "updated_at"
         ],
         "title": "OfflineReportItem",
@@ -2376,6 +2621,99 @@
         "title": "RejectedReportItem",
         "type": "object"
       },
+      "ReportFieldEvidence": {
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "extractor": {
+            "title": "Extractor",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Flags",
+            "type": "array"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "normalized_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Value"
+          },
+          "raw_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Value"
+          },
+          "requires_review": {
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "source_page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Page"
+          },
+          "source_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Region"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confidence",
+          "extractor",
+          "method",
+          "version",
+          "requires_review"
+        ],
+        "title": "ReportFieldEvidence",
+        "type": "object"
+      },
       "ReportNarrativeRequest": {
         "description": "Aggregate-only input for optional, non-authoritative AI narration.",
         "properties": {
@@ -2595,17 +2933,40 @@
             ],
             "title": "Expected Version"
           },
-          "idempotency_key": {
+          "extraction_corrections": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractionCorrection"
+            },
+            "maxItems": 14,
+            "title": "Extraction Corrections",
+            "type": "array"
+          },
+          "extraction_metadata": {
             "anyOf": [
               {
-                "format": "uuid",
+                "$ref": "#/components/schemas/ExtractionMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extraction_review_token": {
+            "anyOf": [
+              {
+                "maxLength": 8192,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Idempotency Key"
+            "title": "Extraction Review Token"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "title": "Idempotency Key",
+            "type": "string"
           },
           "period_id": {
             "format": "uuid",
@@ -2650,7 +3011,8 @@
           "period_id",
           "submitted_by_name",
           "submitted_by_phone",
-          "values"
+          "values",
+          "idempotency_key"
         ],
         "title": "ReportSubmitRequest",
         "type": "object"
@@ -3612,6 +3974,28 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/ai/capabilities": {
+      "get": {
+        "description": "Expose only non-sensitive UI capabilities used by the public widget.",
+        "operationId": "chat_capabilities_ai_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCapabilitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Chat Capabilities",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/ai/chat": {
       "post": {
         "description": "Tra loi cau hoi tieng Viet bang du lieu PostgreSQL + Gemini.\n\nTat ca so lieu tu PostgreSQL; Gemini chi dien giai.\nKhong bao gio gui PII (ten/SDT nguoi dan) vao prompt.",
@@ -8329,7 +8713,7 @@
     },
     "/reports/ocr-preview": {
       "post": {
-        "description": "OCR a photo of a paper report form and return a preview for human review.\n\nPrivacy guarantee\n-----------------\nThe personal-data header (reporter name, phone) is cropped off BEFORE\nany data is sent to Gemini.  Only the CT01-CT14 data table is transmitted.\n\nConfirmation requirement (AI does-not-decide principle)\n-------------------------------------------------------\nThis endpoint NEVER saves data automatically.  It returns an OcrPreview\nso the can bo can review, correct, and then explicitly call POST /reports\nto confirm and persist.  The UI MUST present the values for review before\nallowing submission.",
+        "description": "Experimental OCR preview; disabled unless explicitly enabled in dev/test.",
         "operationId": "ocr_photo_preview_reports_ocr_preview_post",
         "parameters": [
           {
@@ -8715,7 +9099,7 @@
     },
     "/reports/upload": {
       "post": {
-        "description": "Parse the official Excel template and submit through the same validator.",
+        "description": "Retired mutation path; every import must use preview then canonical submit.",
         "operationId": "upload_report_file_reports_upload_post",
         "parameters": [
           {
@@ -8870,7 +9254,7 @@
     },
     "/reports/{report_id}": {
       "delete": {
-        "description": "Delete an own-village draft, or any report as admin, version-safely.",
+        "description": "Delete an own-village draft or a mutable private report as admin.",
         "operationId": "delete_report_reports__report_id__delete",
         "parameters": [
           {

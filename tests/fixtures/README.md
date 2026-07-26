@@ -1,8 +1,9 @@
 # Bộ dữ liệu kiểm thử độc lập
 
-Thư mục `pdfs/` chứa 21 biểu mẫu/báo cáo PDF do ban tổ chức cung cấp cho
-BaNa SmartLink. Các tệp chỉ được dùng làm golden fixtures trong kiểm thử, không
-được đóng gói vào frontend production và không được coi là dữ liệu dân cư thật.
+Thư mục `pdfs/` chứa 21 PDF **được tạo hoàn toàn bằng dữ liệu tổng hợp**, không
+chứa thông tin cá nhân và không phải hồ sơ hành chính chính thức. Có thể tái tạo
+chúng bằng `python tests/generate_synthetic_pdf_fixtures.py`;
+`pdf_manifest.json` khóa tên tệp, kích thước và SHA-256.
 
 Thư mục `xlsx/` chứa 21 workbook **được tạo hoàn toàn bằng dữ liệu tổng hợp**,
 không phải bản sao Excel thô. Chúng giữ đúng hình dạng biểu mẫu và các ca lỗi

@@ -24,7 +24,13 @@ def test_chatbot_ct14_security():
         return None
         
     def mock_get_optional_user_admin():
-        return UserProfile(id="123", role="admin_xa", village_id=None, force_password_reset=False)
+        return UserProfile(
+            id="123",
+            role="admin_xa",
+            village_id=None,
+            force_password_reset=False,
+            commune_id="ba_na",
+        )
 
     import asyncpg
     with patch("services.chatbot.get_gemini_client", return_value=FakeGemini()), patch(

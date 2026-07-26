@@ -48,10 +48,19 @@ async def execute_proposal_action(
                        report.version
                 from pending_updates as proposal
                 join reports as report on report.id = proposal.report_id
+                join villages as village on village.id = report.village_id
+                join report_periods as period on period.id = report.period_id
+                join user_profiles as actor on actor.id = $2
                 where proposal.id = $1
+                  and actor.role = 'admin_xa'
+                  and actor.is_active
+                  and not actor.force_password_reset
+                  and village.commune_id = actor.commune_id
+                  and period.commune_id = actor.commune_id
                 for update of proposal, report
                 """,
                 proposal_id,
+                user_id,
             )
             if not proposal:
                 raise ValueError("Proposal not found")

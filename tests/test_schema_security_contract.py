@@ -75,7 +75,110 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260723_0018_pilot_audit_trail.sql",
         "20260723_0019_report_period_name_guard.sql",
         "20260723_0020_field_synonyms.sql",
+        "20260726_0021_report_extraction_audit.sql",
+        "20260726_0022_commune_rls_hardening.sql",
+        "20260726_0023_release_blocker_hardening.sql",
+        "20260726_0024_case_village_scope_hardening.sql",
+        "20260726_0025_report_mutation_integrity.sql",
     ]
+
+
+def test_release_blocker_overlay_is_atomic_and_removes_forbidden_channel() -> None:
+    migration = (
+        ROOT / "migrations" / "20260726_0023_release_blocker_hardening.sql"
+    ).read_text(encoding="utf-8")
+    assert "save_report_submission_with_extraction" in migration
+    assert "perform public.record_report_extraction_review" in migration
+    assert "check (channel in ('in_app', 'web_push', 'sms'))" in migration
+    assert "security invoker" in migration
+
+
+def test_report_mutations_require_scoped_audited_rpcs() -> None:
+    migration = (
+        ROOT / "migrations" / "20260726_0025_report_mutation_integrity.sql"
+    ).read_text(encoding="utf-8")
+    for marker in (
+        "create table if not exists public.report_extraction_evidence",
+        "original_values_sha256",
+        "create or replace function public.save_manual_report_submission",
+        "create or replace function public.save_report_submission_with_extraction",
+        "create or replace function public.transition_report_workflow",
+        "create or replace function public.delete_report_submission",
+        "create or replace function public.jsonb_object_length",
+        "revoke insert, update, delete on public.reports",
+        "revoke insert, update, delete on public.report_values",
+        "perform public.record_report_extraction_review",
+        "consumed_idempotency_key",
+        "and ct14 <= ct01",
+        "or target.workflow_status = 'locked'",
+        "or target.publication_status = 'published'",
+        "version = report.version + 1",
+    ):
+        assert marker in migration
+    assert (
+        "grant execute on function public.save_report_submission("
+        not in migration
+    )
+    assert "jsonb_object_length(" not in SCHEMA
+    assert "jsonb_object_length(" not in (
+        ROOT / "migrations" / "20260713_0002_atomic_workflows.sql"
+    ).read_text(encoding="utf-8")
+    assert "jsonb_object_length(" not in (
+        ROOT / "migrations" / "20260715_0004_legacy_batch_import.sql"
+    ).read_text(encoding="utf-8")
+
+
+def test_public_case_rpc_rejects_villages_outside_the_requested_commune() -> None:
+    migration = (
+        ROOT / "migrations" / "20260726_0024_case_village_scope_hardening.sql"
+    ).read_text(encoding="utf-8")
+    function = migration.split(
+        "create or replace function public.create_citizen_case", 1
+    )[1].split("revoke all on function public.create_citizen_case", 1)[0]
+    assert "security definer set search_path = pg_catalog, public" in function
+    assert "p_village_id is not null and not exists" in function
+    assert "village.id = p_village_id" in function
+    assert "village.commune_id = p_commune_id" in function
+    assert "village_not_in_commune" in function
+    assert "p_privacy_consent is distinct from true" in function
+    assert "consent_required" in function
+    assert "using errcode = '23514'" in function
+    assert (
+        "to service_role"
+        in migration.split(
+            "grant execute on function public.create_citizen_case", 1
+        )[1]
+    )
+    assert ") from public, anon, authenticated, service_role;" in migration
+    assignment = migration.split(
+        "create or replace function public.assign_citizen_case", 1
+    )[1].split("revoke all on function public.assign_citizen_case", 1)[0]
+    assert "security definer set search_path = pg_catalog, public" in assignment
+    assert "p_assignee_id is not null and not exists" in assignment
+    assert "assignee.commune_id = target_case.commune_id" in assignment
+    assert "assignee_not_in_commune" in assignment
+    assert (
+        "revoke select on table public.evacuation_points, public.villages,"
+        in migration
+    )
+    assert "public.village_merge_map from anon" in migration
+    assert "public.village_merge_map to service_role" in migration
+    evacuation_policy = migration.split(
+        "create policy evacuation_points_select", 1
+    )[1].split("drop policy if exists villages_select_active", 1)[0]
+    assert "to authenticated" in evacuation_policy
+    assert "using (public.can_select_village(village_id))" in evacuation_policy
+    assert "is_verified" not in evacuation_policy
+    village_policy = migration.split(
+        "create policy villages_select_active", 1
+    )[1].split("drop policy if exists village_merge_map_select", 1)[0]
+    assert "to authenticated" in village_policy
+    assert "using (public.can_select_village(id))" in village_policy
+    merge_policy = migration.split(
+        "create policy village_merge_map_select", 1
+    )[1].split("commit;", 1)[0]
+    assert "to authenticated" in merge_policy
+    assert "coalesce(new_village_id, proposed_new_village_id)" in merge_policy
 
 
 def test_field_synonyms_are_scoped_audited_and_admin_managed() -> None:
@@ -100,6 +203,7 @@ def test_database_enforces_deterministic_indicator_rules_on_workflow_transition(
         "ct03 + ct04 <= ct01",
         "ct07 <= ct02",
         "ct11 <= ct02",
+        "ct14 <= ct01",
     ):
         assert marker in SCHEMA
 

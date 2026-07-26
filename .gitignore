@@ -26,6 +26,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+test-results.xml
 *.tsbuildinfo
 
 # Local databases and generated exports

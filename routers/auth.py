@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import json
 from typing import Annotated, Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
@@ -146,9 +149,13 @@ def get_settings() -> Settings:
 
 
 def get_supabase_admin(
+    request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> SupabaseAdminClient:
-    return SupabaseAdminClient(settings)
+    return SupabaseAdminClient(
+        settings,
+        http_client=getattr(request.app.state, "supabase_http_client", None),
+    )
 
 
 async def get_db(settings: Annotated[Settings, Depends(get_settings)]):
@@ -157,6 +164,72 @@ async def get_db(settings: Annotated[Settings, Depends(get_settings)]):
         yield conn
     finally:
         await conn.close()
+
+
+async def get_rls_read_db(
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization: Annotated[str | None, Header()] = None,
+):
+    """Yield a read-only direct connection with the caller's verified RLS role.
+
+    A raw DATABASE_URL connection commonly runs as an owner and therefore
+    bypasses row-level security. These legacy aggregate reads explicitly enter
+    the Supabase ``authenticated`` role inside a read-only transaction and set
+    only claims from a locally verified token.
+    """
+    token = _extract_bearer_token(authorization)
+    try:
+        claims = await asyncio.to_thread(
+            verify_supabase_jwt,
+            token,
+            settings.supabase_jwt_secret,
+            expected_issuer=_string_setting(settings, "jwt_issuer"),
+            expected_audience=_string_setting(settings, "supabase_jwt_audience"),
+            jwks_url=_string_setting(settings, "jwks_url"),
+        )
+    except AuthVerificationUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication signing keys are temporarily unavailable",
+        ) from exc
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Supabase Auth token",
+        ) from exc
+
+    subject = str(claims.get("sub") or "")
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Supabase Auth token",
+        )
+
+    conn = await asyncpg.connect(dsn=settings.database_url)
+    transaction_candidate = conn.transaction(readonly=True)
+    transaction = (
+        await transaction_candidate
+        if inspect.isawaitable(transaction_candidate)
+        else transaction_candidate
+    )
+    try:
+        await transaction.start()
+        await conn.execute(
+            """
+            select
+              set_config('request.jwt.claim.sub', $1, true),
+              set_config('request.jwt.claims', $2, true)
+            """,
+            subject,
+            json.dumps(claims, separators=(",", ":")),
+        )
+        await conn.execute("set local role authenticated")
+        yield conn
+    finally:
+        try:
+            await transaction.rollback()
+        finally:
+            await conn.close()
 
 
 async def require_admin_xa(
@@ -335,12 +408,32 @@ async def change_password(
 async def create_staff_account(
     request: Request,
     payload: CreateStaffAccountRequest,
-    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> CreateStaffAccountResponse:
     """Create village staff accounts through Supabase Auth Admin API."""
     _validate_email(payload.email)
     phone = _normalize_staff_phone(payload.phone)
+    commune_id = admin.commune_id or _string_setting(
+        settings,
+        "bana_commune_id",
+    ) or "ba_na"
+    try:
+        village_is_valid = await supabase.village_in_commune(
+            str(payload.village_id),
+            commune_id,
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to validate village assignment",
+        ) from exc
+    if not village_is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Village assignment is outside the administrator commune",
+        )
     temporary_password = generate_temporary_password()
     try:
         user_id = await supabase.create_auth_user(
@@ -364,6 +457,7 @@ async def create_staff_account(
             display_name=payload.display_name.strip(),
             phone=phone,
             force_password_reset=True,
+            commune_id=commune_id,
         )
     except SupabaseAdminError as exc:
         try:
@@ -420,6 +514,21 @@ async def reset_officer_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to reset password",
         ) from exc
+    await conn.execute(
+        """
+        INSERT INTO audit_log (
+          action, table_name, record_id, user_id, details
+        ) VALUES (
+          'RESET_STAFF_PASSWORD',
+          'user_profiles',
+          $1::uuid,
+          $2::uuid,
+          jsonb_build_object('force_password_reset', true)
+        )
+        """,
+        user_id,
+        admin.id,
+    )
         
     return ResetPasswordResponse(temporary_password=temporary_password)
 
@@ -433,6 +542,7 @@ async def reset_officer_password(
 async def submit_citizen_pending_update(
     request: Request,
     payload: CitizenPendingUpdateRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> CitizenPendingUpdateResponse:
     """Insert one citizen proposal directly."""
@@ -461,11 +571,20 @@ async def submit_citizen_pending_update(
         )
 
     try:
+        commune_id = quote(
+            _string_setting(settings, "bana_commune_id") or "ba_na",
+            safe="",
+        )
         reports = await supabase._rest_request(
             "GET",
             (
                 f"/rest/v1/reports?id=eq.{payload.report_id}"
-                "&publication_status=eq.published&select=id,village_id"
+                "&publication_status=eq.published"
+                "&workflow_status=in.(approved,locked)"
+                "&select=id,village_id,villages!inner(commune_id),"
+                "report_periods!inner(commune_id)"
+                f"&villages.commune_id=eq.{commune_id}"
+                f"&report_periods.commune_id=eq.{commune_id}"
             ),
         )
         if not reports or str(reports[0].get("village_id")) != str(payload.village_id):
@@ -505,6 +624,7 @@ async def submit_citizen_pending_update(
 async def get_citizen_pending_update_status(
     request: Request,
     tracking_code: str,
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> CitizenProposalTrackingResponse:
     """Look up a proposal using a high-entropy capability code, never returning PII."""
@@ -512,10 +632,18 @@ async def get_citizen_pending_update_status(
     if len(code) != 16 or not code.isalnum():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found")
     try:
+        commune_id = quote(
+            _string_setting(settings, "bana_commune_id") or "ba_na",
+            safe="",
+        )
         rows = await supabase._rest_request(
             "GET",
             "/rest/v1/pending_updates?tracking_code=eq."
-            f"{code}&select=tracking_code,status,ct_code,created_at",
+            f"{code}&select=tracking_code,status,ct_code,created_at,"
+            "reports!inner(villages!inner(commune_id),"
+            "report_periods!inner(commune_id))"
+            f"&reports.villages.commune_id=eq.{commune_id}"
+            f"&reports.report_periods.commune_id=eq.{commune_id}",
         )
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Proposal status is unavailable") from exc
@@ -538,7 +666,7 @@ async def get_citizen_pending_update_status(
 
 @router.get("/officers", response_model=list[OfficerResponse])
 async def list_officers(
-    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
     conn: Annotated[asyncpg.Connection, Depends(get_db)]
 ) -> list[OfficerResponse]:
     query = """
@@ -553,9 +681,11 @@ async def list_officers(
             u.last_sign_in_at::text as last_login
         FROM user_profiles p
         LEFT JOIN auth.users u ON p.id = u.id
+        JOIN user_profiles actor ON actor.id = $1::uuid
         WHERE p.role IN ('can_bo_thon', 'to_cnscd')
+          AND p.commune_id = actor.commune_id
     """
-    rows = await conn.fetch(query)
+    rows = await conn.fetch(query, admin.id)
     return [
         OfficerResponse(
             id=str(r["id"]),
@@ -606,7 +736,7 @@ async def toggle_active_officer(
 @router.get("/proposals", response_model=list[ProposalResponse])
 async def list_proposals(
     user: Annotated[UserProfile, Depends(require_authenticated_user)],
-    conn: Annotated[asyncpg.Connection, Depends(get_db)],
+    conn: Annotated[asyncpg.Connection, Depends(get_rls_read_db)],
     village_id: str | None = None
 ) -> list[ProposalResponse]:
     query = """
@@ -682,7 +812,7 @@ async def list_proposals(
 @router.get("/report-values", response_model=list[ReportValueResponse])
 async def list_report_values(
     user: Annotated[UserProfile, Depends(require_authenticated_user)],
-    conn: Annotated[asyncpg.Connection, Depends(get_db)],
+    conn: Annotated[asyncpg.Connection, Depends(get_rls_read_db)],
     village_id: str | None = None
 ) -> list[ReportValueResponse]:
     query = "SELECT report_id, ct_code, value, note FROM report_values"
@@ -728,7 +858,7 @@ async def list_report_values(
 @router.get("/audit-logs", response_model=list[AuditLogResponse])
 async def list_audit_logs(
     _: Annotated[UserProfile, Depends(require_admin_xa)],
-    conn: Annotated[asyncpg.Connection, Depends(get_db)]
+    conn: Annotated[asyncpg.Connection, Depends(get_rls_read_db)]
 ) -> list[AuditLogResponse]:
     query = "SELECT id, action, table_name, record_id, user_id, details::text, created_at::text FROM audit_log ORDER BY created_at DESC LIMIT 100"
     rows = await conn.fetch(query)

@@ -210,6 +210,47 @@ def test_sync_reports_accepts_new_item_without_legacy_status(client, mock_report
     finally:
         app.dependency_overrides.pop(require_authenticated_user, None)
 
+
+def test_sync_reports_restores_profile_identity_after_offline_privacy_sanitization(
+    client,
+    mock_report_repo,
+):
+    village_id = str(uuid4())
+    report_id = str(uuid4())
+    period_id = str(uuid4())
+    app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="can_bo_thon",
+        village_id=village_id,
+        force_password_reset=False,
+        display_name="Cán bộ hồ sơ",
+        phone="0901234567",
+    )
+    mock_report_repo.save_report.return_value = SimpleNamespace(
+        id=report_id,
+        village_id=village_id,
+        period_id=period_id,
+        workflow_status="submitted",
+        timeliness_status="on_time",
+        version=1,
+        replayed=False,
+    )
+    item = _make_report_item(report_id, village_id)
+    item["period_id"] = period_id
+    item["reporter_name"] = ""
+    item["reporter_phone"] = ""
+
+    try:
+        response = client.post("/reports/sync", json={"reports": [item]})
+
+        assert response.status_code == 200, response.text
+        assert response.json()["accepted"][0]["client_id"] == report_id
+        kwargs = mock_report_repo.save_report.await_args.kwargs
+        assert kwargs["submitted_by_name"] == "Cán bộ hồ sơ"
+        assert kwargs["submitted_by_phone"] == "0901234567"
+    finally:
+        app.dependency_overrides.pop(require_authenticated_user, None)
+
 # (c) Validation error
 def test_sync_reports_validation_error(client, mock_report_repo):
     sub = str(uuid4())

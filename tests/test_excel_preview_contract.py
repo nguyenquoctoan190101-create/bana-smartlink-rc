@@ -52,6 +52,19 @@ def test_excel_preview_keeps_raw_text_and_returns_deterministic_flag() -> None:
         item["ct_code"] == "CT07" and item["error_type"] == "TEXT"
         for item in payload["flags"]
     )
+    evidence = payload["evidence"]["CT07"]
+    assert evidence == {
+        "raw_value": "ba trăm",
+        "normalized_value": None,
+        "confidence": 0.0,
+        "source_page": None,
+        "source_region": "Phiếu báo cáo!D20",
+        "extractor": "openpyxl",
+        "method": "official_template_cell",
+        "version": "1.0",
+        "flags": ["TEXT"],
+        "requires_review": True,
+    }
 
 
 def test_excel_preview_exposes_workbook_metadata_without_persisting() -> None:
@@ -73,7 +86,8 @@ def test_excel_preview_exposes_workbook_metadata_without_persisting() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200, response.text
-    assert response.json()["metadata"] == {
+    payload = response.json()
+    assert payload["metadata"] == {
         "period_name": None,
         "village_name": None,
         "reporter_name": None,
@@ -81,3 +95,8 @@ def test_excel_preview_exposes_workbook_metadata_without_persisting() -> None:
         "reporter_phone": "0000000000",
         "deadline": None,
     }
+    assert set(payload["evidence"]) == {f"CT{index:02d}" for index in range(1, 15)}
+    assert payload["evidence"]["CT01"]["raw_value"] == payload["raw_values"]["CT01"]
+    assert payload["evidence"]["CT01"]["normalized_value"] == payload["values"]["CT01"]
+    assert payload["evidence"]["CT01"]["confidence"] == 1.0
+    assert payload["evidence"]["CT01"]["source_region"] == "Phiếu báo cáo!D14"

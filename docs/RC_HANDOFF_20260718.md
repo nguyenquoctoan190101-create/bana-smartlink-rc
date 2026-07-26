@@ -1,5 +1,9 @@
 # Ba Na SmartLink — RC handoff 18/07/2026
 
+> Hồ sơ lịch sử của commit/lần kiểm thử ngày 18/07/2026. Không dùng số lượng
+> test, tên ZIP hoặc trạng thái trong tài liệu này để xác nhận bản hiện hành.
+> Quy trình hiện hành nằm tại `docs/DELIVERY_GOVERNANCE.md`.
+
 ## Phạm vi đã hoàn tất trong mã nguồn
 
 - Nền báo cáo CT01–CT14: trạng thái workflow/timeliness/publication tách biệt,
@@ -31,13 +35,9 @@
 | Release hygiene | Pass, 312 files inspected |
 | Secret scan, kể cả archive | Pass, không có finding |
 
-Gói được tạo tại `BaNaSmartLink_fixed.zip`. SHA-256 phải lấy từ kết quả
-`Get-FileHash` ngay sau lần đóng gói cuối; không ghi hash vào chính archive để
-tránh làm thay đổi hash.
-
-```text
-<SHA-256-from-final-packaging>
-```
+Gói lịch sử dùng tên `BaNaSmartLink_fixed.zip`. Bản hiện hành phải dùng
+`BaNaSmartLink_release.zip`, manifest trong gói và checksum `.sha256` bên cạnh
+theo `docs/DELIVERY_GOVERNANCE.md`; không tái sử dụng ZIP lịch sử.
 
 ## Không thể xác nhận bằng mã nguồn
 

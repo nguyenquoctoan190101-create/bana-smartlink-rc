@@ -40,7 +40,7 @@ export default function RecordLookup() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Dịch vụ & minh bạch"
+        eyebrow="Tra cứu trực tuyến"
         title="Tra cứu hồ sơ"
         description="Dùng chung một mã tra cứu cho kiến nghị số liệu và phản ánh hiện trường. Kết quả không hiển thị thông tin cá nhân của người gửi."
       />

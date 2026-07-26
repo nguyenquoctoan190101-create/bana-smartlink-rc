@@ -28,8 +28,12 @@ import json
 import os
 import sys
 import pytest
+from io import BytesIO
 from pathlib import Path
 from typing import NamedTuple
+
+from PIL import Image, ImageDraw
+from reportlab.pdfgen import canvas
 
 # ---------------------------------------------------------------------------
 # Ground truth
@@ -261,6 +265,40 @@ def test_parse_ocr_result_numeric_strings():
     assert result == GROUND_TRUTH
 
 
+def test_parse_ocr_evidence_supports_rich_and_legacy_fields():
+    from services.ocr_report import parse_ocr_evidence
+
+    raw_values, values, confidences = parse_ocr_evidence(
+        json.dumps(
+            {
+                "CT01": {
+                    "raw_value": "145",
+                    "normalized_value": 999,
+                    "confidence": 1.4,
+                },
+                "CT02": 512,
+                "CT03": {"raw_value": "không rõ", "confidence": 0.99},
+                "CT04": {"raw_value": float("nan"), "confidence": float("inf")},
+                "unexpected": {"raw_value": 123},
+            }
+        )
+    )
+
+    # Normalization is always performed locally from raw_value. The provider's
+    # normalized_value cannot override deterministic parsing.
+    assert raw_values["CT01"] == "145"
+    assert values["CT01"] == 145
+    assert confidences["CT01"] == 1.0
+    assert values["CT02"] == 512
+    assert confidences["CT02"] == 0.5
+    assert values["CT03"] is None
+    assert confidences["CT03"] == 0.0
+    assert raw_values["CT04"] is None
+    assert values["CT04"] is None
+    assert confidences["CT04"] == 0.0
+    assert "unexpected" not in values
+
+
 def test_parse_ocr_result_rejects_boolean():
     """parse_ocr_result must map JSON booleans to None."""
     from services.ocr_report import parse_ocr_result
@@ -295,12 +333,117 @@ def test_extract_table_region_without_pillow(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", mock_import)
 
     from services import ocr_report
-    import importlib
-    importlib.reload(ocr_report)
 
     dummy = b"\xff\xd8\xff" + b"\x00" * 100
     with pytest.raises(ocr_report.OcrError, match="privacy processing"):
         ocr_report.extract_table_region(dummy)
+
+
+def _scanned_pdf_bytes(*, pages: int = 1) -> bytes:
+    images: list[Image.Image] = []
+    for page_number in range(pages):
+        image = Image.new("RGB", (300, 600), "white")
+        ImageDraw.Draw(image).text(
+            (20, 320),
+            f"CT01 {145 + page_number}",
+            fill="black",
+        )
+        images.append(image)
+    output = BytesIO()
+    images[0].save(
+        output,
+        format="PDF",
+        save_all=True,
+        append_images=images[1:],
+        resolution=150,
+    )
+    return output.getvalue()
+
+
+def test_extract_pdf_scan_pages_reencodes_raster_without_metadata():
+    from services.ocr_report import extract_pdf_scan_pages
+
+    pages = extract_pdf_scan_pages(_scanned_pdf_bytes(pages=2))
+
+    assert [page_number for page_number, _ in pages] == [1, 2]
+    for _, content in pages:
+        assert content.startswith(b"\x89PNG\r\n\x1a\n")
+        with Image.open(BytesIO(content)) as image:
+            assert image.size == (300, 600)
+            assert not image.getexif()
+
+
+def test_extract_pdf_scan_pages_rejects_vector_pdf_fail_closed():
+    from services.ocr_report import OcrInputError, extract_pdf_scan_pages
+
+    output = BytesIO()
+    document = canvas.Canvas(output)
+    document.drawString(20, 700, "CT01 145")
+    document.save()
+
+    with pytest.raises(OcrInputError, match="không phải ảnh quét"):
+        extract_pdf_scan_pages(output.getvalue())
+
+
+def test_pdf_image_preflight_rejects_declared_pixel_bomb():
+    from pypdf.generic import DictionaryObject, NameObject, NumberObject
+    from services.ocr_report import OcrInputError, _preflight_pdf_page_images
+
+    image = DictionaryObject(
+        {
+            NameObject("/Subtype"): NameObject("/Image"),
+            NameObject("/Width"): NumberObject(10_000),
+            NameObject("/Height"): NumberObject(10_000),
+        }
+    )
+    resources = DictionaryObject(
+        {
+            NameObject("/XObject"): DictionaryObject(
+                {NameObject("/Scan"): image}
+            )
+        }
+    )
+    page = DictionaryObject({NameObject("/Resources"): resources})
+
+    with pytest.raises(OcrInputError, match="Kích thước"):
+        _preflight_pdf_page_images(page)
+
+
+def test_multi_page_ocr_conflict_requires_manual_entry(monkeypatch):
+    from services import ocr_report
+
+    monkeypatch.setattr(
+        ocr_report,
+        "prepare_ocr_pages",
+        lambda _: [(1, b"page-one"), (2, b"page-two")],
+    )
+    responses = iter(
+        [
+            json.dumps(
+                {"CT01": {"raw_value": "145", "confidence": 0.96}}
+            ),
+            json.dumps(
+                {"CT01": {"raw_value": "146", "confidence": 0.95}}
+            ),
+        ]
+    )
+
+    async def fake_call(_: bytes) -> str:
+        return next(responses)
+
+    monkeypatch.setattr(ocr_report, "_call_gemini_ocr", fake_call)
+    preview = asyncio.run(ocr_report.ocr_report_document_async(b"%PDF-test"))
+
+    assert preview.values["CT01"] is None
+    assert preview.evidence["CT01"].confidence == 0.0
+    assert preview.evidence["CT01"].source_page is None
+    assert preview.evidence["CT01"].requires_review is True
+    assert "OCR_CONFLICT" in preview.evidence["CT01"].flags
+    assert any(
+        flag["ct_code"] == "CT01"
+        and flag["error_type"] == "OCR_CONFLICT"
+        for flag in preview.flags
+    )
 
 
 # ---------------------------------------------------------------------------

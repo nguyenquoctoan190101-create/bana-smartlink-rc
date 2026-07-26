@@ -107,7 +107,7 @@ export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
           </span>
           <div>
             <h2 id="sync-title" className="text-sm font-bold text-slate-900">Đồng bộ báo cáo</h2>
-            <p className="mt-1 text-sm text-slate-600">{isOnline ? "Đang trực tuyến" : "Ngoại tuyến"} · {queueSize} báo cáo chờ gửi</p>
+            <p className="mt-1 text-sm text-slate-600">{isOnline ? "Đang kết nối" : "Ngoại tuyến"} · {queueSize} báo cáo chờ gửi</p>
             <p className="mt-1 flex items-center gap-1 text-sm text-slate-500"><Database aria-hidden="true" className="h-4 w-4" />Chỉ xóa khỏi hàng đợi khi máy chủ xác nhận từng báo cáo.</p>
           </div>
         </div>

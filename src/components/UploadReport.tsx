@@ -1,7 +1,6 @@
 import React, { useState, useRef } from "react";
 import { 
   FileSpreadsheet, 
-  Image as ImageIcon, 
   Upload, 
   Sparkles, 
   AlertTriangle, 
@@ -10,23 +9,45 @@ import {
   Loader2, 
   Check, 
   CheckSquare,
-  X, 
-  ShieldAlert
+  X
 } from "lucide-react";
-import { apiFetch, toUserFacingError } from "../lib/apiClient";
+import { apiUpload, toUserFacingError } from "../lib/apiClient";
+import type { ExtractionCorrection, ExtractionMetadata, IndicatorCode } from "../types";
 
 interface UploadReportProps {
   onDataExtracted: (
     indicators: Record<string, number | null>,
-    metadata?: { raw_source: string; source_confirmed: boolean }
+    metadata?: {
+      raw_source: string;
+      source_confirmed: boolean;
+      extraction_corrections?: ExtractionCorrection[];
+      extraction_metadata?: ExtractionMetadata;
+      extraction_review_token?: string;
+    }
   ) => void;
   onCancel: () => void;
+}
+
+type PreviewSource = "excel" | "photo_ocr" | "pdf_ocr";
+
+interface FieldEvidence {
+  raw_value?: string | number | null;
+  normalized_value?: number | null;
+  confidence?: number;
+  source_page?: number | null;
+  source_region?: string | null;
+  extractor?: string;
+  method?: string;
+  version?: string;
+  flags?: string[];
+  requires_review?: boolean;
 }
 
 interface ExtractionRow {
   code: string;
   name: string;
   value: number | null;
+  originalValue: number | null;
   rawValue?: string | number | null;
   needsConfirmation: boolean;
   confirmed: boolean;
@@ -39,21 +60,28 @@ interface ExtractionRow {
   isOcr?: boolean;
   ocrWarning?: string;
   isNullCode?: boolean;
+  sourcePage?: number | null;
+  sourceRegion?: string | null;
+  extractor?: string;
+  extractorVersion?: string;
+  evidenceFlags?: string[];
+  correctionReason: string;
 }
 
 export default function UploadReport({ onDataExtracted, onCancel }: UploadReportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  // Privacy warning step for image upload
-  const [showPrivacyWarning, setShowPrivacyWarning] = useState<boolean>(false);
   
   // Normalized indicators state for review grid
   const [reviewRows, setReviewRows] = useState<ExtractionRow[] | null>(null);
-  const [previewSource, setPreviewSource] = useState<"excel" | "photo_ocr" | null>(null);
+  const [previewSource, setPreviewSource] = useState<PreviewSource | null>(null);
   const [previewMetadata, setPreviewMetadata] = useState<Record<string, string | null> | null>(null);
+  const [previewChecksum, setPreviewChecksum] = useState<string | null>(null);
+  const [previewExtractorVersions, setPreviewExtractorVersions] = useState<string[]>([]);
+  const [previewReviewToken, setPreviewReviewToken] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
@@ -66,7 +94,6 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
   const clearSelectedFile = (preserveError = false) => {
     setFile(null);
-    setShowPrivacyWarning(false);
     if (!preserveError) setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -101,7 +128,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     CT10: "Số người trong độ tuổi lao động (Người)",
     CT11: "Số người tham gia BHYT (Người)",
     CT12: "Số thành viên Tổ công nghệ số cộng đồng (Người)",
-    CT13: "Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ (Lượt)",
+    CT13: "Số người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ (Người)",
     CT14: "Số vụ bạo lực gia đình ghi nhận trong kỳ (Vụ)"
   };
 
@@ -135,11 +162,10 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
   const handleFileSelected = (selectedFile: File) => {
     const extension = selectedFile.name.split(".").pop()?.toLowerCase();
-    const isImage = ["png", "jpg", "jpeg"].includes(extension || "");
     const isExcel = ["xlsx"].includes(extension || "");
 
-    if (!isImage && !isExcel) {
-      setError("Định dạng tệp không được hỗ trợ. Vui lòng chỉ tải lên file Excel (.xlsx) hoặc tệp ảnh (.png, .jpg, .jpeg)");
+    if (!isExcel) {
+      setError("Chỉ nhận biểu mẫu Excel (.xlsx). Nhận dạng ảnh/PDF đang khóa để bảo vệ dữ liệu cá nhân.");
       clearSelectedFile(true);
       return;
     }
@@ -158,68 +184,23 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
     setFile(selectedFile);
 
-    if (isImage) {
-      // Prompt privacy warning before doing anything
-      setShowPrivacyWarning(true);
-    } else {
-      // Excel file - start uploading directly
-      uploadExcelFile(selectedFile);
-    }
+    uploadExcelFile(selectedFile);
   };
 
-  const handleAcknowledgePrivacy = () => {
-    setShowPrivacyWarning(false);
-    if (file) {
-      uploadImageFile(file);
-    }
-  };
-
-  // 1. Image Digitization upload API call
-  const uploadImageFile = async (imgFile: File) => {
-    setIsProcessing(true);
-    setError(null);
-    const formData = new FormData();
-    formData.append("file", imgFile);
-
-    try {
-      const response = await apiFetch("/reports/ocr-preview", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(await getApiErrorMessage(response, "Không thể số hóa hình ảnh."));
-      }
-
-      const resData = await response.json();
-      initializePreview(
-        resData.values || {},
-        resData.raw_values || resData.values || {},
-        resData.flags || [],
-        resData.null_codes || [],
-        "photo_ocr",
-        null,
-      );
-    } catch (err) {
-      console.error(err);
-      setError(toUserFacingError(err, "Đã xảy ra lỗi khi kết nối máy chủ phân tích ảnh."));
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  // 2. Excel mapping upload API call
+  // Excel mapping upload API call
   const uploadExcelFile = async (excelFile: File) => {
     setIsProcessing(true);
+    setUploadProgress(0);
     setError(null);
     const formData = new FormData();
     formData.append("file", excelFile);
 
     try {
-      const response = await apiFetch("/reports/excel-preview", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await apiUpload(
+        "/reports/excel-preview",
+        formData,
+        setUploadProgress,
+      );
 
       if (!response.ok) {
         throw new Error(await getApiErrorMessage(response, "Không thể phân tích dữ liệu tệp Excel."));
@@ -233,12 +214,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         resData.null_codes || [],
         "excel",
         resData.metadata || null,
+        resData.evidence || {},
+        typeof resData.checksum_sha256 === "string" ? resData.checksum_sha256 : null,
+        Array.isArray(resData.extractor_versions) ? resData.extractor_versions : [],
+        typeof resData.extraction_review_token === "string" ? resData.extraction_review_token : null,
       );
     } catch (err) {
       console.error(err);
       setError(toUserFacingError(err, "Đã xảy ra lỗi khi kết nối máy chủ chuẩn hóa biểu mẫu."));
     } finally {
       setIsProcessing(false);
+      setUploadProgress(null);
     }
   };
 
@@ -254,10 +240,12 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         code,
         name: INDICATOR_MAP[code],
         value: val,
+        originalValue: val,
         confidence: conf,
         matchedFrom: matched,
         needsConfirmation: needsConf,
-        confirmed: !needsConf
+        confirmed: !needsConf,
+        correctionReason: "",
       };
     });
     setReviewRows(rows);
@@ -268,50 +256,76 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     rawValues: Record<string, string | number | null>,
     flags: Array<{ ct_code: string; error_type: string; message: string }>,
     nullCodes: string[],
-    source: "excel" | "photo_ocr",
+    source: PreviewSource,
     metadata: Record<string, string | null> | null,
+    evidence: Record<string, FieldEvidence>,
+    checksum: string | null,
+    extractorVersions: string[],
+    reviewToken: string | null,
   ) => {
     const rows: ExtractionRow[] = Object.keys(INDICATOR_MAP).map(code => {
       const val = values[code] !== undefined ? values[code] : null;
       const flag = flags.find(f => f.ct_code === code);
       const isNull = nullCodes.includes(code);
-      const needsConf = !!flag || isNull || val === null;
+      const fieldEvidence = evidence[code] || {};
+      const needsConf = Boolean(fieldEvidence.requires_review) || !!flag || isNull || val === null;
 
       return {
         code,
         name: INDICATOR_MAP[code],
         value: val,
-        rawValue: rawValues[code] ?? null,
+        originalValue: val,
+        rawValue: fieldEvidence.raw_value ?? rawValues[code] ?? null,
         needsConfirmation: needsConf,
         confirmed: source === "excel" ? !needsConf : false,
-        isOcr: source === "photo_ocr",
+        isOcr: source !== "excel",
         ocrWarning: flag ? flag.message : undefined,
-        isNullCode: isNull
+        isNullCode: isNull,
+        confidence: typeof fieldEvidence.confidence === "number" ? fieldEvidence.confidence : undefined,
+        sourcePage: fieldEvidence.source_page,
+        sourceRegion: fieldEvidence.source_region,
+        extractor: fieldEvidence.extractor,
+        extractorVersion: fieldEvidence.version,
+        evidenceFlags: fieldEvidence.flags || [],
+        correctionReason: "",
       };
     });
     setPreviewSource(source);
     setPreviewMetadata(metadata);
+    setPreviewChecksum(checksum);
+    setPreviewExtractorVersions(extractorVersions);
+    setPreviewReviewToken(reviewToken);
     setReviewRows(rows);
   };
 
   const handleValueChange = (code: string, valStr: string) => {
     if (!reviewRows) return;
+    if (!previewReviewToken) {
+      setError("Bằng chứng rà soát đã thiếu hoặc hết hạn. Vui lòng xem trước lại tệp.");
+      return;
+    }
     const cleanVal = valStr === "" ? null : parseInt(valStr);
     
     setReviewRows(prev => {
       if (!prev) return null;
       return prev.map(row => {
         if (row.code === code) {
-          return { 
+          const changed = row.originalValue !== cleanVal;
+          return {
             ...row, 
             value: cleanVal,
-            // Editing the value automatically confirms the correctness of this row
-            confirmed: true 
+            confirmed: changed ? false : row.confirmed,
           };
         }
         return row;
       });
     });
+  };
+
+  const handleReasonChange = (code: string, correctionReason: string) => {
+    setReviewRows((previous) => previous?.map((row) => (
+      row.code === code ? { ...row, correctionReason, confirmed: false } : row
+    )) ?? null);
   };
 
   const handleToggleConfirm = (code: string) => {
@@ -321,6 +335,12 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       return prev.map(row => {
         if (row.code === code) {
           if (row.value === null) return row;
+          const changed = row.originalValue !== row.value;
+          if (changed && row.correctionReason.trim().length < 3) {
+            setError(`Vui lòng ghi lý do điều chỉnh ${row.code} trước khi xác nhận.`);
+            return row;
+          }
+          setError(null);
           return { ...row, confirmed: !row.confirmed };
         }
         return row;
@@ -333,7 +353,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setReviewRows(prev => {
       if (!prev) return null;
       return prev.map(row => {
-        if (row.isOcr && !row.needsConfirmation) {
+        if (row.isOcr && !row.needsConfirmation && row.originalValue === row.value) {
           return { ...row, confirmed: true };
         }
         return row;
@@ -343,6 +363,10 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
   const handleApplyData = () => {
     if (!reviewRows) return;
+    if (!previewReviewToken) {
+      setError("Bằng chứng rà soát đã thiếu hoặc hết hạn. Vui lòng xem trước lại tệp.");
+      return;
+    }
     if (unconfirmedCount > 0) {
       alert('Vui lòng xác nhận tất cả các dòng trước khi lưu.');
       return; // Prevent submission if any row is unconfirmed
@@ -359,11 +383,33 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       finalizedData[row.code] = row.value;
     });
 
-    const raw_source = previewSource === "photo_ocr" ? "photo_upload" : "excel_upload";
+    const corrections: ExtractionCorrection[] = reviewRows
+      .filter((row) => row.originalValue !== row.value)
+      .map((row) => ({
+        code: row.code as IndicatorCode,
+        before: row.originalValue,
+        after: row.value as number,
+        reason: row.correctionReason.trim(),
+      }));
+    if (corrections.some((correction) => correction.reason.length < 3)) {
+      setError("Mọi số liệu đã điều chỉnh phải có lý do trước khi áp dụng.");
+      return;
+    }
+
+    const raw_source = previewSource === "excel" ? "excel_upload" : "photo_upload";
 
     onDataExtracted(finalizedData, {
       raw_source,
-      source_confirmed: true
+      source_confirmed: true,
+      extraction_corrections: corrections,
+      extraction_metadata: previewChecksum && previewSource ? {
+        source_checksum: previewChecksum,
+        source_type: previewSource,
+        extractor_versions: previewExtractorVersions,
+        field_count: reviewRows.length,
+        requires_review_count: reviewRows.filter((row) => row.needsConfirmation).length,
+      } : undefined,
+      extraction_review_token: previewReviewToken,
     });
   };
 
@@ -371,9 +417,11 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setFile(null);
     setReviewRows(null);
     setError(null);
-    setShowPrivacyWarning(false);
     setPreviewSource(null);
     setPreviewMetadata(null);
+    setPreviewChecksum(null);
+    setPreviewExtractorVersions([]);
+    setPreviewReviewToken(null);
   };
 
   // Counting unconfirmed low confidence indicators
@@ -389,16 +437,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         <div className="space-y-1">
           <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
             <Sparkles className="w-5.5 h-5.5 text-emerald-700" />
-            <span>Nạp báo cáo bằng Tệp tin & Trí tuệ nhân tạo (AI)</span>
+            <span>Nhập số liệu từ tệp Excel</span>
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Hỗ trợ nạp biểu mẫu Excel thôn hoặc tự động số hóa ảnh báo cáo giấy viết tay qua Gemini AI đa phương thức.
+            Đọc biểu mẫu Excel; cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo.
           </p>
         </div>
         {reviewRows && (
           <button
+            type="button"
             onClick={handleReset}
-            className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            className="min-h-11 text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
           >
             Nạp lại tệp khác
           </button>
@@ -408,51 +457,9 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       {/* Main Container Layout */}
       {!reviewRows ? (
         <div className="space-y-5">
-          {/* Privacy Warning Modal overlay/alert if an image was dropped/selected */}
-          {showPrivacyWarning && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-4 animate-fade-in shadow-xs">
-              <div className="flex items-start gap-3">
-                <div className="bg-amber-100 p-2 rounded-lg text-amber-800 shrink-0">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div className="space-y-1.5">
-                  <h4 className="text-sm font-black text-amber-900 leading-tight uppercase tracking-wide">
-                    Quy định bảo mật thông tin cá nhân
-                  </h4>
-                  <p className="text-xs font-bold text-amber-850 leading-relaxed">
-                    "Ảnh sẽ được AI đọc số liệu — vui lòng che hoặc không chụp phần tên/SĐT người lập nếu có thể"
-                  </p>
-                  <p className="text-2xs text-amber-700 leading-relaxed">
-                    Để tuân thủ nghị định bảo vệ dữ liệu cá nhân, hệ thống khuyên dùng biện pháp che mờ vật lý phần chữ ký hoặc thông tin liên hệ nhạy cảm ở góc tờ báo cáo trước khi chụp ảnh.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-amber-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPrivacyWarning(false);
-                    clearSelectedFile();
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAcknowledgePrivacy}
-                  className="px-4 py-2 text-xs font-black text-white bg-amber-800 hover:bg-amber-950 rounded-xl active:scale-98 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Đồng ý & Bắt đầu phân tích ảnh</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Normal Drag & Drop Zone */}
-          {!showPrivacyWarning && (
-            <div
+          <div
+              aria-busy={isProcessing}
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
               onDragLeave={handleDrag}
@@ -463,24 +470,41 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   : "border-slate-250 hover:border-emerald-500 bg-slate-50/50"
               }`}
             >
-              <input
-                type="file"
-                ref={fileInputRef}
-                id="file-upload-input"
-                accept=".xlsx, .png, .jpg, .jpeg"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={isProcessing}
-              />
-              <label htmlFor="file-upload-input" className="cursor-pointer block">
+              <label htmlFor="file-upload-input" className="block cursor-pointer rounded-xl focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-emerald-700">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  id="file-upload-input"
+                  accept=".xlsx"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                  disabled={isProcessing}
+                />
                 {isProcessing ? (
                   <div className="flex flex-col items-center justify-center space-y-3 py-6">
                     <Loader2 className="w-10 h-10 text-emerald-800 animate-spin" />
                     <span className="text-sm font-extrabold text-emerald-900">
-                      Hệ thống đang chuẩn hóa biểu mẫu và số hóa qua AI...
+                      {uploadProgress !== null && uploadProgress < 100
+                        ? `Đang tải tệp: ${uploadProgress}%`
+                        : "Đang kiểm tra tệp và trích xuất số liệu…"}
                     </span>
+                    {uploadProgress !== null && (
+                      <div
+                        className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-emerald-100"
+                        role="progressbar"
+                        aria-label="Tiến độ tải tệp"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={uploadProgress}
+                      >
+                        <div
+                          className="h-full bg-emerald-700 transition-[width]"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    )}
                     <span className="text-xs text-slate-500 animate-pulse">
-                      Quá trình phân tích Fuzzy Match & Trích xuất OCR có thể mất 3-5 giây
+                      Thời gian xử lý phụ thuộc dung lượng và cấu trúc biểu mẫu
                     </span>
                   </div>
                 ) : (
@@ -493,27 +517,22 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         Kéo thả tệp báo cáo của thôn hoặc <span className="text-emerald-800 underline">Bấm để duyệt tệp</span>
                       </p>
                       <p className="text-2xs text-slate-400">
-                        Chấp nhận định dạng Excel (<b className="font-mono text-emerald-900">.xlsx</b>) hoặc ảnh chụp phiếu báo cáo giấy (<b className="font-mono text-emerald-900">.png, .jpg, .jpeg</b>)
+                        Excel theo biểu mẫu <b className="font-mono text-emerald-900">.xlsx</b>; tối đa 5 MB
                       </p>
                     </div>
 
-                    <div className="flex justify-center items-center gap-4 text-xs font-bold pt-2">
+                    <div className="flex flex-wrap justify-center items-center gap-3 text-xs font-bold pt-2">
                       <span className="flex items-center gap-1 text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">
                         <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                        Excel Chuẩn hóa Fuzzy Match
-                      </span>
-                      <span className="flex items-center gap-1 text-sky-900 bg-sky-50 px-2.5 py-1 rounded-md border border-sky-100">
-                        <ImageIcon className="w-4 h-4 text-sky-700" />
-                        Hình ảnh Số hóa Gemini AI
+                        Excel theo biểu mẫu
                       </span>
                     </div>
                   </div>
                 )}
               </label>
             </div>
-          )}
 
-          {file && !isProcessing && !showPrivacyWarning && !reviewRows && (
+          {file && !isProcessing && !reviewRows && (
             <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
               <div className="flex min-w-0 items-center gap-2 text-emerald-950">
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" aria-hidden="true" />
@@ -537,8 +556,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             <div className="p-4 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl flex items-start gap-2.5 text-xs font-bold leading-relaxed animate-fade-in">
               <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
               <div>
-                <p className="font-extrabold">Xảy ra lỗi xử lý:</p>
+                <p className="font-extrabold">Không đọc được tệp</p>
                 <p className="font-medium text-rose-700 mt-0.5">{error}</p>
+                {file && (
+                  <button
+                    type="button"
+                    onClick={() => uploadExcelFile(file)}
+                    className="mt-3 min-h-11 rounded-lg border border-rose-300 bg-white px-3 font-bold text-rose-800 hover:bg-rose-100"
+                  >
+                    Thử tải lại
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -550,7 +578,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             <div className="space-y-0.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Kết quả Số hóa / Ánh xạ Dữ liệu Thành Công</span>
+                <span>Kết quả trích xuất — chờ cán bộ xác nhận</span>
               </h4>
               <p className="text-4xs text-slate-300">
                 Tệp tin: <b className="font-mono text-white">{file?.name}</b> ({(file ? (file.size / 1024).toFixed(1) : 0)} KB)
@@ -559,12 +587,12 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             {unconfirmedCount > 0 ? (
               <span className="px-3 py-1.5 bg-amber-950 text-amber-400 font-extrabold text-2xs rounded-lg border border-amber-800 flex items-center gap-1 animate-pulse">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Còn {unconfirmedCount} chỉ tiêu độ tin cậy thấp cần cán bộ rà soát</span>
+                <span>Còn {unconfirmedCount} chỉ tiêu cần cán bộ rà soát</span>
               </span>
             ) : (
               <span className="px-3 py-1.5 bg-emerald-950 text-emerald-400 font-extrabold text-2xs rounded-lg border border-emerald-800 flex items-center gap-1">
                 <Check className="w-3.5 h-3.5" />
-                <span>Tất cả chỉ tiêu đã được rà soát và xác nhận hợp lệ</span>
+                <span>Tất cả chỉ tiêu đã được cán bộ xác nhận</span>
               </span>
             )}
           </div>
@@ -580,19 +608,25 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             </div>
           )}
 
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-2xs text-slate-600">
+            <span><b>Loại nguồn:</b> {previewSource === "excel" ? "Excel theo biểu mẫu" : previewSource === "pdf_ocr" ? "PDF quét" : "Ảnh báo cáo"}</span>
+            <span><b>Mã kiểm tra tệp:</b> {previewChecksum ? `${previewChecksum.slice(0, 12)}…` : "Chưa có"}</span>
+            <span><b>Bộ trích xuất:</b> {previewExtractorVersions.length ? previewExtractorVersions.join(", ") : "Chưa ghi nhận"}</span>
+          </div>
+
           {/* Warning banner */}
           <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-3.5 text-emerald-900 text-2xs font-medium leading-relaxed flex flex-col md:flex-row md:items-center justify-between gap-3">
             <span>
-              <b>💡 Hướng dẫn rà soát:</b> Vui lòng đối chiếu các giá trị số do AI đọc được. Bạn có thể <b>gõ sửa trực tiếp vào ô số</b> nếu phát hiện sai sót, việc chỉnh sửa sẽ tự động đánh dấu chỉ tiêu là "Đã xác nhận". Khi hoàn tất, bấm nút Áp dụng ở dưới cùng để nạp dữ liệu.
+              <b>Hướng dẫn rà soát:</b> Đối chiếu số liệu với tài liệu gốc và xem vị trí nguồn. Nếu sửa giá trị, hãy ghi lý do rồi bấm dấu tích để xác nhận. Quy tắc nghiệp vụ của hệ thống vẫn là căn cứ chặn dữ liệu không hợp lệ.
             </span>
-            {reviewRows.some(r => r.isOcr && !r.needsConfirmation && !r.confirmed) && (
+            {reviewRows.some(r => r.isOcr && !r.needsConfirmation && !r.confirmed && r.originalValue === r.value) && (
               <button
                 type="button"
                 onClick={handleConfirmNormalRows}
                 className="px-3 py-2 text-2xs font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-200 rounded-lg hover:bg-emerald-200 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
                 <CheckSquare className="w-4 h-4" />
-                Tích chọn nhanh các dòng Bình thường
+                Xác nhận các dòng không có cảnh báo
               </button>
             )}
           </div>
@@ -606,7 +640,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                     <th className="py-3 px-4 w-[12%]">Mã CT</th>
                     <th className="py-3 px-4 w-[35%]">Tên chỉ tiêu (Đơn vị tính)</th>
                     {reviewRows.some(r => r.isOcr) ? (
-                      <th className="py-3 px-4 w-[38%]">Cảnh báo nhận dạng</th>
+                      <th className="py-3 px-4 w-[38%]">Bằng chứng và cảnh báo</th>
                     ) : (
                       <>
                         <th className="py-3 px-4 w-[25%]">Dữ liệu gốc tìm thấy</th>
@@ -620,6 +654,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   {reviewRows.map((row) => {
                     const isLowConf = row.needsConfirmation;
                     const confPercentage = row.confidence !== undefined ? Math.round(row.confidence * 100) : 0;
+                    const isChanged = row.originalValue !== row.value;
 
                     // Choose colors based on confidence
                     let badgeClass = "bg-slate-100 text-slate-600";
@@ -660,7 +695,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                             {isLowConf && !row.confirmed && (
                               <span className="text-4xs text-amber-800 font-extrabold flex items-center gap-0.5 mt-0.5">
                                 <AlertTriangle className="w-3 h-3 text-amber-700" />
-                                Rà soát bắt buộc (Độ tin cậy thấp)
+                                Rà soát bắt buộc
                               </span>
                             )}
                           </div>
@@ -669,18 +704,31 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         {/* 3. Matched From Original Text OR OCR Warning */}
                         {row.isOcr ? (
                           <td className="py-3 px-4">
-                            {row.isNullCode ? (
-                              <span className="text-2xs font-extrabold text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 block">Không đọc được số liệu này, vui lòng nhập tay</span>
-                            ) : row.ocrWarning ? (
-                              <span className="text-2xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">{row.ocrWarning}</span>
-                            ) : (
-                              <span className="text-2xs text-slate-400 italic">Bình thường</span>
-                            )}
+                            <div className="space-y-1.5 text-2xs">
+                              <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                                <span><b>Giá trị gốc:</b> {row.rawValue === null || row.rawValue === undefined ? "—" : String(row.rawValue)}</span>
+                                {row.confidence !== undefined && <span className={`rounded-full px-2 py-0.5 font-black ${badgeClass}`}>Tin cậy {confPercentage}%</span>}
+                              </div>
+                              <p className="text-slate-500">
+                                <b>Vị trí:</b> {row.sourcePage ? `trang ${row.sourcePage}` : "tệp hiện tại"}{row.sourceRegion ? ` · ${row.sourceRegion}` : ""}
+                              </p>
+                              {(row.extractor || row.extractorVersion) && <p className="text-slate-400">Bộ trích xuất: {row.extractor || "OCR"}{row.extractorVersion ? ` · ${row.extractorVersion}` : ""}</p>}
+                              {row.isNullCode ? (
+                                <span className="font-extrabold text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 block">Không đọc được số liệu; cần nhập từ tài liệu gốc.</span>
+                              ) : row.ocrWarning ? (
+                                <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">{row.ocrWarning}</span>
+                              ) : row.evidenceFlags?.length ? (
+                                <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">{row.evidenceFlags.join(" · ")}</span>
+                              ) : (
+                                <span className="text-slate-500">Không có cảnh báo theo quy tắc.</span>
+                              )}
+                            </div>
                           </td>
                         ) : (
                           <>
                             <td className="py-3 px-4 text-slate-500 italic max-w-[200px] truncate" title={row.matchedFrom}>
                               <span className="text-2xs font-medium">{row.rawValue === null || row.rawValue === undefined ? "—" : String(row.rawValue)}</span>
+                              {row.sourceRegion && <span className="mt-1 block text-4xs not-italic text-slate-400">Nguồn: {row.sourceRegion}</span>}
                             </td>
                             <td className="py-3 px-4 text-center">
                               <div className="flex flex-col items-center justify-center">
@@ -694,12 +742,13 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
                         {/* 5. Editable Numeric Value & Tick Box */}
                         <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-start justify-end gap-2">
                             {/* Input number */}
                             <input
                               type="number"
                               min="0"
                               value={row.value === null ? "" : row.value}
+                              aria-label={`Giá trị ${row.code} · ${row.name}`}
                               onChange={(e) => handleValueChange(row.code, e.target.value)}
                               placeholder="0"
                               onKeyDown={(e) => {
@@ -719,16 +768,33 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                             <button
                               type="button"
                               onClick={() => handleToggleConfirm(row.code)}
-                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                              aria-label={`${row.confirmed ? "Bỏ xác nhận" : "Xác nhận"} ${row.code} · ${row.name}`}
+                              aria-pressed={row.confirmed}
+                              className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border transition-all cursor-pointer ${
                                 row.confirmed
                                   ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
                                   : "bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                               }`}
-                              title={row.confirmed ? "Đã xác minh" : "Cần bấm xác minh chỉ tiêu"}
+                              title={row.confirmed ? "Đã xác nhận" : "Cần bấm xác nhận chỉ tiêu"}
                             >
                               <Check className={`w-4 h-4 transition-transform ${row.confirmed ? "scale-110 font-bold" : "scale-90"}`} />
                             </button>
                           </div>
+                          {isChanged && (
+                            <label className="mt-2 block text-4xs font-bold text-slate-600">
+                              Lý do điều chỉnh
+                              <input
+                                type="text"
+                                value={row.correctionReason}
+                                onChange={(event) => handleReasonChange(row.code, event.target.value)}
+                                minLength={3}
+                                maxLength={240}
+                                required
+                                className="mt-1 w-full min-w-40 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-left text-2xs font-medium text-slate-800"
+                                placeholder="Đối chiếu tài liệu gốc…"
+                              />
+                            </label>
+                          )}
                         </td>
                       </tr>
                     );
@@ -745,7 +811,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
               onClick={handleReset}
               className="px-5 py-3 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
             >
-              Hủy kết quả & Chọn lại
+              Hủy kết quả và chọn lại
             </button>
             <button
               type="button"
@@ -758,13 +824,13 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
               }`}
             >
               <CheckCircle2 className="w-4.5 h-4.5" />
-              <span>XÁC NHẬN & ĐIỀN VÀO BIỂU MẪU</span>
+              <span>Xác nhận và điền vào biểu mẫu</span>
             </button>
           </div>
           
           {unconfirmedCount > 0 && (
             <p className="text-right text-4xs text-amber-800 font-extrabold animate-pulse">
-              * Vui lòng click xác nhận (Dấu tích xanh) hoặc điều chỉnh các chỉ tiêu có độ tin cậy thấp để mở khóa nút áp dụng.
+              Vui lòng xác nhận từng chỉ tiêu; nếu điều chỉnh số liệu, cần ghi rõ lý do.
             </p>
           )}
         </div>

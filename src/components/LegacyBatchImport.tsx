@@ -239,7 +239,7 @@ export default function LegacyBatchImport() {
             </ul>
           </div>
         )}
-        <DataScope period={selectedPeriod?.name} scope={`${selectedFiles.length} tệp đã chọn`} quality={preview ? `${blockers} mục cần xử lý` : "Chưa kiểm tra"} />
+        <DataScope period={selectedPeriod?.name} scope={`${selectedFiles.length} tệp đã chọn`} quality={preview ? `${blockers} mục cần xử lý` : "Chưa kiểm tra"} qualityLabel="Kết quả kiểm tra" />
         <div className="flex flex-wrap gap-3">
           <Button onClick={runPreview} disabled={!selectedFiles.length || busy}><Upload />{busy ? "Đang kiểm tra…" : "Kiểm tra bộ tệp"}</Button>
           {preview && !detail && (
@@ -300,7 +300,7 @@ export default function LegacyBatchImport() {
                 {file.validation_flags.length > 0 && <ul className="space-y-1 text-sm text-amber-800">{file.validation_flags.map((flag, index) => <li key={`${flag.ct_code}-${index}`}><AlertTriangle className="inline h-4 w-4 mr-1" />{flag.ct_code}: {flag.message}</li>)}</ul>}
                 {file.review_status === "pending" && !mappingBlocked && <>
                   {ctFlags.map((flag) => <div key={flag.ct_code} className="grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Giá trị chấp nhận {flag.ct_code}<input type="number" min={0} value={edits[file.id]?.[flag.ct_code] || ""} onChange={(event) => setEdits((old) => ({ ...old, [file.id]: { ...old[file.id], [flag.ct_code]: event.target.value } }))} /></label><label className="text-sm font-semibold">Lý do xử lý<input type="text" value={reasons[file.id]?.[flag.ct_code] || ""} onChange={(event) => setReasons((old) => ({ ...old, [file.id]: { ...old[file.id], [flag.ct_code]: event.target.value } }))} placeholder="Nguồn đối chiếu và lý do chấp nhận/sửa" /></label></div>)}
-                  {badPhone && <div className="grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Số điện thoại đã xác minh<input type="tel" value={phones[file.id] || ""} onChange={(event) => setPhones((old) => ({ ...old, [file.id]: event.target.value }))} /></label><label className="text-sm font-semibold">Lý do sửa metadata<input type="text" value={phoneReasons[file.id] || ""} onChange={(event) => setPhoneReasons((old) => ({ ...old, [file.id]: event.target.value }))} /></label></div>}
+                  {badPhone && <div className="grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Số điện thoại đã đối chiếu<input type="tel" value={phones[file.id] || ""} onChange={(event) => setPhones((old) => ({ ...old, [file.id]: event.target.value }))} /></label><label className="text-sm font-semibold">Lý do sửa thông tin tệp<input type="text" value={phoneReasons[file.id] || ""} onChange={(event) => setPhoneReasons((old) => ({ ...old, [file.id]: event.target.value }))} /></label></div>}
                   <div className="flex flex-wrap gap-2"><Button onClick={() => reviewFile(file, "accepted")} disabled={busy}>Chấp nhận tệp</Button></div>
                 </>}
                 {mappingBlocked && file.review_status === "pending" && <p className="text-sm font-semibold text-red-700">Không thể chấp nhận: phạm vi thôn chưa được xác nhận chính thức. Hãy từ chối tệp và nêu rõ lý do để bảo toàn bằng chứng.</p>}

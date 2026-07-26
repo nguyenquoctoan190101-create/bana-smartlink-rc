@@ -13,7 +13,8 @@ Browser (React/Vite)
   `-- FastAPI: toàn bộ dữ liệu nghiệp vụ
         |-- JWT + profile + role/village authorization
         |-- deterministic validator
-        |-- upload/Excel/OCR review
+        |-- nhập trực tiếp/XLSX review
+        |-- OCR ngoài: khóa ở staging/production
         |-- export, audit, notifications
         `-- PostgreSQL/Supabase RLS
               `-- public projection: CT01, CT02, CT09, CT12, CT13 đã publish
@@ -53,4 +54,3 @@ Browser (React/Vite)
 Danh mục chính thức gồm 10 thôn. Ánh xạ Đông Sơn đang chờ xã xác nhận và luôn
 phải giữ cờ chất lượng dữ liệu; không được tự động coi số liệu toàn thôn là số
 liệu chính thức của một vùng sau chia tách.
-

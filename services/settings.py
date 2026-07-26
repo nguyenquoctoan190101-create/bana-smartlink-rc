@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_issuer: str = ""
     supabase_jwt_audience: str = "authenticated"
+    extraction_review_signing_key: str = ""
+    feature_external_ocr: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "FEATURE_EXTERNAL_OCR",
+            "ENABLE_EXTERNAL_OCR",
+        ),
+    )
     bana_commune_id: str = Field(default="ba_na", validation_alias=AliasChoices("BANA_COMMUNE_ID", "COMMUNE_ID"))
     feature_cases: bool = Field(default=True, validation_alias=AliasChoices("FEATURE_CASES", "ENABLE_CASES"))
     feature_voice: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_VOICE", "ENABLE_VOICE"))
@@ -94,6 +102,11 @@ class Settings(BaseSettings):
 
         if environment not in {"staging", "production"}:
             return
+
+        if self.feature_external_ocr:
+            raise SettingsError(
+                "FEATURE_EXTERNAL_OCR must remain disabled in staging/production"
+            )
 
         required = {
             "DATABASE_URL": self.database_url,

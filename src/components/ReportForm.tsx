@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AlertCircle, AlertTriangle, Sparkles, Save, Send, Trash2, CheckCircle2, CheckSquare, Loader2, RefreshCw } from "lucide-react";
 import UploadReport from "./UploadReport";
 import rulesData from "../validation_rules.json";
-import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod } from "../types";
+import { ReportData, ValidationError, GeminiAnalysisResponse, IndicatorValues, ReportPeriod, ExtractionCorrection, ExtractionMetadata } from "../types";
 import { getLocalDraftForScope, queueReportForSync, saveDraftForScope } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { validateReportIndicators } from "../lib/reportValidation";
@@ -17,6 +17,14 @@ interface ReportFormProps {
   onSaved: () => void;
   onCancel: () => void;
 }
+
+type ReportImportMetadata = {
+  raw_source: string;
+  source_confirmed: boolean;
+  extraction_corrections?: ExtractionCorrection[];
+  extraction_metadata?: ExtractionMetadata;
+  extraction_review_token?: string;
+};
 
 export function resolveRequestedReportPeriod(
   periods: ReportPeriod[],
@@ -89,7 +97,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
   // Status message
   const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [reportMetadata, setReportMetadata] = useState<{ raw_source: string; source_confirmed: boolean } | null>(null);
+  const [reportMetadata, setReportMetadata] = useState<ReportImportMetadata | null>(null);
   const [draftId, setDraftId] = useState<string | null>(initialReport?.id || null);
   const [recoverableDraft, setRecoverableDraft] = useState<ReportData | null>(null);
   const [dismissedDraftId, setDismissedDraftId] = useState<string | null>(null);
@@ -99,6 +107,52 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   const [isSubmitAttempted, setIsSubmitAttempted] = useState<boolean>(false);
   const [showSubmitReview, setShowSubmitReview] = useState<boolean>(false);
   const [isConfirmChecked, setIsConfirmChecked] = useState<boolean>(false);
+  const submitDialogRef = useRef<HTMLDivElement>(null);
+  const submitCancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showSubmitReview) return undefined;
+    const dialog = submitDialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    submitCancelRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowSubmitReview(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ) as HTMLElement[];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [showSubmitReview]);
 
   useEffect(() => {
     if (initialReport || periods.length === 0) return;
@@ -190,6 +244,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
     setReportMetadata(recoverableDraft.raw_source ? {
       raw_source: recoverableDraft.raw_source,
       source_confirmed: Boolean(recoverableDraft.source_confirmed),
+      extraction_corrections: recoverableDraft.extraction_corrections,
+      extraction_metadata: recoverableDraft.extraction_metadata,
+      extraction_review_token: recoverableDraft.extraction_review_token,
     } : null);
     setRecoverableDraft(null);
     setSubmitMessage({ type: "success", text: "Đã khôi phục bản nháp gần nhất cho thôn và kỳ báo cáo này." });
@@ -209,6 +266,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   }, [indicators, villageId]);
 
   const handleIndicatorChange = (key: string, value: string) => {
+    if (reportMetadata?.extraction_review_token) return;
     const parsed = value.trim() === "" ? null : Number(value);
     setIndicators(prev => ({ ...prev, [key]: parsed !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null }));
     // Reset AI analysis since data changed
@@ -273,7 +331,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   // Handle successfully extracted and confirmed indicators from UploadReport component
   const handleDataExtracted = (
     extractedIndicators: Record<string, number | null>,
-    metadata?: { raw_source: string; source_confirmed: boolean }
+    metadata?: ReportImportMetadata,
   ) => {
     setIndicators(prev => ({ ...prev, ...extractedIndicators }));
     if (metadata) {
@@ -281,7 +339,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
     }
     setSubmitMessage({
       type: "success",
-      text: "Đã nạp thành công 14 chỉ tiêu số liệu từ tệp vào biểu mẫu!"
+      text: "Đã nhập 14 chỉ tiêu từ tệp vào biểu mẫu."
     });
     setTimeout(() => setSubmitMessage(null), 5000);
   };
@@ -289,7 +347,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
   // Save Report (Offline-First local storage)
   const handleSaveDraft = async () => {
     if (!reporterName.trim() || !reporterPhone.trim()) {
-      setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ Tên và SĐT người lập báo cáo!" });
+      setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ họ tên và số điện thoại người lập báo cáo." });
       setTimeout(() => setSubmitMessage(null), 4000);
       return;
     }
@@ -315,6 +373,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       updated_at: new Date().toISOString(),
       raw_source: reportMetadata?.raw_source === "excel_upload" ? "excel" : reportMetadata?.raw_source === "photo_upload" ? "photo_ocr" : "manual",
       source_confirmed: reportMetadata ? reportMetadata.source_confirmed : false,
+      extraction_corrections: reportMetadata?.extraction_corrections,
+      extraction_metadata: reportMetadata?.extraction_metadata,
+      extraction_review_token: reportMetadata?.extraction_review_token,
       ...indicators
     };
 
@@ -345,7 +406,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
     setLocalWarnings(warnings);
 
     if (!reporterName.trim() || !reporterPhone.trim()) {
-      setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ Tên và SĐT người lập báo cáo!" });
+      setSubmitMessage({ type: "error", text: "Vui lòng nhập đầy đủ họ tên và số điện thoại người lập báo cáo." });
       setTimeout(() => setSubmitMessage(null), 4000);
       return;
     }
@@ -353,7 +414,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
     if (errors.length > 0) {
       setSubmitMessage({ 
         type: "error", 
-        text: "Không thể nộp! Số liệu báo cáo đang chứa lỗi logic nghiêm trọng. Vui lòng sửa đổi các trường báo đỏ trước khi gửi chính thức." 
+        text: "Chưa thể tiếp tục vì còn lỗi dữ liệu. Vui lòng sửa các trường được đánh dấu."
       });
       setTimeout(() => setSubmitMessage(null), 6000);
 
@@ -401,6 +462,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       updated_at: new Date().toISOString(),
       raw_source: reportMetadata?.raw_source === "excel_upload" ? "excel" : reportMetadata?.raw_source === "photo_upload" ? "photo_ocr" : "manual",
       source_confirmed: reportMetadata ? reportMetadata.source_confirmed : false,
+      extraction_corrections: reportMetadata?.extraction_corrections,
+      extraction_metadata: reportMetadata?.extraction_metadata,
+      extraction_review_token: reportMetadata?.extraction_review_token,
       ...indicators
     };
 
@@ -413,7 +477,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       if (!isOnline) {
         setSubmitMessage({
           type: "success",
-          text: "Đã lưu offline — báo cáo đang chờ bạn đồng bộ khi có mạng."
+          text: "Đã lưu trên thiết bị — báo cáo đang chờ đồng bộ khi có kết nối."
         });
       } else {
         setSubmitMessage({
@@ -429,22 +493,22 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
         onSaved();
       }, 3000);
     } catch (e) {
-      setSubmitMessage({ type: "error", text: "Lỗi lập hàng đợi gửi dữ liệu nộp." });
+      setSubmitMessage({ type: "error", text: "Không thể lưu báo cáo vào hàng đợi gửi. Vui lòng thử lại." });
     }
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Báo cáo định kỳ" title={initialReport ? "Chỉnh sửa báo cáo" : "Khai báo số liệu văn hóa – xã hội"} description="Nhập đủ 14 chỉ tiêu. Bộ quy tắc xác định sẽ kiểm tra ngay khi bạn nhập và trước lúc nộp." />
+      <PageHeader eyebrow="Báo cáo định kỳ" title={initialReport ? "Chỉnh sửa báo cáo" : "Lập báo cáo định kỳ"} description="Nhập đủ 14 chỉ tiêu. Bộ quy tắc nghiệp vụ kiểm tra dữ liệu khi nhập và trước khi gửi." />
 
       {/* Top Offline Notification Banner */}
       {!navigator.onLine && (
         <div id="offline-form-banner" className="mb-6 p-4 bg-amber-50/80 border border-amber-200 text-amber-900 text-xs rounded-xl flex items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse shrink-0"></span>
-            <span className="font-medium">Bạn đang ngoại tuyến (sóng vùng núi yếu). Biểu mẫu sẽ được lưu tạm an toàn và tự động gửi lên xã khi khôi phục mạng.</span>
+            <span className="font-medium">Bạn đang ngoại tuyến. Biểu mẫu được lưu trên thiết bị và sẽ sẵn sàng đồng bộ khi có kết nối.</span>
           </div>
-          <span className="bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-black px-2.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">Chế độ Ngoại tuyến</span>
+          <span className="bg-amber-100 border border-amber-200 text-amber-900 text-[10px] font-black px-2.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">Ngoại tuyến</span>
         </div>
       )}
 
@@ -452,8 +516,8 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
         <h2 className="text-sm font-bold text-emerald-950">Quy trình báo cáo</h2>
         <ol className="mt-2 grid gap-2 text-xs text-slate-700 md:grid-cols-3">
           <li><b className="text-emerald-800">1. Nhập và kiểm tra</b><br />Chọn đúng kỳ, nhập 14 chỉ tiêu; lỗi đỏ phải được xử lý.</li>
-          <li><b className="text-emerald-800">2. Lưu nháp hoặc nộp</b><br />Lưu nháp chỉ nằm trên thiết bị; nộp sẽ vào hàng đợi đồng bộ.</li>
-          <li><b className="text-emerald-800">3. Xã rà soát</b><br />Admin xã xem, yêu cầu chỉnh sửa hoặc duyệt theo quy trình.</li>
+          <li><b className="text-emerald-800">2. Đưa vào hàng đợi gửi</b><br />Báo cáo được giữ trên thiết bị đến khi máy chủ xác nhận đã nhận.</li>
+          <li><b className="text-emerald-800">3. Xã rà soát</b><br />Sau khi máy chủ tiếp nhận, quản trị xã xem, yêu cầu chỉnh sửa hoặc duyệt.</li>
         </ol>
       </SectionCard>
 
@@ -491,8 +555,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             <div className="mb-4"><h2 className="font-bold text-slate-900">Thông tin báo cáo</h2><p className="mt-1 text-sm text-slate-600">Phạm vi, kỳ báo cáo và người chịu trách nhiệm được dùng trong nhật ký kiểm tra.</p></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Thôn báo cáo (10 thôn mới):</label>
+              <label htmlFor="report-village" className="block text-xs font-semibold text-slate-600 mb-1">Thôn báo cáo:</label>
               <select
+                id="report-village"
                 value={villageId}
                 onChange={(e) => setVillageId(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
@@ -508,8 +573,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Kỳ báo cáo:</label>
+              <label htmlFor="report-period" className="block text-xs font-semibold text-slate-600 mb-1">Kỳ báo cáo:</label>
               <select
+                id="report-period"
                 value={periodId}
                 onChange={(e) => {
                   const selected = periods.find((period) => period.id === e.target.value);
@@ -526,8 +592,9 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Cán bộ lập báo cáo:</label>
+              <label htmlFor="reporter-name" className="block text-xs font-semibold text-slate-600 mb-1">Cán bộ lập báo cáo:</label>
               <input
+                id="reporter-name"
                 type="text"
                 readOnly
                 value={reporterName}
@@ -538,12 +605,13 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">SĐT liên hệ:</label>
+              <label htmlFor="reporter-phone" className="block text-xs font-semibold text-slate-600 mb-1">Số điện thoại liên hệ:</label>
               <input
+                id="reporter-phone"
                 type="text"
                 readOnly
                 value={reporterPhone}
-                placeholder="Nhập SĐT..."
+                placeholder="Nhập số điện thoại…"
                 onChange={(e) => setReporterPhone(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
               />
@@ -566,7 +634,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                   Ghi nhận hỗ trợ nhập liệu
                 </label>
                 <p className="mt-1 text-xs leading-5 text-slate-600">
-                  Chọn khi bạn là thành viên Tổ CNSCĐ đang nhập báo cáo thay mặt cán bộ thôn hoặc hỗ trợ người dân lớn tuổi. Không chọn khi người lập tự nhập báo cáo của mình.
+                  Chọn khi bạn là thành viên Tổ công nghệ số cộng đồng đang hỗ trợ cán bộ thôn nhập báo cáo. Không chọn khi người lập tự nhập báo cáo của mình.
                 </p>
               </div>
             </div>
@@ -574,10 +642,11 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             {effectiveAssistedByCnscd && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 animate-fade-in">
                 <div>
-                  <label className="block text-4xs font-extrabold uppercase tracking-wider text-emerald-700 mb-1">
-                    Tên cán bộ CNSCĐ hỗ trợ:
+                  <label htmlFor="cnscd-assistant-name" className="block text-4xs font-extrabold uppercase tracking-wider text-emerald-700 mb-1">
+                    Người thuộc Tổ công nghệ số cộng đồng hỗ trợ:
                   </label>
                   <input
+                    id="cnscd-assistant-name"
                     type="text"
                     readOnly
                     value={verifiedAssistantName}
@@ -606,6 +675,11 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
               <CheckSquare className="w-4 h-4 text-emerald-850" />
               <span>14 chỉ tiêu báo cáo</span>
             </h2>
+            {reportMetadata?.extraction_review_token && (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900">
+                Số liệu nhập từ tệp đã gắn bằng chứng rà soát. Muốn điều chỉnh, hãy xem trước lại tệp ở mục Nhập số liệu từ tệp Excel để hệ thống ghi đủ giá trị trước, sau và lý do.
+              </p>
+            )}
 
             {indicatorGroups.map((group) => <SectionCard key={group.title} className="p-5">
               <div className="mb-4"><h3 className="font-bold text-slate-900">{group.title}</h3><p className="mt-1 text-sm text-slate-600">{group.description}</p></div>
@@ -627,7 +701,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                       </span>
                     </div>
                     {indicatorGuidance[key as keyof IndicatorValues] && (
-                      <p className="mb-2 text-xs leading-relaxed text-slate-500">{indicatorGuidance[key as keyof IndicatorValues]}</p>
+                      <p id={`guidance-${key}`} className="mb-2 text-xs leading-relaxed text-slate-500">{indicatorGuidance[key as keyof IndicatorValues]}</p>
                     )}
                     
                     <input
@@ -635,6 +709,13 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                       type="number"
                       value={(indicators as any)[key] ?? ""}
                       min={rule.min}
+                      aria-invalid={isTouched && fieldErrors.length > 0}
+                      aria-describedby={[
+                        indicatorGuidance[key as keyof IndicatorValues] ? `guidance-${key}` : "",
+                        isTouched && fieldErrors.length > 0 ? `errors-${key}` : "",
+                        isTouched && fieldWarnings.length > 0 ? `warnings-${key}` : "",
+                      ].filter(Boolean).join(" ") || undefined}
+                      disabled={Boolean(reportMetadata?.extraction_review_token)}
                       onChange={(e) => handleIndicatorChange(key, e.target.value)}
                       onKeyDown={(e) => {
                         // Strict keyboard blocker: prevent exponent 'e', sign '+', sign '-', decimals '.' or ','
@@ -654,7 +735,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
                     {/* Instant Business warnings directly below the input field, shown onBlur */}
                     {isTouched && fieldErrors.length > 0 && (
-                      <div className="mt-1.5 space-y-0.5 text-rose-700 text-4xs font-bold leading-normal">
+                      <div id={`errors-${key}`} className="mt-1.5 space-y-0.5 text-rose-700 text-4xs font-bold leading-normal">
                         {fieldErrors.map((err, i) => (
                           <p key={i} className="flex items-start gap-1">
                             <span className="inline-block mt-0.5 select-none text-rose-500">●</span>
@@ -665,7 +746,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                     )}
 
                     {isTouched && fieldWarnings.length > 0 && (
-                      <div className="mt-1.5 space-y-0.5 text-amber-700 text-4xs font-bold leading-normal">
+                      <div id={`warnings-${key}`} className="mt-1.5 space-y-0.5 text-amber-700 text-4xs font-bold leading-normal">
                         {fieldWarnings.map((warn, i) => (
                           <p key={i} className="flex items-start gap-1">
                             <span className="inline-block mt-0.5 select-none text-amber-500">▲</span>
@@ -686,12 +767,12 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
         <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
           {/* Local Auditing Panel */}
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-5">
-            <h3 className="font-bold text-slate-700 text-sm mb-3">Đối soát nghiệp vụ tự động</h3>
+            <h3 className="font-bold text-slate-700 text-sm mb-3">Kiểm tra theo quy tắc nghiệp vụ</h3>
             
             {visibleErrors.length === 0 && visibleWarnings.length === 0 ? (
               <div className="flex gap-2 text-xs bg-emerald-50 text-emerald-800 border border-emerald-100 p-3 rounded-lg font-medium">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{pendingRequiredFields > 0 ? `Chưa kiểm tra đủ: còn ${pendingRequiredFields} chỉ tiêu bắt buộc cần nhập.` : "Số liệu hiện tại phù hợp với các ràng buộc cứng."}</span>
+                <span>{pendingRequiredFields > 0 ? `Chưa kiểm tra đủ: còn ${pendingRequiredFields} chỉ tiêu bắt buộc cần nhập.` : "Số liệu hiện tại không có lỗi theo quy tắc nghiệp vụ."}</span>
               </div>
             ) : (
               <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
@@ -717,28 +798,28 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                 <Sparkles className="w-4.5 h-4.5 text-emerald-600" />
-                <span>Diễn giải xu hướng bằng AI</span>
+                <span>Dự thảo nhận xét số liệu (không bắt buộc)</span>
               </h3>
               <span className="bg-emerald-100 text-emerald-800 text-4xs font-bold px-1.5 py-0.5 rounded-sm">
-                BẢO MẬT KHÉP KÍN
+                KHÔNG GỬI THÔNG TIN CÁ NHÂN
               </span>
             </div>
 
             <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              AI chỉ diễn giải xu hướng và đề xuất tham khảo sau khi bộ quy tắc nghiệp vụ đã kiểm tra số liệu.
-              <i> AI không quyết định báo cáo hợp lệ và không tự sửa số liệu.</i>
+              Công cụ AI chỉ tạo nội dung gợi ý sau khi quy tắc nghiệp vụ kiểm tra số liệu.
+              <i> Nội dung này không quyết định báo cáo hợp lệ và không sửa dữ liệu.</i>
             </p>
 
             {isAiValidating ? (
               <div className="flex flex-col items-center justify-center p-6 text-center">
                 <Loader2 className="w-7 h-7 text-emerald-600 animate-spin mb-2" />
-                <p className="text-xs text-slate-600 font-medium">Đang ẩn danh số liệu và phân tích...</p>
-                <span className="text-3xs text-slate-400 mt-1">Đảm bảo thông tin cá nhân (SĐT, Tên) được giữ an toàn tuyệt đối.</span>
+                <p className="text-xs text-slate-600 font-medium">Đang tạo nội dung gợi ý từ số liệu tổng hợp…</p>
+                <span className="text-3xs text-slate-400 mt-1">Họ tên, số điện thoại và CT14 không được đưa vào yêu cầu diễn giải gửi tới dịch vụ AI.</span>
               </div>
             ) : aiAnalysis ? (
               <div className="space-y-4 animate-fade-in">
                 <div className={`p-3 rounded-lg text-xs font-semibold ${aiAnalysis.is_valid ? "bg-emerald-50 text-emerald-800 border border-emerald-100" : "bg-rose-50 text-rose-800 border border-rose-100"}`}>
-                  Đã tạo diễn giải tham khảo từ AI
+                  Nội dung gợi ý — cần cán bộ xem lại
                 </div>
 
                 {aiAnalysis.errors && aiAnalysis.errors.length > 0 && (
@@ -752,7 +833,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
                 {aiAnalysis.warnings && aiAnalysis.warnings.length > 0 && (
                   <div>
-                    <span className="text-xs font-bold text-amber-800 block mb-1">Cảnh báo AI:</span>
+                    <span className="text-xs font-bold text-amber-800 block mb-1">Điểm cần lưu ý trong nội dung gợi ý:</span>
                     <ul className="list-disc pl-4 space-y-1 text-2xs text-amber-700">
                       {aiAnalysis.warnings.map((w, idx) => <li key={idx}>{w}</li>)}
                     </ul>
@@ -761,7 +842,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
                 {aiAnalysis.recommendations && aiAnalysis.recommendations.length > 0 && (
                   <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
-                    <span className="text-xs font-bold text-emerald-950 block mb-1">Khuyến nghị của AI cho xã:</span>
+                    <span className="text-xs font-bold text-emerald-950 block mb-1">Gợi ý kiểm tra tiếp theo:</span>
                     <ul className="list-disc pl-4 space-y-1 text-2xs text-emerald-800 leading-relaxed">
                       {aiAnalysis.recommendations.map((r, idx) => <li key={idx}>{r}</li>)}
                     </ul>
@@ -788,10 +869,10 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                   }`}
                 >
                   {isAiValidating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  <span>{isAiValidating ? "Đang tạo diễn giải…" : "Tạo diễn giải AI (không bắt buộc)"}</span>
+                  <span>{isAiValidating ? "Đang tạo nội dung…" : "Tạo nội dung gợi ý (không bắt buộc)"}</span>
                 </button>
                 {localErrors.length > 0 && (
-                  <span className="text-3xs text-rose-500 text-center block mt-1">Khắc phục lỗi nghiệp vụ đỏ trước khi chạy AI</span>
+                  <span className="text-3xs text-rose-500 text-center block mt-1">Khắc phục lỗi nghiệp vụ trước khi yêu cầu diễn giải</span>
                 )}
               </div>
             )}
@@ -807,18 +888,23 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
       {/* Submit Status Message */}
       {submitMessage && (
-        <div className={`mt-6 p-4 rounded-lg text-xs font-semibold border ${
+        <div
+          role={submitMessage.type === "error" ? "alert" : "status"}
+          aria-live={submitMessage.type === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
+          className={`mt-6 p-4 rounded-lg text-xs font-semibold border ${
           submitMessage.type === "success" 
             ? "bg-emerald-50 text-emerald-800 border-emerald-100" 
             : "bg-rose-50 text-rose-800 border-rose-100"
-        } flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in`}>
+        } flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in`}
+        >
           <div className="flex items-center gap-2">
             <AlertCircle className={`w-4 h-4 ${submitMessage.type === "success" ? "text-emerald-600" : "text-rose-600"}`} />
             <span>{submitMessage.text}</span>
           </div>
-          {submitMessage.type === "success" && (submitMessage.text.includes("offline") || !navigator.onLine) && (
+          {submitMessage.type === "success" && (submitMessage.text.includes("trên thiết bị") || !navigator.onLine) && (
             <span id="offline-submit-badge" className="inline-flex items-center bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider border border-amber-200 shrink-0">
-              ⚡ Đã lưu offline — sẽ tự nộp khi có mạng
+              Đã lưu trên thiết bị · chờ đồng bộ
             </span>
           )}
         </div>
@@ -844,20 +930,27 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
           disabled={localErrors.length > 0}
         >
           <Send className="w-4 h-4" />
-          <span>Nộp & Đồng bộ lên Xã</span>
+          <span>Kiểm tra trước khi gửi</span>
         </Button>
       </StickyActionBar>
 
       {/* Submit Review Overlay Modal */}
       {showSubmitReview && (
-        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-150 overflow-hidden animate-scale-in">
+        <div className="fixed inset-0 z-[1100] bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div
+            ref={submitDialogRef}
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[85dvh] flex flex-col shadow-2xl border border-slate-150 overflow-hidden animate-scale-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="submit-review-title"
+            tabIndex={-1}
+          >
             {/* Modal Header */}
             <div className="bg-emerald-950 p-5 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse animate-duration-1000 shrink-0" />
                 <div>
-                  <h3 className="font-bold text-sm text-left">Kiểm tra quy tắc & xác nhận nộp báo cáo</h3>
+                  <h3 id="submit-review-title" className="font-bold text-sm text-left">Kiểm tra và đưa báo cáo vào hàng đợi gửi</h3>
                   <p className="text-4xs text-emerald-200 text-left mt-0.5">
                     Đơn vị: {getVillageName(villageId)} | Kỳ báo cáo: {reportPeriod}
                   </p>
@@ -904,15 +997,15 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
 
               {/* Optional AI narrative */}
               <div className="space-y-3">
-                <h4 className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Diễn giải AI tùy chọn:</h4>
+                <h4 className="text-2xs font-bold text-slate-400 uppercase tracking-wider">Nội dung gợi ý tùy chọn:</h4>
                 
                 {isAiValidating ? (
                   <div className="p-8 border border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3 bg-slate-25">
                     <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
                     <p className="text-xs text-slate-600 font-bold animate-pulse text-center">
-                      Đang tạo diễn giải xu hướng từ dữ liệu đã ẩn danh...
+                      Đang tạo nội dung gợi ý từ số liệu tổng hợp…
                     </p>
-                    <span className="text-4xs text-slate-400">Hệ thống tuân thủ quy tắc bảo vệ dữ liệu cá nhân</span>
+                    <span className="text-4xs text-slate-400">Không gửi họ tên, số điện thoại và CT14 tới dịch vụ diễn giải AI</span>
                   </div>
                 ) : aiAnalysis ? (
                   <div className="space-y-4">
@@ -929,13 +1022,13 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                       )}
                       <div>
                         <span className="text-xs font-bold block">
-                          {aiAnalysis.is_valid && aiAnalysis.errors.length === 0 
-                            ? "Số liệu đạt chuẩn logic" 
+                          {aiAnalysis.is_valid && aiAnalysis.errors.length === 0
+                            ? "Không còn lỗi chặn theo quy tắc"
                             : "Có nội dung cần người dùng xem lại"}
                         </span>
                         <span className="text-3xs text-slate-500 leading-normal block mt-0.5">
-                          {aiAnalysis.is_valid && aiAnalysis.errors.length === 0 
-                            ? "Nội dung này chỉ mang tính tham khảo; kết quả kiểm tra quy tắc ở trên mới quyết định việc nộp." 
+                          {aiAnalysis.is_valid && aiAnalysis.errors.length === 0
+                            ? "Nội dung này chỉ mang tính tham khảo; kết quả kiểm tra quy tắc ở trên mới quyết định việc nộp."
                             : "Vui lòng xem nội dung tham khảo bên dưới."}
                         </span>
                       </div>
@@ -944,7 +1037,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                     {/* AI Errors List */}
                     {aiAnalysis.errors && aiAnalysis.errors.length > 0 && (
                       <div className="p-3.5 bg-rose-25 border border-rose-100 rounded-xl space-y-1.5">
-                        <span className="text-xs font-bold text-rose-850 block">Mâu thuẫn số liệu nghiêm trọng:</span>
+                        <span className="text-xs font-bold text-rose-850 block">Nội dung cần đối chiếu:</span>
                         <ul className="list-disc pl-4 space-y-1 text-2xs text-rose-700 font-semibold leading-relaxed">
                           {aiAnalysis.errors.map((e, idx) => <li key={idx}>{e}</li>)}
                         </ul>
@@ -954,7 +1047,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                     {/* AI Warnings List */}
                     {aiAnalysis.warnings && aiAnalysis.warnings.length > 0 && (
                       <div className="p-3.5 bg-amber-25/40 border border-amber-100 rounded-xl space-y-1.5">
-                        <span className="text-xs font-bold text-amber-850 block">Cảnh báo xu hướng bất thường:</span>
+                        <span className="text-xs font-bold text-amber-850 block">Biến động cần xem lại:</span>
                         <ul className="list-disc pl-4 space-y-1 text-2xs text-amber-700 font-semibold leading-relaxed">
                           {aiAnalysis.warnings.map((w, idx) => <li key={idx}>{w}</li>)}
                         </ul>
@@ -964,7 +1057,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                     {/* AI Recommendations */}
                     {aiAnalysis.recommendations && aiAnalysis.recommendations.length > 0 && (
                       <div className="p-3.5 bg-emerald-25/55 border border-emerald-100 rounded-xl space-y-1.5">
-                        <span className="text-xs font-bold text-emerald-950 block">Ý kiến tham mưu định hướng văn hóa xã hội:</span>
+                        <span className="text-xs font-bold text-emerald-950 block">Gợi ý kiểm tra tiếp theo:</span>
                         <ul className="list-disc pl-4 space-y-1 text-2xs text-emerald-800 leading-relaxed">
                           {aiAnalysis.recommendations.map((r, idx) => <li key={idx}>{r}</li>)}
                         </ul>
@@ -973,7 +1066,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                   </div>
                 ) : (
                   <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-700 font-semibold leading-relaxed">
-                    Chưa yêu cầu diễn giải AI. Đây là bước tùy chọn và không ảnh hưởng đến việc nộp báo cáo.
+                    Chưa yêu cầu nội dung gợi ý. Đây là bước tùy chọn và không ảnh hưởng đến việc lưu báo cáo vào hàng đợi gửi.
                   </div>
                 )}
               </div>
@@ -988,7 +1081,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                   className="w-4.5 h-4.5 mt-0.5 rounded text-emerald-800 focus:ring-emerald-800 border-slate-300 cursor-pointer"
                 />
                 <label htmlFor="confirm-pledge-modal" className="text-xs font-bold text-slate-700 leading-normal cursor-pointer select-none">
-                  Tôi cam đoan toàn bộ 14 số liệu khai báo cho thôn {getVillageName(villageId)} trong {reportPeriod} là hoàn toàn chính xác, trung thực, đã đối chiếu và chịu trách nhiệm pháp lý.
+                  Tôi xác nhận đã đối chiếu 14 chỉ tiêu của thôn {getVillageName(villageId)} trong {reportPeriod} với nguồn nghiệp vụ và chịu trách nhiệm về nội dung báo cáo theo quy định.
                 </label>
               </div>
             </div>
@@ -996,6 +1089,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
             {/* Modal Footer */}
             <div className="bg-slate-50 border-t border-slate-150 p-4 flex gap-3 justify-end shrink-0">
               <button
+                ref={submitCancelRef}
                 type="button"
                 onClick={() => setShowSubmitReview(false)}
                 className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-lg transition-colors"
@@ -1013,7 +1107,7 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
                 }`}
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Tôi xác nhận Nộp chính thức</span>
+                <span>Lưu vào hàng đợi gửi</span>
               </button>
             </div>
           </div>

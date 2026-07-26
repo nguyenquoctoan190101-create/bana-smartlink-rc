@@ -90,7 +90,7 @@ export default function ManageAccounts() {
         prev.map((o) => o.id === id ? { ...o, is_active: resData.is_active } : o)
       );
 
-      setSuccess(`Đã ${isCurrentlyActive ? "KHOÁ (Disable)" : "KÍCH HOẠT lại"} tài khoản của Cán bộ ${currentName} thành công để lưu vết Audit Log.`);
+      setSuccess(`Đã ${isCurrentlyActive ? "khóa" : "kích hoạt lại"} tài khoản của cán bộ ${currentName}; thay đổi đã được ghi vào nhật ký kiểm toán.`);
       
       // Auto-clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
@@ -227,9 +227,9 @@ export default function ManageAccounts() {
               <Users className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight text-white uppercase">Quản lý Tài khoản Cán bộ</h2>
+              <h1 className="text-lg font-black tracking-tight text-white uppercase">Quản lý tài khoản cán bộ</h1>
               <p className="text-2xs font-medium text-emerald-200 mt-1">
-                Quản lý quyền truy cập của Cán bộ Thôn và Tổ Công nghệ số Cộng đồng (CNSCĐ). Khóa tài khoản nhân sự cũ mà vẫn giữ nguyên Audit Logs lịch sử nộp báo cáo.
+                Quản lý quyền truy cập của cán bộ thôn và Tổ công nghệ số cộng đồng. Khóa tài khoản nhân sự cũ nhưng vẫn giữ nguyên nhật ký kiểm toán lịch sử.
               </p>
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function ManageAccounts() {
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-2xs uppercase rounded-xl shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer"
           >
             {showCreateForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-            <span>{showCreateForm ? "Đóng form" : "Cấp tài khoản mới"}</span>
+            <span>{showCreateForm ? "Đóng biểu mẫu" : "Cấp tài khoản mới"}</span>
           </button>
         </div>
       </div>
@@ -289,7 +289,7 @@ export default function ManageAccounts() {
         <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-5 space-y-4 animate-fade-in max-w-2xl mx-auto shadow-sm">
           <div className="flex items-center gap-2.5 text-amber-900 font-extrabold text-xs">
             <CheckCircle className="w-5.5 h-5.5 text-emerald-600 shrink-0" />
-            <span>Đã khởi tạo tài khoản thành công trên Supabase Auth!</span>
+            <span>Đã tạo tài khoản cán bộ thành công.</span>
           </div>
 
           <div className="bg-white rounded-xl p-4 border border-amber-200 text-xs space-y-3 font-semibold text-slate-700">
@@ -402,7 +402,7 @@ export default function ManageAccounts() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
                 >
                   <option value="can_bo_thon">Cán bộ Thôn</option>
-                  <option value="to_cnscd">Thành viên Tổ CNSCĐ</option>
+                  <option value="to_cnscd">Thành viên Tổ công nghệ số cộng đồng</option>
                 </select>
               </div>
 
@@ -437,7 +437,7 @@ export default function ManageAccounts() {
                 ) : (
                   <>
                     <UserPlus className="w-4 h-4" />
-                    <span>TẠO TÀI KHOẢN & MẬT KHẨU TẠM</span>
+                    <span>TẠO TÀI KHOẢN VÀ MẬT KHẨU TẠM</span>
                   </>
                 )}
               </button>
@@ -464,7 +464,7 @@ export default function ManageAccounts() {
               </span>
               <input
                 type="text"
-                placeholder="Tìm kiếm họ tên, email, SĐT..."
+                placeholder="Tìm kiếm họ tên, email, số điện thoại…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-xl py-1.5 pl-9 pr-3 text-2xs font-semibold text-slate-800 focus:outline-hidden focus:border-emerald-650 focus:ring-1 focus:ring-indigo-200 transition-all placeholder:font-normal placeholder:text-slate-400"
@@ -497,7 +497,7 @@ export default function ManageAccounts() {
               >
                 <option value="all">Tất cả chức vụ</option>
                 <option value="can_bo_thon">Cán bộ Thôn</option>
-                <option value="to_cnscd">Thành viên Tổ CNSCĐ</option>
+                <option value="to_cnscd">Thành viên Tổ công nghệ số cộng đồng</option>
               </select>
             </div>
 
@@ -509,8 +509,8 @@ export default function ManageAccounts() {
                 className="w-full bg-white border border-slate-200 rounded-lg py-1 px-2 text-2xs font-semibold text-slate-650 focus:outline-hidden focus:ring-1 focus:ring-emerald-100"
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="active">Đang hoạt động (Active)</option>
-                <option value="locked">Bị khoá (Deactivated)</option>
+                <option value="active">Đang hoạt động</option>
+                <option value="locked">Đã khóa</option>
               </select>
             </div>
           </div>
@@ -577,7 +577,7 @@ export default function ManageAccounts() {
                             : "bg-emerald-50 text-emerald-850 border border-emerald-100"
                         }`}>
                           <Shield className="w-3 h-3" />
-                          {officer.role === "can_bo_thon" ? "Cán bộ Thôn" : "Tổ CNSCĐ"}
+                          {officer.role === "can_bo_thon" ? "Cán bộ thôn" : "Tổ công nghệ số cộng đồng"}
                         </span>
                       </td>
 
@@ -616,7 +616,7 @@ export default function ManageAccounts() {
                             title="Cấp lại mật khẩu"
                           >
                             <KeyRound className="w-3 h-3" />
-                            <span>Cấp lại MK</span>
+                            <span>Đặt lại mật khẩu</span>
                           </button>
                           
                           <button

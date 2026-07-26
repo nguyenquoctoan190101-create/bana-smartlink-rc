@@ -43,8 +43,14 @@ class VillageSubmissionStatus:
 
 
 class ReportRepository:
-    def __init__(self, supabase: SupabaseAdminClient) -> None:
+    def __init__(
+        self,
+        supabase: SupabaseAdminClient,
+        *,
+        admin_supabase: SupabaseAdminClient | None = None,
+    ) -> None:
         self._supabase = supabase
+        self._admin_supabase = admin_supabase or supabase
 
     async def get_period_id_by_name(self, period_name: str) -> str | None:
         """Look up period_id by its exact name."""
@@ -114,10 +120,28 @@ class ReportRepository:
         report_id: str | None = None,
         expected_version: int | None = None,
         idempotency_key: str | None = None,
+        extraction_corrections: list[dict[str, Any]] | None = None,
+        extraction_metadata: dict[str, Any] | None = None,
+        extraction_evidence: dict[str, Any] | None = None,
     ) -> SavedReport:
         """Atomically submit a report via the SECURITY INVOKER database RPC."""
         assisting_member = assisted_member_name.strip() if assisted_member_name else None
         _ = submitted_by_name, submitted_by_phone, notes
+        imported = raw_source in {"excel", "photo_ocr"}
+        if imported and (
+            extraction_metadata is None
+            or extraction_evidence is None
+            or idempotency_key is None
+        ):
+            raise ValueError(
+                "Imported reports require extraction evidence and an idempotency key"
+            )
+        if not imported and (
+            extraction_metadata is not None
+            or extraction_corrections
+            or extraction_evidence is not None
+        ):
+            raise ValueError("Extraction review is only valid for imported reports")
         flag_rows = [
             {
                 "ct_code": flag["ct_code"],
@@ -140,9 +164,25 @@ class ReportRepository:
             "p_assisted_by_cnscd": assisted_by_cnscd,
             "p_assisted_member_name": assisting_member if assisted_by_cnscd else None,
         }
+        rpc_name = "save_manual_report_submission"
+        if imported:
+            rpc_name = "save_report_submission_with_extraction"
+            await self._admin_supabase._rest_request(
+                "POST",
+                "/rest/v1/report_extraction_evidence",
+                extraction_evidence,
+                prefer="resolution=ignore-duplicates,return=minimal",
+            )
+            payload.update(
+                {
+                    "p_extraction_corrections": extraction_corrections or [],
+                    "p_extraction_metadata": extraction_metadata,
+                    "p_extraction_evidence_id": extraction_evidence["id"],
+                }
+            )
         report_rows = await self._supabase._rest_request(
             "POST",
-            "/rest/v1/rpc/save_report_submission",
+            f"/rest/v1/rpc/{rpc_name}",
             payload,
         )
         if not report_rows:

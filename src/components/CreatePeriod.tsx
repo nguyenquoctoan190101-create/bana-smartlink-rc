@@ -152,7 +152,7 @@ export default function CreatePeriod() {
         <div className="flex items-center gap-3">
           <span className="rounded-xl bg-emerald-800 p-3"><Plus aria-hidden="true" className="h-6 w-6" /></span>
           <div>
-            <h2 id="create-period-title" className="text-xl font-black">Tạo kỳ báo cáo</h2>
+            <h1 id="create-period-title" className="text-xl font-black">Tạo kỳ báo cáo</h1>
             <p className="mt-1 text-sm text-emerald-100">Kỳ, hạn nộp, phạm vi thôn và tệp mẫu được lưu tập trung trên máy chủ.</p>
           </div>
         </div>

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import re
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -47,16 +48,39 @@ class EvacuationPointVerificationRequest(BaseModel):
 @router.get("/evacuation-points")
 async def list_public_evacuation_points(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> list[dict[str, Any]]:
     """Return verified evacuation points without private contact details.
 
     This is a public preparedness directory, not an emergency alert channel.
     """
     try:
-        return await supabase._rest_request(
+        commune_id = settings.bana_commune_id
+        encoded_commune_id = quote(commune_id, safe="")
+        rows = await supabase._rest_request(
             "GET",
-            "/rest/v1/evacuation_points?select=id,village_id,name,latitude,longitude,capacity_households,is_verified&is_verified=eq.true&order=name.asc",
+            (
+                "/rest/v1/evacuation_points?select=id,village_id,name,latitude,"
+                "longitude,capacity_households,is_verified,villages!inner(commune_id)"
+                f"&villages.commune_id=eq.{encoded_commune_id}"
+                "&is_verified=eq.true&order=name.asc"
+            ),
         )
+        public_fields = (
+            "id",
+            "village_id",
+            "name",
+            "latitude",
+            "longitude",
+            "capacity_households",
+            "is_verified",
+        )
+        return [
+            {field: row[field] for field in public_fields if field in row}
+            for row in rows
+            if isinstance(row.get("villages"), dict)
+            and str(row["villages"].get("commune_id", "")) == commune_id
+        ]
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=502, detail="Unable to retrieve evacuation points") from exc
 

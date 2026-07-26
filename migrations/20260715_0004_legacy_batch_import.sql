@@ -144,7 +144,10 @@ begin
   if exists (
     select 1 from public.report_import_files file where file.batch_id = p_batch_id
       and file.review_status = 'accepted' and (
-      jsonb_object_length(file.normalized_values) <> 14
+      (
+        select count(*)
+        from jsonb_object_keys(file.normalized_values)
+      ) <> 14
       or exists (select 1 from jsonb_each(file.normalized_values) item
                  where item.key !~ '^CT(0[1-9]|1[0-4])$' or jsonb_typeof(item.value) <> 'number')
     )

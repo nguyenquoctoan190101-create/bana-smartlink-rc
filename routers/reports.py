@@ -6,7 +6,7 @@ import io
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Annotated, Literal
 from urllib.parse import quote
@@ -36,6 +36,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from routers.auth import (
+    _extract_bearer_token,
     get_settings,
     get_supabase_admin,
     require_admin_or_leader,
@@ -45,6 +46,12 @@ from routers.auth import (
 from services.excel_report_parser import (
     ExcelReportParseError,
     parse_official_report_excel,
+)
+from services.extraction_review import (
+    ExtractionReviewTokenError,
+    extraction_values_digest,
+    issue_extraction_review_token,
+    verify_extraction_review_token,
 )
 from services.export_service import (
     generate_summary_xlsx_file,
@@ -56,11 +63,15 @@ from services.form_normalizer import (
     normalize_field_name,
 )
 from services.gemini import GeminiError, get_gemini_client
-from services.ocr_report import OcrError, ocr_report_async
+from services.ocr_report import (
+    OcrError,
+    OcrInputError,
+    ocr_report_document_async,
+)
 from services.rate_limit import limiter
 from services.report_repository import ReportRepository, VillageSubmissionStatus
-from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
 from services.settings import Settings
+from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
 from services.upload_validator import UploadValidationError, validate_report_upload
 from services.validator import (
     BLOCKING_ERROR_TYPES,
@@ -108,11 +119,46 @@ def report_period_name_issue(value: str) -> str | None:
     return None
 
 
+class ExtractionCorrection(BaseModel):
+    code: str = Field(pattern=r"^CT(0[1-9]|1[0-4])$")
+    before: int | None = Field(default=None, ge=0)
+    after: int = Field(ge=0)
+    reason: str = Field(min_length=3, max_length=240)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 3:
+            raise ValueError("Correction reason is required")
+        return normalized
+
+
+class ExtractionMetadata(BaseModel):
+    source_checksum: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_type: Literal["excel", "photo_ocr", "pdf_ocr"]
+    extractor_versions: list[str] = Field(default_factory=list, max_length=20)
+    field_count: int = Field(default=14, ge=0, le=14)
+    requires_review_count: int = Field(default=0, ge=0, le=14)
+
+    @field_validator("extractor_versions")
+    @classmethod
+    def normalize_extractor_versions(cls, values: list[str]) -> list[str]:
+        normalized = list(
+            dict.fromkeys(" ".join(value.split())[:120] for value in values if value.strip())
+        )
+        if len(normalized) > 20:
+            raise ValueError("Too many extractor versions")
+        return normalized
+
+
 class OfflineReportItem(BaseModel):
     id: UUID
     village_id: UUID
-    reporter_name: str = Field(min_length=1, max_length=120)
-    reporter_phone: str = Field(min_length=10, max_length=20)
+    # Offline storage deliberately strips profile PII. The server restores
+    # these values from the authenticated profile during synchronization.
+    reporter_name: str = Field(default="", max_length=120)
+    reporter_phone: str = Field(default="", max_length=20)
     period_id: UUID | None = None
     report_period: str | None = Field(default=None, min_length=1, max_length=120)
     # Kept only for backwards compatibility with older offline queues.  The
@@ -137,6 +183,9 @@ class OfflineReportItem(BaseModel):
     assisted_member_name: str | None = None
     raw_source: str = "web_form"
     source_confirmed: bool = False
+    extraction_corrections: list["ExtractionCorrection"] = Field(default_factory=list, max_length=14)
+    extraction_metadata: "ExtractionMetadata | None" = None
+    extraction_review_token: str | None = Field(default=None, max_length=8192)
     expected_version: int | None = Field(default=None, ge=1)
     idempotency_key: UUID | None = None
 
@@ -176,8 +225,11 @@ class ReportSubmitRequest(BaseModel):
     values: dict[str, Any]
     raw_source: str = "web_form"
     source_confirmed: bool = False
+    extraction_corrections: list["ExtractionCorrection"] = Field(default_factory=list, max_length=14)
+    extraction_metadata: "ExtractionMetadata | None" = None
+    extraction_review_token: str | None = Field(default=None, max_length=8192)
     expected_version: int | None = Field(default=None, ge=1)
-    idempotency_key: UUID | None = None
+    idempotency_key: UUID
 
 
 class ValidationErrorResponse(BaseModel):
@@ -250,6 +302,19 @@ class OcrValidationFlag(BaseModel):
     message: str
 
 
+class ReportFieldEvidence(BaseModel):
+    raw_value: int | float | str | None = None
+    normalized_value: int | None = None
+    confidence: float = Field(ge=0, le=1)
+    source_page: int | None = Field(default=None, ge=1)
+    source_region: str | None = None
+    extractor: str
+    method: str
+    version: str
+    flags: list[str] = Field(default_factory=list)
+    requires_review: bool
+
+
 class ReportPreviewMetadata(BaseModel):
     period_name: str | None = None
     village_name: str | None = None
@@ -272,7 +337,11 @@ class OcrPreviewResponse(BaseModel):
     null_codes: list[str]
     filename: str
     size_bytes: int
-    source: Literal["excel", "photo_ocr"]
+    source: Literal["excel", "photo_ocr", "pdf_ocr"]
+    checksum_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    extractor_versions: list[str] = Field(default_factory=list)
+    extraction_review_token: str = Field(min_length=32, max_length=8192)
+    evidence: dict[str, ReportFieldEvidence] = Field(default_factory=dict)
     metadata: ReportPreviewMetadata | None = None
     # raw_gemini_text is intentionally excluded from the response model
     # to prevent the AI-generated text from reaching the frontend.
@@ -297,7 +366,7 @@ class ReportNarrativeResponse(BaseModel):
 
 
 def get_report_repository(
-    settings: Annotated[Settings, Depends(get_settings)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> ReportRepository:
     if not authorization:
@@ -305,7 +374,10 @@ def get_report_repository(
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise HTTPException(status_code=401, detail="Expected Bearer token")
-    return ReportRepository(SupabaseAdminClient(settings, access_token=token))
+    return ReportRepository(
+        supabase.as_user(token),
+        admin_supabase=supabase,
+    )
 
 
 @period_router.get("")
@@ -525,13 +597,25 @@ async def submit_report(
             status_code=422,
             detail="Dữ liệu từ OCR hoặc Excel bắt buộc phải có xác nhận thủ công (source_confirmed=true)",
         )
+    (
+        extraction_corrections,
+        extraction_metadata,
+        extraction_evidence,
+    ) = _validate_extraction_review(
+        source=source,
+        values=payload.values,
+        corrections=payload.extraction_corrections,
+        metadata=payload.extraction_metadata,
+        review_token=payload.extraction_review_token,
+        current_user_id=current_user.id,
+    )
 
     return await _submit_report_values(
         repository=repository,
         village_id=payload.village_id,
         period_id=payload.period_id,
-        submitted_by_name=payload.submitted_by_name,
-        submitted_by_phone=payload.submitted_by_phone,
+        submitted_by_name=current_user.display_name or payload.submitted_by_name,
+        submitted_by_phone=current_user.phone or payload.submitted_by_phone,
         values=payload.values,
         notes=None,
         raw_source=source,
@@ -539,6 +623,9 @@ async def submit_report(
         assisted_member_name=assisted_member_name,
         expected_version=payload.expected_version,
         idempotency_key=payload.idempotency_key,
+        extraction_corrections=extraction_corrections,
+        extraction_metadata=extraction_metadata,
+        extraction_evidence=extraction_evidence,
     )
 
 
@@ -609,12 +696,24 @@ async def sync_reports(
                     status_code=422,
                     detail="Imported data requires explicit human confirmation",
                 )
+            (
+                extraction_corrections,
+                extraction_metadata,
+                extraction_evidence,
+            ) = _validate_extraction_review(
+                source=source,
+                values=values,
+                corrections=report.extraction_corrections,
+                metadata=report.extraction_metadata,
+                review_token=report.extraction_review_token,
+                current_user_id=current_user.id,
+            )
             submitted = await _submit_report_values(
                 repository=repository,
                 village_id=report.village_id,
                 period_id=UUID(period_id),
-                submitted_by_name=report.reporter_name,
-                submitted_by_phone=report.reporter_phone,
+                submitted_by_name=current_user.display_name or report.reporter_name,
+                submitted_by_phone=current_user.phone or report.reporter_phone,
                 values=values,
                 notes=None,
                 raw_source=source,
@@ -623,6 +722,9 @@ async def sync_reports(
                 report_id=report.id,
                 expected_version=report.expected_version,
                 idempotency_key=report.idempotency_key or report.id,
+                extraction_corrections=extraction_corrections,
+                extraction_metadata=extraction_metadata,
+                extraction_evidence=extraction_evidence,
             )
             accepted.append(
                 AcceptedReportItem(
@@ -661,43 +763,57 @@ async def delete_report(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
     current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
 ) -> Response:
-    """Delete an own-village draft, or any report as admin, version-safely."""
+    """Delete an own-village draft or a mutable private report as admin."""
     try:
         rows = await repository._supabase._rest_request(
             "GET",
             (
                 f"/rest/v1/reports?id=eq.{report_id}"
-                "&select=id,village_id,workflow_status,version"
+                "&select=id,village_id,workflow_status,publication_status,version"
             ),
         )
         if not rows:
             raise HTTPException(status_code=404, detail="Report not found")
         report = rows[0]
-        await _authorize_report_write(
-            repository,
-            current_user,
-            UUID(str(report["village_id"])),
-        )
+        if current_user.role != "admin_xa":
+            await _authorize_report_write(
+                repository,
+                current_user,
+                UUID(str(report["village_id"])),
+            )
         if int(report["version"]) != expected_version:
             raise HTTPException(status_code=409, detail="Report version conflict")
+        if (
+            report["workflow_status"] == "locked"
+            or report["publication_status"] == "published"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Locked or published reports cannot be deleted",
+            )
         if current_user.role != "admin_xa" and report["workflow_status"] != "draft":
             raise HTTPException(
                 status_code=409, detail="Only draft reports can be deleted"
             )
 
-        path = f"/rest/v1/reports?id=eq.{report_id}&version=eq.{expected_version}"
-        if current_user.role != "admin_xa":
-            path += "&workflow_status=eq.draft"
         deleted = await repository._supabase._rest_request(
-            "DELETE",
-            path,
-            prefer="return=representation",
+            "POST",
+            "/rest/v1/rpc/delete_report_submission",
+            {
+                "p_report_id": str(report_id),
+                "p_expected_version": expected_version,
+            },
         )
         if not deleted:
             raise HTTPException(
                 status_code=409, detail="Report changed before deletion"
             )
     except SupabaseAdminError as exc:
+        if exc.error_code in {"40001", "42501"} or exc.status_code in {403, 409}:
+            raise HTTPException(
+                status_code=409,
+                detail="Report changed or is not deletable",
+            ) from exc
         raise HTTPException(status_code=502, detail="Unable to delete report") from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -776,69 +892,34 @@ async def upload_report_file(
     period_id: Annotated[UUID, Form()],
     submitted_by_name: Annotated[str, Form(min_length=1, max_length=120)],
     submitted_by_phone: Annotated[str, Form(min_length=10, max_length=20)],
+    idempotency_key: Annotated[UUID, Form()],
     assisted_by_cnscd: Annotated[bool, Form()] = False,
     assisted_member_name: Annotated[str | None, Form(max_length=120)] = None,
     source_confirmed: Annotated[bool, Form()] = False,
     file: UploadFile = File(...),
 ) -> ReportUploadResponse:
-    """Parse the official Excel template and submit through the same validator."""
-    _ = request
-    await _authorize_report_write(repository, current_user, village_id)
-    assisted_by_cnscd, assisted_member_name = _resolve_cnscd_assistance(
+    """Retired mutation path; every import must use preview then canonical submit."""
+    _ = (
+        request,
+        repository,
         current_user,
+        village_id,
+        period_id,
+        submitted_by_name,
+        submitted_by_phone,
+        idempotency_key,
         assisted_by_cnscd,
+        assisted_member_name,
+        source_confirmed,
+        file,
     )
-    if not source_confirmed:
-        raise HTTPException(
-            status_code=422,
-            detail="Excel data requires explicit human confirmation",
-        )
-    try:
-        content = await validate_report_upload(file)
-    except UploadValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-
-    if Path(file.filename or "").suffix.lower() != ".xlsx":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Upload báo cáo chỉ nhận file .xlsx.",
-        )
-
-    try:
-        parsed_report = parse_official_report_excel(content)
-    except ExcelReportParseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-
-    submitted = await _submit_report_values(
-        repository=repository,
-        village_id=village_id,
-        period_id=period_id,
-        submitted_by_name=submitted_by_name,
-        submitted_by_phone=submitted_by_phone,
-        values=parsed_report["values"],
-        notes=parsed_report["notes"],
-        raw_source="excel",
-        assisted_by_cnscd=assisted_by_cnscd,
-        assisted_member_name=assisted_member_name,
-    )
-    return ReportUploadResponse(
-        report_id=submitted.report_id,
-        village_id=submitted.village_id,
-        period_id=submitted.period_id,
-        status=submitted.status,
-        workflow_status=submitted.workflow_status,
-        timeliness_status=submitted.timeliness_status,
-        version=submitted.version,
-        replayed=submitted.replayed,
-        validation_flags=submitted.validation_flags,
-        filename=file.filename or "upload.xlsx",
-        size_bytes=len(content),
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Đường tải và lưu trực tiếp đã ngừng hoạt động. "
+            "Hãy dùng /reports/excel-preview, rà soát 14 chỉ tiêu, "
+            "sau đó gửi qua POST /reports."
+        ),
     )
 
 
@@ -846,29 +927,25 @@ async def upload_report_file(
 @limiter.limit("10/minute")
 async def ocr_photo_preview(
     request: Request,
-    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
     file: UploadFile = File(...),
 ) -> OcrPreviewResponse:
-    """OCR a photo of a paper report form and return a preview for human review.
-
-    Privacy guarantee
-    -----------------
-    The personal-data header (reporter name, phone) is cropped off BEFORE
-    any data is sent to Gemini.  Only the CT01-CT14 data table is transmitted.
-
-    Confirmation requirement (AI does-not-decide principle)
-    -------------------------------------------------------
-    This endpoint NEVER saves data automatically.  It returns an OcrPreview
-    so the can bo can review, correct, and then explicitly call POST /reports
-    to confirm and persist.  The UI MUST present the values for review before
-    allowing submission.
-    """
+    """Experimental OCR preview; disabled unless explicitly enabled in dev/test."""
     _ = request
+    if not settings.feature_external_ocr:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Nhận dạng ảnh/PDF đang khóa để bảo vệ dữ liệu cá nhân. "
+                "Vui lòng dùng biểu mẫu Excel hoặc nhập trực tiếp."
+            ),
+        )
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png"}:
+    if suffix not in {".jpg", ".jpeg", ".png", ".pdf"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OCR chi nhan anh .jpg hoac .png.",
+            detail="OCR chỉ nhận ảnh .jpg, .png hoặc PDF quét.",
         )
 
     try:
@@ -880,16 +957,47 @@ async def ocr_photo_preview(
         ) from exc
 
     try:
-        preview = await ocr_report_async(content)
+        preview = await ocr_report_document_async(content)
+    except OcrInputError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
     except OcrError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="OCR processing failed",
         ) from exc
 
+    source_type = "pdf_ocr" if suffix == ".pdf" else "photo_ocr"
+    source_checksum = hashlib.sha256(content).hexdigest()
+    extractor_versions = sorted(
+        {
+            f"{item.extractor}:{item.version}"
+            for item in preview.evidence.values()
+        }
+    )
+    requires_review_count = sum(
+        bool(item.requires_review) for item in preview.evidence.values()
+    )
+    try:
+        review_token = issue_extraction_review_token(
+            user_id=current_user.id,
+            source_checksum=source_checksum,
+            source_type=source_type,
+            extractor_versions=extractor_versions,
+            values=preview.values,
+            requires_review_count=requires_review_count,
+        )
+    except ExtractionReviewTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Không thể tạo bằng chứng rà soát an toàn",
+        ) from exc
+
     return OcrPreviewResponse(
         values=preview.values,
-        raw_values=preview.values,
+        raw_values=preview.raw_values,
         flags=[
             OcrValidationFlag(
                 ct_code=f["ct_code"],
@@ -901,7 +1009,25 @@ async def ocr_photo_preview(
         null_codes=preview.null_codes,
         filename=file.filename or "upload.jpg",
         size_bytes=len(content),
-        source="photo_ocr",
+        source=source_type,
+        checksum_sha256=source_checksum,
+        extractor_versions=extractor_versions,
+        extraction_review_token=review_token,
+        evidence={
+            code: ReportFieldEvidence(
+                raw_value=item.raw_value,
+                normalized_value=item.normalized_value,
+                confidence=item.confidence,
+                source_page=item.source_page,
+                source_region=item.source_region,
+                extractor=item.extractor,
+                method=item.method,
+                version=item.version,
+                flags=item.flags,
+                requires_review=item.requires_review,
+            )
+            for code, item in preview.evidence.items()
+        },
         # raw_gemini_text deliberately omitted from response
     )
 
@@ -924,7 +1050,7 @@ async def create_report_narrative(
     unknown_codes = sorted(set(payload.values) - indicator_codes)
     if unknown_codes:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Chỉ chấp nhận các chỉ tiêu CT01 đến CT14 cho diễn giải AI.",
         )
 
@@ -1015,7 +1141,7 @@ async def create_report_narrative(
 @limiter.limit("20/minute")
 async def excel_preview(
     request: Request,
-    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
     file: UploadFile = File(...),
 ) -> OcrPreviewResponse:
     """Parse an official Excel template and return a preview for human review.
@@ -1056,6 +1182,39 @@ async def excel_preview(
     if phone_flag is not None:
         validation_flags.append(phone_flag)
     null_codes = [code for code, value in normalized_values.items() if value is None]
+    flag_types_by_code: dict[str, list[str]] = {
+        code: [] for code in normalized_values
+    }
+    for flag in validation_flags:
+        code = flag["ct_code"]
+        if code in flag_types_by_code:
+            flag_types_by_code[code].append(flag["error_type"])
+
+    source_checksum = hashlib.sha256(content).hexdigest()
+    extractor_versions = sorted(
+        {
+            f"{item['extractor']}:{item['version']}"
+            for item in parsed["evidence"].values()
+        }
+    )
+    requires_review_count = sum(
+        item["requires_review"] or bool(flag_types_by_code[code])
+        for code, item in parsed["evidence"].items()
+    )
+    try:
+        review_token = issue_extraction_review_token(
+            user_id=current_user.id,
+            source_checksum=source_checksum,
+            source_type="excel",
+            extractor_versions=extractor_versions,
+            values=normalized_values,
+            requires_review_count=requires_review_count,
+        )
+    except ExtractionReviewTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Không thể tạo bằng chứng rà soát an toàn",
+        ) from exc
 
     return OcrPreviewResponse(
         values=normalized_values,
@@ -1065,6 +1224,28 @@ async def excel_preview(
         filename=file.filename or "upload.xlsx",
         size_bytes=len(content),
         source="excel",
+        checksum_sha256=source_checksum,
+        extractor_versions=extractor_versions,
+        extraction_review_token=review_token,
+        evidence={
+            code: ReportFieldEvidence(
+                raw_value=item["raw_value"],
+                normalized_value=item["normalized_value"],
+                confidence=item["confidence"],
+                source_page=item["source_page"],
+                source_region=item["source_region"],
+                extractor=item["extractor"],
+                method=item["method"],
+                version=item["version"],
+                flags=list(
+                    dict.fromkeys(item["flags"] + flag_types_by_code[code])
+                ),
+                requires_review=(
+                    item["requires_review"] or bool(flag_types_by_code[code])
+                ),
+            )
+            for code, item in parsed["evidence"].items()
+        },
         metadata=ReportPreviewMetadata(**parsed["metadata"]),
     )
 
@@ -1073,10 +1254,12 @@ async def excel_preview(
 async def get_report_periods(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    authorization: Annotated[str | None, Header()] = None,
 ):
     """Return all report periods."""
+    caller = supabase.as_user(_extract_bearer_token(authorization))
     try:
-        return await supabase._rest_request(
+        return await caller._rest_request(
             "GET",
             "/rest/v1/report_periods?select=id,name,due_date&order=due_date.desc",
         )
@@ -1090,13 +1273,26 @@ async def get_report_periods(
 @router.get("/villages")
 async def get_villages(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ):
     """Return the active canonical village catalogue from the database."""
     try:
-        return await supabase._rest_request(
+        commune_id = settings.bana_commune_id
+        encoded_commune_id = quote(commune_id, safe="")
+        rows = await supabase._rest_request(
             "GET",
-            "/rest/v1/villages?is_active=eq.true&select=id,name&order=name.asc",
+            (
+                f"/rest/v1/villages?commune_id=eq.{encoded_commune_id}"
+                "&is_active=eq.true&select=id,name,commune_id&order=name.asc"
+            ),
         )
+        return [
+            {"id": row["id"], "name": row["name"]}
+            for row in rows
+            if str(row.get("commune_id", "")) == commune_id
+            and row.get("id") is not None
+            and isinstance(row.get("name"), str)
+        ]
     except SupabaseAdminError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -1107,17 +1303,24 @@ async def get_villages(
 @router.get("/public")
 async def get_public_reports(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ):
     """Return public reports for citizens (filtering sensitive CT codes)."""
     try:
+        commune_id = settings.bana_commune_id
+        encoded_commune_id = quote(commune_id, safe="")
         public_codes = {"CT01", "CT02", "CT09", "CT12", "CT13"}
         codes_filter = ",".join(sorted(public_codes))
         reports = await supabase._rest_request(
             "GET",
             (
                 "/rest/v1/reports?publication_status=eq.published"
-                "&select=id,village_id,published_at,report_periods!inner(name),"
+                "&select=id,village_id,published_at,"
+                "report_periods!inner(name,commune_id),"
+                "villages!inner(commune_id),"
                 "report_values!inner(ct_code,value)"
+                f"&report_periods.commune_id=eq.{encoded_commune_id}"
+                f"&villages.commune_id=eq.{encoded_commune_id}"
                 f"&report_values.ct_code=in.({codes_filter})"
                 "&order=published_at.desc"
             ),
@@ -1126,6 +1329,15 @@ async def get_public_reports(
         # Format response
         result = []
         for r in reports:
+            period_scope = r.get("report_periods")
+            village_scope = r.get("villages")
+            if (
+                not isinstance(period_scope, dict)
+                or str(period_scope.get("commune_id", "")) != commune_id
+                or not isinstance(village_scope, dict)
+                or str(village_scope.get("commune_id", "")) != commune_id
+            ):
+                continue
             values_dict = {
                 v["ct_code"]: v["value"]
                 for v in r.get("report_values", [])
@@ -1136,7 +1348,7 @@ async def get_public_reports(
                 {
                     "id": r["id"],
                     "village_id": r["village_id"],
-                    "report_period": r.get("report_periods", {}).get("name", "Unknown"),
+                    "report_period": period_scope.get("name", "Unknown"),
                     "published_at": r.get("published_at"),
                     "values": values_dict,
                 }
@@ -1187,15 +1399,17 @@ async def get_trend_alerts(
     prev_period_id: str,
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    authorization: Annotated[str | None, Header()] = None,
 ) -> list[TrendAlertResponse]:
     """Compare reports from two periods and return indicators with >20% changes."""
     from services.trend_alert import get_trend_alerts_async  # noqa: PLC0415
 
-    curr_uuid, _ = await safe_resolve_period(supabase, curr_period_id)
-    prev_uuid, _ = await safe_resolve_period(supabase, prev_period_id)
+    caller = supabase.as_user(_extract_bearer_token(authorization))
+    curr_uuid, _ = await safe_resolve_period(caller, curr_period_id)
+    prev_uuid, _ = await safe_resolve_period(caller, prev_period_id)
     try:
         alerts = await get_trend_alerts_async(
-            supabase=supabase,
+            supabase=caller,
             prev_period_id=str(prev_uuid),
             curr_period_id=str(curr_uuid),
         )
@@ -1234,6 +1448,9 @@ async def _submit_report_values(
     report_id: UUID | None = None,
     expected_version: int | None = None,
     idempotency_key: UUID | None = None,
+    extraction_corrections: list[dict[str, Any]] | None = None,
+    extraction_metadata: dict[str, Any] | None = None,
+    extraction_evidence: dict[str, Any] | None = None,
 ) -> ReportSubmitResponse:
     unknown_codes = sorted(set(values) - set(_indicator_codes()))
     if unknown_codes:
@@ -1286,6 +1503,9 @@ async def _submit_report_values(
             report_id=str(report_id) if report_id else None,
             expected_version=expected_version,
             idempotency_key=str(idempotency_key) if idempotency_key else None,
+            extraction_corrections=extraction_corrections,
+            extraction_metadata=extraction_metadata,
+            extraction_evidence=extraction_evidence,
         )
     except SupabaseAdminError as exc:
         if exc.error_code == "40001" or exc.status_code == 409:
@@ -1319,6 +1539,122 @@ async def _submit_report_values(
         replayed=saved_report.replayed,
         validation_flags=non_blocking_flags,
     )
+
+
+def _validate_extraction_review(
+    *,
+    source: str,
+    values: dict[str, Any],
+    corrections: list[ExtractionCorrection],
+    metadata: ExtractionMetadata | None,
+    review_token: str | None,
+    current_user_id: str,
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+]:
+    imported = source in {"excel", "photo_ocr"}
+    if not imported and (corrections or metadata is not None or review_token is not None):
+        raise HTTPException(
+            status_code=422,
+            detail="Extraction review metadata is only allowed for imported reports",
+        )
+    if imported and (metadata is None or review_token is None):
+        raise HTTPException(
+            status_code=422,
+            detail="Imported reports require signed extraction review evidence",
+        )
+    if not imported:
+        return [], None, None
+
+    expected_metadata_sources = (
+        {"excel"} if source == "excel" else {"photo_ocr", "pdf_ocr"}
+    )
+    if metadata is None or metadata.source_type not in expected_metadata_sources:
+        raise HTTPException(
+            status_code=422,
+            detail="Extraction source metadata does not match the report source",
+        )
+    try:
+        trusted = verify_extraction_review_token(
+            review_token or "",
+            user_id=current_user_id,
+        )
+    except ExtractionReviewTokenError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Extraction review evidence is invalid or expired",
+        ) from exc
+    if trusted["source_type"] not in expected_metadata_sources:
+        raise HTTPException(
+            status_code=422,
+            detail="Signed extraction source does not match the report source",
+        )
+
+    trusted_metadata = {
+        "source_checksum": trusted["source_checksum"],
+        "source_type": trusted["source_type"],
+        "extractor_versions": trusted["extractor_versions"],
+        "field_count": trusted["field_count"],
+        "requires_review_count": trusted["requires_review_count"],
+    }
+    supplied_metadata = metadata.model_dump()
+    supplied_metadata["extractor_versions"] = sorted(
+        supplied_metadata["extractor_versions"]
+    )
+    if supplied_metadata != trusted_metadata:
+        raise HTTPException(
+            status_code=422,
+            detail="Extraction metadata does not match the signed preview",
+        )
+
+    seen: set[str] = set()
+    supplied_corrections: dict[str, ExtractionCorrection] = {}
+    for correction in corrections:
+        if correction.code in seen:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Duplicate extraction correction for {correction.code}",
+            )
+        seen.add(correction.code)
+        supplied_corrections[correction.code] = correction
+
+    normalized: list[dict[str, Any]] = []
+    for code, original_value in trusted["values"].items():
+        submitted_value = coerce_storage_value(values.get(code))
+        correction = supplied_corrections.get(code)
+        if submitted_value == original_value:
+            if correction is not None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unchanged extraction field cannot have a correction for {code}",
+                )
+            continue
+        if (
+            correction is None
+            or correction.before != original_value
+            or correction.after != submitted_value
+            or correction.before == correction.after
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Every changed extraction field requires before/after/reason for {code}",
+            )
+        normalized.append(correction.model_dump())
+
+    evidence_registration = {
+        "id": trusted["jti"],
+        "user_id": current_user_id,
+        "source_type": trusted["source_type"],
+        "source_checksum": trusted["source_checksum"],
+        "extractor_versions": trusted["extractor_versions"],
+        "original_values_sha256": extraction_values_digest(trusted["values"]),
+        "field_count": trusted["field_count"],
+        "requires_review_count": trusted["requires_review_count"],
+        "expires_at": datetime.fromtimestamp(trusted["exp"], tz=UTC).isoformat(),
+    }
+    return normalized, trusted_metadata, evidence_registration
 
 
 def _canonical_report_source(raw_source: str) -> str:
@@ -1363,10 +1699,13 @@ async def _authorize_report_write(
 ) -> None:
     if user.role == "lanh_dao":
         raise HTTPException(status_code=403, detail="Leadership role is read-only")
-    if user.role not in {"admin_xa", "can_bo_thon", "to_cnscd"}:
-        raise HTTPException(status_code=403, detail="Role cannot modify reports")
     if user.role == "admin_xa":
-        return
+        raise HTTPException(
+            status_code=403,
+            detail="Administrators review reports but do not enter village data",
+        )
+    if user.role not in {"can_bo_thon", "to_cnscd"}:
+        raise HTTPException(status_code=403, detail="Role cannot modify reports")
     if user.village_id and str(user.village_id) == str(village_id):
         return
     if user.role == "to_cnscd" and await _is_assigned_cnscd_village(
@@ -1393,7 +1732,7 @@ def _resolve_cnscd_assistance(
     display_name = (user.display_name or "").strip()
     if not display_name:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Tài khoản Tổ CNSCĐ chưa có tên hiển thị hợp lệ.",
         )
     return True, display_name
@@ -1960,29 +2299,26 @@ async def approve_or_lock_report(
 ) -> dict:
     """Approve or lock a report as admin_xa using optimistic locking."""
     new_status = "approved" if payload.action == "approve" else "locked"
-    now = datetime.now().astimezone().isoformat()
-    update: dict[str, Any] = {
-        "workflow_status": new_status,
-        "version": payload.expected_version + 1,
-    }
-    if payload.action == "approve":
-        update.update({"approved_by": admin.id, "approved_at": now})
-    else:
-        update.update({"locked_by": admin.id, "locked_at": now})
+    _ = admin
     try:
         rows = await repository._supabase._rest_request(
-            "PATCH",
-            (
-                f"/rest/v1/reports?id=eq.{report_id}"
-                f"&version=eq.{payload.expected_version}"
-            ),
-            payload=update,
-            prefer="return=representation",
+            "POST",
+            "/rest/v1/rpc/transition_report_workflow",
+            {
+                "p_report_id": str(report_id),
+                "p_expected_version": payload.expected_version,
+                "p_action": payload.action,
+            },
         )
     except SupabaseAdminError as exc:
         if exc.error_code == "42501" or exc.status_code == 403:
             raise HTTPException(
                 status_code=403, detail="Only admin can approve reports"
+            ) from exc
+        if exc.error_code in {"22023", "40001"} or exc.status_code in {400, 409}:
+            raise HTTPException(
+                status_code=409,
+                detail="Report version or state conflict",
             ) from exc
         raise HTTPException(status_code=502, detail="Unable to update report") from exc
 
@@ -1992,7 +2328,7 @@ async def approve_or_lock_report(
     return {
         "report_id": str(report_id),
         "workflow_status": new_status,
-        "version": payload.expected_version + 1,
+        "version": int(rows[0]["version"]),
     }
 
 
@@ -2003,23 +2339,27 @@ async def publish_report(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
     admin: Annotated[UserProfile, Depends(require_admin_xa)],
 ) -> dict[str, Any]:
+    _ = admin
     try:
         rows = await repository._supabase._rest_request(
-            "PATCH",
-            (
-                f"/rest/v1/reports?id=eq.{report_id}"
-                f"&version=eq.{expected_version}"
-                "&workflow_status=in.(approved,locked)"
-            ),
+            "POST",
+            "/rest/v1/rpc/transition_report_workflow",
             {
-                "publication_status": "published",
-                "published_by": admin.id,
-                "published_at": datetime.now().astimezone().isoformat(),
-                "version": expected_version + 1,
+                "p_report_id": str(report_id),
+                "p_expected_version": expected_version,
+                "p_action": "publish",
             },
-            prefer="return=representation",
         )
     except SupabaseAdminError as exc:
+        if exc.error_code == "42501" or exc.status_code == 403:
+            raise HTTPException(
+                status_code=403, detail="Only admin can publish reports"
+            ) from exc
+        if exc.error_code in {"22023", "40001"} or exc.status_code in {400, 409}:
+            raise HTTPException(
+                status_code=409,
+                detail="Report must be approved and unchanged",
+            ) from exc
         raise HTTPException(status_code=502, detail="Unable to publish report") from exc
     if not rows:
         raise HTTPException(
@@ -2028,7 +2368,7 @@ async def publish_report(
     return {
         "report_id": str(report_id),
         "publication_status": "published",
-        "version": expected_version + 1,
+        "version": int(rows[0]["version"]),
     }
 
 

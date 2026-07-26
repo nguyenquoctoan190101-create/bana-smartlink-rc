@@ -34,16 +34,47 @@ class UserProfile:
     display_name: str | None = None
     phone: str | None = None
     is_active: bool = True
+    commune_id: str | None = None
 
 
 class SupabaseAdminClient:
-    def __init__(self, settings: Settings, access_token: str | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        access_token: str | None = None,
+        *,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
         self._settings = settings
         self._access_token = access_token
+        self._http_client = http_client
 
     def as_user(self, access_token: str) -> "SupabaseAdminClient":
         """Return a PostgREST client whose Authorization role comes from JWT."""
-        return SupabaseAdminClient(self._settings, access_token=access_token)
+        return SupabaseAdminClient(
+            self._settings,
+            access_token=access_token,
+            http_client=self._http_client,
+        )
+
+    async def _send_http_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Use the app-wide connection pool, with a safe standalone fallback."""
+        if self._http_client is not None:
+            return await self._http_client.request(
+                method,
+                url,
+                timeout=timeout,
+                **kwargs,
+            )
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            return await client.request(method, url, **kwargs)
 
     async def get_user_profile(self, user_id: str) -> UserProfile | None:
         encoded_id = quote(user_id, safe="")
@@ -51,7 +82,7 @@ class SupabaseAdminClient:
             "GET",
             (
                 f"/rest/v1/user_profiles?id=eq.{encoded_id}"
-                "&select=id,role,village_id,display_name,phone,is_active,force_password_reset"
+                "&select=id,role,village_id,commune_id,display_name,phone,is_active,force_password_reset"
             ),
         )
         if not rows:
@@ -66,6 +97,7 @@ class SupabaseAdminClient:
             display_name=str(row["display_name"]) if row.get("display_name") else None,
             phone=str(row["phone"]) if row.get("phone") else None,
             is_active=bool(row.get("is_active", True)),
+            commune_id=str(row["commune_id"]) if row.get("commune_id") else None,
         )
 
     async def create_auth_user(
@@ -127,13 +159,13 @@ class SupabaseAdminClient:
         headers["Content-Type"] = content_type
         headers["x-upsert"] = "false"
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.request(
-                    "POST",
-                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
-                    headers=headers,
-                    content=content,
-                )
+            response = await self._send_http_request(
+                "POST",
+                f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                timeout=30.0,
+                headers=headers,
+                content=content,
+            )
         except httpx.HTTPError as exc:
             raise SupabaseAdminError("Supabase Storage request failed") from exc
         if response.status_code >= 400:
@@ -162,13 +194,13 @@ class SupabaseAdminClient:
         headers["Content-Type"] = content_type
         headers["x-upsert"] = "false"
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.request(
-                    "POST",
-                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
-                    headers=headers,
-                    content=content,
-                )
+            response = await self._send_http_request(
+                "POST",
+                f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                timeout=30.0,
+                headers=headers,
+                content=content,
+            )
         except httpx.HTTPError as exc:
             raise SupabaseAdminError("Supabase Storage request failed") from exc
         if response.status_code >= 400:
@@ -179,12 +211,12 @@ class SupabaseAdminClient:
         safe_bucket = quote(bucket, safe="")
         safe_path = "/".join(quote(part, safe="") for part in object_path.split("/"))
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.request(
-                    "DELETE",
-                    f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
-                    headers=self._headers(),
-                )
+            response = await self._send_http_request(
+                "DELETE",
+                f"{self._settings.normalized_supabase_url}/storage/v1/object/{safe_bucket}/{safe_path}",
+                timeout=10.0,
+                headers=self._headers(),
+            )
         except httpx.HTTPError as exc:
             raise SupabaseAdminError("Supabase Storage request failed") from exc
         if response.status_code >= 400:
@@ -198,11 +230,13 @@ class SupabaseAdminClient:
         display_name: str | None = None,
         phone: str | None = None,
         force_password_reset: bool = True,
+        commune_id: str | None = None,
     ) -> UserProfile:
         payload = {
             "id": user_id,
             "role": role,
             "village_id": village_id,
+            "commune_id": commune_id or self._settings.bana_commune_id,
             "force_password_reset": force_password_reset,
             "is_active": True,
         }
@@ -225,7 +259,23 @@ class SupabaseAdminClient:
             display_name=str(row["display_name"]) if row.get("display_name") else None,
             phone=str(row["phone"]) if row.get("phone") else None,
             is_active=bool(row.get("is_active", True)),
+            commune_id=str(row["commune_id"]) if row.get("commune_id") else payload["commune_id"],
         )
+
+    async def village_in_commune(self, village_id: str, commune_id: str) -> bool:
+        """Validate a staff assignment before creating the Auth identity."""
+        encoded_village = quote(village_id, safe="")
+        encoded_commune = quote(commune_id, safe="")
+        rows = await self._rest_request(
+            "GET",
+            (
+                "/rest/v1/villages"
+                f"?id=eq.{encoded_village}"
+                f"&commune_id=eq.{encoded_commune}"
+                "&is_active=eq.true&select=id"
+            ),
+        )
+        return bool(rows)
 
     async def update_user_profile_force_reset(self, user_id: str, force_reset: bool) -> None:
         encoded_id = quote(user_id, safe="")
@@ -291,13 +341,13 @@ class SupabaseAdminClient:
         payload: dict[str, Any] | list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.request(
-                    method,
-                    f"{self._settings.normalized_supabase_url}{path}",
-                    headers=self._headers(),
-                    json=payload,
-                )
+            response = await self._send_http_request(
+                method,
+                f"{self._settings.normalized_supabase_url}{path}",
+                timeout=10.0,
+                headers=self._headers(),
+                json=payload,
+            )
         except httpx.HTTPError as exc:
             raise SupabaseAdminError("Supabase Auth Admin request failed") from exc
 
@@ -328,13 +378,13 @@ class SupabaseAdminClient:
             headers["Prefer"] = prefer
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.request(
-                    method,
-                    f"{self._settings.normalized_supabase_url}{path}",
-                    headers=headers,
-                    json=payload,
-                )
+            response = await self._send_http_request(
+                method,
+                f"{self._settings.normalized_supabase_url}{path}",
+                timeout=10.0,
+                headers=headers,
+                json=payload,
+            )
         except httpx.HTTPError as exc:
             raise SupabaseAdminError("Supabase REST request failed") from exc
 

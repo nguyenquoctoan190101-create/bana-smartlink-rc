@@ -126,7 +126,14 @@ async def get_quality_center(
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Unable to retrieve quality evidence") from exc
     average = round(sum(item["quality_score"] for item in snapshots) / len(snapshots), 1) if snapshots else None
-    return {"period": period, "scope_role": profile.role, "rule_version": "2026-07-14", "average_quality_score": average, "reports": snapshots}
+    return {
+        "period": period,
+        "scope_role": profile.role,
+        "rule_version": "2026-07-14",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "average_quality_score": average,
+        "reports": snapshots,
+    }
 
 
 @router.get("/actions")

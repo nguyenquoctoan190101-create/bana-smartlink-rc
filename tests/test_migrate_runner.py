@@ -8,11 +8,13 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
 
     assert names
     assert all(
-        name.startswith(("20260715_", "20260718_", "20260722_", "20260723_"))
+        name.startswith(
+            ("20260715_", "20260718_", "20260722_", "20260723_", "20260726_")
+        )
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260723_0020_field_synonyms.sql"
+    assert names[-1] == "20260726_0025_report_mutation_integrity.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -32,4 +34,9 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260723_0018_pilot_audit_trail.sql",
         "20260723_0019_report_period_name_guard.sql",
         "20260723_0020_field_synonyms.sql",
+        "20260726_0021_report_extraction_audit.sql",
+        "20260726_0022_commune_rls_hardening.sql",
+        "20260726_0023_release_blocker_hardening.sql",
+        "20260726_0024_case_village_scope_hardening.sql",
+        "20260726_0025_report_mutation_integrity.sql",
     ]

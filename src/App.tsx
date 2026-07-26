@@ -61,6 +61,24 @@ const RecordLookup = React.lazy(() => import("./components/RecordLookup"));
 
 type AppTab = "dashboard" | "progress-dashboard" | "report-form" | "citizen-proposal" | "admin-panel" | "policy-scorecard" | "cnscd-impact" | "create-period" | "pending-updates" | "operations" | "legacy-import" | "knowledge" | "cases" | "pilots" | "record-lookup";
 
+const APP_TAB_TITLES: Record<AppTab, string> = {
+  dashboard: "Báo cáo tổng hợp",
+  "progress-dashboard": "Tiến độ báo cáo",
+  "report-form": "Lập báo cáo định kỳ",
+  "citizen-proposal": "Đề nghị đối chiếu số liệu",
+  "admin-panel": "Quản lý tài khoản",
+  "policy-scorecard": "Chỉ số báo cáo điện tử",
+  "cnscd-impact": "Hỗ trợ lập báo cáo",
+  "create-period": "Tạo kỳ báo cáo",
+  "pending-updates": "Xử lý đề nghị đối chiếu",
+  operations: "Công việc điều hành",
+  "legacy-import": "Nhập dữ liệu lịch sử",
+  knowledge: "Tài liệu và hỗ trợ nghiệp vụ",
+  cases: "Phản ánh hiện trường",
+  pilots: "Mô hình thử nghiệm",
+  "record-lookup": "Tra cứu hồ sơ",
+};
+
 const LoadingPanel = () => (
   <div role="status" className="flex min-h-48 items-center justify-center gap-2 text-sm font-semibold text-slate-600">
     <RefreshCw aria-hidden="true" className="h-5 w-5 animate-spin text-emerald-800" />
@@ -180,6 +198,7 @@ export default function App() {
     loginError,
     publicMode,
     isAuthLoading,
+    isLoginSubmitting,
     requiresPasswordReset,
     setLoginPhone,
     setLoginPassword,
@@ -406,6 +425,28 @@ export default function App() {
     return () => window.removeEventListener("popstate", restore);
   }, [userRole]);
 
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    document.title = `${APP_TAB_TITLES[activeTab]} · Bà Nà SmartLink`;
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn) return undefined;
+    document.title = publicMode === "public"
+      ? "Thông tin công khai xã Bà Nà · Bà Nà SmartLink"
+      : "Đăng nhập cán bộ · Bà Nà SmartLink";
+    const frame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isLoggedIn, publicMode]);
+
   // The public portal owns its public-data request. Loading the same endpoint
   // here as well caused duplicate requests and a misleading transient error
   // while a free-tier instance was waking up.
@@ -604,11 +645,9 @@ export default function App() {
           {/* Bottom text overlay */}
           <div className="relative z-10 max-w-2xl pb-6">
             <p className="mb-4 text-sm font-semibold text-emerald-100">Ủy ban nhân dân xã Bà Nà</p>
-            <h1 className="text-3xl xl:text-5xl font-bold text-white leading-[1.12] tracking-[-0.04em]">
-              Dữ liệu rõ ràng.<br />Điều hành đúng việc.
-            </h1>
+            <h2 className="text-3xl xl:text-5xl font-bold text-white leading-[1.12] tracking-[-0.04em]">Hệ thống quản lý dữ liệu và báo cáo</h2>
             <p className="mt-5 text-base text-emerald-50 leading-relaxed max-w-xl">
-              Một không gian làm việc thống nhất để cán bộ nhập liệu, rà soát, phê duyệt và theo dõi tiến độ báo cáo của 10 thôn.
+              Dành cho cán bộ được phân quyền nhập liệu, rà soát, phê duyệt và theo dõi tiến độ báo cáo của 10 thôn.
             </p>
             <div className="grid grid-cols-3 gap-6 mt-8 pt-6 border-t border-white/15">
               <div>
@@ -638,7 +677,7 @@ export default function App() {
           </div>
 
           <div className="login-card relative z-10 w-full max-w-md mx-auto bg-white p-6 sm:p-8 border border-[#dfe6e3] rounded-xl shadow-sm space-y-6">
-            <form onSubmit={handleLoginSubmit} className="space-y-5">
+            <form onSubmit={handleLoginSubmit} className="space-y-5" aria-busy={isLoginSubmitting}>
               <div>
                 <p className="text-xs font-bold text-emerald-800">KHU VỰC NỘI BỘ</p>
                 <h1 className="mt-2 text-2xl font-bold text-slate-900 tracking-tight">Đăng nhập cán bộ</h1>
@@ -653,14 +692,19 @@ export default function App() {
 
               {/* SĐT Input */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Số điện thoại</label>
+                <label htmlFor="staff-phone" className="block text-sm font-semibold text-slate-700">Số điện thoại</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 pointer-events-none">
                     <Phone className="w-5 h-5" />
                   </span>
                   <input
+                    id="staff-phone"
+                    name="phone"
                     type="tel"
+                    autoComplete="username"
+                    inputMode="tel"
                     required
+                    disabled={isLoginSubmitting}
                     placeholder="Nhập số điện thoại đăng ký..."
                     value={loginPhone}
                     onChange={(e) => setLoginPhone(e.target.value)}
@@ -671,14 +715,18 @@ export default function App() {
 
               {/* Mật khẩu Input */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Mật khẩu</label>
+                <label htmlFor="staff-password" className="block text-sm font-semibold text-slate-700">Mật khẩu</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 pointer-events-none">
                     <Lock className="w-5 h-5" />
                   </span>
                   <input
+                    id="staff-password"
+                    name="password"
                     type="password"
+                    autoComplete="current-password"
                     required
+                    disabled={isLoginSubmitting}
                     placeholder="Nhập mật khẩu truy cập..."
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
@@ -690,9 +738,10 @@ export default function App() {
               {/* Submit Button (Gov Blue theme) */}
               <button
                 type="submit"
+                disabled={isLoginSubmitting}
                 className="button button--primary w-full"
               >
-                Đăng nhập
+                {isLoginSubmitting ? <><RefreshCw className="h-4 w-4 animate-spin" />Đang đăng nhập…</> : "Đăng nhập"}
               </button>
             </form>
 
@@ -791,38 +840,38 @@ export default function App() {
           { id: "pending-updates", label: "Duyệt kiến nghị", icon: MessageSquare },
           { id: "cases", label: "Xử lý phản ánh", icon: MapPinned },
           { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
-          { id: "dashboard", label: "Báo cáo toàn xã", icon: BarChart3, group: "Báo cáo và quyết định", primary: true },
+          { id: "dashboard", label: "Báo cáo toàn xã", icon: BarChart3, group: "Báo cáo và theo dõi", primary: true },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
           { id: "policy-scorecard", label: "Theo dõi thực hiện kế hoạch", icon: Award },
-          { id: "cnscd-impact", label: "Hiệu quả tổ công nghệ số", icon: UserCheck },
+          { id: "cnscd-impact", label: "Hỗ trợ lập báo cáo", icon: UserCheck },
           { id: "create-period", label: "Kỳ và biểu mẫu báo cáo", icon: Plus, group: "Quản trị và cấu hình", primary: true },
           { id: "legacy-import", label: "Tiếp nhận dữ liệu 22 thôn cũ", icon: FileArchive },
           { id: "admin-panel", label: "Tài khoản và phân quyền", icon: Shield },
-          { id: "knowledge", label: "Kho tri thức và kịch bản", icon: FileArchive },
+          { id: "knowledge", label: "Tài liệu và mô phỏng", icon: FileArchive },
           ...(pilotsEnabled ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm", icon: Radio }] : [])
         ];
       case "can_bo_thon":
       case "to_cnscd":
         return [
-          { id: "operations", label: "Việc cần xử lý", icon: UserCheck, group: "Công việc hôm nay", primary: true },
+          { id: "operations", label: "Việc cần xử lý", icon: UserCheck, group: "Công việc", primary: true },
           { id: "cases", label: "Phản ánh hiện trường", icon: MapPinned },
           { id: "report-form", label: "Lập báo cáo", icon: FileText, group: "Báo cáo của thôn", primary: true },
           { id: "dashboard", label: "Theo dõi số liệu", icon: BarChart3 },
-          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
+          { id: "citizen-proposal", label: "Đề nghị đối chiếu số liệu", icon: MessageSquare },
           { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch, group: "Tra cứu và hỗ trợ", primary: true },
           { id: "knowledge", label: "Hướng dẫn nghiệp vụ", icon: FileArchive }
         ];
       case "lanh_dao":
         return [
-          { id: "operations", label: "Tổng quan điều hành", icon: UserCheck, group: "Ba không gian làm việc", primary: true },
+          { id: "operations", label: "Tổng quan điều hành", icon: UserCheck, group: "Chức năng chính", primary: true },
           { id: "cases", label: "Công việc và cảnh báo", icon: MapPinned, primary: true },
-          { id: "dashboard", label: "Báo cáo và quyết định", icon: BarChart3, primary: true },
+          { id: "dashboard", label: "Báo cáo và theo dõi", icon: BarChart3, primary: true },
         ];
       case "dan":
       default:
         return [
           { id: "dashboard", label: "Thông tin thôn", icon: BarChart3 },
-          { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
+          { id: "citizen-proposal", label: "Đề nghị đối chiếu số liệu", icon: MessageSquare },
           { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
         ];
     }
@@ -848,8 +897,8 @@ export default function App() {
       items: [
         { id: "dashboard" as const, label: "Báo cáo toàn xã" },
         { id: "progress-dashboard" as const, label: "Tiến độ các thôn" },
-        { id: "policy-scorecard" as const, label: "Thực hiện kế hoạch" },
-        { id: "cnscd-impact" as const, label: "Hiệu quả tổ công nghệ số" },
+        { id: "policy-scorecard" as const, label: "Chỉ số báo cáo điện tử" },
+        { id: "cnscd-impact" as const, label: "Hỗ trợ lập báo cáo" },
         ...(pilotStatus.iot_enabled || pilotStatus.tourism_enabled
           ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm" }]
           : []),
@@ -866,17 +915,17 @@ export default function App() {
   const activeNavItem = navItems.find((item) => item.id === activeSpaceId);
   const activeLeaderItem = activeLeaderSpace?.items.find((item) => item.id === activeTab);
 
-  const mobilePrimaryItems = navItems.filter((item) => item.primary).slice(0, 4);
+  const mobilePrimaryItems = navItems.filter((item) => item.primary).slice(0, 3);
   const mobileMoreItems = navItems.filter((item) => !mobilePrimaryItems.some((primary) => primary.id === item.id));
 
   return (
-    <div className="gov-shell flex flex-col md:flex-row font-sans antialiased" data-user-role={userRole}>
+    <div className="gov-shell flex flex-col lg:flex-row font-sans antialiased" data-user-role={userRole}>
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       
       {/* -------------------------------------------------------------
           DESKTOP SIDEBAR: FIXED LEFT SIDEBAR FOR DESKTOP
           ------------------------------------------------------------- */}
-      <aside className="gov-shell__sidebar hidden md:flex flex-col shrink-0 sticky top-0 border-r border-white/10">
+      <aside className="gov-shell__sidebar hidden lg:flex flex-col shrink-0 sticky top-0 border-r border-white/10">
         <div className="gov-shell__sidebar-scroll flex min-h-0 flex-1 flex-col">
           {/* Header Branding */}
           <div className="p-5 border-b border-white/10">
@@ -967,7 +1016,7 @@ export default function App() {
       {/* -------------------------------------------------------------
           MOBILE HEADER: TOP BAR FOR MOBILE DEVICES
           ------------------------------------------------------------- */}
-      <header className="gov-mobile-header block md:hidden bg-[#0b3d32] text-white sticky top-0 z-40 border-b border-white/10">
+      <header className="gov-mobile-header block lg:hidden bg-[#0b3d32] text-white sticky top-0 z-40 border-b border-white/10">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="min-w-0">
             <Wordmark compact inverse />
@@ -997,7 +1046,7 @@ export default function App() {
                   aria-label="Mở danh sách thông báo"
                   aria-expanded={showNotifDropdown}
                   aria-controls="mobile-notification-list"
-                  className="relative p-1.5 bg-emerald-900 hover:bg-emerald-850 rounded-lg text-white cursor-pointer"
+                  className="relative inline-flex min-h-11 min-w-11 items-center justify-center bg-emerald-900 hover:bg-emerald-850 rounded-lg text-white cursor-pointer"
                   title="Thông báo"
                 >
                   <Bell className="w-4 h-4" />
@@ -1009,7 +1058,7 @@ export default function App() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div id="mobile-notification-list" className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-150 py-1.5 z-50 text-slate-800">
+                  <div id="mobile-notification-list" className="gov-mobile-notifications bg-white rounded-xl shadow-xl border border-slate-150 py-1.5 text-slate-800">
                     <div className="px-3.5 py-1.5 border-b border-slate-100 flex items-center justify-between">
                       <span className="font-extrabold text-[10px] uppercase text-slate-900">Thông báo ({unreadCount})</span>
                     </div>
@@ -1044,7 +1093,7 @@ export default function App() {
             <button
               onClick={handleLogout}
               aria-label="Đăng xuất"
-              className="p-1.5 bg-emerald-900 hover:bg-emerald-800 text-rose-300 hover:text-rose-200 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center bg-emerald-900 hover:bg-emerald-800 text-rose-300 hover:text-rose-200 rounded-lg transition-colors cursor-pointer"
               title="Đăng xuất"
             >
               <LogOut className="w-4 h-4" />
@@ -1060,7 +1109,7 @@ export default function App() {
         <BaNaBrandScenery className="gov-brand-scenery" />
         
         {/* Desktop Top Header Bar */}
-        <header className="gov-topbar hidden md:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
+        <header className="gov-topbar hidden lg:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-slate-500">Không gian làm việc</span>
             <span className="text-slate-300">/</span>
@@ -1088,7 +1137,7 @@ export default function App() {
                   aria-label="Mở danh sách thông báo"
                   aria-expanded={showNotifDropdown}
                   aria-controls="desktop-notification-list"
-                  className="relative p-2 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 cursor-pointer focus:outline-none flex items-center justify-center"
+                  className="relative h-11 w-11 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 cursor-pointer focus:outline-none flex items-center justify-center"
                   title="Thông báo hệ thống"
                 >
                   <Bell className="w-5 h-5" />
@@ -1177,7 +1226,7 @@ export default function App() {
           {(isLoading || isAuthLoading) ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-500">
               <RefreshCw className="w-8 h-8 animate-spin text-emerald-800 mb-2" />
-              <p className="text-sm font-medium">Đang tải đồng bộ cơ sở dữ liệu địa phương...</p>
+              <p className="text-sm font-medium">Đang tải dữ liệu báo cáo…</p>
             </div>
           ) : (
             <React.Suspense fallback={<LoadingPanel />}>
@@ -1304,7 +1353,7 @@ export default function App() {
               <span>Ba Na SmartLink</span>
             </div>
             <p className="text-slate-400 font-medium text-[10px]">
-              © 2026 Ủy ban Nhân dân xã Bà Nà, thành phố Đà Nẵng. Mọi quyền được bảo lưu.
+              © 2026 Ủy ban nhân dân xã Bà Nà, thành phố Đà Nẵng. Mọi quyền được bảo lưu.
             </p>
           </footer>
         </main>
@@ -1313,7 +1362,7 @@ export default function App() {
       {/* -------------------------------------------------------------
           MOBILE BOTTOM NAVIGATION: FLOATING STICKY NAVIGATION FOR PHONES
           ------------------------------------------------------------- */}
-      <nav aria-label="Điều hướng chính trên thiết bị di động" className="gov-mobile-nav md:hidden fixed bottom-0 left-0 right-0 z-45 bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg flex items-center min-h-16 overflow-x-auto">
+      <nav aria-label="Điều hướng chính trên thiết bị di động" className="gov-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-45 min-h-16 grid grid-cols-4 items-stretch bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg">
         {mobilePrimaryItems.map((item) => {
           const IconComp = item.icon;
           const isActive = activeSpaceId === item.id;
@@ -1325,7 +1374,7 @@ export default function App() {
                 changeTab(item.id);
               }}
               aria-current={isActive ? "page" : undefined}
-              className={`flex flex-col items-center justify-center min-w-20 min-h-12 px-2 py-1 text-center transition-all cursor-pointer ${
+              className={`flex min-w-0 min-h-12 flex-col items-center justify-center px-1 py-1 text-center transition-all cursor-pointer ${
                 isActive 
                   ? "text-emerald-800 font-bold scale-102" 
                   : "text-slate-400 font-medium hover:text-slate-600"
@@ -1346,7 +1395,7 @@ export default function App() {
             aria-haspopup="dialog"
             aria-expanded={showMobileMore}
             aria-controls="mobile-more-dialog"
-            className="flex min-h-12 min-w-20 flex-col items-center justify-center px-2 py-1 text-center font-medium text-slate-500"
+            className="flex min-h-12 min-w-0 flex-col items-center justify-center px-1 py-1 text-center font-medium text-slate-500"
           >
             <div className="rounded-lg p-1"><MoreHorizontal className="h-5.5 w-5.5" aria-hidden="true" /></div>
             <span className="mt-0.5 text-xs leading-tight">Thêm</span>
@@ -1358,7 +1407,7 @@ export default function App() {
         <div
           id="mobile-more-dialog"
           ref={mobileMoreDialogRef}
-          className="gov-mobile-more md:hidden"
+          className="gov-mobile-more lg:hidden"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mobile-more-title"

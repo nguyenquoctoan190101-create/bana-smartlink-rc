@@ -39,19 +39,24 @@ class TestPushRequest(BaseModel):
 async def notify_villages(
     request: Request,
     payload: NotifyVillagesRequest,
-    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
     conn: Annotated[asyncpg.Connection, Depends(get_db)],
 ) -> dict[str, Any]:
     """Queue in-app/Web Push delivery for officers in selected villages."""
     rows = await conn.fetch(
         """
-        SELECT id::text AS id
-        FROM user_profiles
-        WHERE village_id = ANY($1::uuid[])
-          AND role IN ('can_bo_thon', 'to_cnscd')
-          AND is_active = TRUE
+        SELECT target.id::text AS id
+        FROM user_profiles AS target
+        JOIN villages AS village ON village.id = target.village_id
+        JOIN user_profiles AS actor ON actor.id = $2::uuid
+        WHERE target.village_id = ANY($1::uuid[])
+          AND target.role IN ('can_bo_thon', 'to_cnscd')
+          AND target.is_active = TRUE
+          AND target.commune_id = actor.commune_id
+          AND village.commune_id = actor.commune_id
         """,
         [str(village) for village in payload.villages],
+        admin.id,
     )
     title = f"Kỳ báo cáo mới: {payload.period_name}"
     body = f"UBND xã đã tạo kỳ báo cáo mới. Hạn nộp: {payload.deadline}."
@@ -77,8 +82,25 @@ async def notify_villages(
 async def send_test_push(
     request: Request,
     payload: TestPushRequest,
-    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    admin: Annotated[UserProfile, Depends(require_admin_xa)],
+    conn: Annotated[asyncpg.Connection, Depends(get_db)],
 ) -> dict[str, bool]:
+    target_is_scoped = await conn.fetchval(
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM user_profiles AS target
+          JOIN user_profiles AS actor ON actor.id = $2::uuid
+          WHERE target.id = $1::uuid
+            AND target.commune_id = actor.commune_id
+            AND target.is_active = TRUE
+        )
+        """,
+        payload.user_id,
+        admin.id,
+    )
+    if not target_is_scoped:
+        raise HTTPException(status_code=404, detail="Notification target not found")
     delivered = await notify_user(
         user_id=str(payload.user_id),
         title=payload.title,

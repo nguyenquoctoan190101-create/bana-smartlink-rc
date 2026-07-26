@@ -59,7 +59,9 @@ describe("CaseManagement", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText("SLA minh họa cho cuộc thi.")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Thời hạn xử lý đang dùng cấu hình thử nghiệm."),
+      ).toBeInTheDocument(),
     );
     expect(screen.getByText("Thôn An Sơn")).toBeInTheDocument();
     expect(

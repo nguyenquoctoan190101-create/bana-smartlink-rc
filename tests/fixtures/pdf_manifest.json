@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "classification": "synthetic-test-data",
+  "contains_pii": false,
+  "official_record": false,
+  "generator": "tests/generate_synthetic_pdf_fixtures.py",
+  "files": [
+    {
+      "name": "00_BIEU_MAU_TRONG_xa_gui_thon.pdf",
+      "sha256": "e4cf3b5b44e94f764b7095a607f19ed0f18c89284636beb2b28ddde89e5d4c2d",
+      "size": 42548
+    },
+    {
+      "name": "BC_T01_Thôn_Phú_Hòa_1.pdf",
+      "sha256": "1ff483df5ab06e326e816015f6b5b84c41284110baf5004af3bb684725acdf55",
+      "size": 42936
+    },
+    {
+      "name": "BC_T02_Thôn_Phú_Hòa_2.pdf",
+      "sha256": "83ec69ee1a9f13171b69527cccd31e752ee9fc799efbcf3bcef53163f43cba5f",
+      "size": 42936
+    },
+    {
+      "name": "BC_T03_Thôn_Thạch_Nham_Đông.pdf",
+      "sha256": "1da0bce868eaf83474f0f696ae5b2184122d7358166fb136d9e7df24bdcfd7eb",
+      "size": 43135
+    },
+    {
+      "name": "BC_T04_Thôn_Phước_Thái.pdf",
+      "sha256": "eb2ddb7ed02eb3c28f7cd5ee5c3e2a8fee8b6f05feb7b3745571ecdc4e6eab49",
+      "size": 43538
+    },
+    {
+      "name": "BC_T05_Thôn_Thái_Lai.pdf",
+      "sha256": "cd6a1559421c7befd90b2d8fde7379084db15ab429a2f2a5323b3b105022a2de",
+      "size": 42880
+    },
+    {
+      "name": "BC_T06_Thôn_Hòa_Khương_Đông.pdf",
+      "sha256": "eec0c98c5187dd40b7a04bf745341e78b1b5e8aca4eac96bc47db6fb40a35647",
+      "size": 43687
+    },
+    {
+      "name": "BC_T07_Thôn_Hòa_Khương_Tây.pdf",
+      "sha256": "5f687d53ca0c66a1942c761d62428cd83dca38eabd33fe43ebf9bb6ec41d8dd1",
+      "size": 43476
+    },
+    {
+      "name": "BC_T08_Thôn_Phước_Thuận_-_Phước_Hậu.pdf",
+      "sha256": "2b717453e53e74c18ff6052b0a90b844f3a39bc28585f61f155f25e600b96010",
+      "size": 43656
+    },
+    {
+      "name": "BC_T09_Thôn_Phước_Hưng.pdf",
+      "sha256": "0d3f257595583e9980f60b45d6ca6be04ede770ebfe1eba40dfe96e67e67c239",
+      "size": 43501
+    },
+    {
+      "name": "BC_T10_Thôn_Phước_Hưng_Nam.pdf",
+      "sha256": "cbe5187bdbb91ebdf7b7d535326285417416575849e4d3be052bd24df0e83a77",
+      "size": 43509
+    },
+    {
+      "name": "BC_T12_Thôn_Trước_Đông.pdf",
+      "sha256": "dd20ae051e8479f63535e1e1d1f783d21a51b0f21c0f99d313cdf1bc501ec011",
+      "size": 43781
+    },
+    {
+      "name": "BC_T13_Thôn_Diêu_Phong.pdf",
+      "sha256": "0a8080dc58db86fefee7cd913df22dbc7cfbedde06a82d3a514965b7f6607dd6",
+      "size": 42788
+    },
+    {
+      "name": "BC_T15_Thôn_Mỹ_Sơn.pdf",
+      "sha256": "70431d3f6bf1b05ad58965f607243420093ef3732626e88d7da2bf11bcf413d7",
+      "size": 43335
+    },
+    {
+      "name": "BC_T16_Thôn_Năm.pdf",
+      "sha256": "95e81f56705843a02583be27890a4ed4ab2f883e3933152136c5260dd4a07e90",
+      "size": 42889
+    },
+    {
+      "name": "BC_T17_Thôn_Hòa_Trung.pdf",
+      "sha256": "c78b4c200455a0f28b9b665899c876cba08ca5c58324d9e5baeb310f29a1199b",
+      "size": 42779
+    },
+    {
+      "name": "BC_T18_Thôn_Một.pdf",
+      "sha256": "bf67fd8ef383536bca602d7ac7fef349c823bb1f7a68bfb4055380e3dc25a7b9",
+      "size": 42834
+    },
+    {
+      "name": "BC_T19_Thôn_Trung_Nghĩa.pdf",
+      "sha256": "a2bc73785631375cdc041c0ba0044c17e75becc027924cc5485b77ba501d4056",
+      "size": 43094
+    },
+    {
+      "name": "BC_T20_Thôn_Đông_Sơn.pdf",
+      "sha256": "f1439f3618272b72d20913b1ed4fdaa6717e47f8c478fc1b8a76924eb355486a",
+      "size": 43338
+    },
+    {
+      "name": "BC_T22_Thôn_An_Sơn.pdf",
+      "sha256": "bfc71d510497964bb909043157e832079e244dd214b6f9597e4542dcc8656f20",
+      "size": 43058
+    },
+    {
+      "name": "TONG_HOP_va_THEO_DOI_TIEN_DO.pdf",
+      "sha256": "079fa5e55eae9054d07b590973efb774ac0f2385905f25955c7c15ecfddeb2b7",
+      "size": 42549
+    }
+  ]
+}

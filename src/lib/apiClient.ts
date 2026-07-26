@@ -69,6 +69,60 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   });
 }
 
+/** Upload multipart data with observable byte progress and the same auth boundary. */
+export async function apiUpload(
+  path: string,
+  body: FormData,
+  onProgress?: (percentage: number) => void,
+): Promise<Response> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new ApiError("Không thể kiểm tra phiên đăng nhập.", 401, {
+      code: "AUTH_SESSION_ERROR",
+    });
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", toUrl(path));
+    request.responseType = "text";
+    request.withCredentials = true;
+    request.setRequestHeader("Accept", "application/json");
+    const token = data.session?.access_token;
+    if (token) request.setRequestHeader("Authorization", `Bearer ${token}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress?.(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    request.onerror = () => reject(new TypeError("Failed to fetch"));
+    request.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+    request.onload = () => {
+      const headers = new Headers();
+      request.getAllResponseHeaders()
+        .trim()
+        .split(/[\r\n]+/)
+        .filter(Boolean)
+        .forEach((line) => {
+          const separator = line.indexOf(":");
+          if (separator > 0) {
+            headers.append(
+              line.slice(0, separator).trim(),
+              line.slice(separator + 1).trim(),
+            );
+          }
+        });
+      onProgress?.(100);
+      resolve(new Response(request.responseText, {
+        status: request.status,
+        statusText: request.statusText,
+        headers,
+      }));
+    };
+    request.send(body);
+  });
+}
+
 export async function apiJson<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await apiFetch(path, options);
   const contentType = response.headers.get("content-type") || "";

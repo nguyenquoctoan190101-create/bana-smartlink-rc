@@ -64,7 +64,7 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
       const resData: ScorecardData = await response.json();
       setData(resData);
     } catch (err) {
-      console.error("Lỗi tải thông tin scorecard:", err);
+      console.error("Lỗi tải thông tin theo dõi kế hoạch:", err);
       setError(toUserFacingError(err, "Đã xảy ra lỗi hệ thống."));
     } finally {
       setLoading(false);
@@ -89,13 +89,13 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
             <Award className="w-4 h-4" />
-            <span>Chỉ số Cải cách - Kế hoạch 02</span>
+            <span>Theo dõi thực hiện kế hoạch</span>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Bảng Điểm Hiệu Quả Chính Sách
-          </h2>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            Tiến độ sử dụng dữ liệu số
+          </h1>
           <p className="text-xs text-slate-500 font-medium">
-            Đo lường tiến độ chuyển đổi số và tái sử dụng dữ liệu hành chính tại Xã Bà Nà
+            Chỉ số tham khảo nội bộ, được tính từ báo cáo trong kỳ đã chọn
           </p>
         </div>
 
@@ -117,8 +117,8 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
             <Calendar className="w-4 h-4" />
           </div>
           <div>
-            <label className="block text-3xs font-extrabold text-slate-400 uppercase tracking-wider">Kỳ báo cáo chọn lọc</label>
-            <span className="text-xs font-bold text-slate-700">Dữ liệu được cập nhật thời gian thực</span>
+            <label className="block text-3xs font-extrabold text-slate-400 uppercase tracking-wider">Kỳ báo cáo</label>
+            <span className="text-xs font-bold text-slate-700">Dữ liệu theo kỳ báo cáo đã chọn</span>
           </div>
         </div>
 
@@ -143,7 +143,7 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
       {loading ? (
         <div className="h-64 flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
-          <p className="text-xs font-bold">Đang tính toán các chỉ số từ DB chính thức...</p>
+          <p className="text-xs font-bold">Đang tổng hợp chỉ số từ dữ liệu báo cáo...</p>
         </div>
       ) : error ? (
         <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3">
@@ -158,7 +158,7 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
           
           {/* Output text as requested */}
           <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4 shadow-3xs">
-            <h3 className="text-3xs font-black uppercase text-emerald-800 tracking-wider mb-1.5">Kết luận tóm tắt chính sách</h3>
+            <h3 className="text-3xs font-black uppercase text-emerald-800 tracking-wider mb-1.5">Tóm tắt kết quả theo dõi</h3>
             <p className="text-sm font-bold text-emerald-950 leading-snug">
               {data.interpretation}
             </p>
@@ -172,13 +172,13 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="bg-emerald-50 text-emerald-800 text-3xs font-extrabold px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wider">Chỉ số 1</span>
-                  <div className="text-slate-400 hover:text-slate-500 cursor-help" title="Số lượng báo cáo nộp bằng hình thức Web Form chia cho tổng số báo cáo đã nộp trong kỳ.">
+                  <div className="text-slate-400 hover:text-slate-500 cursor-help" title="Số báo cáo nộp bằng biểu mẫu trực tuyến chia cho tổng số báo cáo đã nộp trong kỳ.">
                     <Globe className="w-4 h-4 text-emerald-600" />
                   </div>
                 </div>
-                <h3 className="text-base font-black text-slate-900 leading-tight">Tỷ Lệ Hồ Sơ Điện Tử</h3>
+                <h3 className="text-base font-black text-slate-900 leading-tight">Tỷ lệ báo cáo điện tử</h3>
                 <p className="text-4xs text-slate-500 font-medium leading-relaxed">
-                  Đo lường tinh thần mục tiêu <b>&quot;100% hồ sơ xử lý trên môi trường điện tử&quot;</b> của Kế hoạch 02. Dữ liệu nộp trực tiếp qua Web Form thay vì tải tệp Excel lên.
+                  Tỷ lệ báo cáo được lập và gửi trực tiếp trên hệ thống so với tổng số báo cáo đã nộp trong kỳ.
                 </p>
               </div>
 
@@ -207,13 +207,13 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="bg-emerald-50 text-emerald-800 text-3xs font-extrabold px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wider">Chỉ số 2</span>
-                  <div className="text-slate-400 hover:text-slate-500 cursor-help" title="Số trường được điền tự động từ kỳ trước và dữ liệu nền tảng chia cho tổng số trường phải nhập tay.">
+                  <div className="text-slate-400 hover:text-slate-500 cursor-help" title="Số trường được kế thừa từ kỳ trước và dữ liệu nền tảng chia cho tổng số trường cần nhập.">
                     <Database className="w-4 h-4 text-emerald-600" />
                   </div>
                 </div>
-                <h3 className="text-base font-black text-slate-900 leading-tight">Điểm Once-Only</h3>
+                <h3 className="text-base font-black text-slate-900 leading-tight">Tỷ lệ dữ liệu được kế thừa</h3>
                 <p className="text-4xs text-slate-500 font-medium leading-relaxed">
-                  Nguyên tắc <b>&quot;Chỉ cung cấp một lần&quot;</b>. Đo lường tỷ lệ các trường dữ liệu (ví dụ CT01 quy mô hộ dân lưu sẵn, CT02, CT05, CT06, CT12) tự động kế thừa từ kỳ trước, giúp giảm gánh nặng nộp lại thông tin của thôn.
+                  Theo dõi nguyên tắc <b>&quot;chỉ cung cấp một lần&quot;</b>: tỷ lệ trường dữ liệu được kế thừa từ kỳ trước hoặc dữ liệu nền tảng, giúp giảm việc nhập lại.
                 </p>
               </div>
 
@@ -245,9 +245,9 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
             <div className="space-y-1">
               <span className="font-bold text-slate-700 block">Ý nghĩa thực tiễn chỉ số cải cách hành chính:</span>
               <p>
-                <b>Tỷ lệ hồ sơ điện tử:</b> Cho biết hiệu suất các thôn chuyển đổi sang khai báo trực tiếp thời gian thực, thúc đẩy môi trường số thống nhất.
+                <b>Tỷ lệ báo cáo điện tử:</b> Cho biết mức sử dụng biểu mẫu trực tuyến của các thôn trong kỳ đã chọn.
                 <br />
-                <b>Điểm Once-Only:</b> Càng gần 100% nghĩa là nền tảng đang tận dụng hiệu quả cơ sở dữ liệu lịch sử và metadata sáp nhập, giảm tải tối đa cho cán bộ thôn khi thực hiện chế độ báo cáo văn hóa - xã hội định kỳ.
+                <b>Tỷ lệ dữ liệu được kế thừa:</b> Càng cao, cán bộ càng ít phải nhập lại những dữ liệu hệ thống đã có; đây là chỉ số hỗ trợ điều hành, không phải điểm xếp hạng cá nhân.
               </p>
             </div>
           </div>

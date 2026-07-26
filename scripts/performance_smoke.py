@@ -19,7 +19,15 @@ DEFAULT_PATHS = ("/health/live", "/health/ready")
 def safe_base_url(value: str) -> str:
     base_url = value.strip().rstrip("/")
     parsed = urllib.parse.urlparse(base_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ValueError("base URL must be an absolute HTTP(S) origin without credentials")
     return base_url
 
