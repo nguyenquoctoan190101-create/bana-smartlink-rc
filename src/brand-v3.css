@@ -1418,7 +1418,8 @@ textarea::placeholder {
 .role-screen > section > header:first-child:not(.page-heading),
 .role-screen #pending-updates-panel > div:first-child,
 .role-screen #manage-accounts-container > div:first-child,
-.role-screen section[aria-labelledby="create-period-title"] > header {
+.role-screen section[aria-labelledby="create-period-title"] > header,
+.role-screen section[aria-labelledby="period-change-title"] > header {
   position: relative;
   overflow: hidden;
   border: 1px solid rgb(218 175 55 / 0.24);
