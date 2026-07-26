@@ -1342,6 +1342,10 @@ async def ocr_photo_preview(
             detail=str(exc),
         ) from exc
     except OcrError as exc:
+        logger.warning(
+            "OCR preview failed",
+            extra={"ocr_failure_reason": str(exc)},
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="OCR processing failed",
