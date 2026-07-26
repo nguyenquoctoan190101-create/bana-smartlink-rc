@@ -23,3 +23,21 @@ export function getRoleLabel(role: UserRole): string {
 export function getRoleScope(role: UserRole): string {
   return ROLE_SCOPES[role] ?? "Chưa xác định phạm vi quyền.";
 }
+
+export function resolveRoleVillageIds(
+  role: UserRole,
+  primaryVillageId: string | null,
+  assignedVillageIds: string[] = [],
+): string[] {
+  if (role === "can_bo_thon") {
+    return primaryVillageId ? [primaryVillageId] : [];
+  }
+  if (role !== "to_cnscd") return [];
+  return Array.from(
+    new Set(
+      [primaryVillageId, ...assignedVillageIds].filter(
+        (villageId): villageId is string => Boolean(villageId),
+      ),
+    ),
+  ).sort();
+}

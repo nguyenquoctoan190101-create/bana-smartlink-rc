@@ -100,6 +100,28 @@ class SupabaseAdminClient:
             commune_id=str(row["commune_id"]) if row.get("commune_id") else None,
         )
 
+    async def list_user_village_ids(self, user_id: str) -> list[str]:
+        """Return the explicit village assignments for a staff account.
+
+        The profile keeps one optional primary village for backwards
+        compatibility. CNSCĐ members can support more than one village, so
+        their working scope must also include this assignment ledger.
+        """
+        encoded_id = quote(user_id, safe="")
+        rows = await self._rest_request(
+            "GET",
+            (
+                "/rest/v1/user_village_assignments"
+                f"?user_id=eq.{encoded_id}&select=village_id"
+                "&order=village_id.asc"
+            ),
+        )
+        return [
+            str(row["village_id"])
+            for row in rows
+            if row.get("village_id") is not None
+        ]
+
     async def create_auth_user(
         self,
         email: str,

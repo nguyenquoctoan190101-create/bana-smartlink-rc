@@ -2095,6 +2095,8 @@ export interface components {
         };
         /** CurrentUserResponse */
         CurrentUserResponse: {
+            /** Assigned Village Ids */
+            assigned_village_ids?: string[];
             /** Display Name */
             display_name: string | null;
             /** Force Password Reset */

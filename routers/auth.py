@@ -60,6 +60,7 @@ class CurrentUserResponse(BaseModel):
     phone: str | None
     is_active: bool
     force_password_reset: bool
+    assigned_village_ids: list[str] = Field(default_factory=list)
 
 
 class CitizenPendingUpdateRequest(BaseModel):
@@ -377,8 +378,23 @@ def _enforce_profile_access(profile: UserProfile) -> None:
 @router.get("/me", response_model=CurrentUserResponse)
 async def get_current_user(
     profile: Annotated[UserProfile, Depends(require_active_user)],
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> CurrentUserResponse:
     """Return the canonical profile without allowing business mutations."""
+    assigned_village_ids: list[str] = []
+    if profile.role == "can_bo_thon" and profile.village_id:
+        assigned_village_ids = [profile.village_id]
+    elif profile.role == "to_cnscd":
+        try:
+            assigned_village_ids = await supabase.list_user_village_ids(profile.id)
+        except SupabaseAdminError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Village assignment service is unavailable",
+            ) from exc
+        if profile.village_id:
+            assigned_village_ids.append(profile.village_id)
+        assigned_village_ids = sorted(set(assigned_village_ids))
     return CurrentUserResponse(
         id=profile.id,
         role=profile.role,
@@ -387,6 +403,7 @@ async def get_current_user(
         phone=profile.phone,
         is_active=profile.is_active,
         force_password_reset=profile.force_password_reset,
+        assigned_village_ids=assigned_village_ids,
     )
 
 

@@ -4,12 +4,14 @@ import { supabase, isAuthConfigured } from "./supabase";
 import { apiJson } from "./apiClient";
 import { clearOfflineData, setOfflineOwner } from "./db";
 import type { AuthProfile, UserRole } from "../types";
+import { resolveRoleVillageIds } from "./rolePresentation";
 
 interface AuthContextType {
   userId: string | null;
   isLoggedIn: boolean;
   userRole: UserRole;
   userVillageId: string | null;
+  userVillageIds: string[];
   userName: string | null;
   userPhone: string | null;
   loginPhone: string;
@@ -35,6 +37,7 @@ const PUBLIC_STATE = {
   userId: null,
   userRole: "dan" as UserRole,
   userVillageId: null,
+  userVillageIds: [] as string[],
   userName: "Người dân",
   userPhone: null,
 };
@@ -45,6 +48,7 @@ interface IdentityState {
   userName: string | null;
   userPhone: string | null;
   userVillageId: string | null;
+  userVillageIds: string[];
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -78,6 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userId: profile.id || session.user.id,
         userRole: profile.role,
         userVillageId: profile.village_id,
+        userVillageIds: resolveRoleVillageIds(
+          profile.role,
+          profile.village_id,
+          profile.assigned_village_ids,
+        ),
         userName: profile.display_name || session.user.email || "Cán bộ",
         userPhone: profile.phone,
       });

@@ -110,6 +110,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const internal = role === "admin_xa" || role === "lanh_dao";
   const admin = role === "admin_xa";
   const copy = roleCopy[role] ?? roleCopy.can_bo_thon;
+  const qualityScopeLabel =
+    role === "to_cnscd"
+      ? "phạm vi hỗ trợ"
+      : role === "can_bo_thon"
+        ? "phạm vi phụ trách"
+        : "phạm vi quyết định";
 
   const refresh = async () => {
     setLoading(true);
@@ -350,7 +356,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
         <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
-        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong phạm vi quyết định`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
+        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
         {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
       </div>
 

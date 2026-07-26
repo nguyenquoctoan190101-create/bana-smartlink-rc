@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -77,7 +77,13 @@ export default function ReportForm({
   onSaved,
   onCancel,
 }: ReportFormProps) {
-  const { userName, userPhone, userVillageId, userRole } = useAuth();
+  const {
+    userName,
+    userPhone,
+    userVillageId,
+    userVillageIds = [],
+    userRole,
+  } = useAuth();
   const { villages: new_villages } = useVillages();
   const { periods, error: periodsError } = useReportPeriods();
   const validationRules = rulesData as any;
@@ -113,6 +119,24 @@ export default function ReportForm({
   const getVillageName = (id: string) => {
     return new_villages.find((v: any) => v.id === id)?.name || id;
   };
+  const staffVillageIds = useMemo(
+    () =>
+      userRole === "can_bo_thon"
+        ? userVillageId
+          ? [userVillageId]
+          : []
+        : userRole === "to_cnscd"
+          ? userVillageIds
+          : [],
+    [userRole, userVillageId, userVillageIds],
+  );
+  const selectableVillages = useMemo(
+    () =>
+      userRole === "can_bo_thon" || userRole === "to_cnscd"
+        ? new_villages.filter((village) => staffVillageIds.includes(village.id))
+        : new_villages,
+    [new_villages, staffVillageIds, userRole],
+  );
 
   const [villageId, setVillageId] = useState<string>(userVillageId || "");
   const [periodId, setPeriodId] = useState<string>("");
@@ -357,16 +381,19 @@ export default function ReportForm({
     if (initialReport) return;
     setReporterName(userName || "");
     setReporterPhone(userPhone || "");
-    if (userVillageId) setVillageId(userVillageId);
-    else if (!villageId && new_villages.length > 0)
-      setVillageId(new_villages[0].id);
+    if (
+      villageId &&
+      selectableVillages.some((village) => village.id === villageId)
+    ) {
+      return;
+    }
+    setVillageId(selectableVillages[0]?.id || "");
   }, [
     initialReport,
     userName,
     userPhone,
-    userVillageId,
     villageId,
-    new_villages,
+    selectableVillages,
   ]);
 
   // Run validation on indicator change
@@ -791,10 +818,14 @@ export default function ReportForm({
                   onChange={(e) => setVillageId(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
                   disabled={
-                    userRole === "can_bo_thon" && Boolean(userVillageId)
+                    (userRole === "can_bo_thon" || userRole === "to_cnscd") &&
+                    selectableVillages.length <= 1
                   }
                 >
-                  {new_villages.map((v) => (
+                  {selectableVillages.length === 0 && (
+                    <option value="">Chưa được phân công thôn</option>
+                  )}
+                  {selectableVillages.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
                     </option>
@@ -807,6 +838,19 @@ export default function ReportForm({
                     nếu cần điều chỉnh phân công.
                   </p>
                 )}
+                {userRole === "to_cnscd" && selectableVillages.length > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Chỉ có thể lập báo cáo cho {selectableVillages.length} thôn
+                    được quản trị xã phân công.
+                  </p>
+                )}
+                {(userRole === "can_bo_thon" || userRole === "to_cnscd") &&
+                  selectableVillages.length === 0 && (
+                    <p className="mt-1.5 text-xs font-semibold text-amber-800" role="status">
+                      Tài khoản chưa được phân công thôn. Liên hệ quản trị xã
+                      trước khi lập báo cáo.
+                    </p>
+                  )}
               </div>
 
               <div>

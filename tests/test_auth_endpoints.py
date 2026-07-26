@@ -51,6 +51,34 @@ def mock_db_conn():
         yield conn
 
 
+def test_current_cnscd_profile_includes_all_assigned_villages(
+    client, mock_get_user_profile
+):
+    sub = str(uuid4())
+    token = _make_jwt(sub=sub, role="to_cnscd")
+    mock_get_user_profile.return_value = UserProfile(
+        id=sub,
+        role="to_cnscd",
+        village_id="village-primary",
+        force_password_reset=False,
+    )
+    with patch(
+        "services.supabase_admin.SupabaseAdminClient.list_user_village_ids",
+        new_callable=AsyncMock,
+        return_value=["village-2", "village-primary", "village-1"],
+    ):
+        res = client.get(
+            "/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
+
+    assert res.status_code == 200
+    assert res.json()["assigned_village_ids"] == [
+        "village-1",
+        "village-2",
+        "village-primary",
+    ]
+
+
 # 1. GET /auth/officers
 def test_list_officers_requires_auth(client):
     res = client.get("/auth/officers")

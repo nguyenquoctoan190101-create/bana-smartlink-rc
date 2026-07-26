@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getRoleLabel, getRoleScope } from "./rolePresentation";
+import {
+  getRoleLabel,
+  getRoleScope,
+  resolveRoleVillageIds,
+} from "./rolePresentation";
 
 describe("role presentation", () => {
   it("labels all staff roles in Vietnamese", () => {
@@ -12,5 +16,19 @@ describe("role presentation", () => {
     expect(getRoleScope("admin_xa")).toContain("duyệt, khóa và công bố");
     expect(getRoleScope("lanh_dao")).toContain("Không sửa dữ liệu");
     expect(getRoleScope("to_cnscd")).toContain("Không có quyền duyệt");
+  });
+
+  it("keeps village officers in one village and preserves all CNSCĐ assignments", () => {
+    expect(
+      resolveRoleVillageIds("can_bo_thon", "village-primary", ["village-other"]),
+    ).toEqual(["village-primary"]);
+    expect(
+      resolveRoleVillageIds("to_cnscd", "village-primary", [
+        "village-2",
+        "village-primary",
+        "village-1",
+      ]),
+    ).toEqual(["village-1", "village-2", "village-primary"]);
+    expect(resolveRoleVillageIds("lanh_dao", null, ["village-1"])).toEqual([]);
   });
 });

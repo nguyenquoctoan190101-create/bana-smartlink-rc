@@ -191,7 +191,7 @@ export default function Dashboard({
   userRole = "can_bo_thon",
   reportPeriods = [],
 }: DashboardProps) {
-  const { userVillageId } = useAuth();
+  const { userVillageId, userVillageIds = [] } = useAuth();
   const { villages: new_villages } = useVillages();
   const [selectedPeriod, setSelectedPeriod] = useState<string>(ALL_PERIODS);
   const [selectedVillageFilter, setSelectedVillageFilter] =
@@ -247,25 +247,48 @@ export default function Dashboard({
     };
   }, [showChartModal]);
 
-  // A village officer must never be invited by the interface to browse a
-  // different village. The API is still the authorization authority.
-  useEffect(() => {
-    if (
-      (userRole === "can_bo_thon" || userRole === "to_cnscd") &&
-      userVillageId
-    ) {
-      setSelectedVillageFilter(userVillageId);
+  const staffVillageIds = useMemo(() => {
+    if (userRole === "can_bo_thon") {
+      return userVillageId ? [userVillageId] : [];
     }
-  }, [userRole, userVillageId]);
+    if (userRole === "to_cnscd") return userVillageIds;
+    return [];
+  }, [userRole, userVillageId, userVillageIds]);
+  const selectableVillages = useMemo(
+    () =>
+      userRole === "can_bo_thon" || userRole === "to_cnscd"
+        ? new_villages.filter((village) => staffVillageIds.includes(village.id))
+        : new_villages,
+    [new_villages, staffVillageIds, userRole],
+  );
+
+  // Staff must never be invited by the interface to browse a village outside
+  // their assignment ledger. The API and RLS remain the authorization authority.
+  useEffect(() => {
+    if (userRole !== "can_bo_thon" && userRole !== "to_cnscd") return;
+    if (!staffVillageIds.length) {
+      setSelectedVillageFilter("");
+    } else if (staffVillageIds.length === 1) {
+      setSelectedVillageFilter(staffVillageIds[0]);
+    } else if (
+      selectedVillageFilter !== "all" &&
+      !staffVillageIds.includes(selectedVillageFilter)
+    ) {
+      setSelectedVillageFilter("all");
+    }
+  }, [selectedVillageFilter, staffVillageIds, userRole]);
 
   const effectiveVillageFilter =
-    (userRole === "can_bo_thon" || userRole === "to_cnscd") && userVillageId
-      ? userVillageId
+    userRole === "can_bo_thon" || userRole === "to_cnscd"
+      ? staffVillageIds.length === 1
+        ? staffVillageIds[0]
+        : selectedVillageFilter
       : selectedVillageFilter;
   const canExportSelectedScope =
     userRole === "admin_xa" ||
     userRole === "lanh_dao" ||
     ((userRole === "can_bo_thon" || userRole === "to_cnscd") &&
+      staffVillageIds.length > 0 &&
       effectiveVillageFilter !== "all");
 
   const { localDrafts, serverReports } = useMemo(
@@ -352,11 +375,17 @@ export default function Dashboard({
       )
     : undefined;
   const assignedVillageIds = selectedPeriodDefinition?.village_ids;
+  const expectedScopeVillageIds = selectableVillages
+    .map((village) => village.id)
+    .filter(
+      (villageId) =>
+        assignedVillageIds === undefined || assignedVillageIds.includes(villageId),
+    );
   const expectedVillageCount =
-    effectiveVillageFilter === "all"
-      ? selectedPeriod === ALL_PERIODS || assignedVillageIds === undefined
-        ? new_villages.length
-        : assignedVillageIds.length
+    !effectiveVillageFilter
+      ? 0
+      : effectiveVillageFilter === "all"
+      ? expectedScopeVillageIds.length
       : assignedVillageIds === undefined ||
           assignedVillageIds.includes(effectiveVillageFilter)
         ? 1
@@ -494,13 +523,17 @@ export default function Dashboard({
                 : "Dữ liệu địa bàn"
           }
           title={
-            userRole === "can_bo_thon" || userRole === "to_cnscd"
+            userRole === "can_bo_thon"
               ? "Dữ liệu của thôn"
+              : userRole === "to_cnscd"
+                ? "Dữ liệu các thôn được hỗ trợ"
               : "Tổng hợp số liệu"
           }
           description={
             userRole === "can_bo_thon"
               ? "Bạn chỉ xem và lập báo cáo cho thôn đã được phân công. Dữ liệu chưa có không được quy đổi thành số 0."
+              : userRole === "to_cnscd"
+                ? "Chỉ xem và hỗ trợ lập báo cáo cho các thôn được quản trị xã phân công. Dữ liệu chưa có không được quy đổi thành số 0."
               : userRole === "admin_xa"
                 ? "Xã tạo kỳ, theo dõi việc nộp, duyệt và công bố theo quy trình. Dữ liệu chưa có không được quy đổi thành số 0."
                 : "Mỗi số liệu được hiển thị theo kỳ, phạm vi và trạng thái nguồn. Dữ liệu chưa có không được quy đổi thành số 0."
@@ -600,29 +633,32 @@ export default function Dashboard({
 
             <div className="dashboard-filter-bar__field">
               <label className="block text-3xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                Lọc theo thôn:
+                {userRole === "to_cnscd" ? "Thôn được hỗ trợ:" : "Lọc theo thôn:"}
               </label>
               <select
-                value={selectedVillageFilter}
+                value={effectiveVillageFilter}
                 onChange={(e) => setSelectedVillageFilter(e.target.value)}
-                disabled={userRole === "can_bo_thon" && Boolean(userVillageId)}
+                disabled={
+                  (userRole === "can_bo_thon" || userRole === "to_cnscd") &&
+                  selectableVillages.length <= 1
+                }
                 className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
               >
-                {userRole !== "can_bo_thon" && (
-                  <option value="all">Tất cả 10 thôn</option>
+                {selectableVillages.length === 0 && (
+                  <option value="">Chưa được phân công thôn</option>
                 )}
-                {new_villages
-                  .filter(
-                    (v) =>
-                      userRole !== "can_bo_thon" ||
-                      !userVillageId ||
-                      v.id === userVillageId,
-                  )
-                  .map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
+                {selectableVillages.length > 1 && userRole !== "can_bo_thon" && (
+                  <option value="all">
+                    {userRole === "to_cnscd"
+                      ? `Tất cả ${selectableVillages.length} thôn được hỗ trợ`
+                      : `Tất cả ${selectableVillages.length} thôn`}
+                  </option>
+                )}
+                {selectableVillages.map((village) => (
+                  <option key={village.id} value={village.id}>
+                    {village.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -631,7 +667,13 @@ export default function Dashboard({
             {(userRole === "can_bo_thon" || userRole === "to_cnscd") && (
               <button
                 onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
-                className="dashboard-filter-bar__new flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                disabled={selectableVillages.length === 0}
+                title={
+                  selectableVillages.length === 0
+                    ? "Quản trị xã cần phân công ít nhất một thôn trước khi lập báo cáo."
+                    : undefined
+                }
+                className="dashboard-filter-bar__new flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />
                 <span>Lập báo cáo mới</span>
@@ -672,8 +714,12 @@ export default function Dashboard({
         <DataScope
           period={selectedPeriodLabel}
           scope={
-            effectiveVillageFilter === "all"
-              ? "Toàn bộ phạm vi được phép xem"
+            !effectiveVillageFilter
+              ? "Chưa được phân công thôn"
+              : effectiveVillageFilter === "all"
+              ? userRole === "to_cnscd"
+                ? `${selectableVillages.length} thôn được hỗ trợ`
+                : "Toàn bộ phạm vi được phép xem"
               : getVillageName(effectiveVillageFilter)
           }
           quality={
@@ -706,8 +752,11 @@ export default function Dashboard({
             >
               Kỳ báo cáo hiện có dữ liệu đã duyệt của {coveredVillageCount}/
               {expectedVillageCount} thôn. Các thẻ và biểu đồ bên dưới chỉ tổng
-              hợp {coveredVillageCount} thôn đã duyệt, chưa đại diện cho toàn xã;
-              dữ liệu của các thôn còn lại vẫn được để trống.
+              hợp {coveredVillageCount} thôn đã duyệt, chưa đủ{" "}
+              {userRole === "to_cnscd" || userRole === "can_bo_thon"
+                ? "phạm vi được phân công"
+                : "để đại diện cho toàn xã"}
+              ; dữ liệu của các thôn còn lại vẫn được để trống.
             </div>
           )}
 

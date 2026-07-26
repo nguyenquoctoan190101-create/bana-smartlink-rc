@@ -49,6 +49,17 @@ async def test_profile_and_auth_user_lifecycle_contracts() -> None:
     assert "user%2F1" in client._rest_request.await_args.args[1]
 
     client._rest_request.reset_mock()
+    client._rest_request.return_value = [
+        {"village_id": "village-1"},
+        {"village_id": "village-2"},
+        {"village_id": None},
+    ]
+    assert await client.list_user_village_ids("user/1") == ["village-1", "village-2"]
+    assignment_path = client._rest_request.await_args.args[1]
+    assert "user%2F1" in assignment_path
+    assert "user_village_assignments" in assignment_path
+
+    client._rest_request.reset_mock()
     client._rest_request.return_value = []
     assert await client.get_user_profile("missing") is None
 

@@ -8,12 +8,23 @@ import Dashboard, {
   splitDashboardReports,
 } from "./Dashboard";
 
+const authScope = vi.hoisted(() => ({
+  userVillageId: null as string | null,
+  userVillageIds: [] as string[],
+}));
+
 vi.mock("../lib/AuthContext", () => ({
-  useAuth: () => ({ userVillageId: null }),
+  useAuth: () => authScope,
 }));
 
 vi.mock("../lib/useVillages", () => ({
-  useVillages: () => ({ villages: [{ id: "village-1", name: "Thôn An Sơn" }] }),
+  useVillages: () => ({
+    villages: [
+      { id: "village-1", name: "Thôn An Sơn" },
+      { id: "village-2", name: "Thôn Hòa Nhơn" },
+      { id: "village-3", name: "Thôn Hòa Ninh" },
+    ],
+  }),
 }));
 
 vi.mock("../lib/apiClient", () => ({
@@ -49,7 +60,11 @@ const report = (overrides: Partial<ReportData> = {}): ReportData => ({
 });
 
 describe("Dashboard device drafts", () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    authScope.userVillageId = null;
+    authScope.userVillageIds = [];
+  });
 
   it("keeps a device draft separate from the server report with the same id", () => {
     const serverReport = report();
@@ -253,6 +268,28 @@ describe("Dashboard device drafts", () => {
     expect(screen.queryByText("Xuất XLSX")).not.toBeInTheDocument();
     expect(screen.queryByText("Xuất DOCX")).not.toBeInTheDocument();
     expect(screen.queryByText("Xuất PDF")).not.toBeInTheDocument();
+  });
+
+  it("offers CNSCĐ only the villages in the authenticated assignment ledger", () => {
+    authScope.userVillageIds = ["village-1", "village-3"];
+    render(
+      <Dashboard
+        reports={[]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="to_cnscd"
+      />,
+    );
+
+    expect(
+      screen.getByRole("option", { name: "Tất cả 2 thôn được hỗ trợ" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Thôn An Sơn" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Thôn Hòa Ninh" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Thôn Hòa Nhơn" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows five message-led decision views instead of repeated bars", () => {

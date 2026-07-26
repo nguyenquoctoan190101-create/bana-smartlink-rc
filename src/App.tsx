@@ -114,6 +114,69 @@ const APP_TAB_TITLES: Record<AppTab, string> = {
   "record-lookup": "Tra cứu hồ sơ",
 };
 
+const ROLE_TABS: Record<UserRole, Set<AppTab>> = {
+  admin_xa: new Set([
+    "dashboard",
+    "progress-dashboard",
+    "policy-scorecard",
+    "cnscd-impact",
+    "create-period",
+    "admin-panel",
+    "pending-updates",
+    "operations",
+    "legacy-import",
+    "knowledge",
+    "cases",
+    "pilots",
+    "record-lookup",
+  ]),
+  can_bo_thon: new Set([
+    "dashboard",
+    "report-form",
+    "citizen-proposal",
+    "operations",
+    "knowledge",
+    "cases",
+    "record-lookup",
+  ]),
+  to_cnscd: new Set([
+    "dashboard",
+    "report-form",
+    "citizen-proposal",
+    "operations",
+    "knowledge",
+    "cases",
+    "record-lookup",
+  ]),
+  lanh_dao: new Set([
+    "dashboard",
+    "progress-dashboard",
+    "policy-scorecard",
+    "cnscd-impact",
+    "operations",
+    "knowledge",
+    "cases",
+    "record-lookup",
+    "period-change-requests",
+  ]),
+  dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
+};
+
+const DEFAULT_TAB_BY_ROLE: Record<UserRole, AppTab> = {
+  admin_xa: "operations",
+  can_bo_thon: "operations",
+  to_cnscd: "operations",
+  lanh_dao: "operations",
+  dan: "dashboard",
+};
+
+const requestedAppTab = (): AppTab | null => {
+  const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
+  const legacyTab = new URLSearchParams(window.location.search).get("tab");
+  const target = pathTab || legacyTab;
+  return target && target in APP_TAB_TITLES ? (target as AppTab) : null;
+};
+
 const LoadingPanel = () => (
   <div
     role="status"
@@ -358,6 +421,7 @@ export default function App() {
     isLoggedIn,
     userRole,
     userVillageId,
+    userVillageIds,
     userName,
     userPhone,
     loginPhone,
@@ -610,54 +674,7 @@ export default function App() {
 
   // Synchronize tab state with URL path
   const changeTab = (tab: AppTab, search = new URLSearchParams()) => {
-    const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set([
-        "dashboard",
-        "progress-dashboard",
-        "policy-scorecard",
-        "cnscd-impact",
-        "create-period",
-        "admin-panel",
-        "pending-updates",
-        "operations",
-        "legacy-import",
-        "knowledge",
-        "cases",
-        "pilots",
-        "record-lookup",
-      ]),
-      can_bo_thon: new Set([
-        "dashboard",
-        "report-form",
-        "citizen-proposal",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-      ]),
-      to_cnscd: new Set([
-        "dashboard",
-        "report-form",
-        "citizen-proposal",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-      ]),
-      lanh_dao: new Set([
-        "dashboard",
-        "progress-dashboard",
-        "policy-scorecard",
-        "cnscd-impact",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-        "period-change-requests",
-      ]),
-      dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
-    };
-    if (!roleTabs[userRole].has(tab)) tab = "dashboard";
+    if (!ROLE_TABS[userRole].has(tab)) tab = DEFAULT_TAB_BY_ROLE[userRole];
     if (tab === "report-form") {
       setRequestedPeriodId(search.get("period_id") || search.get("period"));
     }
@@ -668,89 +685,28 @@ export default function App() {
 
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
-    const roleTabs: Record<UserRole, Set<string>> = {
-      admin_xa: new Set([
-        "dashboard",
-        "progress-dashboard",
-        "policy-scorecard",
-        "cnscd-impact",
-        "create-period",
-        "admin-panel",
-        "pending-updates",
-        "operations",
-        "legacy-import",
-        "knowledge",
-        "cases",
-        "pilots",
-        "record-lookup",
-      ]),
-      can_bo_thon: new Set([
-        "dashboard",
-        "report-form",
-        "citizen-proposal",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-      ]),
-      to_cnscd: new Set([
-        "dashboard",
-        "report-form",
-        "citizen-proposal",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-      ]),
-      lanh_dao: new Set([
-        "dashboard",
-        "progress-dashboard",
-        "policy-scorecard",
-        "cnscd-impact",
-        "operations",
-        "knowledge",
-        "cases",
-        "record-lookup",
-        "period-change-requests",
-      ]),
-      dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
-    };
-    const validTabs = new Set([
-      "dashboard",
-      "progress-dashboard",
-      "report-form",
-      "citizen-proposal",
-      "admin-panel",
-      "policy-scorecard",
-      "cnscd-impact",
-      "create-period",
-      "pending-updates",
-      "operations",
-      "legacy-import",
-      "knowledge",
-      "cases",
-      "pilots",
-      "record-lookup",
-      "period-change-requests",
-    ]);
+    if (!isLoggedIn) return undefined;
     const restore = () => {
-      const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
-      const legacyTab = new URLSearchParams(window.location.search).get("tab");
-      const target = pathTab || legacyTab;
-      if (target && validTabs.has(target) && roleTabs[userRole].has(target)) {
-        setActiveTab(target as typeof activeTab);
+      const target = requestedAppTab();
+      if (target && ROLE_TABS[userRole].has(target)) {
+        setActiveTab(target);
         setRequestedPeriodId(
           target === "report-form"
             ? new URLSearchParams(window.location.search).get("period_id") ||
                 new URLSearchParams(window.location.search).get("period")
             : null,
         );
-      } else if (!roleTabs[userRole].has(activeTab)) setActiveTab("dashboard");
+        return;
+      }
+      const fallback = DEFAULT_TAB_BY_ROLE[userRole];
+      setActiveTab(fallback);
+      setRequestedPeriodId(null);
+      window.history.replaceState({ tab: fallback }, "", `/app/${fallback}`);
     };
     restore();
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [userRole]);
+  }, [isLoggedIn, userRole]);
 
   useEffect(() => {
     if (!isLoggedIn) return undefined;
@@ -799,7 +755,7 @@ export default function App() {
       }
     };
     void initApp();
-  }, [isAuthLoading, isLoggedIn, userRole, userVillageId]);
+  }, [isAuthLoading, isLoggedIn, userRole, userVillageId, userVillageIds]);
 
   const loadAllReports = async () => {
     try {
@@ -820,13 +776,8 @@ export default function App() {
     }
   };
 
-  // Route back to dashboard upon successful login or guest entry
   useEffect(() => {
-    if (isLoggedIn) {
-      setActiveTab(userRole === "dan" ? "dashboard" : "operations");
-    } else {
-      setEditingReport(null);
-    }
+    if (!isLoggedIn) setEditingReport(null);
   }, [isLoggedIn]);
 
   const handleEditReport = (report: ReportData) => {
@@ -1473,7 +1424,16 @@ export default function App() {
             </div>
             <div className="pl-6 space-y-1 text-emerald-100 text-xs">
               <p>{getRoleLabel(userRole)}</p>
-              {userVillageId && (
+              {userRole === "to_cnscd" ? (
+                <p>
+                  Phạm vi hỗ trợ:{" "}
+                  <span className="font-bold text-white">
+                    {userVillageIds.length
+                      ? `${userVillageIds.length} thôn được phân công`
+                      : "Chưa được phân công thôn"}
+                  </span>
+                </p>
+              ) : userVillageId ? (
                 <p>
                   Thôn phụ trách:{" "}
                   <span className="font-bold text-white">
@@ -1481,7 +1441,7 @@ export default function App() {
                       "Thôn được phân công"}
                   </span>
                 </p>
-              )}
+              ) : null}
               <button
                 type="button"
                 onClick={() => setShowRoleScope((visible) => !visible)}
@@ -1842,11 +1802,11 @@ export default function App() {
                         ) {
                           return true;
                         }
-                        if (
-                          userRole === "can_bo_thon" ||
-                          userRole === "to_cnscd"
-                        ) {
+                        if (userRole === "can_bo_thon") {
                           return r.village_id === userVillageId;
+                        }
+                        if (userRole === "to_cnscd") {
+                          return userVillageIds.includes(r.village_id);
                         }
                         if (userRole === "dan") {
                           const matchesVillage =

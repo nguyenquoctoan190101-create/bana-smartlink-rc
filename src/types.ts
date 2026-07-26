@@ -147,6 +147,7 @@ export interface AuthProfile {
   phone: string | null;
   is_active: boolean;
   force_password_reset: boolean;
+  assigned_village_ids?: string[];
 }
 
 export interface NarrativeAnalysisResponse {

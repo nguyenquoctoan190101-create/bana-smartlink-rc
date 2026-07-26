@@ -1455,6 +1455,13 @@
       },
       "CurrentUserResponse": {
         "properties": {
+          "assigned_village_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assigned Village Ids",
+            "type": "array"
+          },
           "display_name": {
             "anyOf": [
               {
