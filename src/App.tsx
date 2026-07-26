@@ -1868,7 +1868,10 @@ export default function App() {
 
                 {activeTab === "progress-dashboard" &&
                   (activePeriodId ? (
-                    <ProgressDashboard periodId={activePeriodId} />
+                    <ProgressDashboard
+                      periodId={activePeriodId}
+                      periods={periods}
+                    />
                   ) : (
                     <p role="status">Chưa có kỳ báo cáo.</p>
                   ))}
@@ -1881,7 +1884,10 @@ export default function App() {
 
                 {activeTab === "cnscd-impact" &&
                   (activePeriodId ? (
-                    <CnscdImpact selectedPeriod={activePeriodId} />
+                    <CnscdImpact
+                      selectedPeriod={activePeriodId}
+                      periods={periods}
+                    />
                   ) : (
                     <p role="status">Chưa có kỳ báo cáo.</p>
                   ))}
@@ -1890,6 +1896,7 @@ export default function App() {
                   <OperationsCenter
                     periodId={activePeriodId}
                     role={userRole}
+                    periods={periods}
                     maturityEnabled={
                       userRole === "admin_xa" && pilotStatus.maturity_enabled
                     }

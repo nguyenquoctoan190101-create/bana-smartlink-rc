@@ -202,7 +202,7 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
               </div>
             </div>
 
-            {/* Indicator 2: Điểm Once-Only */}
+            {/* Indicator 2: Tỷ lệ dữ liệu được kế thừa */}
             <div className="border border-slate-150 rounded-2xl p-6 hover:shadow-xs transition-all flex flex-col justify-between space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

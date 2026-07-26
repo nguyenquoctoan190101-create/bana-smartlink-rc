@@ -34,6 +34,32 @@
   margin: 0;
 }
 
+.progress-dashboard__period-picker {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  max-width: 28rem;
+}
+
+.progress-dashboard__period-picker span {
+  color: #d1fae5;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.progress-dashboard__period-picker select {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  color: #123b30;
+  font-size: 0.82rem;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0 36px 0 12px;
+  width: 100%;
+}
+
 .progress-dashboard__metrics {
   display: grid;
   gap: 10px;

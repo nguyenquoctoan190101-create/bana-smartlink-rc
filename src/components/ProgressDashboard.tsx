@@ -3,7 +3,7 @@ import "./ProgressDashboard.css";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 
 type DashboardColor = "green" | "yellow" | "red";
-type ReportStatus = "chua_nop" | "dung_han" | "tre_han";
+type ReportStatus = "not_submitted" | "on_time" | "late";
 
 type VillageStatus = {
   village_id: string;
@@ -25,13 +25,14 @@ type ReportsStatusResponse = {
 type ProgressDashboardProps = {
   periodId?: string;
   currentPeriod?: string;
+  periods?: PeriodItem[];
   apiBaseUrl?: string;
 };
 
 const STATUS_LABELS: Record<ReportStatus, string> = {
-  chua_nop: "Chưa nộp",
-  dung_han: "Đúng hạn",
-  tre_han: "Trễ hạn",
+  not_submitted: "Chưa nộp",
+  on_time: "Đúng hạn",
+  late: "Trễ hạn",
 };
 
 const STATUS_DOT_LABELS: Record<DashboardColor, string> = {
@@ -58,19 +59,33 @@ type PeriodItem = {
   id: string;
   name: string;
   due_date: string;
+  display_name?: string;
 };
+const EMPTY_PERIODS: PeriodItem[] = [];
 
 export default function ProgressDashboard({
   periodId,
   currentPeriod,
+  periods: availablePeriods = EMPTY_PERIODS,
   apiBaseUrl = viteApiBaseUrl,
 }: ProgressDashboardProps) {
-  const activePeriodId = periodId || currentPeriod || "";
+  const preferredPeriodId = periodId || currentPeriod || "";
+  const [activePeriodId, setActivePeriodId] = useState(preferredPeriodId);
   const [villages, setVillages] = useState<VillageStatus[]>([]);
   const [alerts, setAlerts] = useState<TrendAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !activePeriodId ||
+      (availablePeriods.length > 0 &&
+        !availablePeriods.some((period) => period.id === activePeriodId))
+    ) {
+      setActivePeriodId(preferredPeriodId || availablePeriods[0]?.id || "");
+    }
+  }, [activePeriodId, availablePeriods, preferredPeriodId]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -82,6 +97,11 @@ export default function ProgressDashboard({
 
       try {
         // 1. Fetch status of submissions
+        if (!activePeriodId) {
+          setVillages([]);
+          setAlerts([]);
+          return;
+        }
         const statusParams = new URLSearchParams({ period_id: activePeriodId });
         const statusResponse = await apiFetch(`/reports/status?${statusParams}`, {
           signal: abortController.signal,
@@ -152,7 +172,7 @@ export default function ProgressDashboard({
   const summary = useMemo(() => {
     const totalVillages = villages.length;
     const submittedVillages = villages.filter(
-      (village) => village.status !== "chua_nop",
+      (village) => village.status === "on_time" || village.status === "late",
     ).length;
     const submittedRate =
       totalVillages === 0 ? 0 : Math.round((submittedVillages / totalVillages) * 100);
@@ -163,9 +183,24 @@ export default function ProgressDashboard({
   return (
     <section className="progress-dashboard" aria-busy={isLoading}>
       <div className="progress-dashboard__summary" aria-label="Tổng quan tiến độ">
-        <div>
+        <div className="progress-dashboard__heading">
           <p className="progress-dashboard__eyebrow">Tiến độ nộp báo cáo</p>
           <h1>Tiến độ báo cáo theo thôn</h1>
+          {availablePeriods.length > 0 ? (
+            <label className="progress-dashboard__period-picker">
+              <span>Kỳ theo dõi</span>
+              <select
+                value={activePeriodId}
+                onChange={(event) => setActivePeriodId(event.target.value)}
+              >
+                {availablePeriods.map((period) => (
+                  <option key={period.id} value={period.id}>
+                    {period.display_name || period.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
         <dl className="progress-dashboard__metrics">
           <div className="progress-dashboard__metric">

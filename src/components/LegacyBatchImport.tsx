@@ -206,8 +206,8 @@ export default function LegacyBatchImport() {
               {periods.map((period) => <option key={period.id} value={period.id}>{period.display_name ?? period.name}</option>)}
             </select>
           </label>
-          <label className="space-y-2 font-semibold text-sm">
-            Bộ tệp XLSX (tối đa 25 tệp)
+          <div className="space-y-2 text-sm">
+            <span className="block font-semibold">Bộ tệp XLSX (tối đa 25 tệp)</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -219,9 +219,32 @@ export default function LegacyBatchImport() {
                 setPreview(null);
                 setError(null);
               }}
-              className="block w-full rounded-lg border border-slate-300 bg-white p-2"
+              className="sr-only"
             />
-            <div className="flex items-center justify-between gap-3" aria-live="polite">
+            <div className="flex flex-col gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {selectedFiles.length
+                    ? `${selectedFiles.length} tệp đã sẵn sàng để kiểm tra`
+                    : "Chọn các báo cáo Excel cần tiếp nhận"}
+                </p>
+                <p className="mt-1 text-xs font-normal text-slate-500" aria-live="polite">
+                  {selectedFiles.length
+                    ? "Bạn có thể xem danh sách tệp ngay bên dưới."
+                    : "Định dạng .xlsx; chọn tối đa 25 tệp trong một đợt."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={busy || Boolean(detail)}
+                className="min-h-11 shrink-0"
+              >
+                <Upload /> Chọn tệp XLSX
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-3">
               <span className="block text-xs font-normal text-slate-500">
                 {selectedFiles.length
                   ? `Đã chọn ${selectedFiles.length} tệp XLSX.`
@@ -229,7 +252,7 @@ export default function LegacyBatchImport() {
               </span>
               {selectedFiles.length > 0 && <Button type="button" variant="secondary" onClick={clearSelectedFiles} disabled={busy || Boolean(detail)} className="min-h-11">Bỏ tệp</Button>}
             </div>
-          </label>
+          </div>
         </div>
         {selectedFiles.length > 0 && !detail && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3" aria-label="Danh sách tệp đã chọn">

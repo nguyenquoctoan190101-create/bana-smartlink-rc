@@ -489,13 +489,13 @@ export default function ManageAccounts() {
             </div>
 
             <div>
-              <label className="block text-5xs font-black text-slate-400 uppercase tracking-wider mb-1">Theo chức vụ:</label>
+              <label className="block text-5xs font-black text-slate-400 uppercase tracking-wider mb-1">Theo vai trò:</label>
               <select
                 value={selectedRoleFilter}
                 onChange={(e) => setSelectedRoleFilter(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-lg py-1 px-2 text-2xs font-semibold text-slate-650 focus:outline-hidden focus:ring-1 focus:ring-emerald-100"
               >
-                <option value="all">Tất cả chức vụ</option>
+                <option value="all">Tất cả vai trò</option>
                 <option value="can_bo_thon">Cán bộ Thôn</option>
                 <option value="to_cnscd">Thành viên Tổ công nghệ số cộng đồng</option>
               </select>
@@ -528,127 +528,114 @@ export default function ManageAccounts() {
             <p>Không tìm thấy tài khoản cán bộ nào khớp với bộ lọc.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-5xs font-black uppercase tracking-wider border-b border-slate-150">
-                  <th className="py-3 px-4">Họ và Tên</th>
-                  <th className="py-3 px-4">Thông tin liên hệ</th>
-                  <th className="py-3 px-4">Vai trò</th>
-                  <th className="py-3 px-4">Địa bàn thôn</th>
-                  <th className="py-3 px-4">Lần đăng nhập gần nhất</th>
-                  <th className="py-3 px-4">Trạng thái</th>
-                  <th className="py-3 px-4 text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-150">
-                {filteredOfficers.map((officer) => {
-                  const village = new_villages.find((v) => v.id === officer.village_id);
-                  return (
-                    <tr 
-                      key={officer.id} 
-                      className={`hover:bg-slate-50/50 transition-colors text-xs ${
-                        !officer.is_active ? "bg-rose-25/25" : ""
+          <div className="grid gap-4 p-4 xl:grid-cols-2">
+            {filteredOfficers.map((officer) => {
+              const village = new_villages.find(
+                (item) => item.id === officer.village_id,
+              );
+              const roleLabel =
+                officer.role === "can_bo_thon"
+                  ? "Cán bộ thôn"
+                  : "Tổ công nghệ số cộng đồng";
+              return (
+                <article
+                  key={officer.id}
+                  className={`rounded-xl border p-4 shadow-2xs ${
+                    officer.is_active
+                      ? "border-slate-200 bg-white"
+                      : "border-rose-200 bg-rose-50/30"
+                  }`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-extrabold text-slate-900">
+                        {officer.name}
+                      </h4>
+                      <div className="mt-2 space-y-1 text-xs text-slate-600">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Mail className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="min-w-0 break-all">{officer.email}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span>{officer.phone || "Chưa cập nhật số điện thoại"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex w-fit items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${
+                        officer.is_active
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border-rose-200 bg-rose-50 text-rose-800"
                       }`}
                     >
-                      {/* Name with custom styling */}
-                      <td className="py-3.5 px-4">
-                        <span className="font-extrabold text-slate-800 block">{officer.name}</span>
-                        <span className="text-5xs font-bold text-slate-400 font-mono">ID: {officer.id}</span>
-                      </td>
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          officer.is_active ? "bg-emerald-600" : "bg-rose-600"
+                        }`}
+                      />
+                      {officer.is_active ? "Đang hoạt động" : "Đã khóa"}
+                    </span>
+                  </div>
 
-                      {/* Contact Info */}
-                      <td className="py-3.5 px-4 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-slate-650">
-                          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="font-mono text-2xs truncate max-w-44 block">{officer.email}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-slate-600">
-                          <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="font-mono text-2xs">{officer.phone}</span>
-                        </div>
-                      </td>
+                  <dl className="mt-4 grid gap-3 rounded-lg bg-slate-50 p-3 text-xs sm:grid-cols-3">
+                    <div>
+                      <dt className="font-bold text-slate-500">Vai trò</dt>
+                      <dd className="mt-1 flex items-start gap-1.5 font-semibold text-slate-800">
+                        <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                        {roleLabel}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-bold text-slate-500">Địa bàn</dt>
+                      <dd className="mt-1 flex items-center gap-1.5 font-semibold text-slate-800">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+                        {village?.name || "Toàn xã"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-bold text-slate-500">Đăng nhập gần nhất</dt>
+                      <dd className="mt-1">{formatLastLogin(officer.last_login)}</dd>
+                    </div>
+                  </dl>
 
-                      {/* Role Badge */}
-                      <td className="py-3.5 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-5xs font-black uppercase tracking-wider inline-flex items-center gap-1 ${
-                          officer.role === "can_bo_thon" 
-                            ? "bg-sky-50 text-sky-850 border border-sky-100" 
-                            : "bg-emerald-50 text-emerald-850 border border-emerald-100"
-                        }`}>
-                          <Shield className="w-3 h-3" />
-                          {officer.role === "can_bo_thon" ? "Cán bộ thôn" : "Tổ công nghệ số cộng đồng"}
-                        </span>
-                      </td>
-
-                      {/* Village name */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1 text-slate-700 font-bold">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span>{village ? village.name.replace("Thôn ", "") : officer.village_id}</span>
-                        </div>
-                      </td>
-
-                      {/* Last Login date */}
-                      <td className="py-3.5 px-4">
-                        {formatLastLogin(officer.last_login)}
-                      </td>
-
-                      {/* Status indicator */}
-                      <td className="py-3.5 px-4">
-                        <span className={`px-2.5 py-1 rounded-full text-5xs font-black uppercase tracking-wide inline-flex items-center gap-1 border ${
-                          officer.is_active 
-                            ? "bg-emerald-50 text-emerald-800 border-emerald-100" 
-                            : "bg-rose-50 text-rose-800 border-rose-100"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${officer.is_active ? "bg-emerald-600" : "bg-rose-600"}`} />
-                          {officer.is_active ? "Đang hoạt động" : "Bị khoá"}
-                        </span>
-                      </td>
-
-                      {/* Lock / Unlock button (sets active status) */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleResetPassword(officer.id, officer.name)}
-                            className="px-3 py-1.5 rounded-lg text-4xs font-black uppercase tracking-wider inline-flex items-center gap-1 transition-all cursor-pointer bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200"
-                            title="Cấp lại mật khẩu"
-                          >
-                            <KeyRound className="w-3 h-3" />
-                            <span>Đặt lại mật khẩu</span>
-                          </button>
-                          
-                          <button
-                            type="button"
-                            onClick={() => handleToggleStatus(officer.id, officer.name, officer.is_active)}
-                            className={`px-3 py-1.5 rounded-lg text-4xs font-black uppercase tracking-wider inline-flex items-center gap-1 transition-all cursor-pointer ${
-                              officer.is_active 
-                                ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200" 
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                            }`}
-                            title={officer.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                          >
-                            {officer.is_active ? (
-                              <>
-                                <Lock className="w-3 h-3" />
-                                <span>Khoá</span>
-                              </>
-                            ) : (
-                              <>
-                                <Unlock className="w-3 h-3" />
-                                <span>Mở khoá</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </td>
-
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleResetPassword(officer.id, officer.name)
+                      }
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-800 transition-colors hover:bg-sky-100"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                      Cấp lại mật khẩu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleToggleStatus(
+                          officer.id,
+                          officer.name,
+                          officer.is_active,
+                        )
+                      }
+                      className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${
+                        officer.is_active
+                          ? "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                      }`}
+                    >
+                      {officer.is_active ? (
+                        <Lock className="h-4 w-4" />
+                      ) : (
+                        <Unlock className="h-4 w-4" />
+                      )}
+                      {officer.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
 

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson } from "../lib/apiClient";
-import type { UserRole } from "../types";
+import type { ReportPeriod, UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, SectionCard, StatusBadge } from "./ui";
 
 type Props = {
   periodId: string;
   role: UserRole;
+  periods?: ReportPeriod[];
   maturityEnabled?: boolean;
   onNavigate?: (target: "dashboard" | "cases" | "progress-dashboard") => void;
 };
@@ -49,6 +50,7 @@ type LoadResult = {
   error?: unknown;
 };
 type Availability = Record<LoadResult["key"], boolean | null>;
+const EMPTY_PERIODS: ReportPeriod[] = [];
 
 const reportSourceLabels: Record<string, string> = {
   manual: "Nhập thủ công",
@@ -87,7 +89,7 @@ const roleCopy: Record<string, { eyebrow: string; title: string; description: st
   },
 };
 
-export default function OperationsCenter({ periodId, role, maturityEnabled = false, onNavigate }: Props) {
+export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIODS, maturityEnabled = false, onNavigate }: Props) {
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [alerts, setAlerts] = useState<TrendAlert[]>([]);
@@ -119,7 +121,28 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
         return { key, label, value: null, error };
       }
     };
-    const requests: Promise<LoadResult>[] = [load("quality", "chất lượng dữ liệu", periodId ? apiJson(`/api/operations/quality?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve(null)), load("actions", "danh sách việc", apiJson("/api/operations/actions")), load("alerts", "biến động theo kỳ", periodId ? apiJson(`/reports/trend-alerts?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve([]))];
+    const currentPeriodIndex = periods.findIndex((period) => period.id === periodId);
+    const previousPeriod =
+      currentPeriodIndex >= 0 ? periods[currentPeriodIndex + 1] : undefined;
+    const trendRequest =
+      internal && periodId && previousPeriod
+        ? apiJson(
+            `/reports/trend-alerts?curr_period_id=${encodeURIComponent(periodId)}&prev_period_id=${encodeURIComponent(previousPeriod.id)}`,
+          )
+        : Promise.resolve([]);
+    const requests: Promise<LoadResult>[] = [
+      load(
+        "quality",
+        "chất lượng dữ liệu",
+        periodId
+          ? apiJson(
+              `/api/operations/quality?period_id=${encodeURIComponent(periodId)}`,
+            )
+          : Promise.resolve(null),
+      ),
+      load("actions", "danh sách việc", apiJson("/api/operations/actions")),
+      load("alerts", "biến động theo kỳ", trendRequest),
+    ];
     if (internal) {
       requests.push(load("drafts", "nội dung điều hành chờ duyệt", apiJson("/api/operations/ai-drafts")));
     }
@@ -153,7 +176,7 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
 
   useEffect(() => {
     void refresh();
-  }, [periodId, role]);
+  }, [periodId, role, periods]);
 
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
   const overdueActions = useMemo(() => openActions.filter((item) => item.due_date && new Date(item.due_date).getTime() < Date.now()), [openActions]);

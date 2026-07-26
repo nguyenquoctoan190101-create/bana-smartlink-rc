@@ -4,6 +4,7 @@ import { apiFetch, toUserFacingError } from "../lib/apiClient";
 
 interface CnscdImpactProps {
   selectedPeriod: string;
+  periods?: Array<{ id: string; name: string; display_name?: string }>;
 }
 
 interface VillageImpact {
@@ -29,15 +30,27 @@ interface CnscdImpactData {
   villages: VillageImpact[];
   interpretation: string;
 }
+const EMPTY_PERIODS: Array<{ id: string; name: string; display_name?: string }> = [];
 
 const showNumber = (value: number | null, unit = "") =>
   value === null ? "—" : `${value.toLocaleString("vi-VN")}${unit}`;
 
-export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
+export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }: CnscdImpactProps) {
+  const [activePeriodId, setActivePeriodId] = useState(selectedPeriod);
   const [data, setData] = useState<CnscdImpactData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (
+      !activePeriodId ||
+      (periods.length > 0 &&
+        !periods.some((period) => period.id === activePeriodId))
+    ) {
+      setActivePeriodId(selectedPeriod || periods[0]?.id || "");
+    }
+  }, [activePeriodId, periods, selectedPeriod]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,7 +59,7 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
       setError(null);
       try {
         const response = await apiFetch(
-          `/api/cnscd-impact?period_id=${encodeURIComponent(selectedPeriod)}`,
+          `/api/cnscd-impact?period_id=${encodeURIComponent(activePeriodId)}`,
           { signal: controller.signal, headers: { Accept: "application/json" } },
         );
         if (!response.ok) throw new Error("Không thể tải dữ liệu hỗ trợ lập báo cáo của Tổ công nghệ số cộng đồng.");
@@ -62,7 +75,7 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
     }
     void load();
     return () => controller.abort();
-  }, [selectedPeriod, reloadKey]);
+  }, [activePeriodId, reloadKey]);
 
   if (loading) {
     return <p className="py-12 text-center text-sm text-slate-600" role="status">Đang tải dữ liệu hỗ trợ lập báo cáo của Tổ công nghệ số cộng đồng…</p>;
@@ -87,10 +100,27 @@ export default function CnscdImpact({ selectedPeriod }: CnscdImpactProps) {
   const complete = data.has_report_data && data.missing_ct13_report_count === 0;
   return (
     <section className="space-y-5" aria-labelledby="cnscd-title">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">THEO DÕI HỖ TRỢ</p>
-        <h1 id="cnscd-title" className="mt-1 text-2xl font-bold text-slate-950">Tình hình hỗ trợ lập báo cáo</h1>
-        <p className="mt-2 text-sm text-slate-600">{data.period_name} · Phạm vi toàn xã · Nguồn: báo cáo đã được quyền xem</p>
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">THEO DÕI HỖ TRỢ</p>
+          <h1 id="cnscd-title" className="mt-1 text-2xl font-bold text-slate-950">Tình hình hỗ trợ lập báo cáo</h1>
+          <p className="mt-2 text-sm text-slate-600">{data.period_name} · Phạm vi toàn xã · Nguồn: báo cáo đã được quyền xem</p>
+        </div>
+        {periods.length > 0 ? (
+          <label className="grid min-w-0 gap-1 text-sm font-semibold text-slate-700 lg:w-80">
+            Kỳ theo dõi
+            <select
+              value={activePeriodId}
+              onChange={(event) => setActivePeriodId(event.target.value)}
+            >
+              {periods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {period.display_name || period.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </header>
 
       {!data.has_report_data && (

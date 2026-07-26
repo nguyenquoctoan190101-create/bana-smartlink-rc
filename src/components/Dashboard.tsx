@@ -360,7 +360,7 @@ export default function Dashboard({
       : analyticsReports.length > 0;
   const isCrossPeriodSnapshot = selectedPeriod === ALL_PERIODS;
   const canAggregateCurrentSlice =
-    !isCrossPeriodSnapshot && hasCompleteCoverage;
+    !isCrossPeriodSnapshot && analyticsReports.length > 0;
 
   // Calculate aggregated metrics
   const value = (input: number | null) =>
@@ -374,9 +374,9 @@ export default function Dashboard({
     return { present, missing: analyticsReports.length - present };
   };
   const hasValueFor = (key: keyof ReportData) => availability(key).present > 0;
-  // A partially populated slice must never masquerade as a complete total.
-  // Keep the chart tolerant of missing points, but KPI cards/rates become
-  // null until every report in scope has a valid value for that indicator.
+  // A partial commune slice is useful when its coverage is stated explicitly.
+  // Aggregate only approved/locked reports that are actually present, and keep
+  // an indicator blank if any included report is missing that indicator.
   const sumMetric = (key: keyof ReportData): number | null => {
     if (
       !canAggregateCurrentSlice ||
@@ -698,8 +698,9 @@ export default function Dashboard({
               role="status"
             >
               Kỳ báo cáo hiện có dữ liệu đã duyệt của {coveredVillageCount}/
-              {expectedVillageCount} thôn. Các chỉ số tổng hợp được để trống cho
-              đến khi đủ phạm vi.
+              {expectedVillageCount} thôn. Các thẻ và biểu đồ bên dưới chỉ tổng
+              hợp {coveredVillageCount} thôn đã duyệt, chưa đại diện cho toàn xã;
+              dữ liệu của các thôn còn lại vẫn được để trống.
             </div>
           )}
 
@@ -1222,7 +1223,7 @@ export default function Dashboard({
                       </td>
                       <td className="py-3.5 px-3 text-slate-500">
                         <div className="font-medium text-slate-700">
-                          {report.reporter_name}
+                          {report.reporter_name?.trim() || "Chưa ghi nhận"}
                         </div>
                       </td>
                       {(userRole === "admin_xa" ||
@@ -1230,6 +1231,11 @@ export default function Dashboard({
                         userRole === "to_cnscd") && (
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {report.publication_status === "published" && (
+                              <span className="text-2xs font-semibold text-emerald-700">
+                                Đã công bố
+                              </span>
+                            )}
                             {userRole === "admin_xa" &&
                               workflowStatusOf(report) === "submitted" &&
                               onApproveReport && (

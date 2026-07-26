@@ -73,7 +73,7 @@ class PolicyScorecardService:
         once_only_score = _metric(autofilled_count, total_fields)
         interpretation = (
             f"Kỳ {period['name']}: {electronic_rate.percent:.0f}% báo cáo nộp điện tử, "
-            f"điểm Once-Only {once_only_score.percent:.0f}%."
+            f"tỷ lệ dữ liệu được kế thừa {once_only_score.percent:.0f}%."
         )
         return PolicyScorecard(
             period_id=period_id,

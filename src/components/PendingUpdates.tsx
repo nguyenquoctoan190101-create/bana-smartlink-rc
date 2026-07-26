@@ -67,6 +67,27 @@ interface AuditLogApiRow {
   created_at: string;
 }
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  UPDATE: "Cập nhật bản ghi",
+  INSERT: "Tạo bản ghi",
+  DELETE: "Xóa bản ghi",
+  CREATE_REPORT_PERIOD: "Tạo kỳ báo cáo",
+  PROPOSAL_APPROVE: "Phê duyệt kiến nghị",
+  PROPOSAL_REJECT: "Từ chối kiến nghị",
+};
+
+const AUDIT_TABLE_LABELS: Record<string, string> = {
+  evacuation_points: "Điểm sơ tán",
+  report_periods: "Kỳ báo cáo",
+  pending_updates: "Kiến nghị đối chiếu số liệu",
+  ai_action_drafts: "Nội dung điều hành gợi ý",
+  reports: "Báo cáo thôn",
+  report_values: "Chỉ tiêu báo cáo",
+};
+
+const shortReference = (value: string) =>
+  value ? value.replace(/-/g, "").slice(0, 8).toUpperCase() : "—";
+
 export default function PendingUpdates({ userRole, userVillageId, userName, onUpdateProcessed }: PendingUpdatesProps) {
   const { villages: new_villages } = useVillages();
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -451,32 +472,34 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                 {auditLogs.map((log) => (
                   <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-4xs space-y-2">
                     <div className="flex justify-between items-start gap-1">
-                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">{log.action}</span>
+                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
+                        {AUDIT_ACTION_LABELS[log.action] || "Thay đổi dữ liệu"}
+                      </span>
                       <span className="text-slate-400 font-mono font-medium">{new Date(log.created_at).toLocaleTimeString("vi-VN")}</span>
                     </div>
 
-                    <div className="space-y-0.5 text-slate-600">
+                    <div className="space-y-1 text-slate-600">
                       <div>
-                        Tác nhân: <b className="text-slate-800">{log.actor}</b>
+                        Người thao tác: <b className="text-slate-800">Tài khoản nội bộ</b>
                       </div>
                       <div>
-                        Bảng ghi: <span className="font-mono text-slate-700">{log.table_name}</span>
+                        Nội dung: <b className="text-slate-800">{AUDIT_TABLE_LABELS[log.table_name] || "Dữ liệu nghiệp vụ"}</b>
                       </div>
                       <div>
-                        Khóa dòng: <span className="font-mono text-slate-700 text-[10px] break-all">{log.row_id}</span>
+                        Mã đối chiếu: <b className="font-mono text-slate-700">{shortReference(log.row_id)}</b>
                       </div>
                     </div>
 
                     {/* Show payload changes recursively */}
                     {log.payload && log.payload.changes && (
                       <div className="border-t border-slate-100/80 pt-2 space-y-1">
-                        <span className="block font-bold text-slate-400 uppercase tracking-wide">Thay đổi:</span>
+                        <span className="block font-bold text-slate-400 uppercase tracking-wide">Nội dung thay đổi:</span>
                         <div className="space-y-1">
                           {log.payload.changes.map((ch: any, idx: number) => (
-                            <div key={idx} className="flex justify-between bg-white border border-slate-100 px-1.5 py-0.5 rounded-sm">
-                              <span className="font-bold text-slate-700 font-mono">{ch.ct_code}</span>
+                            <div key={idx} className="grid gap-1 bg-white border border-slate-100 px-2 py-1.5 rounded-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                              <span className="font-bold text-slate-700">{getIndicatorName(ch.ct_code)}</span>
                               <span className="text-slate-500 font-semibold flex items-center gap-1 font-mono">
-                                <span>{ch.old_value !== null ? ch.old_value : "null"}</span>
+                                <span>{ch.old_value !== null ? ch.old_value : "Chưa có"}</span>
                                 <ArrowRight className="w-2.5 h-2.5 text-slate-300" />
                                 <span className="text-emerald-700 font-black">{ch.new_value}</span>
                               </span>
@@ -485,6 +508,12 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                         </div>
                       </div>
                     )}
+                    <details className="border-t border-slate-100 pt-2 text-[10px] text-slate-500">
+                      <summary className="cursor-pointer font-semibold">Chi tiết phục vụ kiểm tra kỹ thuật</summary>
+                      <div className="mt-2 break-all font-mono">
+                        {log.action} · {log.table_name} · {log.row_id} · {log.actor}
+                      </div>
+                    </details>
                   </div>
                 ))}
               </div>

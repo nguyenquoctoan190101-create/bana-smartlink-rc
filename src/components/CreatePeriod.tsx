@@ -170,7 +170,7 @@ export default function CreatePeriod() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-bold">
-            <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">10 thôn mới</span>
+            <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">10 thôn áp dụng</span>
             <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">Múi giờ Việt Nam</span>
             <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">XLSX có kiểm tra phiên bản</span>
           </div>

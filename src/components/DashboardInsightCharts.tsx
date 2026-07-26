@@ -142,14 +142,22 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
 
   const scatterRows = villages.filter((item) => finite(item.population) && finite(item.guidedPerThousand));
   const scatterLeader = [...scatterRows].sort((left, right) => (right.guidedPerThousand ?? 0) - (left.guidedPerThousand ?? 0))[0];
+  const minPopulation = scatterRows.length
+    ? Math.min(...scatterRows.map((item) => item.population ?? 0))
+    : 0;
   const maxPopulation = Math.max(1, ...scatterRows.map((item) => item.population ?? 0));
+  const populationRange = Math.max(1, maxPopulation - minPopulation);
+  const minGuidedRate = scatterRows.length
+    ? Math.min(...scatterRows.map((item) => item.guidedPerThousand ?? 0))
+    : 0;
   const maxGuidedRate = Math.max(1, ...scatterRows.map((item) => item.guidedPerThousand ?? 0));
+  const guidedRateRange = Math.max(1, maxGuidedRate - minGuidedRate);
   const maxDigitalTeam = Math.max(1, ...scatterRows.map((item) => item.digitalTeam ?? 0));
 
   const childrenRows = villages.filter((item) => finite(item.specialChildrenRate)).sort((left, right) => (right.specialChildrenRate ?? 0) - (left.specialChildrenRate ?? 0));
   const childrenLeader = childrenRows[0];
 
-  const chartCard = "rounded-xl border border-slate-200 bg-white p-5 shadow-2xs";
+  const chartCard = "min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-2xs";
 
   return (
     <section aria-labelledby="dashboard-insights-title" className="space-y-4">
@@ -173,6 +181,9 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
           />
           {heatRows.length ? (
             <div className="mt-4 overflow-x-auto">
+              <p className="mb-2 text-2xs font-semibold text-slate-500 sm:hidden">
+                Vuốt ngang để xem đủ bốn nội dung.
+              </p>
               <table className="w-full min-w-[38rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
                 <thead>
                   <tr className="text-left text-slate-500">
@@ -327,7 +338,7 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                     <span className={`absolute inset-y-0 left-0 rounded-sm ${(item.bhytRate ?? 0) < 95 ? "bg-amber-500" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, item.bhytRate ?? 0)}%` }} />
                     <span className="absolute -inset-y-1 w-0.5 bg-slate-900" style={{ left: "95%" }} />
                   </span>
-                  <strong className="text-right text-slate-700">{percent(item.bhytRate)}</strong>
+                  <strong className="text-right text-slate-700">{percent(item.bhytRate, 2)}</strong>
                 </div>
               ))}
               <p className="pt-1 text-2xs text-slate-500">Vạch đen: mức tham chiếu 95%.</p>
@@ -347,14 +358,23 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
           {scatterRows.length ? (
             <div className="mt-3" role="img" aria-label="Biểu đồ phân tán quy mô dân số và số lượt hướng dẫn dịch vụ công trên một nghìn dân">
               <svg viewBox="0 0 440 245" className="h-60 w-full">
-                {[0, 0.5, 1].map((tick) => (
-                  <line key={tick} x1="45" x2="420" y1={200 - tick * 160} y2={200 - tick * 160} stroke="#e2e8f0" />
-                ))}
+                {[0, 0.5, 1].map((tick) => {
+                  const y = 200 - tick * 160;
+                  const label = minGuidedRate + guidedRateRange * tick;
+                  return (
+                    <g key={tick}>
+                      <line x1="48" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
+                      <text x="42" y={y + 3} textAnchor="end" className="fill-slate-400 text-[8px]">
+                        {label.toFixed(0)}
+                      </text>
+                    </g>
+                  );
+                })}
                 <line x1="45" x2="45" y1="30" y2="200" stroke="#94a3b8" />
                 <line x1="45" x2="420" y1="200" y2="200" stroke="#94a3b8" />
                 {scatterRows.map((item) => {
-                  const x = 45 + ((item.population ?? 0) / maxPopulation) * 360;
-                  const y = 200 - ((item.guidedPerThousand ?? 0) / maxGuidedRate) * 155;
+                  const x = 55 + (((item.population ?? 0) - minPopulation) / populationRange) * 350;
+                  const y = 195 - (((item.guidedPerThousand ?? 0) - minGuidedRate) / guidedRateRange) * 150;
                   const radius = 4 + ((item.digitalTeam ?? 0) / maxDigitalTeam) * 5;
                   return (
                     <g key={item.id}>
@@ -369,6 +389,12 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                     </g>
                   );
                 })}
+                <text x="55" y="216" textAnchor="start" className="fill-slate-400 text-[8px]">
+                  {minPopulation.toLocaleString("vi-VN")}
+                </text>
+                <text x="405" y="216" textAnchor="end" className="fill-slate-400 text-[8px]">
+                  {maxPopulation.toLocaleString("vi-VN")}
+                </text>
                 <text x="232" y="232" textAnchor="middle" className="fill-slate-500 text-[9px]">
                   Quy mô dân số →
                 </text>
