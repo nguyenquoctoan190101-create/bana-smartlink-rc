@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertCircle, Calendar, Check, CheckCircle2, ClipboardCheck, FileSpreadsheet, Loader2, Plus, Trash2, Upload, Users } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
-import { invalidateReportPeriods } from "../lib/useReportPeriods";
+import { invalidateReportPeriods, useReportPeriods } from "../lib/useReportPeriods";
 import { normalizeReportPeriodName, reportPeriodNameIssue } from "../lib/reportPeriods";
+import ReportPeriodChangeRequests from "./ReportPeriodChangeRequests";
 
 interface CreatedPeriod {
   id: string;
@@ -26,6 +27,7 @@ const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 export default function CreatePeriod() {
   const { villages } = useVillages();
+  const { periods } = useReportPeriods();
   const allVillageIds = useMemo(() => villages.map((village) => village.id), [villages]);
   const [periodName, setPeriodName] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -35,6 +37,7 @@ export default function CreatePeriod() {
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPeriod | null>(null);
   const [templateUploadFailed, setTemplateUploadFailed] = useState(false);
+  const [workspace, setWorkspace] = useState<"create" | "change">("create");
 
   useEffect(() => {
     if (selectedVillages.length === 0 && allVillageIds.length > 0) {
@@ -154,6 +157,12 @@ export default function CreatePeriod() {
   ];
 
   return (
+    <>
+    <nav aria-label="Quản lý kỳ báo cáo" className="mx-auto mb-6 grid max-w-6xl gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-2">
+      <button type="button" onClick={() => setWorkspace("create")} aria-current={workspace === "create" ? "page" : undefined} className={`min-h-12 rounded-xl px-4 text-sm font-black ${workspace === "create" ? "bg-emerald-800 text-white" : "text-slate-700 hover:bg-emerald-50"}`}>Tạo kỳ và gắn biểu mẫu</button>
+      <button type="button" onClick={() => setWorkspace("change")} aria-current={workspace === "change" ? "page" : undefined} className={`min-h-12 rounded-xl px-4 text-sm font-black ${workspace === "change" ? "bg-emerald-800 text-white" : "text-slate-700 hover:bg-emerald-50"}`}>Yêu cầu điều chỉnh hoặc lưu trữ</button>
+    </nav>
+    {workspace === "create" ? (
     <section aria-labelledby="create-period-title" className="mx-auto max-w-6xl space-y-6">
       <header className="rounded-2xl bg-emerald-950 p-6 text-white shadow-md md:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -327,5 +336,9 @@ export default function CreatePeriod() {
         </form>
       </div>
     </section>
+    ) : (
+      <ReportPeriodChangeRequests role="admin_xa" periods={periods} />
+    )}
+    </>
   );
 }

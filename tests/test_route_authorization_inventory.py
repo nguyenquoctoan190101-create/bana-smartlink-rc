@@ -22,6 +22,7 @@ AUTH_DEPENDENCY = {
     "authenticated": "require_authenticated_user",
     "admin": "require_admin_xa",
     "admin_or_leader": "require_admin_or_leader",
+    "leader": "require_lanh_dao",
 }
 
 

@@ -14,7 +14,7 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260726_0026_business_workflow_integrity.sql"
+    assert names[-1] == "20260726_0027_report_period_change_approval.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -40,4 +40,5 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260726_0024_case_village_scope_hardening.sql",
         "20260726_0025_report_mutation_integrity.sql",
         "20260726_0026_business_workflow_integrity.sql",
+        "20260726_0027_report_period_change_approval.sql",
     ]

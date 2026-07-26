@@ -81,7 +81,36 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260726_0024_case_village_scope_hardening.sql",
         "20260726_0025_report_mutation_integrity.sql",
         "20260726_0026_business_workflow_integrity.sql",
+        "20260726_0027_report_period_change_approval.sql",
     ]
+
+
+def test_report_period_changes_require_immutable_leadership_approval() -> None:
+    migration = (
+        ROOT / "migrations" / "20260726_0027_report_period_change_approval.sql"
+    ).read_text(encoding="utf-8")
+    for marker in (
+        "create table if not exists public.report_period_change_requests",
+        "create table if not exists public.report_period_change_decisions",
+        "report period approval history is immutable",
+        "create or replace function public.create_report_period_change_request",
+        "create or replace function public.decide_report_period_change_request",
+        "public.profile_role() <> 'lanh_dao'",
+        "set archived_at = created_decision.decided_at",
+        "revoke insert, update, delete on public.report_periods from authenticated",
+        "revoke insert, update, delete on public.report_period_villages from authenticated",
+    ):
+        assert marker in migration
+    assert "delete from public.report_periods" not in migration
+    assert "before update or delete on public.report_period_change_requests" in migration
+    assert "before update or delete on public.report_period_change_decisions" in migration
+    for marker in (
+        "create table public.report_period_change_requests",
+        "create table public.report_period_change_decisions",
+        "create function public.create_report_period_change_request",
+        "create function public.decide_report_period_change_request",
+    ):
+        assert marker in SCHEMA
 
 
 def test_release_blocker_overlay_is_atomic_and_removes_forbidden_channel() -> None:

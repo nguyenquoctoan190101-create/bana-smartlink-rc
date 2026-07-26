@@ -30,7 +30,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -42,6 +42,7 @@ from routers.auth import (
     require_admin_or_leader,
     require_admin_xa,
     require_authenticated_user,
+    require_lanh_dao,
 )
 from services.excel_report_parser import (
     ExcelReportParseError,
@@ -321,6 +322,59 @@ class ReportPeriodTemplateResponse(BaseModel):
     template_size_bytes: int
 
 
+class ReportPeriodChangeCreateRequest(BaseModel):
+    request_kind: Literal["update", "delete"]
+    reason: str = Field(min_length=10, max_length=1000)
+    proposed_name: str | None = Field(default=None, max_length=120)
+    proposed_due_date: datetime | None = None
+    proposed_village_ids: list[UUID] | None = Field(default=None, max_length=100)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_change_reason(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 10:
+            raise ValueError("Lý do phải có ít nhất 10 ký tự.")
+        return normalized
+
+    @field_validator("proposed_name")
+    @classmethod
+    def validate_proposed_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_report_period_name(value)
+        issue = report_period_name_issue(normalized)
+        if issue:
+            raise ValueError(issue)
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_requested_change(self) -> "ReportPeriodChangeCreateRequest":
+        proposals = (
+            self.proposed_name,
+            self.proposed_due_date,
+            self.proposed_village_ids,
+        )
+        if self.request_kind == "delete" and any(item is not None for item in proposals):
+            raise ValueError("Yêu cầu xóa không được kèm thông tin điều chỉnh.")
+        if self.request_kind == "update" and all(item is None for item in proposals):
+            raise ValueError("Cần nhập ít nhất một thông tin muốn điều chỉnh.")
+        return self
+
+
+class ReportPeriodChangeDecisionRequest(BaseModel):
+    decision: Literal["approved", "rejected"]
+    reason: str = Field(min_length=5, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_decision_reason(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 5:
+            raise ValueError("Lý do quyết định phải có ít nhất 5 ký tự.")
+        return normalized
+
+
 class OcrValidationFlag(BaseModel):
     ct_code: str
     error_type: str
@@ -488,6 +542,21 @@ def get_report_repository(
     )
 
 
+def _report_period_change_error(exc: SupabaseAdminError) -> HTTPException:
+    message = str(exc).lower()
+    if exc.error_code == "42501" or exc.status_code == 403 or "forbidden" in message:
+        return HTTPException(status_code=403, detail="Bạn không có quyền thực hiện thao tác này.")
+    if exc.error_code == "P0002" or exc.status_code == 404 or "not_found" in message:
+        return HTTPException(status_code=404, detail="Không tìm thấy yêu cầu hoặc kỳ báo cáo.")
+    if exc.error_code == "23505" or exc.status_code == 409 or any(
+        marker in message for marker in ("pending", "already_decided", "already_archived")
+    ):
+        return HTTPException(status_code=409, detail="Yêu cầu đã được xử lý hoặc kỳ đang có yêu cầu chờ duyệt.")
+    if exc.error_code in {"22023", "23514"} or exc.status_code == 422:
+        return HTTPException(status_code=422, detail="Thông tin thay đổi không hợp lệ hoặc xung đột với báo cáo đã có.")
+    return HTTPException(status_code=502, detail="Không xử lý được yêu cầu thay đổi kỳ báo cáo.")
+
+
 @period_router.get("")
 async def list_report_periods(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
@@ -501,6 +570,7 @@ async def list_report_periods(
                 "?select=id,name,due_date,template_name,template_path,"
                 "template_sha256,template_size_bytes,created_at,"
                 "report_period_villages(village_id)"
+                "&archived_at=is.null"
                 "&order=due_date.desc,created_at.desc"
             ),
         )
@@ -589,7 +659,10 @@ async def upload_report_period_template(
     try:
         period_rows = await repository._supabase._rest_request(
             "GET",
-            (f"/rest/v1/report_periods?id=eq.{period_id}&select=id,commune_id&limit=1"),
+            (
+                f"/rest/v1/report_periods?id=eq.{period_id}"
+                "&archived_at=is.null&select=id,commune_id&limit=1"
+            ),
         )
     except SupabaseAdminError as exc:
         raise HTTPException(
@@ -619,15 +692,15 @@ async def upload_report_period_template(
 
     try:
         updated_rows = await repository._supabase._rest_request(
-            "PATCH",
-            f"/rest/v1/report_periods?id=eq.{period_id}",
+            "POST",
+            "/rest/v1/rpc/attach_report_period_template",
             {
-                "template_name": template_name,
-                "template_path": object_path,
-                "template_sha256": digest,
-                "template_size_bytes": len(content),
+                "p_period_id": str(period_id),
+                "p_template_name": template_name,
+                "p_template_path": object_path,
+                "p_template_sha256": digest,
+                "p_template_size_bytes": len(content),
             },
-            prefer="return=representation",
         )
     except SupabaseAdminError as exc:
         raise HTTPException(
@@ -971,6 +1044,164 @@ async def normalize_report_excel(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Không thể chuẩn hóa tệp Excel.",
         )
+
+
+@period_router.get("/change-requests")
+async def list_report_period_change_requests(
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+) -> list[dict[str, Any]]:
+    caller = repository._supabase
+    try:
+        requests = await caller._rest_request(
+            "GET",
+            (
+                "/rest/v1/report_period_change_requests"
+                "?select=id,period_id,request_kind,reason,before_snapshot,"
+                "proposed_snapshot,requested_by,requested_at"
+                "&order=requested_at.desc"
+            ),
+        )
+        if not requests:
+            return []
+        request_ids = ",".join(str(item["id"]) for item in requests)
+        period_ids = ",".join(sorted({str(item["period_id"]) for item in requests}))
+        decisions = await caller._rest_request(
+            "GET",
+            (
+                "/rest/v1/report_period_change_decisions"
+                "?select=id,request_id,decision,reason,decided_by,decided_at"
+                f"&request_id=in.({request_ids})"
+            ),
+        )
+        profile_ids = {
+            str(item["requested_by"])
+            for item in requests
+            if item.get("requested_by")
+        } | {
+            str(item["decided_by"])
+            for item in decisions
+            if item.get("decided_by")
+        }
+        profiles = (
+            await caller._rest_request(
+                "GET",
+                (
+                    "/rest/v1/user_profiles?select=id,display_name"
+                    f"&id=in.({','.join(sorted(profile_ids))})"
+                ),
+            )
+            if profile_ids
+            else []
+        )
+        periods = await caller._rest_request(
+            "GET",
+            (
+                "/rest/v1/report_periods?select=id,name,archived_at"
+                f"&id=in.({period_ids})"
+            ),
+        )
+    except SupabaseAdminError as exc:
+        raise HTTPException(
+            status_code=502, detail="Không tải được lịch sử thay đổi kỳ báo cáo."
+        ) from exc
+
+    decisions_by_request = {
+        str(item["request_id"]): item for item in decisions
+    }
+    names_by_profile = {
+        str(item["id"]): item.get("display_name") or "Tài khoản nội bộ"
+        for item in profiles
+    }
+    periods_by_id = {str(item["id"]): item for item in periods}
+    result: list[dict[str, Any]] = []
+    for item in requests:
+        request_id = str(item["id"])
+        decision = decisions_by_request.get(request_id)
+        period = periods_by_id.get(str(item["period_id"]), {})
+        result.append(
+            {
+                **item,
+                "status": decision.get("decision") if decision else "pending",
+                "period_name": period.get("name")
+                or item.get("before_snapshot", {}).get("name")
+                or "Kỳ báo cáo",
+                "period_archived_at": period.get("archived_at"),
+                "requester_name": names_by_profile.get(
+                    str(item.get("requested_by")), "Quản trị viên"
+                ),
+                "decision": (
+                    {
+                        **decision,
+                        "decider_name": names_by_profile.get(
+                            str(decision.get("decided_by")), "Lãnh đạo xã"
+                        ),
+                    }
+                    if decision
+                    else None
+                ),
+            }
+        )
+    return result
+
+
+@period_router.post(
+    "/{period_id}/change-requests", status_code=status.HTTP_201_CREATED
+)
+async def create_report_period_change_request(
+    period_id: UUID,
+    payload: ReportPeriodChangeCreateRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+) -> dict[str, Any]:
+    try:
+        rows = await repository._supabase._rest_request(
+            "POST",
+            "/rest/v1/rpc/create_report_period_change_request",
+            {
+                "p_period_id": str(period_id),
+                "p_request_kind": payload.request_kind,
+                "p_reason": payload.reason,
+                "p_proposed_name": payload.proposed_name,
+                "p_proposed_due_date": payload.proposed_due_date.isoformat()
+                if payload.proposed_due_date
+                else None,
+                "p_proposed_village_ids": [
+                    str(item) for item in payload.proposed_village_ids
+                ]
+                if payload.proposed_village_ids is not None
+                else None,
+            },
+        )
+    except SupabaseAdminError as exc:
+        raise _report_period_change_error(exc) from exc
+    if not rows:
+        raise HTTPException(status_code=502, detail="Máy chủ không trả về yêu cầu vừa tạo.")
+    return rows[0]
+
+
+@period_router.post("/change-requests/{request_id}/decision")
+async def decide_report_period_change_request(
+    request_id: UUID,
+    payload: ReportPeriodChangeDecisionRequest,
+    repository: Annotated[ReportRepository, Depends(get_report_repository)],
+    _: Annotated[UserProfile, Depends(require_lanh_dao)],
+) -> dict[str, Any]:
+    try:
+        rows = await repository._supabase._rest_request(
+            "POST",
+            "/rest/v1/rpc/decide_report_period_change_request",
+            {
+                "p_request_id": str(request_id),
+                "p_decision": payload.decision,
+                "p_reason": payload.reason,
+            },
+        )
+    except SupabaseAdminError as exc:
+        raise _report_period_change_error(exc) from exc
+    if not rows:
+        raise HTTPException(status_code=502, detail="Máy chủ không trả về quyết định vừa lưu.")
+    return rows[0]
 
 
 @router.post("/confirm-synonym")
@@ -1419,7 +1650,10 @@ async def get_report_periods(
     try:
         return await caller._rest_request(
             "GET",
-            "/rest/v1/report_periods?select=id,name,due_date&order=due_date.desc",
+            (
+                "/rest/v1/report_periods?select=id,name,due_date"
+                "&archived_at=is.null&order=due_date.desc"
+            ),
         )
     except SupabaseAdminError as exc:
         raise HTTPException(

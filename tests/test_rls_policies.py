@@ -258,10 +258,11 @@ class _PolicyEvaluator:
     def report_periods_select(self) -> bool:
         return self.p is not None  # bất kỳ authenticated nào cũng đọc được
 
-    # ---- report_periods INSERT/UPDATE ----
+    # ---- report_periods direct INSERT/UPDATE ----
 
     def report_periods_write(self) -> bool:
-        return profile_role(self.p) == "admin_xa"
+        # Period creation and change are allowed only through audited RPCs.
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -474,11 +475,8 @@ class TestReportPeriods:
     def test_anon_cannot_select(self):
         assert _ev("anon").report_periods_select() is False
 
-    def test_admin_xa_can_write(self):
-        assert _ev("admin_xa").report_periods_write() is True
-
-    def test_others_cannot_write(self):
-        for name in ["lanh_dao", "can_bo_thon_A", "to_cnscd_A", "dan", "anon"]:
+    def test_every_role_is_blocked_from_direct_write(self):
+        for name in PROFILES:
             assert _ev(name).report_periods_write() is False
 
 

@@ -62,12 +62,12 @@ def test_template_upload_persists_private_object_and_hash_metadata() -> None:
         content,
         MIME,
     )
-    patch_call = supabase._rest_request.await_args_list[1]
-    assert patch_call.args[:2] == (
-        "PATCH",
-        f"/rest/v1/report_periods?id=eq.{period_id}",
+    rpc_call = supabase._rest_request.await_args_list[1]
+    assert rpc_call.args[:2] == (
+        "POST",
+        "/rest/v1/rpc/attach_report_period_template",
     )
-    assert patch_call.args[2]["template_sha256"] == digest
+    assert rpc_call.args[2]["p_template_sha256"] == digest
 
 
 def test_template_upload_rejects_non_xlsx_before_storage() -> None:
@@ -106,3 +106,4 @@ def test_period_list_includes_the_explicit_village_scope() -> None:
     assert response.status_code == 200, response.text
     assert response.json()[0]["village_ids"] == ["village-1", "village-2"]
     assert "report_period_villages(village_id)" in supabase._rest_request.await_args.args[1]
+    assert "archived_at=is.null" in supabase._rest_request.await_args.args[1]

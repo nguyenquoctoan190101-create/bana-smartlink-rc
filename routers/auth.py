@@ -292,6 +292,17 @@ async def require_admin_or_leader(
     return profile
 
 
+async def require_lanh_dao(
+    profile: Annotated[UserProfile, Depends(require_authenticated_user)],
+) -> UserProfile:
+    if profile.role != "lanh_dao":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only lanh_dao can access this resource",
+        )
+    return profile
+
+
 async def get_optional_user(
     settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],

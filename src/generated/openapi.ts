@@ -1107,6 +1107,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/report-periods/change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Period Change Requests */
+        get: operations["list_report_period_change_requests_report_periods_change_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-periods/change-requests/{request_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide Report Period Change Request */
+        post: operations["decide_report_period_change_request_report_periods_change_requests__request_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/report-periods/{period_id}/change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Report Period Change Request */
+        post: operations["create_report_period_change_request_report_periods__period_id__change_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/report-periods/{period_id}/template": {
         parameters: {
             query?: never;
@@ -2541,6 +2592,32 @@ export interface components {
             source: "gemini" | "deterministic";
             /** Warnings */
             warnings?: string[];
+        };
+        /** ReportPeriodChangeCreateRequest */
+        ReportPeriodChangeCreateRequest: {
+            /** Proposed Due Date */
+            proposed_due_date?: string | null;
+            /** Proposed Name */
+            proposed_name?: string | null;
+            /** Proposed Village Ids */
+            proposed_village_ids?: string[] | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Request Kind
+             * @enum {string}
+             */
+            request_kind: "update" | "delete";
+        };
+        /** ReportPeriodChangeDecisionRequest */
+        ReportPeriodChangeDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "approved" | "rejected";
+            /** Reason */
+            reason: string;
         };
         /** ReportPeriodTemplateResponse */
         ReportPeriodTemplateResponse: {
@@ -5441,6 +5518,117 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CreateReportPeriodRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_report_period_change_requests_report_periods_change_requests_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_report_period_change_request_report_periods_change_requests__request_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportPeriodChangeDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_report_period_change_request_report_periods__period_id__change_requests_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportPeriodChangeCreateRequest"];
             };
         };
         responses: {

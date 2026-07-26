@@ -57,6 +57,9 @@ const PolicyScorecard = React.lazy(
 );
 const CnscdImpact = React.lazy(() => import("./components/CnscdImpact"));
 const CreatePeriod = React.lazy(() => import("./components/CreatePeriod"));
+const ReportPeriodChangeRequests = React.lazy(
+  () => import("./components/ReportPeriodChangeRequests"),
+);
 const PendingUpdates = React.lazy(() => import("./components/PendingUpdates"));
 const PublicVillagePage = React.lazy(
   () => import("./components/PublicVillagePage"),
@@ -83,6 +86,7 @@ type AppTab =
   | "policy-scorecard"
   | "cnscd-impact"
   | "create-period"
+  | "period-change-requests"
   | "pending-updates"
   | "operations"
   | "legacy-import"
@@ -99,7 +103,8 @@ const APP_TAB_TITLES: Record<AppTab, string> = {
   "admin-panel": "Quản lý tài khoản",
   "policy-scorecard": "Chỉ số báo cáo điện tử",
   "cnscd-impact": "Hỗ trợ lập báo cáo",
-  "create-period": "Tạo kỳ báo cáo",
+  "create-period": "Kỳ và biểu mẫu báo cáo",
+  "period-change-requests": "Phê duyệt thay đổi kỳ báo cáo",
   "pending-updates": "Xử lý đề nghị đối chiếu",
   operations: "Công việc điều hành",
   "legacy-import": "Nhập dữ liệu lịch sử",
@@ -505,6 +510,10 @@ export default function App() {
         changeTab("pending-updates");
       } else if (url.includes("/app/cases")) {
         changeTab("cases");
+      } else if (url.includes("period-change-requests")) {
+        changeTab("period-change-requests");
+      } else if (url.includes("create-period")) {
+        changeTab("create-period");
       } else if (url.includes("dashboard")) {
         changeTab("dashboard");
       }
@@ -644,6 +653,7 @@ export default function App() {
         "knowledge",
         "cases",
         "record-lookup",
+        "period-change-requests",
       ]),
       dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
@@ -701,6 +711,7 @@ export default function App() {
         "knowledge",
         "cases",
         "record-lookup",
+        "period-change-requests",
       ]),
       dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
@@ -720,6 +731,7 @@ export default function App() {
       "cases",
       "pilots",
       "record-lookup",
+      "period-change-requests",
     ]);
     const restore = () => {
       const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
@@ -1407,6 +1419,10 @@ export default function App() {
           label: "Theo dõi thực hiện kế hoạch",
         },
         { id: "cnscd-impact" as const, label: "Hỗ trợ lập báo cáo" },
+        {
+          id: "period-change-requests" as const,
+          label: "Phê duyệt thay đổi kỳ",
+        },
         { id: "knowledge" as const, label: "Căn cứ và hướng dẫn" },
       ],
     },
@@ -1955,6 +1971,12 @@ export default function App() {
                 {activeTab === "admin-panel" && <ManageAccounts />}
 
                 {activeTab === "create-period" && <CreatePeriod />}
+                {activeTab === "period-change-requests" && (
+                  <ReportPeriodChangeRequests
+                    role="lanh_dao"
+                    periods={periods}
+                  />
+                )}
                 {activeTab === "legacy-import" && <LegacyBatchImport />}
               </div>
             </React.Suspense>

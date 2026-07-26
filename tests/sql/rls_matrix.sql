@@ -1090,4 +1090,135 @@ end
 $$;
 reset role;
 
+-- Report-period correction and soft deletion require an immutable two-role
+-- workflow. Direct table mutations remain unavailable to authenticated users.
+insert into public.report_periods (
+  id, commune_id, name, due_date, created_by
+) values
+  (
+    '00000000-0000-4000-8000-00000000d012', 'ba_na',
+    'Kỳ cần điều chỉnh', '2099-08-17T17:00:00+07:00',
+    '00000000-0000-4000-8000-00000000a001'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000d013', 'ba_na',
+    'Kỳ cần lưu trữ', '2099-08-18T17:00:00+07:00',
+    '00000000-0000-4000-8000-00000000a001'
+  );
+insert into public.report_period_villages (period_id, village_id) values
+  ('00000000-0000-4000-8000-00000000d012', '00000000-0000-4000-8000-00000000c001'),
+  ('00000000-0000-4000-8000-00000000d013', '00000000-0000-4000-8000-00000000c001');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a001', false);
+select public.create_report_period_change_request(
+  '00000000-0000-4000-8000-00000000d012',
+  'update',
+  'Điều chỉnh theo biên bản kiểm tra nghiệp vụ.',
+  'Kỳ đã điều chỉnh',
+  '2099-08-20T17:00:00+07:00',
+  array[
+    '00000000-0000-4000-8000-00000000c001'::uuid,
+    '00000000-0000-4000-8000-00000000c002'::uuid
+  ]
+);
+select public.create_report_period_change_request(
+  '00000000-0000-4000-8000-00000000d013',
+  'delete',
+  'Kỳ được tạo trùng và cần lưu trữ theo biên bản.',
+  null, null, null
+);
+do $$
+begin
+  begin
+    update public.report_periods
+    set name = 'Lách quy trình'
+    where id = '00000000-0000-4000-8000-00000000d012';
+    raise exception 'administrator directly changed a report period';
+  exception when insufficient_privilege then null;
+  end;
+end
+$$;
+reset role;
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a004', false);
+select public.decide_report_period_change_request(
+  (
+    select id from public.report_period_change_requests
+    where period_id = '00000000-0000-4000-8000-00000000d012'
+  ),
+  'approved',
+  'Đủ căn cứ và đúng phạm vi phê duyệt.'
+);
+select public.decide_report_period_change_request(
+  (
+    select id from public.report_period_change_requests
+    where period_id = '00000000-0000-4000-8000-00000000d013'
+  ),
+  'approved',
+  'Đồng ý lưu trữ kỳ bị trùng.'
+);
+do $$
+begin
+  if not exists (
+    select 1 from public.report_periods
+    where id = '00000000-0000-4000-8000-00000000d012'
+      and name = 'Kỳ đã điều chỉnh'
+      and due_date = '2099-08-20T17:00:00+07:00'::timestamptz
+  ) then
+    raise exception 'approved report-period update was not applied';
+  end if;
+  if (
+    select count(*) from public.report_period_villages
+    where period_id = '00000000-0000-4000-8000-00000000d012'
+  ) <> 2 then
+    raise exception 'approved village-scope update was not applied';
+  end if;
+  if not exists (
+    select 1 from public.report_periods
+    where id = '00000000-0000-4000-8000-00000000d013'
+      and archived_at is not null
+      and archived_by_request_id is not null
+  ) then
+    raise exception 'approved deletion did not soft archive the period';
+  end if;
+  if (
+    select count(*) from public.report_period_change_decisions
+    where decision = 'approved'
+      and request_id in (
+        select id from public.report_period_change_requests
+        where period_id in (
+          '00000000-0000-4000-8000-00000000d012',
+          '00000000-0000-4000-8000-00000000d013'
+        )
+      )
+  ) <> 2 then
+    raise exception 'leadership decision history is incomplete';
+  end if;
+end
+$$;
+reset role;
+
+do $$
+begin
+  begin
+    update public.report_period_change_requests
+    set reason = 'Không được phép sửa lịch sử đã lưu.'
+    where period_id = '00000000-0000-4000-8000-00000000d012';
+    raise exception 'request history was mutable';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    delete from public.report_period_change_decisions
+    where request_id in (
+      select id from public.report_period_change_requests
+      where period_id = '00000000-0000-4000-8000-00000000d013'
+    );
+    raise exception 'decision history was deletable';
+  exception when insufficient_privilege then null;
+  end;
+end
+$$;
+
 rollback;
