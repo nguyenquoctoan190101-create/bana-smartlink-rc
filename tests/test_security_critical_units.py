@@ -478,6 +478,30 @@ def test_external_ocr_requires_both_feature_flag_and_provider_key() -> None:
     assert ready.external_ocr_ready is True
 
 
+def test_privileged_access_settings_validate_roles_and_networks() -> None:
+    valid = Settings(
+        _env_file=None,
+        mfa_required_roles="admin_xa, lanh_dao",
+        internal_allowed_ip_cidrs="10.10.0.8/24, 2001:db8::1/64",
+    )
+    assert valid.required_mfa_roles == frozenset({"admin_xa", "lanh_dao"})
+    assert [str(network) for network in valid.internal_ip_networks] == [
+        "10.10.0.0/24",
+        "2001:db8::/64",
+    ]
+
+    with pytest.raises(SettingsError, match="unsupported roles"):
+        _ = Settings(
+            _env_file=None,
+            mfa_required_roles="admin_xa,root",
+        ).required_mfa_roles
+    with pytest.raises(SettingsError, match="invalid IPv4/IPv6 CIDR"):
+        _ = Settings(
+            _env_file=None,
+            internal_allowed_ip_cidrs="not-a-network",
+        ).internal_ip_networks
+
+
 def test_development_settings_and_issuer_derivation() -> None:
     development = Settings(_env_file=None, app_env="development")
     development.validate_for_startup()
