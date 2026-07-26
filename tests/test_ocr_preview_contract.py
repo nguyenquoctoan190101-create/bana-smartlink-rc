@@ -276,6 +276,9 @@ async def test_gemini_ocr_uses_low_latency_config_and_header_key(monkeypatch) ->
     config = fake.post.await_args.kwargs["json"]["generationConfig"]
     assert config["thinkingConfig"] == {"thinkingBudget": 0}
     assert config["maxOutputTokens"] == 4096
+    assert config["responseSchema"]["required"] == [
+        f"CT{index:02d}" for index in range(1, 15)
+    ]
     assert "params" not in fake.post.await_args.kwargs
 
 
@@ -308,6 +311,40 @@ async def test_gemini_3_ocr_uses_minimal_thinking_level(monkeypatch) -> None:
     assert result == '{"CT01": 145}'
     config = fake.post.await_args.kwargs["json"]["generationConfig"]
     assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
+
+
+@pytest.mark.asyncio
+async def test_current_flash_lite_uses_schema_without_legacy_sampling(
+    monkeypatch,
+) -> None:
+    fake = _FakeOcrHttpClient(
+        httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {"content": {"parts": [{"text": '{"CT01": 145}'}]}}
+                ]
+            },
+        )
+    )
+    monkeypatch.setattr(
+        ocr_report,
+        "load_settings",
+        lambda: Settings(
+            _env_file=None,
+            gemini_api_key="unit-test-provider-key",
+            gemini_api_url="https://gemini.example",
+            gemini_ocr_model="gemini-3.5-flash-lite",
+        ),
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+
+    await ocr_report._call_gemini_ocr(_png_scan())
+
+    config = fake.post.await_args.kwargs["json"]["generationConfig"]
+    assert "temperature" not in config
+    assert "thinkingConfig" not in config
+    assert len(config["responseSchema"]["required"]) == 14
 
 
 @pytest.mark.asyncio

@@ -816,6 +816,16 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
     mime = _detect_mime(cropped_bytes)
     b64_data = base64.b64encode(cropped_bytes).decode("ascii")
     primary_model = settings.gemini_ocr_model.strip() or "gemini-3.5-flash-lite"
+    indicator_codes = _load_indicator_codes()
+    field_schema = {
+        "type": "object",
+        "properties": {
+            "raw_value": {"type": "string", "nullable": True},
+            "normalized_value": {"type": "integer", "nullable": True},
+            "confidence": {"type": "number"},
+        },
+        "required": ["raw_value", "normalized_value", "confidence"],
+    }
     base_payload: dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": _OCR_SYSTEM_PROMPT}]},
         "contents": [
@@ -831,6 +841,13 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             "maxOutputTokens": _OCR_MAX_TOKENS,
             "temperature": _OCR_TEMPERATURE,
             "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "object",
+                "properties": {
+                    code: field_schema for code in indicator_codes
+                },
+                "required": indicator_codes,
+            },
         },
     }
 
@@ -854,16 +871,18 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
         for attempt, model in enumerate(models):
             generation_config: dict[str, Any] = {
                 **base_payload["generationConfig"],
-                "thinkingConfig": (
-                    {"thinkingLevel": "minimal"}
-                    if model.lower().startswith("gemini-3")
-                    else {"thinkingBudget": 0}
-                ),
             }
             # Gemini 3.5+ rejects legacy sampling parameters. OCR remains
-            # deterministic through a strict prompt and structured MIME.
+            # deterministic through the schema. Flash-Lite already defaults
+            # to minimal thinking, while 3.6 rejects the old "minimal" value.
             if model.lower().startswith(("gemini-3.5", "gemini-3.6")):
                 generation_config.pop("temperature", None)
+            elif model.lower().startswith("gemini-3"):
+                generation_config["thinkingConfig"] = {
+                    "thinkingLevel": "minimal"
+                }
+            else:
+                generation_config["thinkingConfig"] = {"thinkingBudget": 0}
 
             payload = {
                 **base_payload,
