@@ -98,6 +98,10 @@ export default function ChatWidget({
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [voiceProfileLabel, setVoiceProfileLabel] = useState(
+    "Ưu tiên giọng Đà Nẵng/miền Trung khi thiết bị có hỗ trợ",
+  );
 
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -105,6 +109,8 @@ export default function ChatWidget({
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const closeChat = () => {
+    window.speechSynthesis?.cancel();
+    setSpeakingMessageId(null);
     setIsOpen(false);
     window.requestAnimationFrame(() => toggleRef.current?.focus());
   };
@@ -152,10 +158,68 @@ export default function ChatWidget({
       active = false;
       recognitionRef.current?.stop();
       recognitionRef.current = null;
+      window.speechSynthesis?.cancel();
+      setSpeakingMessageId(null);
       setIsListening(false);
       setVoiceEnabled(false);
     };
   }, [isOpen]);
+
+  const canSpeak =
+    voiceEnabled &&
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window &&
+    "SpeechSynthesisUtterance" in window;
+
+  function selectVietnameseVoice(): SpeechSynthesisVoice | null {
+    if (!canSpeak) return null;
+    const vietnameseVoices = window.speechSynthesis
+      .getVoices()
+      .filter((voice) => voice.lang.toLowerCase().startsWith("vi"));
+    const regionalMarkers = [
+      "đà nẵng",
+      "da nang",
+      "miền trung",
+      "mien trung",
+      "central vietnam",
+      "central vietnamese",
+    ];
+    const regionalVoice = vietnameseVoices.find((voice) => {
+      const identity = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+      return regionalMarkers.some((marker) => identity.includes(marker));
+    });
+    if (regionalVoice) {
+      setVoiceProfileLabel(`Giọng Đà Nẵng/miền Trung: ${regionalVoice.name}`);
+      return regionalVoice;
+    }
+    const fallbackVoice = vietnameseVoices[0] ?? null;
+    setVoiceProfileLabel(
+      fallbackVoice
+        ? `Giọng tiếng Việt: ${fallbackVoice.name}; thiết bị chưa có nhãn giọng Đà Nẵng`
+        : "Giọng tiếng Việt mặc định; thiết bị chưa có nhãn giọng Đà Nẵng",
+    );
+    return fallbackVoice;
+  }
+
+  function speakAnswer(text: string, messageId: string) {
+    if (!canSpeak || !text.trim()) return;
+    if (speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "vi-VN";
+    utterance.rate = 0.94;
+    utterance.pitch = 1;
+    const selectedVoice = selectVietnameseVoice();
+    if (selectedVoice) utterance.voice = selectedVoice;
+    utterance.onstart = () => setSpeakingMessageId(messageId);
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    window.speechSynthesis.speak(utterance);
+  }
 
   function toggleVoiceInput() {
     if (!voiceEnabled) return;
@@ -175,7 +239,14 @@ export default function ChatWidget({
     }
     const recognition = new SpeechRecognition();
     recognition.lang = "vi-VN"; recognition.interimResults = false;
-    recognition.onresult = (event) => setInputText(Array.from(event.results).map((result) => result[0].transcript).join(" "));
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join(" ")
+        .trim();
+      setInputText(transcript);
+      if (transcript) void sendQuestion(transcript, true);
+    };
     recognition.onend = () => {
       recognitionRef.current = null;
       setIsListening(false);
@@ -186,7 +257,7 @@ export default function ChatWidget({
   }
 
   /* ── Send a question ────────────────────────────────────────────────── */
-  async function sendQuestion(question: string) {
+  async function sendQuestion(question: string, speakResponse = false) {
     const trimmed = question.trim();
     if (!trimmed || isSending) return;
 
@@ -252,6 +323,7 @@ export default function ChatWidget({
             : m,
         ),
       );
+      if (speakResponse) speakAnswer(data.answer, loadingMsg.id);
     } catch (err) {
       const errorText = toUserFacingError(err, "Đã xảy ra lỗi. Vui lòng thử lại.");
       setMessages((prev) =>
@@ -309,14 +381,7 @@ export default function ChatWidget({
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         ) : (
-          /* Chat bubble icon */
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 10H6V10h12v2zm0-3H6V7h12v2z" />
-          </svg>
+          <img className="chat-widget__brand-logo" src="/images/ba-na-brand-mark-96.png" alt="" />
         )}
         {/* Unread badge — shown only when closed and there are messages */}
         {!isOpen && messages.length > 0 && (
@@ -336,14 +401,12 @@ export default function ChatWidget({
         {/* Header */}
         <header className="chat-widget__header">
           <div className="chat-widget__header-avatar" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
-            </svg>
+            <img className="chat-widget__brand-logo" src="/images/ba-na-brand-mark-96.png" alt="" />
           </div>
           <div className="chat-widget__header-info">
-            <p className="chat-widget__header-name">Tra cứu số liệu</p>
+            <p className="chat-widget__header-name">Trợ lý Ba Na SmartLink</p>
             <p className="chat-widget__header-status">
-              Tra cứu dữ liệu theo quyền truy cập
+              {voiceEnabled ? "Tra cứu và hội thoại giọng nói" : "Tra cứu dữ liệu theo quyền truy cập"}
             </p>
           </div>
           <button
@@ -376,7 +439,6 @@ export default function ChatWidget({
           <div className="chat-widget__welcome">
             <p>
               Nhập câu hỏi về số liệu báo cáo trong phạm vi được phép xem.
-              Bạn có thể hỏi về số liệu báo cáo trong phạm vi được phép xem.
             </p>
           </div>
 
@@ -409,9 +471,7 @@ export default function ChatWidget({
             >
               {msg.role === "bot" && (
                 <div className="chat-widget__bot-avatar" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20 2H4C2.9 2 2 2.9 2 4v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                  </svg>
+                  <img className="chat-widget__brand-logo" src="/images/ba-na-brand-mark-96.png" alt="" />
                 </div>
               )}
 
@@ -435,6 +495,17 @@ export default function ChatWidget({
                 {msg.role === "bot" && !msg.isLoading && (
                   <>
                     <AnswerEvidence message={msg} />
+                    {canSpeak && (
+                      <button
+                        type="button"
+                        className="chat-widget__speak-btn"
+                        aria-label={speakingMessageId === msg.id ? "Dừng đọc câu trả lời" : "Đọc câu trả lời bằng giọng nói"}
+                        onClick={() => speakAnswer(msg.text, msg.id)}
+                      >
+                        <span aria-hidden="true">{speakingMessageId === msg.id ? "■" : "🔊"}</span>
+                        {speakingMessageId === msg.id ? "Dừng đọc" : "Nghe câu trả lời"}
+                      </button>
+                    )}
                     <p className="chat-widget__disclaimer">{DISCLAIMER}</p>
                   </>
                 )}
@@ -455,6 +526,13 @@ export default function ChatWidget({
           <p id="chat-privacy-hint" className="chat-widget__privacy-hint">
             Không nhập họ tên, số điện thoại, địa chỉ hoặc số giấy tờ cá nhân.
           </p>
+          {voiceEnabled && (
+            <p className="chat-widget__voice-status" aria-live="polite">
+              {canSpeak
+                ? `Hội thoại giọng nói đã bật · ${voiceProfileLabel}`
+                : "Nhập giọng nói đã bật; thiết bị chưa hỗ trợ đọc câu trả lời."}
+            </p>
+          )}
           <div className="chat-widget__composer">
             <textarea
               id="chat-widget-input"

@@ -372,7 +372,10 @@ def test_case_create_maps_database_village_scope_rejection_to_422(
 
 def test_knowledge_crud_and_deterministic_scenario() -> None:
     client = FakeSupabase()
-    settings = SimpleNamespace(bana_commune_id="ba_na")
+    settings = SimpleNamespace(
+        bana_commune_id="ba_na",
+        feature_scenario_simulation=True,
+    )
     admin = _profile()
     article_id = uuid4()
 
@@ -495,7 +498,10 @@ def test_scenario_rejects_unsafe_inputs(
                 uuid4(),
                 payload,
                 _profile(),
-                SimpleNamespace(bana_commune_id="ba_na"),
+                SimpleNamespace(
+                    bana_commune_id="ba_na",
+                    feature_scenario_simulation=True,
+                ),
                 FakeSupabase(),
                 "Bearer token",
             )

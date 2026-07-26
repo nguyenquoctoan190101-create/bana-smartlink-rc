@@ -207,4 +207,21 @@ describe("Dashboard device drafts", () => {
     expect(screen.queryByText("Xuất DOCX")).not.toBeInTheDocument();
     expect(screen.queryByText("Xuất PDF")).not.toBeInTheDocument();
   });
+
+  it("shows three message-led charts for commune analysis", () => {
+    render(
+      <Dashboard
+        reports={[report()]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    expect(screen.getByText("Ba góc nhìn giúp xác định nơi cần ưu tiên")).toBeInTheDocument();
+    expect(screen.getByText(/mức tham gia BHYT/)).toBeInTheDocument();
+    expect(screen.getByText(/hộ nghèo và cận nghèo nhất/)).toBeInTheDocument();
+    expect(screen.getByText(/người được hướng dẫn nhất/)).toBeInTheDocument();
+  });
 });

@@ -52,6 +52,40 @@ def test_external_ocr_is_disabled_by_default() -> None:
     assert "tạm thời không sẵn sàng" in response.json()["message"]
 
 
+def test_import_capabilities_are_backend_confirmed() -> None:
+    disabled_app = create_app()
+    disabled_app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="can_bo_thon",
+        village_id=str(uuid4()),
+        force_password_reset=False,
+    )
+    try:
+        disabled = TestClient(disabled_app).get("/reports/capabilities")
+    finally:
+        disabled_app.dependency_overrides.clear()
+
+    assert disabled.status_code == 200
+    assert disabled.json() == {
+        "excel_preview_enabled": True,
+        "ocr_preview_enabled": False,
+        "accepted_ocr_types": [],
+    }
+
+    enabled_client, enabled_app = _client()
+    try:
+        enabled = enabled_client.get("/reports/capabilities")
+    finally:
+        enabled_app.dependency_overrides.clear()
+
+    assert enabled.status_code == 200
+    assert enabled.json() == {
+        "excel_preview_enabled": True,
+        "ocr_preview_enabled": True,
+        "accepted_ocr_types": [".jpg", ".jpeg", ".png", ".pdf"],
+    }
+
+
 def _scan_image(*, include_table: bool = True, include_mid_page_pii: bool = False) -> Image.Image:
     image = Image.new("RGB", (300, 600), "white")
     drawing = ImageDraw.Draw(image)
@@ -171,6 +205,16 @@ def test_pdf_ocr_preview_returns_additive_evidence_without_persisting(
     assert "UNPARSEABLE" in unreadable["flags"]
     assert "CT02" in payload["null_codes"]
 
+    import_metadata = payload["import_metadata"]
+    assert import_metadata["source_type"] == "pdf_ocr"
+    assert import_metadata["template_version"] == "ct14-official-2026-07"
+    assert import_metadata["rule_version"] == "2026-07-14"
+    assert len(import_metadata["evidence_sha256"]) == 64
+    assert import_metadata["evidence"]["CT01"]["source_page"] == 1
+    assert import_metadata["evidence"]["CT01"]["requires_review"] is True
+    assert import_metadata["quality_summary"]["status"] == "blocked"
+    assert import_metadata["quality_summary"]["blocking_flag_count"] >= 1
+
 
 def test_image_ocr_preview_preserves_legacy_scalar_contract(monkeypatch) -> None:
     async def fake_ocr(_: bytes) -> str:
@@ -192,6 +236,7 @@ def test_image_ocr_preview_preserves_legacy_scalar_contract(monkeypatch) -> None
     assert payload["values"]["CT01"] == 145
     assert payload["raw_values"]["CT01"] == 145
     assert payload["evidence"]["CT01"]["confidence"] == 0.5
+    assert payload["import_metadata"]["source_type"] == "photo_ocr"
     assert payload["metadata"] is None
     assert set(
         {

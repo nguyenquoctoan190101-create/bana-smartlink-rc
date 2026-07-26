@@ -155,10 +155,13 @@ async def create_support_point(
 
 @router.get("/scenarios")
 async def list_scenarios(
-    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: str | None = Header(default=None),
 ) -> list[dict[str, Any]]:
+    if not settings.feature_scenario_simulation:
+        raise HTTPException(status_code=404, detail="Experimental feature is not enabled")
     return await _caller(supabase, authorization)._rest_request("GET", "/rest/v1/scenarios?select=*&order=updated_at.desc")
 
 
@@ -170,6 +173,8 @@ async def create_scenario(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    if not settings.feature_scenario_simulation:
+        raise HTTPException(status_code=404, detail="Experimental feature is not enabled")
     rows = await _caller(supabase, authorization)._rest_request("POST", "/rest/v1/scenarios", {**payload.model_dump(exclude_none=True), "commune_id": settings.bana_commune_id, "created_by": profile.id}, prefer="return=representation")
     return rows[0]
 
@@ -183,6 +188,8 @@ async def run_scenario(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
+    if not settings.feature_scenario_simulation:
+        raise HTTPException(status_code=404, detail="Experimental feature is not enabled")
     allowed = {"population_change_pct", "budget_change_pct", "service_demand_change_pct"}
     if set(payload.assumptions) - allowed:
         raise HTTPException(status_code=422, detail="Unsupported scenario assumption")

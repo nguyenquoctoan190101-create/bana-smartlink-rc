@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Database, RefreshCw, Wifi, WifiOff, XCircle } from "lucide-react";
 import { deleteReport, getSyncQueue, removeFromSyncQueue, saveReport } from "../lib/db";
-import { apiJson, toUserFacingError } from "../lib/apiClient";
+import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import type { ReportData, SyncReportsResponse } from "../types";
 
 interface SyncStatusProps {
@@ -10,6 +10,7 @@ interface SyncStatusProps {
 
 export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [serverConfirmed, setServerConfirmed] = useState(false);
   const [queueSize, setQueueSize] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -98,20 +99,46 @@ export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
     };
   }, [refreshQueue]);
 
+  useEffect(() => {
+    if (!isOnline) {
+      setServerConfirmed(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const confirmServer = async () => {
+      try {
+        const response = await apiFetch("/health/ready", { cache: "no-store" });
+        if (!cancelled) setServerConfirmed(response.ok);
+      } catch {
+        if (!cancelled) setServerConfirmed(false);
+      }
+    };
+    void confirmServer();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void confirmServer();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [isOnline]);
+
   return (
     <section aria-labelledby="sync-title" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className={`rounded-lg p-2.5 ${isOnline ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+          <span className={`rounded-lg p-2.5 ${serverConfirmed ? "bg-emerald-50 text-emerald-700" : isOnline ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"}`}>
             {isOnline ? <Wifi aria-hidden="true" className="h-5 w-5" /> : <WifiOff aria-hidden="true" className="h-5 w-5" />}
           </span>
           <div>
             <h2 id="sync-title" className="text-sm font-bold text-slate-900">Đồng bộ báo cáo</h2>
-            <p className="mt-1 text-sm text-slate-600">{isOnline ? "Đang kết nối" : "Ngoại tuyến"} · {queueSize} báo cáo chờ gửi</p>
+            <p className="mt-1 text-sm text-slate-600">
+              {!isOnline ? "Ngoại tuyến" : serverConfirmed ? "Máy chủ đã xác nhận kết nối" : "Đang kiểm tra máy chủ"} · {queueSize} báo cáo chờ gửi
+            </p>
             <p className="mt-1 flex items-center gap-1 text-sm text-slate-500"><Database aria-hidden="true" className="h-4 w-4" />Chỉ xóa khỏi hàng đợi khi máy chủ xác nhận từng báo cáo.</p>
           </div>
         </div>
-        <button type="button" onClick={triggerSync} disabled={!isOnline || isSyncing || queueSize === 0} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-200 disabled:text-slate-500">
+        <button type="button" onClick={triggerSync} disabled={!isOnline || !serverConfirmed || isSyncing || queueSize === 0} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-200 disabled:text-slate-500">
           <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
           {isSyncing ? "Đang gửi..." : "Đồng bộ ngay"}
         </button>

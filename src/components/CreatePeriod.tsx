@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertCircle, Calendar, CheckCircle2, FileSpreadsheet, Loader2, Plus, Trash2, Upload, Users } from "lucide-react";
+import { AlertCircle, Calendar, Check, CheckCircle2, ClipboardCheck, FileSpreadsheet, Loader2, Plus, Trash2, Upload, Users } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 import { invalidateReportPeriods } from "../lib/useReportPeriods";
@@ -146,14 +146,33 @@ export default function CreatePeriod() {
     }
   };
 
+  const setupSteps = [
+    { label: "Thông tin kỳ", detail: "Tên và hạn nộp", complete: Boolean(periodName.trim() && deadline) },
+    { label: "Phạm vi áp dụng", detail: `${selectedVillages.length}/${villages.length} thôn`, complete: selectedVillages.length > 0 },
+    { label: "Biểu mẫu", detail: templateFile ? templateFile.name : "Có thể bổ sung sau", complete: true },
+    { label: "Kiểm tra và tạo", detail: "Máy chủ ghi nhận phiên bản", complete: false },
+  ];
+
   return (
-    <section aria-labelledby="create-period-title" className="mx-auto max-w-3xl space-y-6">
-      <header className="rounded-2xl bg-emerald-950 p-6 text-white shadow-md">
-        <div className="flex items-center gap-3">
-          <span className="rounded-xl bg-emerald-800 p-3"><Plus aria-hidden="true" className="h-6 w-6" /></span>
-          <div>
-            <h1 id="create-period-title" className="text-xl font-black">Tạo kỳ báo cáo</h1>
-            <p className="mt-1 text-sm text-emerald-100">Kỳ, hạn nộp, phạm vi thôn và tệp mẫu được lưu tập trung trên máy chủ.</p>
+    <section aria-labelledby="create-period-title" className="mx-auto max-w-6xl space-y-6">
+      <header className="rounded-2xl bg-emerald-950 p-6 text-white shadow-md md:p-8">
+        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="rounded-xl bg-white/10 p-3 ring-1 ring-white/15">
+              <Calendar aria-hidden="true" className="h-7 w-7" />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">Quản trị báo cáo</p>
+              <h1 id="create-period-title" className="mt-1 text-2xl font-black">Tạo kỳ và phân công báo cáo</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-100">
+                Thiết lập một lần tên kỳ, hạn nộp, các thôn áp dụng và biểu mẫu dùng chung. Cán bộ chỉ nhìn thấy kỳ thuộc phạm vi được phân công.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-bold">
+            <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">10 thôn mới</span>
+            <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">Múi giờ Việt Nam</span>
+            <span className="rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/15">XLSX có kiểm tra phiên bản</span>
           </div>
         </div>
       </header>
@@ -175,64 +194,138 @@ export default function CreatePeriod() {
         </button>
       )}
 
-      <form onSubmit={submit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-5 md:grid-cols-2">
-          <div>
-            <label htmlFor="period-name" className="block text-sm font-bold text-slate-700">Tên kỳ báo cáo</label>
-            <div className="relative mt-2">
-              <Calendar aria-hidden="true" className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
-              <input id="period-name" required maxLength={120} value={periodName} onChange={(e) => setPeriodName(e.target.value)} className="w-full pl-11" placeholder="Tháng 07/2026" />
-            </div>
-            <p className="mt-1 text-sm text-slate-500">Nếu đặt tên theo tháng, tháng phải từ 1 đến 12. Tên mô tả khác vẫn được chấp nhận.</p>
+      <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="self-start rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck aria-hidden="true" className="h-5 w-5 text-emerald-800" />
+            <h2 className="font-bold text-slate-900">4 bước thiết lập</h2>
           </div>
-          <div>
-            <label htmlFor="period-deadline" className="block text-sm font-bold text-slate-700">Hạn nộp</label>
-            <input id="period-deadline" type="datetime-local" required value={deadline} onChange={(e) => setDeadline(e.target.value)} className="mt-2 w-full" />
-            <p className="mt-1 text-sm text-slate-500">Máy chủ tính đúng hạn/trễ hạn theo múi giờ Việt Nam.</p>
-          </div>
-        </div>
-
-        <fieldset>
-          <legend className="flex items-center gap-2 text-sm font-bold text-slate-700"><Users aria-hidden="true" className="h-5 w-5" />Thôn áp dụng ({selectedVillages.length}/{villages.length})</legend>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => setSelectedVillages(allVillageIds)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-800">Chọn tất cả</button>
-            <button type="button" onClick={() => setSelectedVillages([])} className="min-h-11 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700">Bỏ chọn</button>
-          </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            {villages.map((village) => (
-              <label key={village.id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-semibold text-slate-800">
-                <input
-                  type="checkbox"
-                  checked={selectedVillages.includes(village.id)}
-                  onChange={(e) => setSelectedVillages((current) => e.target.checked ? [...current, village.id] : current.filter((id) => id !== village.id))}
-                />
-                {village.name}
-              </label>
+          <ol className="mt-5 space-y-1">
+            {setupSteps.map((step, index) => (
+              <li key={step.label} className="flex gap-3 rounded-xl p-3">
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+                  step.complete ? "bg-emerald-100 text-emerald-800" : index === 0 ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {step.complete ? <Check aria-hidden="true" className="h-4 w-4" /> : index + 1}
+                </span>
+                <span>
+                  <b className="block text-sm text-slate-800">{step.label}</b>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{step.detail}</span>
+                </span>
+              </li>
             ))}
+          </ol>
+          <div className="mt-5 rounded-xl bg-emerald-50 p-4 text-xs leading-relaxed text-emerald-950">
+            <b className="block">Sau khi tạo</b>
+            Kỳ xuất hiện ngay trong màn hình lập báo cáo và tiến độ. Hạn nộp được máy chủ dùng để xác định đúng hạn hoặc trễ hạn.
           </div>
-        </fieldset>
+        </aside>
 
-        <div>
-          <label htmlFor="period-template" className="block text-sm font-bold text-slate-700">Tệp mẫu XLSX (không bắt buộc)</label>
-          {templateFile ? (
-            <div className="mt-2 flex min-h-14 items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-              <span className="flex min-w-0 items-center gap-2 text-sm"><FileSpreadsheet aria-hidden="true" className="h-5 w-5 shrink-0" /><span className="truncate">{templateFile.name}</span></span>
-              <button type="button" aria-label="Gỡ tệp mẫu" onClick={() => setTemplateFile(null)} className="min-h-11 min-w-11 rounded-lg text-rose-700"><Trash2 aria-hidden="true" className="mx-auto h-5 w-5" /></button>
+        <form onSubmit={submit} className="space-y-5">
+          <fieldset className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <legend className="sr-only">Thông tin kỳ báo cáo</legend>
+            <div className="mb-5 flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">1</span>
+              <div>
+                <h2 className="font-bold text-slate-900">Thông tin kỳ báo cáo</h2>
+                <p className="mt-1 text-sm text-slate-600">Dùng tên ngắn, dễ nhận biết và đặt hạn nộp đủ thời gian cho các thôn xử lý.</p>
+              </div>
             </div>
-          ) : (
-            <label className="mt-2 flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
-              <Upload aria-hidden="true" className="mb-2 h-6 w-6" />Chọn tệp XLSX tối đa 5 MB
-              <input id="period-template" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => chooseFile(e.target.files?.[0])} />
-            </label>
-          )}
-          <p className="mt-2 text-sm text-slate-500">Máy chủ kiểm tra cấu trúc XLSX, lưu tệp trong kho riêng tư và ghi SHA-256 để đối chiếu đúng phiên bản.</p>
-        </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <div>
+                <label htmlFor="period-name" className="block text-sm font-bold text-slate-700">Tên kỳ báo cáo</label>
+                <div className="relative mt-2">
+                  <Calendar aria-hidden="true" className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                  <input id="period-name" required maxLength={120} value={periodName} onChange={(e) => setPeriodName(e.target.value)} className="w-full pl-11" placeholder="Ví dụ: Tháng 08/2026" />
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">Nếu đặt tên theo tháng, tháng phải từ 1 đến 12. Tên mô tả khác vẫn được chấp nhận.</p>
+              </div>
+              <div>
+                <label htmlFor="period-deadline" className="block text-sm font-bold text-slate-700">Hạn nộp</label>
+                <input id="period-deadline" type="datetime-local" required value={deadline} onChange={(e) => setDeadline(e.target.value)} className="mt-2 w-full" />
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">Máy chủ tính đúng hạn hoặc trễ hạn theo múi giờ Việt Nam.</p>
+              </div>
+            </div>
+          </fieldset>
 
-        <button type="submit" disabled={isSubmitting} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-black text-white disabled:opacity-60">
-          {isSubmitting ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> : <Plus aria-hidden="true" className="h-5 w-5" />}
-          {isSubmitting ? "Đang tạo kỳ..." : "Tạo kỳ báo cáo"}
-        </button>
-      </form>
+          <fieldset className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+            <legend className="sr-only">Phạm vi thôn áp dụng</legend>
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">2</span>
+                <div>
+                  <h2 className="font-bold text-slate-900">Chọn thôn áp dụng</h2>
+                  <p className="mt-1 text-sm text-slate-600">Đã chọn {selectedVillages.length}/{villages.length} thôn cho kỳ này.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setSelectedVillages(allVillageIds)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-sm font-bold text-emerald-800">Chọn tất cả</button>
+                <button type="button" onClick={() => setSelectedVillages([])} className="min-h-11 rounded-lg bg-slate-100 px-3 text-sm font-bold text-slate-700">Bỏ chọn</button>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {villages.map((village) => {
+                const checked = selectedVillages.includes(village.id);
+                return (
+                  <label key={village.id} className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold transition-colors ${
+                    checked ? "border-emerald-300 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200"
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => setSelectedVillages((current) => e.target.checked ? [...current, village.id] : current.filter((id) => id !== village.id))}
+                    />
+                    <Users aria-hidden="true" className="h-4 w-4 text-emerald-700" />
+                    {village.name}
+                    {checked && <Check aria-hidden="true" className="ml-auto h-4 w-4 text-emerald-700" />}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="period-template-title">
+            <div className="mb-5 flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">3</span>
+              <div>
+                <h2 id="period-template-title" className="font-bold text-slate-900">Biểu mẫu dùng chung</h2>
+                <p className="mt-1 text-sm text-slate-600">Không bắt buộc. Có thể tạo kỳ trước và tải biểu mẫu XLSX lên sau.</p>
+              </div>
+            </div>
+            {templateFile ? (
+              <div className="flex min-h-16 items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <span className="flex min-w-0 items-center gap-3 text-sm font-semibold text-emerald-950"><FileSpreadsheet aria-hidden="true" className="h-6 w-6 shrink-0" /><span className="truncate">{templateFile.name}</span></span>
+                <button type="button" aria-label="Gỡ tệp mẫu" onClick={() => setTemplateFile(null)} className="min-h-11 min-w-11 rounded-lg text-rose-700 hover:bg-rose-50"><Trash2 aria-hidden="true" className="mx-auto h-5 w-5" /></button>
+              </div>
+            ) : (
+              <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600 transition-colors hover:border-emerald-400 hover:bg-emerald-50">
+                <Upload aria-hidden="true" className="mb-3 h-7 w-7 text-emerald-800" />
+                <b className="text-slate-800">Chọn tệp XLSX tối đa 5 MB</b>
+                <span className="mt-1 text-xs">Máy chủ kiểm tra cấu trúc và ghi mã đối chiếu SHA-256.</span>
+                <input id="period-template" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => chooseFile(e.target.files?.[0])} />
+              </label>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm md:p-6" aria-labelledby="period-review-title">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-black text-white">4</span>
+                <div>
+                  <h2 id="period-review-title" className="font-bold text-emerald-950">Kiểm tra trước khi tạo</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-emerald-900">
+                    {periodName.trim() || "Kỳ chưa đặt tên"} · {selectedVillages.length} thôn · {templateFile ? `có biểu mẫu ${templateFile.name}` : "chưa gắn biểu mẫu"}.
+                  </p>
+                </div>
+              </div>
+              <button type="submit" disabled={isSubmitting} className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-900 disabled:opacity-60">
+                {isSubmitting ? <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" /> : <Plus aria-hidden="true" className="h-5 w-5" />}
+                {isSubmitting ? "Đang tạo kỳ..." : "Tạo kỳ báo cáo"}
+              </button>
+            </div>
+          </section>
+        </form>
+      </div>
     </section>
   );
 }

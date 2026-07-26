@@ -24,7 +24,7 @@ services:
       - key: FEATURE_CASES
         value: "true"
       - key: FEATURE_VOICE
-        value: "false"
+        value: "true"
       - key: FEATURE_IOT_PILOT
         value: "false"
       - key: FEATURE_TOURISM_PILOT

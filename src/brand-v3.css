@@ -311,23 +311,6 @@ textarea::placeholder {
   background: linear-gradient(90deg, #b98415, #f3d26c 42%, var(--bn-gold) 70%, #b98415);
 }
 
-.public-hero .topographic-pattern {
-  z-index: 2;
-  width: min(48rem, 65vw);
-  opacity: 0.05;
-}
-
-.public-brand-scenery {
-  position: absolute;
-  z-index: 2;
-  right: -4%;
-  bottom: -2.5rem;
-  width: min(79%, 71rem);
-  height: 95%;
-  opacity: 0.18;
-  mix-blend-mode: screen;
-}
-
 .public-hero-copy {
   max-width: min(43rem, 60%) !important;
 }
@@ -535,15 +518,13 @@ textarea::placeholder {
 }
 
 .public-place-story__intro {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(16rem, 1.1fr);
-  gap: 0.55rem clamp(1.25rem, 4vw, 4rem);
-  align-items: end;
-  margin-bottom: 1rem;
+  max-width: 72rem;
+  margin-bottom: 1.1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--bn-line);
 }
 
 .public-place-story__eyebrow {
-  grid-column: 1 / -1;
   color: var(--bn-green);
   font-size: 0.7rem;
   font-weight: 800;
@@ -552,6 +533,7 @@ textarea::placeholder {
 
 .public-place-story__intro h2 {
   max-width: 42rem;
+  margin-top: 0.35rem;
   color: var(--bn-green-deep);
   font-size: clamp(1.4rem, 2.2vw, 2rem);
   font-weight: 700;
@@ -561,7 +543,8 @@ textarea::placeholder {
 }
 
 .public-place-story__intro > p:last-child {
-  max-width: 46rem;
+  max-width: 68rem;
+  margin-top: 0.55rem;
   color: #51635c;
   font-size: 0.91rem;
   line-height: 1.65;
@@ -569,19 +552,19 @@ textarea::placeholder {
 
 .public-place-story__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
 }
 
 .public-place-story__card {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 15.5rem;
+  min-height: 14.5rem;
   margin: 0;
   border-radius: 0.85rem;
   background: var(--bn-green-deep);
-  box-shadow: 0 8px 22px rgb(3 44 32 / 0.13);
+  box-shadow: 0 7px 18px rgb(3 44 32 / 0.11);
 }
 
 .public-place-story__card picture {
@@ -641,10 +624,10 @@ textarea::placeholder {
 }
 
 .public-place-story__credit {
-  margin-top: 0.7rem;
+  margin-top: 0.8rem;
   color: #73847c;
   font-size: 0.69rem;
-  text-align: right;
+  text-align: left;
 }
 
 #public-village-portal .page-heading {
@@ -708,17 +691,6 @@ textarea::placeholder {
   z-index: 2;
 }
 
-.login-brand-scenery {
-  position: absolute;
-  z-index: 1;
-  right: -18%;
-  bottom: -2.5%;
-  width: 132%;
-  height: 72%;
-  opacity: 0.28;
-  mix-blend-mode: screen;
-}
-
 .login-visual :is(h1, h2) {
   max-width: 740px;
   font-size: clamp(2.5rem, 3.8vw, 4.15rem) !important;
@@ -746,33 +718,6 @@ textarea::placeholder {
   background:
     radial-gradient(circle at 100% 0%, rgb(218 175 55 / 0.13), transparent 21rem),
     linear-gradient(180deg, #f9fbfa, #edf3f0) !important;
-}
-
-.login-panel::before,
-.password-reset-shell::before {
-  content: "";
-  position: absolute;
-  right: -9rem;
-  bottom: -8rem;
-  width: 31rem;
-  height: 24rem;
-  pointer-events: none;
-  opacity: 0.16;
-  background:
-    linear-gradient(160deg, transparent 0 42%, var(--bn-green) 43% 45%, transparent 46%),
-    linear-gradient(150deg, transparent 0 51%, var(--bn-green) 52% 54%, transparent 55%),
-    linear-gradient(140deg, transparent 0 60%, var(--bn-gold) 61% 62%, transparent 63%);
-  transform: rotate(-4deg);
-}
-
-.login-panel-scenery {
-  position: absolute;
-  z-index: 0;
-  right: -26%;
-  bottom: -4rem;
-  width: 145%;
-  height: 42%;
-  opacity: 0.18;
 }
 
 .login-card,
@@ -826,7 +771,6 @@ textarea::placeholder {
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 82% 64%, transparent 0 20%, rgb(218 175 55 / 0.66) 20.4% 21%, transparent 21.5%),
     radial-gradient(circle at 82% 84%, #14805b, transparent 40%),
     linear-gradient(115deg, #042a1f, #084e37) !important;
 }
@@ -862,19 +806,6 @@ textarea::placeholder {
   inset: 0 0 auto;
   height: 4px;
   background: linear-gradient(90deg, var(--bn-gold-dark), #f1d06b, var(--bn-gold));
-}
-
-.gov-shell__sidebar::after {
-  content: "";
-  position: absolute;
-  inset: auto -2rem 1rem auto;
-  width: 16rem;
-  height: 9rem;
-  pointer-events: none;
-  opacity: 0.08;
-  background:
-    radial-gradient(ellipse at 30% 100%, transparent 0 45%, #fff 46% 47%, transparent 48%),
-    radial-gradient(ellipse at 65% 100%, transparent 0 54%, #fff 55% 56%, transparent 57%);
 }
 
 .gov-shell__sidebar .brand-wordmark__mark {
@@ -949,16 +880,6 @@ textarea::placeholder {
   background: transparent;
 }
 
-.gov-brand-scenery {
-  position: absolute;
-  z-index: 0;
-  top: 2.9rem;
-  right: 0;
-  width: min(72rem, 76%);
-  height: 19rem;
-  opacity: 0.1;
-}
-
 .gov-topbar {
   position: relative;
   z-index: 3;
@@ -991,23 +912,6 @@ textarea::placeholder {
 
 .role-screen {
   position: relative;
-}
-
-.role-screen::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: -1.75rem;
-  right: -2.75rem;
-  width: min(34rem, 52vw);
-  height: 12rem;
-  pointer-events: none;
-  opacity: 0.08;
-  background:
-    radial-gradient(ellipse at 18% 100%, transparent 0 48%, var(--bn-green) 49% 50%, transparent 51%),
-    radial-gradient(ellipse at 56% 100%, transparent 0 57%, var(--bn-green) 58% 59%, transparent 60%),
-    linear-gradient(167deg, transparent 0 64%, var(--bn-digital) 65% 65.7%, transparent 66%),
-    linear-gradient(172deg, transparent 0 72%, var(--bn-gold) 73% 73.6%, transparent 74%);
 }
 
 .gov-shell .page-heading {
@@ -1287,7 +1191,7 @@ textarea::placeholder {
   box-shadow: var(--bn-shadow-md);
 }
 
-.role-screen .progress-dashboard__summary :is(h2, .progress-dashboard__eyebrow) {
+.role-screen .progress-dashboard__summary :is(h1, h2, .progress-dashboard__eyebrow) {
   color: #fff;
 }
 
@@ -1698,21 +1602,6 @@ textarea::placeholder {
 
   .gov-shell__content {
     padding: 1rem 0.75rem 6rem;
-  }
-
-  .gov-brand-scenery {
-    top: 2.4rem;
-    right: -45%;
-    width: 150%;
-    height: 14rem;
-    opacity: 0.065;
-  }
-
-  .role-screen::before {
-    top: -1rem;
-    right: -0.75rem;
-    width: 18rem;
-    opacity: 0.08;
   }
 
   .role-screen > section > header:first-child:not(.page-heading),

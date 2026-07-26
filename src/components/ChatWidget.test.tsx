@@ -22,7 +22,10 @@ describe("ChatWidget suggestions", () => {
     mocks.apiFetch.mockReset();
     mocks.apiFetch.mockResolvedValue(jsonResponse({ voice_enabled: false }));
   });
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   it("shows only public-safe indicator suggestions to citizens", () => {
     render(<ChatWidget userPhone={null} />);
@@ -90,6 +93,62 @@ describe("ChatWidget suggestions", () => {
     expect(
       await screen.findByRole("button", { name: "Nhập câu hỏi bằng giọng nói" }),
     ).toBeInTheDocument();
+  });
+
+  it("uses the branded logo and prefers a labelled Da Nang voice for answers", async () => {
+    class FakeSpeechSynthesisUtterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice: SpeechSynthesisVoice | null = null;
+      onstart: ((event: Event) => void) | null = null;
+      onend: ((event: Event) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    const daNangVoice = {
+      default: false,
+      lang: "vi-VN",
+      localService: true,
+      name: "Da Nang Central Vietnamese",
+      voiceURI: "local-da-nang",
+    } as SpeechSynthesisVoice;
+    const speak = vi.fn((utterance: FakeSpeechSynthesisUtterance) => {
+      utterance.onstart?.(new Event("start"));
+    });
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+    vi.stubGlobal("speechSynthesis", {
+      cancel: vi.fn(),
+      getVoices: vi.fn(() => [daNangVoice]),
+      speak,
+    });
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse({ voice_enabled: true }))
+      .mockResolvedValueOnce(jsonResponse({
+        answer: "Toàn xã có 18.359 nhân khẩu.",
+        intent: "COMMUNE_INDICATOR",
+        rows_retrieved: 1,
+        sources: [],
+        data_scope: "public_published",
+        limitations: [],
+      }));
+
+    const { container } = render(<ChatWidget userPhone={null} />);
+    expect(container.querySelector('img[src="/images/ba-na-brand-mark-96.png"]')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
+    await screen.findByRole("button", { name: "Nhập câu hỏi bằng giọng nói" });
+    fireEvent.click(screen.getByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Đọc câu trả lời bằng giọng nói" }));
+
+    expect(speak).toHaveBeenCalledTimes(1);
+    const utterance = speak.mock.calls[0][0];
+    expect(utterance.lang).toBe("vi-VN");
+    expect(utterance.voice).toBe(daNangVoice);
+    expect(await screen.findByText(/Giọng Đà Nẵng\/miền Trung/)).toBeInTheDocument();
   });
 
   it("renders the source, update time, scope and limitations returned by the API", async () => {

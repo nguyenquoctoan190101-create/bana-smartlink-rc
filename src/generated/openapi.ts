@@ -1175,6 +1175,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Report Import Capabilities
+         * @description Return only backend-confirmed import features used to render the UI.
+         */
+        get: operations["report_import_capabilities_reports_capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/confirm-synonym": {
         parameters: {
             query?: never;
@@ -2075,8 +2095,33 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** ExtractionEvidenceReference */
+        ExtractionEvidenceReference: {
+            /** Confidence */
+            confidence: number;
+            /** Extractor */
+            extractor: string;
+            /** Flags */
+            flags?: string[];
+            /** Method */
+            method: string;
+            /** Requires Review */
+            requires_review: boolean;
+            /** Source Page */
+            source_page?: number | null;
+            /** Source Region */
+            source_region?: string | null;
+            /** Version */
+            version: string;
+        };
         /** ExtractionMetadata */
         ExtractionMetadata: {
+            /** Evidence */
+            evidence?: {
+                [key: string]: components["schemas"]["ExtractionEvidenceReference"];
+            };
+            /** Evidence Sha256 */
+            evidence_sha256?: string | null;
             /** Extractor Versions */
             extractor_versions?: string[];
             /**
@@ -2084,11 +2129,14 @@ export interface components {
              * @default 14
              */
             field_count: number;
+            quality_summary?: components["schemas"]["ExtractionQualitySummary"] | null;
             /**
              * Requires Review Count
              * @default 0
              */
             requires_review_count: number;
+            /** Rule Version */
+            rule_version?: string | null;
             /** Source Checksum */
             source_checksum: string;
             /**
@@ -2096,6 +2144,22 @@ export interface components {
              * @enum {string}
              */
             source_type: "excel" | "photo_ocr" | "pdf_ocr";
+            /** Template Version */
+            template_version?: string | null;
+        };
+        /** ExtractionQualitySummary */
+        ExtractionQualitySummary: {
+            /** Blocking Flag Count */
+            blocking_flag_count: number;
+            /** Mean Confidence */
+            mean_confidence: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "needs_review" | "blocked";
+            /** Warning Flag Count */
+            warning_flag_count: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2198,6 +2262,7 @@ export interface components {
             filename: string;
             /** Flags */
             flags: components["schemas"]["OcrValidationFlag"][];
+            import_metadata?: components["schemas"]["ExtractionMetadata"] | null;
             metadata?: components["schemas"]["ReportPreviewMetadata"] | null;
             /** Null Codes */
             null_codes: string[];
@@ -2431,6 +2496,18 @@ export interface components {
             source_region?: string | null;
             /** Version */
             version: string;
+        };
+        /** ReportImportCapabilities */
+        ReportImportCapabilities: {
+            /** Accepted Ocr Types */
+            accepted_ocr_types?: string[];
+            /**
+             * Excel Preview Enabled
+             * @default true
+             */
+            excel_preview_enabled: boolean;
+            /** Ocr Preview Enabled */
+            ocr_preview_enabled: boolean;
         };
         /**
          * ReportNarrativeRequest
@@ -5519,6 +5596,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportNarrativeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_import_capabilities_reports_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportImportCapabilities"];
                 };
             };
             /** @description Validation Error */

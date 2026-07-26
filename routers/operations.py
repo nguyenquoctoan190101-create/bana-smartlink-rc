@@ -8,8 +8,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
-from routers.auth import _extract_bearer_token, get_supabase_admin, require_admin_or_leader, require_admin_xa, require_authenticated_user
+from routers.auth import _extract_bearer_token, get_settings, get_supabase_admin, require_admin_or_leader, require_admin_xa, require_authenticated_user
 from services.operations import MATURITY_DIMENSIONS, build_safe_period_brief, quality_snapshot, validate_maturity_scores
+from services.settings import Settings
 from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
 
 router = APIRouter(prefix="/operations", tags=["operations"])
@@ -73,6 +74,11 @@ class AiDraftReviewRequest(BaseModel):
 def _caller_client(supabase: SupabaseAdminClient, authorization: str | None) -> SupabaseAdminClient:
     """Business reads/writes use caller JWT so PostgreSQL RLS remains effective."""
     return supabase.as_user(_extract_bearer_token(authorization))
+
+
+def _require_experimental_feature(settings: Settings, field: str) -> None:
+    if not bool(getattr(settings, field, False)):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experimental feature is not enabled")
 
 
 async def _commune_id(client: SupabaseAdminClient, profile: UserProfile) -> str:
@@ -193,10 +199,12 @@ async def update_action(
 
 @router.get("/maturity")
 async def list_maturity(
-    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    _: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> list[dict[str, Any]]:
+    _require_experimental_feature(settings, "feature_digital_maturity")
     return await _caller_client(supabase, authorization)._rest_request("GET", "/rest/v1/digital_maturity_assessments?select=*&order=quarter_start.desc")
 
 
@@ -204,9 +212,11 @@ async def list_maturity(
 async def create_maturity(
     payload: MaturityCreateRequest,
     profile: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    _require_experimental_feature(settings, "feature_digital_maturity")
     client = _caller_client(supabase, authorization)
     try:
         commune_id = await _commune_id(client, profile)
@@ -220,9 +230,11 @@ async def create_maturity(
 async def approve_maturity(
     assessment_id: UUID,
     profile: Annotated[UserProfile, Depends(require_admin_xa)],
+    settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    _require_experimental_feature(settings, "feature_digital_maturity")
     try:
         rows = await _caller_client(supabase, authorization)._rest_request(
             "PATCH",
@@ -282,7 +294,15 @@ async def create_ai_draft(
     try:
         commune_id = await _commune_id(client, profile)
         period, snapshots = await _period_and_snapshots(client, payload.period_id)
-        content, citations, confidence = build_safe_period_brief(str(period["name"]), snapshots)
+        approved_snapshots = [
+            item
+            for item in snapshots
+            if item.get("workflow_status") in {"approved", "locked"}
+        ]
+        content, citations, confidence = build_safe_period_brief(
+            str(period["name"]),
+            approved_snapshots,
+        )
         rows = await client._rest_request("POST", "/rest/v1/ai_action_drafts", {
             "commune_id": commune_id, "period_id": str(payload.period_id), "kind": payload.kind,
             "content": content, "citations": citations, "confidence": confidence,

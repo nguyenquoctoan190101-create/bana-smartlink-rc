@@ -1,6 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { 
-  FileSpreadsheet, 
+  FileSpreadsheet,
+  FileImage,
   Upload, 
   Sparkles, 
   AlertTriangle, 
@@ -11,7 +12,7 @@ import {
   CheckSquare,
   X
 } from "lucide-react";
-import { apiUpload, toUserFacingError } from "../lib/apiClient";
+import { apiJson, apiUpload, toUserFacingError } from "../lib/apiClient";
 import type { ExtractionCorrection, ExtractionMetadata, IndicatorCode } from "../types";
 
 interface UploadReportProps {
@@ -82,9 +83,25 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   const [previewChecksum, setPreviewChecksum] = useState<string | null>(null);
   const [previewExtractorVersions, setPreviewExtractorVersions] = useState<string[]>([]);
   const [previewReviewToken, setPreviewReviewToken] = useState<string | null>(null);
+  const [previewImportMetadata, setPreviewImportMetadata] = useState<ExtractionMetadata | null>(null);
+  const [ocrEnabled, setOcrEnabled] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+  useEffect(() => {
+    let active = true;
+    void apiJson<{ ocr_preview_enabled?: boolean }>("/reports/capabilities")
+      .then((capabilities) => {
+        if (active) setOcrEnabled(capabilities.ocr_preview_enabled === true);
+      })
+      .catch(() => {
+        if (active) setOcrEnabled(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -163,8 +180,14 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   const handleFileSelected = (selectedFile: File) => {
     const extension = selectedFile.name.split(".").pop()?.toLowerCase();
     const isExcel = ["xlsx"].includes(extension || "");
+    const isOcrDocument = ["jpg", "jpeg", "png", "pdf"].includes(extension || "");
 
-    if (!isExcel) {
+    if (!isExcel && !isOcrDocument) {
+      setError("Chỉ nhận biểu mẫu Excel (.xlsx), ảnh (.jpg, .png) hoặc PDF quét.");
+      clearSelectedFile(true);
+      return;
+    }
+    if (isOcrDocument && !ocrEnabled) {
       setError("Chỉ nhận biểu mẫu Excel (.xlsx). Nhận dạng ảnh/PDF đang khóa để bảo vệ dữ liệu cá nhân.");
       clearSelectedFile(true);
       return;
@@ -184,7 +207,8 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
     setFile(selectedFile);
 
-    uploadExcelFile(selectedFile);
+    if (isExcel) void uploadExcelFile(selectedFile);
+    else void uploadOcrFile(selectedFile);
   };
 
   // Excel mapping upload API call
@@ -218,6 +242,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         typeof resData.checksum_sha256 === "string" ? resData.checksum_sha256 : null,
         Array.isArray(resData.extractor_versions) ? resData.extractor_versions : [],
         typeof resData.extraction_review_token === "string" ? resData.extraction_review_token : null,
+        resData.import_metadata || null,
       );
     } catch (err) {
       console.error(err);
@@ -262,6 +287,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     checksum: string | null,
     extractorVersions: string[],
     reviewToken: string | null,
+    importMetadata: ExtractionMetadata | null,
   ) => {
     const rows: ExtractionRow[] = Object.keys(INDICATOR_MAP).map(code => {
       const val = values[code] !== undefined ? values[code] : null;
@@ -295,6 +321,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setPreviewChecksum(checksum);
     setPreviewExtractorVersions(extractorVersions);
     setPreviewReviewToken(reviewToken);
+    setPreviewImportMetadata(importMetadata);
     setReviewRows(rows);
   };
 
@@ -320,6 +347,46 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         return row;
       });
     });
+  };
+
+  const uploadOcrFile = async (documentFile: File) => {
+    setIsProcessing(true);
+    setUploadProgress(0);
+    setError(null);
+    const formData = new FormData();
+    formData.append("file", documentFile);
+
+    try {
+      const response = await apiUpload(
+        "/reports/ocr-preview",
+        formData,
+        setUploadProgress,
+      );
+      if (!response.ok) {
+        throw new Error(await getApiErrorMessage(response, "Không thể nhận dạng ảnh hoặc PDF quét."));
+      }
+      const resData = await response.json();
+      const source: PreviewSource = resData.source === "pdf_ocr" ? "pdf_ocr" : "photo_ocr";
+      initializePreview(
+        resData.values || {},
+        resData.raw_values || {},
+        resData.flags || [],
+        resData.null_codes || [],
+        source,
+        resData.metadata || null,
+        resData.evidence || {},
+        typeof resData.checksum_sha256 === "string" ? resData.checksum_sha256 : null,
+        Array.isArray(resData.extractor_versions) ? resData.extractor_versions : [],
+        typeof resData.extraction_review_token === "string" ? resData.extraction_review_token : null,
+        resData.import_metadata || null,
+      );
+    } catch (err) {
+      console.error(err);
+      setError(toUserFacingError(err, "Đã xảy ra lỗi khi nhận dạng ảnh hoặc PDF quét."));
+    } finally {
+      setIsProcessing(false);
+      setUploadProgress(null);
+    }
   };
 
   const handleReasonChange = (code: string, correctionReason: string) => {
@@ -402,13 +469,13 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       raw_source,
       source_confirmed: true,
       extraction_corrections: corrections,
-      extraction_metadata: previewChecksum && previewSource ? {
+      extraction_metadata: previewImportMetadata ?? (previewChecksum && previewSource ? {
         source_checksum: previewChecksum,
         source_type: previewSource,
         extractor_versions: previewExtractorVersions,
         field_count: reviewRows.length,
         requires_review_count: reviewRows.filter((row) => row.needsConfirmation).length,
-      } : undefined,
+      } : undefined),
       extraction_review_token: previewReviewToken,
     });
   };
@@ -422,6 +489,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     setPreviewChecksum(null);
     setPreviewExtractorVersions([]);
     setPreviewReviewToken(null);
+    setPreviewImportMetadata(null);
   };
 
   // Counting unconfirmed low confidence indicators
@@ -437,10 +505,12 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
         <div className="space-y-1">
           <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
             <Sparkles className="w-5.5 h-5.5 text-emerald-700" />
-            <span>Nhập số liệu từ tệp Excel</span>
+            <span>{ocrEnabled ? "Nhập số liệu từ Excel, ảnh hoặc PDF quét" : "Nhập số liệu từ tệp Excel"}</span>
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Đọc biểu mẫu Excel; cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo.
+            {ocrEnabled
+              ? "Excel được đọc theo ô; ảnh/PDF quét được nhận dạng. Cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo."
+              : "Đọc biểu mẫu Excel; cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo."}
           </p>
         </div>
         {reviewRows && (
@@ -475,7 +545,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   type="file"
                   ref={fileInputRef}
                   id="file-upload-input"
-                  accept=".xlsx"
+                  accept={ocrEnabled ? ".xlsx,.jpg,.jpeg,.png,.pdf" : ".xlsx"}
                   className="sr-only"
                   onChange={handleFileChange}
                   disabled={isProcessing}
@@ -517,7 +587,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         Kéo thả tệp báo cáo của thôn hoặc <span className="text-emerald-800 underline">Bấm để duyệt tệp</span>
                       </p>
                       <p className="text-2xs text-slate-400">
-                        Excel theo biểu mẫu <b className="font-mono text-emerald-900">.xlsx</b>; tối đa 5 MB
+                        {ocrEnabled ? "Excel, ảnh hoặc PDF quét" : "Excel theo biểu mẫu"} <b className="font-mono text-emerald-900">{ocrEnabled ? ".xlsx · .jpg · .png · .pdf" : ".xlsx"}</b>; tối đa 5 MB
                       </p>
                     </div>
 
@@ -526,6 +596,12 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
                         Excel theo biểu mẫu
                       </span>
+                      {ocrEnabled && (
+                        <span className="flex items-center gap-1 text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
+                          <FileImage className="w-4 h-4 text-indigo-700" />
+                          Ảnh hoặc PDF quét
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -612,6 +688,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
             <span><b>Loại nguồn:</b> {previewSource === "excel" ? "Excel theo biểu mẫu" : previewSource === "pdf_ocr" ? "PDF quét" : "Ảnh báo cáo"}</span>
             <span><b>Mã kiểm tra tệp:</b> {previewChecksum ? `${previewChecksum.slice(0, 12)}…` : "Chưa có"}</span>
             <span><b>Bộ trích xuất:</b> {previewExtractorVersions.length ? previewExtractorVersions.join(", ") : "Chưa ghi nhận"}</span>
+            {previewImportMetadata?.template_version && <span><b>Phiên bản biểu mẫu:</b> {previewImportMetadata.template_version}</span>}
+            {previewImportMetadata?.rule_version && <span><b>Phiên bản quy tắc:</b> {previewImportMetadata.rule_version}</span>}
+            {previewImportMetadata?.quality_summary && (
+              <span><b>Chất lượng xem trước:</b> {
+                previewImportMetadata.quality_summary.status === "ready"
+                  ? "Sẵn sàng rà soát"
+                  : previewImportMetadata.quality_summary.status === "blocked"
+                    ? "Có lỗi phải xử lý"
+                    : "Cần xem lại"
+              }</span>
+            )}
           </div>
 
           {/* Warning banner */}

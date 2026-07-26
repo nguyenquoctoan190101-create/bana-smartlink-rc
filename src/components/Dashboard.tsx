@@ -8,6 +8,7 @@ import {
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge } from "./ui";
+import DashboardInsightCharts from "./DashboardInsightCharts";
 
 interface DashboardProps {
   reports: ReportData[];
@@ -747,6 +748,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
         </div>
       </div>
+
+      <DashboardInsightCharts reports={filteredReports} villageName={getVillageName} />
 
       {/* Section: Interactive Submissions Log and Details Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-2xs p-6">

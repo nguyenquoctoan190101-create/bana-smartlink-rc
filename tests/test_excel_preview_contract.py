@@ -65,6 +65,14 @@ def test_excel_preview_keeps_raw_text_and_returns_deterministic_flag() -> None:
         "flags": ["TEXT"],
         "requires_review": True,
     }
+    import_metadata = payload["import_metadata"]
+    assert import_metadata["source_type"] == "excel"
+    assert import_metadata["template_version"] == "ct14-official-2026-07"
+    assert import_metadata["rule_version"] == "2026-07-14"
+    assert len(import_metadata["evidence_sha256"]) == 64
+    assert import_metadata["evidence"]["CT07"]["requires_review"] is True
+    assert import_metadata["quality_summary"]["status"] == "blocked"
+    assert import_metadata["quality_summary"]["blocking_flag_count"] >= 1
 
 
 def test_excel_preview_exposes_workbook_metadata_without_persisting() -> None:
@@ -100,3 +108,4 @@ def test_excel_preview_exposes_workbook_metadata_without_persisting() -> None:
     assert payload["evidence"]["CT01"]["normalized_value"] == payload["values"]["CT01"]
     assert payload["evidence"]["CT01"]["confidence"] == 1.0
     assert payload["evidence"]["CT01"]["source_region"] == "Phiếu báo cáo!D14"
+    assert payload["import_metadata"]["source_checksum"] == payload["checksum_sha256"]

@@ -68,6 +68,7 @@ from services.ocr_report import (
     OcrInputError,
     ocr_report_document_async,
 )
+from services.operations import RULE_VERSION as VALIDATION_RULE_VERSION
 from services.rate_limit import limiter
 from services.report_repository import ReportRepository, VillageSubmissionStatus
 from services.settings import Settings
@@ -86,6 +87,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reports", tags=["reports"])
 period_router = APIRouter(prefix="/report-periods", tags=["report-periods"])
 RULES_PATH = Path(__file__).resolve().parents[1] / "config" / "validation_rules.json"
+REPORT_TEMPLATE_VERSION = "ct14-official-2026-07"
 REPORT_SOURCE_MAP = {
     "web_form": "manual",
     "manual": "manual",
@@ -134,12 +136,35 @@ class ExtractionCorrection(BaseModel):
         return normalized
 
 
+class ExtractionEvidenceReference(BaseModel):
+    confidence: float = Field(ge=0, le=1)
+    source_page: int | None = Field(default=None, ge=1)
+    source_region: str | None = Field(default=None, max_length=240)
+    extractor: str = Field(min_length=1, max_length=120)
+    method: str = Field(min_length=1, max_length=120)
+    version: str = Field(min_length=1, max_length=120)
+    flags: list[str] = Field(default_factory=list, max_length=30)
+    requires_review: bool
+
+
+class ExtractionQualitySummary(BaseModel):
+    status: Literal["ready", "needs_review", "blocked"]
+    mean_confidence: float = Field(ge=0, le=1)
+    blocking_flag_count: int = Field(ge=0, le=100)
+    warning_flag_count: int = Field(ge=0, le=100)
+
+
 class ExtractionMetadata(BaseModel):
     source_checksum: str = Field(pattern=r"^[0-9a-f]{64}$")
     source_type: Literal["excel", "photo_ocr", "pdf_ocr"]
     extractor_versions: list[str] = Field(default_factory=list, max_length=20)
     field_count: int = Field(default=14, ge=0, le=14)
     requires_review_count: int = Field(default=0, ge=0, le=14)
+    template_version: str | None = Field(default=None, max_length=120)
+    rule_version: str | None = Field(default=None, max_length=120)
+    evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    evidence: dict[str, ExtractionEvidenceReference] = Field(default_factory=dict)
+    quality_summary: ExtractionQualitySummary | None = None
 
     @field_validator("extractor_versions")
     @classmethod
@@ -342,9 +367,92 @@ class OcrPreviewResponse(BaseModel):
     extractor_versions: list[str] = Field(default_factory=list)
     extraction_review_token: str = Field(min_length=32, max_length=8192)
     evidence: dict[str, ReportFieldEvidence] = Field(default_factory=dict)
+    import_metadata: ExtractionMetadata | None = None
     metadata: ReportPreviewMetadata | None = None
     # raw_gemini_text is intentionally excluded from the response model
     # to prevent the AI-generated text from reaching the frontend.
+
+
+class ReportImportCapabilities(BaseModel):
+    excel_preview_enabled: bool = True
+    ocr_preview_enabled: bool
+    accepted_ocr_types: list[str] = Field(default_factory=list)
+
+
+def _build_import_metadata(
+    *,
+    source_checksum: str,
+    source_type: Literal["excel", "photo_ocr", "pdf_ocr"],
+    extractor_versions: list[str],
+    evidence: dict[str, ReportFieldEvidence],
+    validation_flags: list[dict[str, Any]],
+) -> ExtractionMetadata:
+    evidence_references = {
+        code: ExtractionEvidenceReference(
+            confidence=item.confidence,
+            source_page=item.source_page,
+            source_region=item.source_region,
+            extractor=item.extractor,
+            method=item.method,
+            version=item.version,
+            flags=item.flags,
+            requires_review=item.requires_review,
+        )
+        for code, item in evidence.items()
+    }
+    evidence_payload = {
+        code: item.model_dump(mode="json")
+        for code, item in sorted(evidence_references.items())
+    }
+    evidence_sha256 = hashlib.sha256(
+        json.dumps(
+            evidence_payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    blocking_flag_count = sum(
+        str(flag.get("error_type")) in BLOCKING_ERROR_TYPES
+        for flag in validation_flags
+    )
+    warning_flag_count = max(0, len(validation_flags) - blocking_flag_count)
+    requires_review_count = sum(
+        item.requires_review for item in evidence_references.values()
+    )
+    mean_confidence = (
+        round(
+            sum(item.confidence for item in evidence_references.values())
+            / len(evidence_references),
+            4,
+        )
+        if evidence_references
+        else 0.0
+    )
+    quality_status: Literal["ready", "needs_review", "blocked"] = (
+        "blocked"
+        if blocking_flag_count
+        else "needs_review"
+        if requires_review_count or warning_flag_count
+        else "ready"
+    )
+    return ExtractionMetadata(
+        source_checksum=source_checksum,
+        source_type=source_type,
+        extractor_versions=extractor_versions,
+        field_count=len(evidence_references),
+        requires_review_count=requires_review_count,
+        template_version=REPORT_TEMPLATE_VERSION,
+        rule_version=VALIDATION_RULE_VERSION,
+        evidence_sha256=evidence_sha256,
+        evidence=evidence_references,
+        quality_summary=ExtractionQualitySummary(
+            status=quality_status,
+            mean_confidence=mean_confidence,
+            blocking_flag_count=blocking_flag_count,
+            warning_flag_count=warning_flag_count,
+        ),
+    )
 
 
 class ReportNarrativeRequest(BaseModel):
@@ -923,6 +1031,20 @@ async def upload_report_file(
     )
 
 
+@router.get("/capabilities", response_model=ReportImportCapabilities)
+async def report_import_capabilities(
+    _: Annotated[UserProfile, Depends(require_authenticated_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ReportImportCapabilities:
+    """Return only backend-confirmed import features used to render the UI."""
+
+    ocr_enabled = bool(settings.feature_external_ocr)
+    return ReportImportCapabilities(
+        ocr_preview_enabled=ocr_enabled,
+        accepted_ocr_types=[".jpg", ".jpeg", ".png", ".pdf"] if ocr_enabled else [],
+    )
+
+
 @router.post("/ocr-preview", response_model=OcrPreviewResponse)
 @limiter.limit("10/minute")
 async def ocr_photo_preview(
@@ -980,6 +1102,28 @@ async def ocr_photo_preview(
     requires_review_count = sum(
         bool(item.requires_review) for item in preview.evidence.values()
     )
+    evidence_models = {
+        code: ReportFieldEvidence(
+            raw_value=item.raw_value,
+            normalized_value=item.normalized_value,
+            confidence=item.confidence,
+            source_page=item.source_page,
+            source_region=item.source_region,
+            extractor=item.extractor,
+            method=item.method,
+            version=item.version,
+            flags=item.flags,
+            requires_review=item.requires_review,
+        )
+        for code, item in preview.evidence.items()
+    }
+    import_metadata = _build_import_metadata(
+        source_checksum=source_checksum,
+        source_type=source_type,
+        extractor_versions=extractor_versions,
+        evidence=evidence_models,
+        validation_flags=list(preview.flags),
+    )
     try:
         review_token = issue_extraction_review_token(
             user_id=current_user.id,
@@ -988,6 +1132,7 @@ async def ocr_photo_preview(
             extractor_versions=extractor_versions,
             values=preview.values,
             requires_review_count=requires_review_count,
+            import_metadata=import_metadata.model_dump(mode="json"),
         )
     except ExtractionReviewTokenError as exc:
         raise HTTPException(
@@ -1013,21 +1158,8 @@ async def ocr_photo_preview(
         checksum_sha256=source_checksum,
         extractor_versions=extractor_versions,
         extraction_review_token=review_token,
-        evidence={
-            code: ReportFieldEvidence(
-                raw_value=item.raw_value,
-                normalized_value=item.normalized_value,
-                confidence=item.confidence,
-                source_page=item.source_page,
-                source_region=item.source_region,
-                extractor=item.extractor,
-                method=item.method,
-                version=item.version,
-                flags=item.flags,
-                requires_review=item.requires_review,
-            )
-            for code, item in preview.evidence.items()
-        },
+        evidence=evidence_models,
+        import_metadata=import_metadata,
         # raw_gemini_text deliberately omitted from response
     )
 
@@ -1201,6 +1333,32 @@ async def excel_preview(
         item["requires_review"] or bool(flag_types_by_code[code])
         for code, item in parsed["evidence"].items()
     )
+    evidence_models = {
+        code: ReportFieldEvidence(
+            raw_value=item["raw_value"],
+            normalized_value=item["normalized_value"],
+            confidence=item["confidence"],
+            source_page=item["source_page"],
+            source_region=item["source_region"],
+            extractor=item["extractor"],
+            method=item["method"],
+            version=item["version"],
+            flags=list(
+                dict.fromkeys(item["flags"] + flag_types_by_code[code])
+            ),
+            requires_review=(
+                item["requires_review"] or bool(flag_types_by_code[code])
+            ),
+        )
+        for code, item in parsed["evidence"].items()
+    }
+    import_metadata = _build_import_metadata(
+        source_checksum=source_checksum,
+        source_type="excel",
+        extractor_versions=extractor_versions,
+        evidence=evidence_models,
+        validation_flags=list(validation_flags),
+    )
     try:
         review_token = issue_extraction_review_token(
             user_id=current_user.id,
@@ -1209,6 +1367,7 @@ async def excel_preview(
             extractor_versions=extractor_versions,
             values=normalized_values,
             requires_review_count=requires_review_count,
+            import_metadata=import_metadata.model_dump(mode="json"),
         )
     except ExtractionReviewTokenError as exc:
         raise HTTPException(
@@ -1227,25 +1386,8 @@ async def excel_preview(
         checksum_sha256=source_checksum,
         extractor_versions=extractor_versions,
         extraction_review_token=review_token,
-        evidence={
-            code: ReportFieldEvidence(
-                raw_value=item["raw_value"],
-                normalized_value=item["normalized_value"],
-                confidence=item["confidence"],
-                source_page=item["source_page"],
-                source_region=item["source_region"],
-                extractor=item["extractor"],
-                method=item["method"],
-                version=item["version"],
-                flags=list(
-                    dict.fromkeys(item["flags"] + flag_types_by_code[code])
-                ),
-                requires_review=(
-                    item["requires_review"] or bool(flag_types_by_code[code])
-                ),
-            )
-            for code, item in parsed["evidence"].items()
-        },
+        evidence=evidence_models,
+        import_metadata=import_metadata,
         metadata=ReportPreviewMetadata(**parsed["metadata"]),
     )
 
@@ -1592,14 +1734,29 @@ def _validate_extraction_review(
             detail="Signed extraction source does not match the report source",
         )
 
-    trusted_metadata = {
+    core_trusted_metadata = {
         "source_checksum": trusted["source_checksum"],
         "source_type": trusted["source_type"],
         "extractor_versions": trusted["extractor_versions"],
         "field_count": trusted["field_count"],
         "requires_review_count": trusted["requires_review_count"],
     }
-    supplied_metadata = metadata.model_dump()
+    signed_import_metadata = trusted.get("import_metadata")
+    if signed_import_metadata is not None:
+        if any(
+            signed_import_metadata.get(key) != value
+            for key, value in core_trusted_metadata.items()
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Signed import metadata is inconsistent",
+            )
+        trusted_metadata = signed_import_metadata
+    else:
+        trusted_metadata = core_trusted_metadata
+    supplied_metadata = metadata.model_dump(exclude_none=True)
+    if signed_import_metadata is None and not supplied_metadata.get("evidence"):
+        supplied_metadata.pop("evidence", None)
     supplied_metadata["extractor_versions"] = sorted(
         supplied_metadata["extractor_versions"]
     )

@@ -5,7 +5,7 @@ import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { loadVillages } from "../lib/useVillages";
 import { Button, EmptyState, ErrorState, PageHeader, SectionCard, StatusBadge } from "./ui";
 
-type Props = { role: UserRole };
+type Props = { role: UserRole; scenarioEnabled?: boolean };
 type Article = { id: string; title: string; summary?: string | null; category: string; audience: string; status: string; version: number };
 type Champion = { id: string; user_id: string; skills?: string[]; support_schedule?: string | null; supported_groups?: string | null; is_active: boolean };
 type SupportPoint = { id: string; name: string; address: string; opening_hours?: string | null; equipment?: string[]; champion_id?: string | null };
@@ -24,8 +24,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const roleLabel = (role: string) => ({ admin_xa: "Quản trị xã", to_cnscd: "Tổ công nghệ số cộng đồng", can_bo_thon: "Cán bộ thôn", lanh_dao: "Lãnh đạo" }[role] || role);
 
-export default function KnowledgeCenter({ role }: Props) {
+export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props) {
   const admin = role === "admin_xa";
+  const showScenarioSimulation = admin && scenarioEnabled;
   const canViewEvacuation = admin || role === "lanh_dao";
   const [articles, setArticles] = useState<Article[]>([]);
   const [champions, setChampions] = useState<Champion[]>([]);
@@ -73,9 +74,11 @@ export default function KnowledgeCenter({ role }: Props) {
       apiJson<Article[]>("/api/knowledge/articles"),
       apiJson<Champion[]>("/api/knowledge/champions"),
       apiJson<SupportPoint[]>("/api/knowledge/support-points"),
-      apiJson<Scenario[]>("/api/knowledge/scenarios"),
     ];
-    if (canViewEvacuation) requests.push(apiJson<Officer[]>("/auth/officers"), loadVillages(), apiJson<EvacuationPoint[]>("/api/pilots/evacuation-points/admin"));
+    const scenarioIndex = showScenarioSimulation ? requests.push(apiJson<Scenario[]>("/api/knowledge/scenarios")) - 1 : -1;
+    const officerIndex = canViewEvacuation ? requests.push(apiJson<Officer[]>("/auth/officers")) - 1 : -1;
+    const villageIndex = canViewEvacuation ? requests.push(loadVillages()) - 1 : -1;
+    const evacuationIndex = canViewEvacuation ? requests.push(apiJson<EvacuationPoint[]>("/api/pilots/evacuation-points/admin")) - 1 : -1;
     const results = await Promise.allSettled(requests);
     const assign = <T,>(index: number, setter: (value: T) => void) => {
       const result = results[index];
@@ -84,18 +87,19 @@ export default function KnowledgeCenter({ role }: Props) {
     assign<Article[]>(0, setArticles);
     assign<Champion[]>(1, setChampions);
     assign<SupportPoint[]>(2, setPoints);
-    assign<Scenario[]>(3, setScenarios);
+    if (scenarioIndex >= 0) assign<Scenario[]>(scenarioIndex, setScenarios);
+    else setScenarios([]);
     if (canViewEvacuation) {
-      assign<Officer[]>(4, setOfficers);
-      const villageResult = results[5];
+      assign<Officer[]>(officerIndex, setOfficers);
+      const villageResult = results[villageIndex];
       if (villageResult?.status === "fulfilled") setVillages((villageResult.value as Village[]).map(({ id, name }) => ({ id, name })));
-      assign<EvacuationPoint[]>(6, setEvacuationPoints);
+      assign<EvacuationPoint[]>(evacuationIndex, setEvacuationPoints);
     }
-    if (results.slice(0, 4).every((result) => result.status === "rejected")) setError("Không tải được kho tri thức. Kiểm tra quyền truy cập hoặc kết nối rồi thử lại.");
+    if (results.slice(0, 3).every((result) => result.status === "rejected")) setError("Không tải được kho tri thức. Kiểm tra quyền truy cập hoặc kết nối rồi thử lại.");
     setLoading(false);
   };
 
-  useEffect(() => { void refresh(); }, [canViewEvacuation]);
+  useEffect(() => { void refresh(); }, [canViewEvacuation, showScenarioSimulation]);
 
   const submit = async (action: () => Promise<unknown>, success: string) => {
     try {
@@ -159,7 +163,7 @@ export default function KnowledgeCenter({ role }: Props) {
   if (error) return <ErrorState description={error} onRetry={() => void refresh()} />;
 
   return <div className="knowledge-page knowledge-hub space-y-6">
-    <PageHeader eyebrow="TÀI LIỆU NGHIỆP VỤ" title="Tài liệu và hỗ trợ nghiệp vụ" description="Tài liệu đã duyệt, mạng lưới hỗ trợ số và các kịch bản tình huống. Mô phỏng không làm thay đổi số liệu báo cáo." actions={<Button variant="secondary" onClick={() => void refresh()}><RotateCw />Làm mới</Button>} />
+    <PageHeader eyebrow="TÀI LIỆU NGHIỆP VỤ" title="Tài liệu và hỗ trợ nghiệp vụ" description={showScenarioSimulation ? "Tài liệu đã duyệt, mạng lưới hỗ trợ số và mô phỏng phương án trong khu vực quản trị thử nghiệm." : "Tài liệu đã duyệt và mạng lưới hỗ trợ số theo đúng phạm vi vai trò."} actions={<Button variant="secondary" onClick={() => void refresh()}><RotateCw />Làm mới</Button>} />
     {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{notice}</div>}
 
     <SectionCard className="knowledge-section knowledge-section--articles">
@@ -186,12 +190,12 @@ export default function KnowledgeCenter({ role }: Props) {
       {admin && <Disclosure title="Tạo điểm sơ tán chờ xác minh" description="Điểm chỉ được công khai sau khi người có thẩm quyền xác minh."><FormGrid><Field label="Thôn"><select value={evacuationVillageId} onChange={(event) => setEvacuationVillageId(event.target.value)}><option value="">Chọn thôn</option>{villages.map((village) => <option key={village.id} value={village.id}>{village.name}</option>)}</select></Field><Field label="Tên điểm sơ tán"><input value={evacuationName} onChange={(event) => setEvacuationName(event.target.value)} placeholder="Ví dụ: Nhà văn hóa thôn" /></Field><Field label="Vĩ độ"><input type="number" min="-90" max="90" step="any" value={evacuationLatitude} onChange={(event) => setEvacuationLatitude(event.target.value)} placeholder="Ví dụ: 15.95" /></Field><Field label="Kinh độ"><input type="number" min="-180" max="180" step="any" value={evacuationLongitude} onChange={(event) => setEvacuationLongitude(event.target.value)} placeholder="Ví dụ: 108.12" /></Field><Field label="Sức chứa (hộ)"><input type="number" min="1" value={evacuationCapacity} onChange={(event) => setEvacuationCapacity(event.target.value)} /></Field><Field label="Đầu mối nội bộ"><input value={evacuationContact} onChange={(event) => setEvacuationContact(event.target.value)} placeholder="Ví dụ: Trực ban UBND xã" /></Field><Field label="Số điện thoại nội bộ (nếu đã được phê duyệt)"><input type="tel" inputMode="tel" value={evacuationPhone} onChange={(event) => setEvacuationPhone(event.target.value)} placeholder="Bỏ trống nếu chưa có số chính thức" /></Field><div className="form-action"><Button onClick={() => void createEvacuationPoint()}><Plus />Lưu điểm chờ xác minh</Button></div></FormGrid></Disclosure>}</div>
     </SectionCard>}
 
-    <SectionCard className="knowledge-section knowledge-section--scenarios"><SectionTitle tone="scenario" icon={<Database />} title="Mô phỏng tình huống" description="Thử giả định trên dữ liệu nền; không phải dự báo AI và không thay đổi dữ liệu báo cáo thật." count={`${scenarios.length} kịch bản`} />
+    {showScenarioSimulation && <SectionCard className="knowledge-section knowledge-section--scenarios"><SectionTitle tone="scenario" icon={<Database />} title="Mô phỏng phương án" description="Thử giả định trên dữ liệu nền; đây không phải dự báo và không thay đổi dữ liệu báo cáo thật." count={`${scenarios.length} phương án`} />
       <div className="knowledge-section__body"><div className="scenario-inputs"><p>Thông số dùng để mô phỏng</p><div className="scenario-inputs__grid"><Field label="Dân số nền"><input type="number" min="0" value={baselinePopulation} onChange={(event) => setBaselinePopulation(event.target.value)} /></Field><Field label="Ngân sách nền"><input type="number" min="0" value={baselineBudget} onChange={(event) => setBaselineBudget(event.target.value)} /></Field><Field label="Nhu cầu dịch vụ nền"><input type="number" min="0" value={baselineDemand} onChange={(event) => setBaselineDemand(event.target.value)} /></Field><Field label="Thay đổi dân số (%)"><input type="number" min="0" value={populationChange} onChange={(event) => setPopulationChange(event.target.value)} /></Field><Field label="Thay đổi ngân sách (%)"><input type="number" min="0" value={budgetChange} onChange={(event) => setBudgetChange(event.target.value)} /></Field><Field label="Thay đổi nhu cầu (%)"><input type="number" min="0" value={demandChange} onChange={(event) => setDemandChange(event.target.value)} /></Field></div></div>
       <div className="scenario-list">{scenarios.length ? scenarios.map((scenario) => <article key={scenario.id} className="scenario-card"><div><h3>{scenario.name}</h3><p>{scenario.description || "Chưa có mô tả."}</p></div>{admin && <Button onClick={() => void runScenario(scenario.id)} disabled={runningScenario === scenario.id}>{runningScenario === scenario.id ? <Loader2 className="animate-spin" /> : <Sparkles />}Chạy mô phỏng</Button>}</article>) : <EmptyState title="Chưa có kịch bản" description="Quản trị xã tạo kịch bản để thử các giả định dân số, ngân sách hoặc nhu cầu dịch vụ." />}</div>
       {scenarioResult && <div className="knowledge-result"><strong>Kết quả mô phỏng</strong><span>{Object.entries(scenarioResult).map(([key, value]) => `${labelProjection(key)}: ${Number(value).toLocaleString("vi-VN")}`).join(" · ")}</span></div>}
       {admin && <Disclosure title="Tạo kịch bản mới" description="Đặt tên rõ ràng để so sánh các phương án sau này."><div className="scenario-create"><input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="Ví dụ: Tăng nhu cầu dịch vụ 10%" /><Button onClick={() => void createScenario()} disabled={!scenarioName.trim()}><Plus />Tạo kịch bản</Button></div></Disclosure>}</div>
-    </SectionCard>
+    </SectionCard>}
   </div>;
 }
 

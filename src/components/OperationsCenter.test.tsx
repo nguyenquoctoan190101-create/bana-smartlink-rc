@@ -29,6 +29,7 @@ describe("OperationsCenter", () => {
         });
       }
       if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
       if (path === "/api/operations/ai-drafts") return Promise.reject(new Error("temporary failure"));
       if (path === "/api/operations/maturity") return Promise.resolve([]);
       if (path === "/api/operations/initiatives") return Promise.resolve([]);
@@ -54,6 +55,7 @@ describe("OperationsCenter", () => {
         reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", quality_score: 100, quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
       });
       if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", status: "accepted", content: "Brief mẫu", confidence: 0.9 }]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
       return Promise.resolve([]);
     });
 

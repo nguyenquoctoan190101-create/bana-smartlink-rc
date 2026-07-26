@@ -48,6 +48,25 @@ export interface ExtractionMetadata {
   extractor_versions: string[];
   field_count: number;
   requires_review_count: number;
+  template_version?: string | null;
+  rule_version?: string | null;
+  evidence_sha256?: string | null;
+  evidence?: Partial<Record<IndicatorCode, {
+    confidence: number;
+    source_page?: number | null;
+    source_region?: string | null;
+    extractor: string;
+    method: string;
+    version: string;
+    flags: string[];
+    requires_review: boolean;
+  }>>;
+  quality_summary?: {
+    status: "ready" | "needs_review" | "blocked";
+    mean_confidence: number;
+    blocking_flag_count: number;
+    warning_flag_count: number;
+  } | null;
 }
 
 /**

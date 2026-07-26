@@ -9,7 +9,7 @@ import {
   getPublicStatusLabel,
 } from "../lib/publicLookup";
 import { loadVillages } from "../lib/useVillages";
-import { BaNaBrandScenery, Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, StatusBadge, TopographicPattern } from "./ui";
+import { Button, DataScope, EmptyState, ErrorState, FilterBar, MetricCard, SectionCard, StatusBadge } from "./ui";
 import CitizenCasePanel from "./CitizenCasePanel";
 
 const PUBLIC_INDICATORS = [
@@ -263,8 +263,6 @@ export default function PublicVillagePage({ onGoToLogin }: PublicVillagePageProp
             fetchPriority="high"
           />
         </picture>
-        <TopographicPattern className="text-white" />
-        <BaNaBrandScenery className="public-brand-scenery" />
         <div className="public-hero-copy relative z-10 max-w-3xl">
           <p className="public-hero-kicker">CỔNG THÔNG TIN CÔNG KHAI</p>
           <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.035em] md:text-5xl">Thông tin công khai xã Bà Nà</h1>

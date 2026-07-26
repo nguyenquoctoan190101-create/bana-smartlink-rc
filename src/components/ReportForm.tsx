@@ -513,11 +513,24 @@ export default function ReportForm({ initialReport, initialPeriodId, onSaved, on
       )}
 
       <SectionCard className="border-emerald-100 bg-emerald-50/40 p-4">
-        <h2 className="text-sm font-bold text-emerald-950">Quy trình báo cáo</h2>
-        <ol className="mt-2 grid gap-2 text-xs text-slate-700 md:grid-cols-3">
-          <li><b className="text-emerald-800">1. Nhập và kiểm tra</b><br />Chọn đúng kỳ, nhập 14 chỉ tiêu; lỗi đỏ phải được xử lý.</li>
-          <li><b className="text-emerald-800">2. Đưa vào hàng đợi gửi</b><br />Báo cáo được giữ trên thiết bị đến khi máy chủ xác nhận đã nhận.</li>
-          <li><b className="text-emerald-800">3. Xã rà soát</b><br />Sau khi máy chủ tiếp nhận, quản trị xã xem, yêu cầu chỉnh sửa hoặc duyệt.</li>
+        <h2 className="text-sm font-bold text-emerald-950">Một luồng báo cáo từ đầu đến cuối</h2>
+        <p className="mt-1 text-xs text-slate-600">Đi theo thứ tự; dữ liệu chỉ được ghi nhận sau khi cán bộ xác nhận và máy chủ tiếp nhận.</p>
+        <ol className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2 xl:grid-cols-7">
+          {[
+            ["1", "Chọn kỳ", "Đúng kỳ và đúng thôn"],
+            ["2", "Tải hoặc nhập", "Excel, ảnh/PDF khi được bật, hoặc nhập trực tiếp"],
+            ["3", "Kiểm tra", "Đối chiếu 14 chỉ tiêu và vị trí nguồn"],
+            ["4", "Sửa", "Ghi giá trị trước, sau và lý do"],
+            ["5", "Xác nhận", "Chịu trách nhiệm về nội dung"],
+            ["6", "Gửi", "Đưa vào hàng đợi an toàn"],
+            ["7", "Theo dõi", "Máy chủ xác nhận và xã rà soát"],
+          ].map(([number, title, detail]) => (
+            <li key={number} className="rounded-lg border border-emerald-100 bg-white p-3">
+              <span className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-800 text-[10px] font-black text-white">{number}</span>
+              <b className="block text-emerald-900">{title}</b>
+              <span className="mt-1 block leading-relaxed text-slate-600">{detail}</span>
+            </li>
+          ))}
         </ol>
       </SectionCard>
 

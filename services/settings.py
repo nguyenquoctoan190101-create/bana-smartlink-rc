@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     feature_voice: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_VOICE", "ENABLE_VOICE"))
     feature_iot_pilot: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_IOT_PILOT", "ENABLE_IOT_PILOT"))
     feature_tourism_pilot: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_TOURISM_PILOT", "ENABLE_TOURISM_PILOT"))
+    feature_digital_maturity: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_DIGITAL_MATURITY", "ENABLE_DIGITAL_MATURITY"))
+    feature_scenario_simulation: bool = Field(default=False, validation_alias=AliasChoices("FEATURE_SCENARIO_SIMULATION", "ENABLE_SCENARIO_SIMULATION"))
     vapid_private_key: str = ""
     vapid_public_key: str = ""
     vapid_contact: str = Field(

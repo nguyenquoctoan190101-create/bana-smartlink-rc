@@ -1630,8 +1630,100 @@
         "title": "ExtractionCorrection",
         "type": "object"
       },
+      "ExtractionEvidenceReference": {
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "extractor": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Extractor",
+            "type": "string"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Flags",
+            "type": "array"
+          },
+          "method": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Method",
+            "type": "string"
+          },
+          "requires_review": {
+            "title": "Requires Review",
+            "type": "boolean"
+          },
+          "source_page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Page"
+          },
+          "source_region": {
+            "anyOf": [
+              {
+                "maxLength": 240,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Region"
+          },
+          "version": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confidence",
+          "extractor",
+          "method",
+          "version",
+          "requires_review"
+        ],
+        "title": "ExtractionEvidenceReference",
+        "type": "object"
+      },
       "ExtractionMetadata": {
         "properties": {
+          "evidence": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExtractionEvidenceReference"
+            },
+            "title": "Evidence",
+            "type": "object"
+          },
+          "evidence_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Sha256"
+          },
           "extractor_versions": {
             "items": {
               "type": "string"
@@ -1647,12 +1739,34 @@
             "title": "Field Count",
             "type": "integer"
           },
+          "quality_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractionQualitySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requires_review_count": {
             "default": 0,
             "maximum": 14.0,
             "minimum": 0.0,
             "title": "Requires Review Count",
             "type": "integer"
+          },
+          "rule_version": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Version"
           },
           "source_checksum": {
             "pattern": "^[0-9a-f]{64}$",
@@ -1667,6 +1781,18 @@
             ],
             "title": "Source Type",
             "type": "string"
+          },
+          "template_version": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Version"
           }
         },
         "required": [
@@ -1674,6 +1800,45 @@
           "source_type"
         ],
         "title": "ExtractionMetadata",
+        "type": "object"
+      },
+      "ExtractionQualitySummary": {
+        "properties": {
+          "blocking_flag_count": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Blocking Flag Count",
+            "type": "integer"
+          },
+          "mean_confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Mean Confidence",
+            "type": "number"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "needs_review",
+              "blocked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warning_flag_count": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Warning Flag Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "mean_confidence",
+          "blocking_flag_count",
+          "warning_flag_count"
+        ],
+        "title": "ExtractionQualitySummary",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1918,6 +2083,16 @@
             },
             "title": "Flags",
             "type": "array"
+          },
+          "import_metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractionMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
@@ -2712,6 +2887,31 @@
           "requires_review"
         ],
         "title": "ReportFieldEvidence",
+        "type": "object"
+      },
+      "ReportImportCapabilities": {
+        "properties": {
+          "accepted_ocr_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted Ocr Types",
+            "type": "array"
+          },
+          "excel_preview_enabled": {
+            "default": true,
+            "title": "Excel Preview Enabled",
+            "type": "boolean"
+          },
+          "ocr_preview_enabled": {
+            "title": "Ocr Preview Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ocr_preview_enabled"
+        ],
+        "title": "ReportImportCapabilities",
         "type": "object"
       },
       "ReportNarrativeRequest": {
@@ -8457,6 +8657,56 @@
           }
         },
         "summary": "Create Report Narrative",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/capabilities": {
+      "get": {
+        "description": "Return only backend-confirmed import features used to render the UI.",
+        "operationId": "report_import_capabilities_reports_capabilities_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportImportCapabilities"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report Import Capabilities",
         "tags": [
           "reports"
         ]

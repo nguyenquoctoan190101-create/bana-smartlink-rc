@@ -7,7 +7,7 @@ import { ReportData, UserRole } from "./types";
 import SyncStatus from "./components/SyncStatus";
 import ChatWidget from "./components/ChatWidget";
 import PrivacyPolicy from "./components/PrivacyPolicy";
-import { BaNaBrandScenery, Button, Wordmark } from "./components/ui";
+import { Button, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
 import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
@@ -218,6 +218,7 @@ export default function App() {
   const [requestedPeriodId, setRequestedPeriodId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [backendConfirmed, setBackendConfirmed] = useState<boolean>(false);
 
   const [showPrivacy, setShowPrivacy] = useState<boolean>(false);
   const [newPassword, setNewPassword] = useState("");
@@ -232,9 +233,16 @@ export default function App() {
   const mobileMoreDialogRef = useRef<HTMLDivElement>(null);
   const mobileMoreCloseRef = useRef<HTMLButtonElement>(null);
   const mobileMoreTriggerRef = useRef<HTMLButtonElement>(null);
-  const [pilotStatus, setPilotStatus] = useState<{ iot_enabled: boolean; tourism_enabled: boolean }>({
+  const [pilotStatus, setPilotStatus] = useState<{
+    iot_enabled: boolean;
+    tourism_enabled: boolean;
+    maturity_enabled: boolean;
+    scenario_enabled: boolean;
+  }>({
     iot_enabled: false,
     tourism_enabled: false,
+    maturity_enabled: false,
+    scenario_enabled: false,
   });
 
   const fetchNotifications = async () => {
@@ -263,21 +271,33 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoggedIn || !["admin_xa", "lanh_dao"].includes(userRole)) {
-      setPilotStatus({ iot_enabled: false, tourism_enabled: false });
+      setPilotStatus({ iot_enabled: false, tourism_enabled: false, maturity_enabled: false, scenario_enabled: false });
       return;
     }
     let cancelled = false;
     const loadPilotStatus = async () => {
       try {
-        const status = await apiJson<{ iot_enabled?: boolean; tourism_enabled?: boolean }>("/api/pilots/status");
+        const status = await apiJson<{
+          iot_enabled?: boolean;
+          tourism_enabled?: boolean;
+          maturity_enabled?: boolean;
+          scenario_enabled?: boolean;
+        }>("/api/pilots/status");
         if (!cancelled) {
           setPilotStatus({
             iot_enabled: status.iot_enabled === true,
             tourism_enabled: status.tourism_enabled === true,
+            maturity_enabled: status.maturity_enabled === true,
+            scenario_enabled: status.scenario_enabled === true,
           });
         }
       } catch {
-        if (!cancelled) setPilotStatus({ iot_enabled: false, tourism_enabled: false });
+        if (!cancelled) setPilotStatus({
+          iot_enabled: false,
+          tourism_enabled: false,
+          maturity_enabled: false,
+          scenario_enabled: false,
+        });
       }
     };
     void loadPilotStatus();
@@ -327,6 +347,30 @@ export default function App() {
       window.removeEventListener("offline", updateOnline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isOnline) {
+      setBackendConfirmed(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const confirmBackend = async () => {
+      try {
+        const response = await apiFetch("/health/ready", { cache: "no-store" });
+        if (!cancelled) setBackendConfirmed(response.ok);
+      } catch {
+        if (!cancelled) setBackendConfirmed(false);
+      }
+    };
+    void confirmBackend();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void confirmBackend();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [isLoggedIn, isOnline]);
 
   useEffect(() => {
     if (!showMobileMore) return;
@@ -386,7 +430,7 @@ export default function App() {
       admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]),
       can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
       to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots", "record-lookup"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "record-lookup"]),
       dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
     if (!roleTabs[userRole].has(tab)) tab = "dashboard";
@@ -404,7 +448,7 @@ export default function App() {
       admin_xa: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "create-period", "admin-panel", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]),
       can_bo_thon: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
       to_cnscd: new Set(["dashboard", "report-form", "citizen-proposal", "operations", "knowledge", "cases", "record-lookup"]),
-      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "pilots", "record-lookup"]),
+      lanh_dao: new Set(["dashboard", "progress-dashboard", "policy-scorecard", "cnscd-impact", "operations", "knowledge", "cases", "record-lookup"]),
       dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
     };
     const validTabs = new Set(["dashboard", "progress-dashboard", "report-form", "citizen-proposal", "admin-panel", "policy-scorecard", "cnscd-impact", "create-period", "pending-updates", "operations", "legacy-import", "knowledge", "cases", "pilots", "record-lookup"]);
@@ -634,8 +678,6 @@ export default function App() {
         
         {/* LEFT COLUMN: Visual Showcase & Brand illustration */}
         <div className="login-visual hidden lg:flex lg:w-[58%] bg-[#0b4437] relative flex-col justify-between p-12 xl:p-16 overflow-hidden text-white">
-          <BaNaBrandScenery className="login-brand-scenery" />
-          
           {/* Top left overlay metadata */}
           <div className="relative z-10">
             <Wordmark inverse />
@@ -667,8 +709,6 @@ export default function App() {
 
         {/* RIGHT COLUMN: The Login Form */}
         <main id="main-content" tabIndex={-1} className="login-panel w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
-          <BaNaBrandScenery className="login-panel-scenery lg:hidden" />
-          
           {/* Logo showing up for mobile screen only */}
           <div className="login-mobile-brand block lg:hidden mb-10 relative z-10">
             <Wordmark />
@@ -845,7 +885,7 @@ export default function App() {
           { id: "create-period", label: "Kỳ và biểu mẫu báo cáo", icon: Plus, group: "Quản trị và cấu hình", primary: true },
           { id: "legacy-import", label: "Tiếp nhận dữ liệu 22 thôn cũ", icon: FileArchive },
           { id: "admin-panel", label: "Tài khoản và phân quyền", icon: Shield },
-          { id: "knowledge", label: "Tài liệu và mô phỏng", icon: FileArchive },
+          { id: "knowledge", label: pilotStatus.scenario_enabled ? "Tài liệu và mô phỏng phương án" : "Tài liệu và hướng dẫn", icon: FileArchive },
           ...(pilotsEnabled ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm", icon: Radio }] : [])
         ];
       case "can_bo_thon":
@@ -895,11 +935,8 @@ export default function App() {
       items: [
         { id: "dashboard" as const, label: "Báo cáo toàn xã" },
         { id: "progress-dashboard" as const, label: "Tiến độ các thôn" },
-        { id: "policy-scorecard" as const, label: "Chỉ số báo cáo điện tử" },
+        { id: "policy-scorecard" as const, label: "Theo dõi thực hiện kế hoạch" },
         { id: "cnscd-impact" as const, label: "Hỗ trợ lập báo cáo" },
-        ...(pilotStatus.iot_enabled || pilotStatus.tourism_enabled
-          ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm" }]
-          : []),
         { id: "knowledge" as const, label: "Căn cứ và hướng dẫn" },
       ],
     },
@@ -985,12 +1022,12 @@ export default function App() {
         {/* Footer actions with Logout */}
         <div className="shrink-0 p-4 border-t border-emerald-900 space-y-2">
           {/* Offline indicator for desktop sidebar */}
-          <div className="flex items-center justify-between px-2 text-3xs font-semibold text-slate-300">
+          {(!isOnline || backendConfirmed) && <div className="flex items-center justify-between px-2 text-3xs font-semibold text-slate-300">
             <span className="flex items-center gap-1">
-              {isOnline ? (
+              {backendConfirmed ? (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Đang kết nối</span>
+                  <span>Máy chủ đã sẵn sàng</span>
                 </>
               ) : (
                 <>
@@ -999,7 +1036,7 @@ export default function App() {
                 </>
               )}
             </span>
-          </div>
+          </div>}
 
           <button
             onClick={handleLogout}
@@ -1029,10 +1066,10 @@ export default function App() {
               </span>
             )}
 
-            {isOnline && (
+            {backendConfirmed && (
               <span className="flex items-center gap-1 bg-emerald-900/80 border border-emerald-800 px-2 py-1 rounded-md text-4xs font-bold text-emerald-300">
                 <Wifi className="w-3 h-3" />
-                <span>Đang kết nối</span>
+                <span>Máy chủ sẵn sàng</span>
               </span>
             )}
 
@@ -1104,8 +1141,6 @@ export default function App() {
           MAIN CONTENT CONTAINER: SCREEN FLOW
           ------------------------------------------------------------- */}
       <div className="gov-shell__main flex flex-col min-h-0">
-        <BaNaBrandScenery className="gov-brand-scenery" />
-        
         {/* Desktop Top Header Bar */}
         <header className="gov-topbar hidden lg:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
           <div className="flex items-center gap-2">
@@ -1122,10 +1157,12 @@ export default function App() {
           
           <div className="flex items-center gap-4">
             {/* Connection Status */}
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
-              <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`}></span>
-              <span>{isOnline ? "Đang kết nối" : "Ngoại tuyến"}</span>
-            </span>
+            {(!isOnline || backendConfirmed) && (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+                <span className={`w-2 h-2 rounded-full ${backendConfirmed ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`}></span>
+                <span>{backendConfirmed ? "Máy chủ đã sẵn sàng" : "Ngoại tuyến"}</span>
+              </span>
+            )}
 
             {/* Notification Bell Dropdown Button */}
             {isLoggedIn && userRole !== "dan" && (
@@ -1277,11 +1314,19 @@ export default function App() {
               )}
 
               {activeTab === "operations" && (
-                <OperationsCenter periodId={activePeriodId} role={userRole} />
+                <OperationsCenter
+                  periodId={activePeriodId}
+                  role={userRole}
+                  maturityEnabled={userRole === "admin_xa" && pilotStatus.maturity_enabled}
+                  onNavigate={(target) => changeTab(target)}
+                />
               )}
 
               {activeTab === "knowledge" && (
-                <KnowledgeCenter role={userRole} />
+                <KnowledgeCenter
+                  role={userRole}
+                  scenarioEnabled={userRole === "admin_xa" && pilotStatus.scenario_enabled}
+                />
               )}
 
               {activeTab === "cases" && (

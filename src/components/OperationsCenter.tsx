@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BrainCircuit, CheckCircle2, ClipboardList, Clock3, DatabaseZap, Loader2, ShieldCheck, Sparkles, Target } from "lucide-react";
+import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson } from "../lib/apiClient";
 import type { UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, SectionCard, StatusBadge } from "./ui";
 
-type Props = { periodId: string; role: UserRole };
+type Props = {
+  periodId: string;
+  role: UserRole;
+  maturityEnabled?: boolean;
+  onNavigate?: (target: "dashboard" | "cases" | "progress-dashboard") => void;
+};
 type Action = { id: string; title: string; priority: string; status: string; due_date?: string | null; owner_name?: string | null };
-type Quality = { report_id: string; village_name: string; quality_score: number; quality_status: string; unresolved_flag_count: number; outlier_count: number; lineage: { report_source: string; report_version: number } };
+type Quality = { report_id: string; village_name: string; workflow_status?: string; quality_score: number; quality_status: string; unresolved_flag_count: number; outlier_count: number; lineage: { report_source: string; report_version: number } };
+type TrendAlert = { village_id: string; village_name: string; ct_code: string; indicator_name: string; change_pct: number };
 type QualityResponse = {
   period?: { id: string; name?: string | null };
   generated_at?: string;
@@ -14,7 +20,7 @@ type QualityResponse = {
   reports?: Quality[];
   rule_version?: string;
 };
-type LoadResult = { key: "quality" | "actions" | "drafts" | "maturity" | "initiatives"; label: string; value: unknown; error?: unknown };
+type LoadResult = { key: "quality" | "actions" | "alerts" | "drafts" | "maturity" | "initiatives"; label: string; value: unknown; error?: unknown };
 type Availability = Record<LoadResult["key"], boolean | null>;
 
 const reportSourceLabels: Record<string, string> = {
@@ -38,13 +44,14 @@ const roleCopy: Record<string, { eyebrow: string; title: string; description: st
   to_cnscd: { eyebrow: "Tổ công nghệ số cộng đồng", title: "Việc hỗ trợ của tôi", description: "Theo dõi việc hỗ trợ thôn và các báo cáo cần đối chiếu dữ liệu." },
 };
 
-export default function OperationsCenter({ periodId, role }: Props) {
+export default function OperationsCenter({ periodId, role, maturityEnabled = false, onNavigate }: Props) {
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
+  const [alerts, setAlerts] = useState<TrendAlert[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [maturity, setMaturity] = useState<any[]>([]);
   const [initiatives, setInitiatives] = useState<any[]>([]);
-  const [available, setAvailable] = useState<Availability>({ quality: null, actions: null, drafts: null, maturity: null, initiatives: null });
+  const [available, setAvailable] = useState<Availability>({ quality: null, actions: null, alerts: null, drafts: null, maturity: null, initiatives: null });
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const internal = role === "admin_xa" || role === "lanh_dao";
@@ -60,13 +67,16 @@ export default function OperationsCenter({ periodId, role }: Props) {
     const requests: Promise<LoadResult>[] = [
       load("quality", "chất lượng dữ liệu", periodId ? apiJson(`/api/operations/quality?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve(null)),
       load("actions", "danh sách việc", apiJson("/api/operations/actions")),
+      load("alerts", "biến động theo kỳ", periodId ? apiJson(`/reports/trend-alerts?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve([])),
     ];
     if (internal) {
-      requests.push(
-        load("drafts", "nội dung điều hành chờ duyệt", apiJson("/api/operations/ai-drafts")),
-        load("maturity", "đánh giá trưởng thành số", apiJson("/api/operations/maturity")),
-        load("initiatives", "danh mục sáng kiến", apiJson("/api/operations/initiatives")),
-      );
+      requests.push(load("drafts", "nội dung điều hành chờ duyệt", apiJson("/api/operations/ai-drafts")));
+    }
+    if (admin) {
+      requests.push(load("initiatives", "danh mục sáng kiến", apiJson("/api/operations/initiatives")));
+      if (maturityEnabled) {
+        requests.push(load("maturity", "đánh giá trưởng thành số", apiJson("/api/operations/maturity")));
+      }
     }
     const results = await Promise.all(requests);
     setAvailable((current) => {
@@ -78,6 +88,7 @@ export default function OperationsCenter({ periodId, role }: Props) {
       if (result.error) continue;
       if (result.key === "quality") setQuality(result.value as typeof quality);
       if (result.key === "actions") setActions(Array.isArray(result.value) ? result.value as Action[] : []);
+      if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? result.value as TrendAlert[] : []);
       if (result.key === "drafts") setDrafts(Array.isArray(result.value) ? result.value : []);
       if (result.key === "maturity") setMaturity(Array.isArray(result.value) ? result.value : []);
       if (result.key === "initiatives") setInitiatives(Array.isArray(result.value) ? result.value : []);
@@ -93,18 +104,29 @@ export default function OperationsCenter({ periodId, role }: Props) {
 
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
   const overdueActions = useMemo(() => openActions.filter((item) => item.due_date && new Date(item.due_date).getTime() < Date.now()), [openActions]);
+  const approvedReports = useMemo(
+    () => (quality?.reports ?? []).filter((item) => !item.workflow_status || ["approved", "locked"].includes(item.workflow_status)),
+    [quality],
+  );
   const flaggedReports = useMemo(() => (quality?.reports ?? []).filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [quality]);
+  const flaggedApprovedReports = useMemo(() => approvedReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [approvedReports]);
   const pendingDrafts = useMemo(() => drafts.filter((item) => item.status === "pending_review"), [drafts]);
-  const executiveMessage = overdueActions.length
+  const executiveMessage = approvedReports.length === 0
+    ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ."
+    : overdueActions.length
     ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.`
-    : flaggedReports.length
-      ? `${flaggedReports.length} báo cáo còn lỗi hoặc bất thường, chưa nên dùng làm căn cứ quyết định.`
+    : flaggedApprovedReports.length
+      ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.`
+      : alerts.length
+        ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.`
       : openActions.length
         ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.`
         : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
   const generatedAt = quality?.generated_at
     ? new Date(quality.generated_at).toLocaleString("vi-VN")
     : "Chưa có thời điểm tổng hợp";
+  const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
+  const overdueOwners = Array.from(new Set(overdueActions.map((item) => item.owner_name).filter(Boolean))).join(", ") || "Chưa phân công";
 
   const updateAction = async (id: string, status: "in_progress" | "completed") => {
     const response = await apiFetch(`/api/operations/actions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
@@ -134,7 +156,7 @@ export default function OperationsCenter({ periodId, role }: Props) {
         <div className="executive-brief__heading">
           <div>
             <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
-            <h2 id="executive-summary-title">Tình hình hiện tại</h2>
+            <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
             <p>{executiveMessage}</p>
           </div>
           <StatusBadge
@@ -144,19 +166,38 @@ export default function OperationsCenter({ periodId, role }: Props) {
         </div>
         <dl className="executive-brief__facts">
           <div>
-            <dt><Clock3 aria-hidden="true" /> Thời điểm tổng hợp</dt>
+            <dt><CalendarDays aria-hidden="true" /> Kỳ dữ liệu</dt>
+            <dd>{quality?.period?.name || "Chưa xác định"}</dd>
+          </div>
+          <div>
+            <dt><FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt</dt>
+            <dd>{approvedReports.length} báo cáo</dd>
+          </div>
+          <div>
+            <dt><Clock3 aria-hidden="true" /> Độ mới</dt>
             <dd>{generatedAt}</dd>
           </div>
           <div>
-            <dt><AlertTriangle aria-hidden="true" /> Điểm cần can thiệp</dt>
-            <dd>{overdueActions.length + flaggedReports.length}</dd>
+            <dt><GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý</dt>
+            <dd>{available.alerts === false ? "—" : alerts.length}</dd>
           </div>
           <div>
-            <dt><BrainCircuit aria-hidden="true" /> Nội dung gợi ý chờ duyệt</dt>
-            <dd>{available.drafts === false ? "—" : pendingDrafts.length}</dd>
+            <dt><AlertTriangle aria-hidden="true" /> Việc quá hạn</dt>
+            <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
+          </div>
+          <div>
+            <dt><UserRoundCheck aria-hidden="true" /> Người phụ trách</dt>
+            <dd>{overdueOwners}</dd>
           </div>
         </dl>
-        <p className="executive-brief__note">Nguồn: báo cáo trong phạm vi quyền và danh sách công việc hiện hành. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
+        <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
+        {onNavigate && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => onNavigate("dashboard")}><Link2 />Xem báo cáo và căn cứ</Button>
+            <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}><Link2 />Xem tiến độ các thôn</Button>
+            <Button variant="secondary" onClick={() => onNavigate("cases")}><Link2 />Xem công việc và cảnh báo</Button>
+          </div>
+        )}
       </SectionCard>
     )}
 
@@ -184,6 +225,6 @@ export default function OperationsCenter({ periodId, role }: Props) {
       <div className="overflow-x-auto">{available.quality === false ? <div className="p-5"><ErrorState title="Chưa tải được chất lượng dữ liệu" description="Không hiển thị số 0 thay cho dữ liệu chưa tải được." onRetry={() => void refresh()} /></div> : <><table className="min-w-[760px]"><thead><tr><th>Thôn</th><th>Điểm</th><th>Trạng thái</th><th>Cần xem</th><th>Nguồn và phiên bản</th></tr></thead><tbody>{(quality?.reports ?? []).map((item) => <tr key={item.report_id}><td className="font-semibold">{item.village_name}</td><td>{item.quality_score}%</td><td><StatusBadge status={item.quality_status} /></td><td>{item.unresolved_flag_count} lỗi · {item.outlier_count} bất thường</td><td>{reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"} · phiên bản {item.lineage.report_version}</td></tr>)}</tbody></table>{!quality?.reports?.length && <EmptyState title="Chưa có báo cáo để đánh giá" description="Dữ liệu chất lượng sẽ xuất hiện sau khi kỳ báo cáo có bản ghi trong phạm vi quyền." />}</>}</div>
     </SectionCard>
 
-    {internal && <div className="grid gap-4 md:grid-cols-2"><MetricCard label="Tự đánh giá mức độ trưởng thành số" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} /><MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} /></div>}
+    {admin && <div className="grid gap-4 md:grid-cols-2">{maturityEnabled && <MetricCard label="Đánh giá trưởng thành số — thử nghiệm" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} />}<MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} /></div>}
   </div>;
 }

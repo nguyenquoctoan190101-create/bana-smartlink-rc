@@ -27,7 +27,9 @@
 }
 
 .progress-dashboard h1 {
+  color: #ffffff;
   font-size: 1.35rem;
+  font-weight: 800;
   line-height: 1.25;
   margin: 0;
 }

@@ -89,6 +89,7 @@ def issue_extraction_review_token(
     extractor_versions: list[str],
     values: dict[str, Any],
     requires_review_count: int,
+    import_metadata: dict[str, Any] | None = None,
     now: int | None = None,
 ) -> str:
     """Bind the exact server preview to one authenticated user for 24 hours."""
@@ -107,6 +108,10 @@ def issue_extraction_review_token(
         "requires_review_count": requires_review_count,
         "values": _normalized_values(values),
     }
+    if import_metadata is not None:
+        if not isinstance(import_metadata, dict):
+            raise ExtractionReviewTokenError("Invalid extraction import metadata")
+        payload["import_metadata"] = import_metadata
     body = json.dumps(
         payload,
         ensure_ascii=False,
@@ -164,6 +169,10 @@ def verify_extraction_review_token(
         or payload.get("field_count") != len(_INDICATOR_CODES)
         or not isinstance(payload.get("requires_review_count"), int)
         or not isinstance(payload.get("values"), dict)
+        or (
+            "import_metadata" in payload
+            and not isinstance(payload.get("import_metadata"), dict)
+        )
     ):
         raise ExtractionReviewTokenError("Invalid extraction review token")
     try:

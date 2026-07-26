@@ -147,7 +147,12 @@ async def pilot_status(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, bool]:
     """Expose feature flags to the internal pilot workbench without exposing data."""
-    return {"iot_enabled": bool(settings.feature_iot_pilot), "tourism_enabled": bool(settings.feature_tourism_pilot)}
+    return {
+        "iot_enabled": bool(settings.feature_iot_pilot),
+        "tourism_enabled": bool(settings.feature_tourism_pilot),
+        "maturity_enabled": bool(settings.feature_digital_maturity),
+        "scenario_enabled": bool(settings.feature_scenario_simulation),
+    }
 
 
 class SensorObservationRequest(BaseModel):
