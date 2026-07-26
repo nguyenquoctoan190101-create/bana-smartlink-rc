@@ -111,6 +111,12 @@ def test_report_period_changes_require_immutable_leadership_approval() -> None:
         "create function public.decide_report_period_change_request",
     ):
         assert marker in SCHEMA
+    assert SCHEMA.index("create table public.report_period_change_requests") < SCHEMA.index(
+        "create index report_period_change_requests_commune_created_idx"
+    )
+    assert SCHEMA.index("create table public.report_period_change_decisions") < SCHEMA.index(
+        "create index report_period_change_decisions_decided_idx"
+    )
 
 
 def test_release_blocker_overlay_is_atomic_and_removes_forbidden_channel() -> None:

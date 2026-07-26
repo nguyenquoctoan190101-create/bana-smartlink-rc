@@ -458,12 +458,6 @@ create index report_periods_commune_due_idx on public.report_periods (commune_id
 create index report_periods_active_due_idx on public.report_periods (commune_id, due_date desc)
   where archived_at is null;
 create index report_period_villages_village_idx on public.report_period_villages (village_id);
-create index report_period_change_requests_commune_created_idx
-  on public.report_period_change_requests (commune_id, requested_at desc);
-create index report_period_change_requests_period_idx
-  on public.report_period_change_requests (period_id, requested_at desc);
-create index report_period_change_decisions_decided_idx
-  on public.report_period_change_decisions (decided_at desc);
 create index reports_period_status_idx on public.reports (period_id, workflow_status);
 create index reports_village_status_idx on public.reports (village_id, workflow_status);
 create index reports_publication_idx on public.reports (publication_status, period_id)
@@ -531,6 +525,13 @@ comment on table public.report_period_change_decisions is
   'Append-only leadership decisions. Rows may never be changed or deleted.';
 comment on column public.report_periods.archived_at is
   'Soft deletion marker. Existing reports and immutable approval history remain retained.';
+
+create index report_period_change_requests_commune_created_idx
+  on public.report_period_change_requests (commune_id, requested_at desc);
+create index report_period_change_requests_period_idx
+  on public.report_period_change_requests (period_id, requested_at desc);
+create index report_period_change_decisions_decided_idx
+  on public.report_period_change_decisions (decided_at desc);
 
 create function public.assign_audit_log_commune()
 returns trigger
