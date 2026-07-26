@@ -5,6 +5,8 @@ from io import BytesIO
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
@@ -31,6 +33,24 @@ def _client() -> tuple[TestClient, object]:
         gemini_api_key="unit-test-provider-key",
     )
     return TestClient(app), app
+
+
+class _FakeOcrHttpClient:
+    def __init__(self, response: httpx.Response | None = None, error: Exception | None = None):
+        self.response = response
+        self.error = error
+        self.post = AsyncMock(side_effect=self._post)
+
+    async def _post(self, *args, **kwargs):
+        if self.error:
+            raise self.error
+        return self.response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
 
 
 def test_external_ocr_is_disabled_by_default() -> None:
@@ -206,6 +226,67 @@ def _vector_pdf() -> bytes:
     document.drawString(20, 700, "CT01 145")
     document.save()
     return output.getvalue()
+
+
+async def _call_ocr_with_fake_transport(
+    monkeypatch,
+    fake: _FakeOcrHttpClient,
+) -> str:
+    monkeypatch.setattr(
+        ocr_report,
+        "load_settings",
+        lambda: Settings(
+            _env_file=None,
+            gemini_api_key="unit-test-provider-key",
+            gemini_api_url="https://gemini.example",
+            gemini_model="test-model",
+        ),
+    )
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **_kwargs: fake,
+    )
+    return await ocr_report._call_gemini_ocr(_png_scan())
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_uses_low_latency_config_and_header_key(monkeypatch) -> None:
+    fake = _FakeOcrHttpClient(
+        httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {"content": {"parts": [{"text": '{"CT01": 145}'}]}}
+                ]
+            },
+        )
+    )
+
+    result = await _call_ocr_with_fake_transport(monkeypatch, fake)
+
+    assert result == '{"CT01": 145}'
+    assert fake.post.await_args.args[0].endswith(
+        "/v1beta/models/test-model:generateContent"
+    )
+    assert fake.post.await_args.kwargs["headers"] == {
+        "x-goog-api-key": "unit-test-provider-key"
+    }
+    config = fake.post.await_args.kwargs["json"]["generationConfig"]
+    assert config["thinkingConfig"] == {"thinkingBudget": 0}
+    assert "params" not in fake.post.await_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_reports_provider_timeout_without_secret_detail(monkeypatch) -> None:
+    request = httpx.Request("POST", "https://gemini.example")
+    fake = _FakeOcrHttpClient(
+        error=httpx.ReadTimeout("private timeout detail", request=request)
+    )
+
+    with pytest.raises(ocr_report.OcrError, match="request timed out") as caught:
+        await _call_ocr_with_fake_transport(monkeypatch, fake)
+    assert "private timeout detail" not in str(caught.value)
 
 
 def test_pdf_ocr_preview_returns_additive_evidence_without_persisting(

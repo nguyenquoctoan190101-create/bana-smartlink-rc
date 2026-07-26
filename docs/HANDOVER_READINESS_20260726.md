@@ -26,7 +26,8 @@ quyết định chính sách truy cập mạng/IP.
 | Giao diện vai trò | Đạt visual QA kỹ thuật | Người dân, cán bộ thôn, CNSCĐ, quản trị và lãnh đạo đã được kiểm tra desktop/mobile; lãnh đạo có ba không gian chính |
 | Dashboard lãnh đạo | Đạt ở mức sản phẩm | Dữ liệu đã duyệt/khóa; ma trận ưu tiên, Pareto, bullet, phân tán, cơ cấu, dải tín hiệu và liên kết tới báo cáo nguồn |
 | An toàn ứng dụng | Đạt baseline | CSP, HSTS, chống nhúng trang, no-store cho API nghiệp vụ, CORS rõ nguồn, giới hạn tần suất, giới hạn tệp/ZIP/PDF/ảnh, parser XML chống entity bomb |
-| Kiểm thử tự động | Đạt trước khi phát hành MFA/IP | Backend 546 kiểm thử; frontend 97 kiểm thử/24 tệp; typecheck, build, bundle budget, Ruff và release scan 489 tệp đều đạt |
+| OCR ảnh/PDF | Sẵn sàng cho thí điểm có người duyệt | Nhận JPG/PNG và PDF quét; tách/khử nghiêng bảng CT01–CT14 cục bộ, loại vùng định danh trước khi gọi nhà cung cấp; mọi trường đều bắt buộc rà soát và bản xem trước không được lưu |
+| Kiểm thử tự động | Đạt trước lần triển khai OCR tối ưu | Backend 550 kiểm thử; frontend 99 kiểm thử/24 tệp; nhánh bảo mật đạt 100%, typecheck, build, bundle budget, Ruff và release scan 489 tệp đều đạt cục bộ; CI đa nền tảng của commit cuối phải hoàn tất trước bàn giao |
 | Chuỗi cung ứng | Đạt tại lần kiểm tra 26/07 | `pip-audit` không có lỗ hổng đã biết; `npm audit --omit=dev` có 0 lỗ hổng; Bandit mức cao, secret/release scan và SBOM trong CI |
 | CI đa nền tảng | Đạt | GitHub Actions run `30206056071`: supply-chain, Ubuntu, Windows và database-contract đều hoàn tất thành công |
 | Tải đọc giới hạn | Đạt ngày 26/07 | 100/100 yêu cầu ở concurrency 10 cho từng endpoint: p95 live 602 ms, ready 437 ms, dữ liệu công khai 582 ms; ngưỡng 2.000 ms. Chưa thay thế tải ghi và tải nghiệp vụ có xác thực |
@@ -88,7 +89,7 @@ thể thay đổi, gây tự khóa người dùng hợp lệ.
 | Sao lưu/khôi phục | Đã có smoke lịch sử, chưa có drill cho bản phát hành cuối | Backup có hash, restore vào môi trường biệt lập, kiểm số đếm và RPO/RTO |
 | Hiệu năng | Đạt tải đọc giới hạn 100 yêu cầu/concurrency 10; chưa có tải ghi/xác thực theo nghiệp vụ | Định nghĩa số người dùng đồng thời và SLO, chạy kịch bản kỳ cao điểm trên staging, đo p50/p95/error rate và dung lượng DB |
 | Giám sát/sự cố | Mã hỗ trợ Sentry/log, cấu hình owner chưa được xác nhận | Dashboard, cảnh báo, trực ca, runbook, diễn tập và kênh báo sự cố |
-| OCR ảnh/PDF | Chủ động tắt ngoài production | Chỉ mở sau bộ dữ liệu benchmark, privacy review, redaction và giới hạn chi phí |
+| OCR ảnh/PDF | Mã, giao diện và cơ chế bảo vệ đã triển khai; chỉ hoạt động khi Render có `GEMINI_API_KEY` | Thêm khóa qua kênh bí mật, kiểm thử ảnh/PDF thật; lập bộ benchmark đã khử định danh trước khi công bố độ chính xác hoặc mở rộng sử dụng |
 | Độ chính xác/hiệu quả | Chưa có đo thực địa | Không công bố tỷ lệ chính xác hoặc giảm thời gian cho đến khi có dữ liệu đo và chữ ký |
 
 ## Lộ trình đưa vào sử dụng
@@ -99,12 +100,15 @@ thể thay đổi, gây tự khóa người dùng hợp lệ.
   mới phải lặp lại phép kiểm tra full SHA trước bàn giao.
 - Chốt danh sách tài khoản, phân công thôn, dữ liệu minh họa và người chịu trách
   nhiệm.
-- Không nhập thông tin cá nhân thật; giữ OCR ngoài ở trạng thái tắt.
+- Không nhập dữ liệu thật trước phê duyệt; OCR chỉ đưa ra bản xem trước, luôn yêu
+  cầu cán bộ kiểm tra/sửa/xác nhận, và không được dùng để tự quyết định dữ liệu
+  hợp lệ.
 
 ### Giai đoạn 1 — thí điểm đóng có kiểm soát
 
 - 1–2 kỳ báo cáo với nhóm người dùng hạn chế; sao lưu trước mỗi kỳ.
-- MFA cho quản trị/lãnh đạo; giám sát lỗi và truy cập; hỗ trợ trực tiếp.
+- MFA cho quản trị/lãnh đạo; OCR giới hạn theo nhóm người dùng và ngân sách;
+  giám sát lỗi, truy cập và hỗ trợ trực tiếp.
 - Ghi thời gian xử lý, lỗi nghiệp vụ, tỷ lệ hoàn thành và phản hồi người dùng.
 - Chỉ mở rộng khi không còn lỗi nghiêm trọng và UAT được ký.
 

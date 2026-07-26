@@ -146,6 +146,43 @@ describe("UploadReport", () => {
     expect(mockedApiUpload).not.toHaveBeenCalled();
   });
 
+  it("retries an OCR failure through the OCR endpoint instead of Excel", async () => {
+    mockedApiJson.mockResolvedValue({
+      ocr_preview_enabled: true,
+      ocr_setup_status: "ready",
+    });
+    mockedApiUpload.mockResolvedValue(new Response(
+      JSON.stringify({ detail: "OCR processing failed" }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    ));
+    const { container } = render(
+      <UploadReport onDataExtracted={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    await waitFor(() => expect(input).toHaveAttribute("accept", ".xlsx,.jpg,.jpeg,.png,.pdf"));
+
+    fireEvent.change(input!, {
+      target: { files: [new File(["image"], "bao-cao.jpg", { type: "image/jpeg" })] },
+    });
+    const retry = await screen.findByRole("button", { name: "Thử tải lại" });
+    fireEvent.click(retry);
+
+    await waitFor(() => expect(mockedApiUpload).toHaveBeenCalledTimes(2));
+    expect(mockedApiUpload).toHaveBeenNthCalledWith(
+      1,
+      "/reports/ocr-preview",
+      expect.any(FormData),
+      expect.any(Function),
+    );
+    expect(mockedApiUpload).toHaveBeenNthCalledWith(
+      2,
+      "/reports/ocr-preview",
+      expect.any(FormData),
+      expect.any(Function),
+    );
+  });
+
   it("accepts an Excel preview with signed review evidence", async () => {
     mockedApiUpload.mockResolvedValue(new Response(
       JSON.stringify(previewResponse()),

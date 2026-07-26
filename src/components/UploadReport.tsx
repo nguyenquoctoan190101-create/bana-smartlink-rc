@@ -405,6 +405,13 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
     }
   };
 
+  const retrySelectedFile = () => {
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension === "xlsx") void uploadExcelFile(file);
+    else void uploadOcrFile(file);
+  };
+
   const handleReasonChange = (code: string, correctionReason: string) => {
     setReviewRows((previous) => previous?.map((row) => (
       row.code === code ? { ...row, correctionReason, confirmed: false } : row
@@ -655,7 +662,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                 {file && (
                   <button
                     type="button"
-                    onClick={() => uploadExcelFile(file)}
+                    onClick={retrySelectedFile}
                     className="mt-3 min-h-11 rounded-lg border border-rose-300 bg-white px-3 font-bold text-rose-800 hover:bg-rose-100"
                   >
                     Thử tải lại

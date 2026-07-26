@@ -57,6 +57,7 @@ _OCR_USER_PROMPT = (
 
 _OCR_MAX_TOKENS = 1536
 _OCR_TEMPERATURE = 0.0
+_OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
 
 _MIME_BY_MAGIC: dict[bytes, str] = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -766,6 +767,9 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             "maxOutputTokens": _OCR_MAX_TOKENS,
             "temperature": _OCR_TEMPERATURE,
             "responseMimeType": "application/json",
+            # OCR is bounded transcription, not a reasoning task. Disabling
+            # dynamic thinking materially reduces latency on Gemini 2.5 Flash.
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }
 
@@ -774,12 +778,20 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
     url = f"{base_url}/v1beta/models/{model}:generateContent"
 
     try:
-        async with httpx.AsyncClient(timeout=45.0) as client:
+        timeout = httpx.Timeout(
+            connect=10.0,
+            read=_OCR_PROVIDER_READ_TIMEOUT_SECONDS,
+            write=20.0,
+            pool=10.0,
+        )
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 url,
-                params={"key": settings.gemini_api_key},
+                headers={"x-goog-api-key": settings.gemini_api_key},
                 json=payload,
             )
+    except httpx.TimeoutException as exc:
+        raise OcrError("Gemini OCR request timed out") from exc
     except httpx.HTTPError as exc:
         raise OcrError("Gemini OCR request failed (network error)") from exc
 
