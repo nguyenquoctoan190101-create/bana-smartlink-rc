@@ -816,6 +816,18 @@ def test_upload_validator_rejects_invalid_relationship_xml() -> None:
         _validate_upload("invalid.xlsx", package)
 
 
+def test_upload_validator_rejects_relationship_xml_entities() -> None:
+    relationship = b'''<?xml version="1.0"?>
+    <!DOCTYPE Relationships [<!ENTITY repeated "unsafe">]>
+    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+      <Relationship Id="rId1" Type="&repeated;" Target="worksheet.xml" />
+    </Relationships>'''
+    package = _zip_package([("xl/_rels/workbook.xml.rels", relationship)])
+
+    with pytest.raises(UploadValidationError, match="does not match"):
+        _validate_upload("entities.xlsx", package)
+
+
 def test_upload_validator_rejects_relationship_target_scheme_without_mode() -> None:
     relationship = b'''<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
       <Relationship Id="rId1" Type="x" Target="https://attacker.example/data" />

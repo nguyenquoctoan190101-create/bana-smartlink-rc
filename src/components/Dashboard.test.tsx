@@ -310,4 +310,26 @@ describe("Dashboard device drafts", () => {
     expect(screen.getByText(/cường độ hướng dẫn cao nhất/i)).toBeInTheDocument();
     expect(screen.getByText(/trẻ em hoàn cảnh đặc biệt cao nhất/i)).toBeInTheDocument();
   });
+
+  it("gives leadership a concise decision-first dashboard heading and signal strip", () => {
+    render(
+      <Dashboard
+        reports={[report()]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="lanh_dao"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Bức tranh điều hành toàn xã" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Các tín hiệu điều hành nổi bật"),
+    ).toHaveTextContent("Phạm vi có căn cứ");
+    expect(
+      screen.getByLabelText("Các tín hiệu điều hành nổi bật"),
+    ).toHaveTextContent("Tập trung an sinh");
+  });
 });

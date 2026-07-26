@@ -135,7 +135,10 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
         response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         # Media/GPS are opt-in capabilities.  The browser still prompts the
         # user only when a feature explicitly calls getUserMedia/getCurrentPosition;
         # denying the feature at the policy layer made the planned voice/GPS
@@ -153,6 +156,16 @@ def create_app() -> FastAPI:
             f"connect-src {' '.join(connect_sources)}; worker-src 'self'; "
             "manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
+        # Application/API responses can contain role-scoped data.  Prevent
+        # browsers and intermediary caches from retaining them after logout or
+        # serving one user's response to another user.  Static hashed assets
+        # remain cacheable because they are mounted before this SPA fallback
+        # but still pass through this middleware without matching these paths.
+        if request.url.path.startswith(
+            ("/api/", "/auth/", "/reports", "/report-imports", "/report-periods")
+        ):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
         if settings.app_env.lower() in {"staging", "production"}:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response

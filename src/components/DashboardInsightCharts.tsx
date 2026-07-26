@@ -94,9 +94,9 @@ function ChartHeader({ icon: Icon, eyebrow, title, description }: { icon: typeof
         <Icon aria-hidden="true" className="h-5 w-5" />
       </span>
       <div className="min-w-0">
-        <p className="text-3xs font-black uppercase tracking-[0.14em] text-emerald-800">{eyebrow}</p>
-        <h3 className="mt-1 text-sm font-bold leading-snug text-slate-900">{title}</h3>
-        <p className="mt-1 text-xs leading-relaxed text-slate-600">{description}</p>
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-800">{eyebrow}</p>
+        <h3 className="mt-1 text-base font-bold leading-snug text-slate-900">{title}</h3>
+        <p className="mt-1 text-sm leading-relaxed text-slate-600">{description}</p>
       </div>
     </header>
   );
@@ -157,10 +157,10 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
   const childrenRows = villages.filter((item) => finite(item.specialChildrenRate)).sort((left, right) => (right.specialChildrenRate ?? 0) - (left.specialChildrenRate ?? 0));
   const childrenLeader = childrenRows[0];
 
-  const chartCard = "min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-2xs";
+  const chartCard = "decision-chart-card min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-2xs md:p-5";
 
   return (
-    <section aria-labelledby="dashboard-insights-title" className="space-y-4">
+    <section aria-labelledby="dashboard-insights-title" className="decision-dashboard space-y-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">Bức tranh điều hành theo thôn</p>
@@ -171,7 +171,25 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
         <p className="max-w-xl text-xs leading-relaxed text-slate-500">Chỉ dùng báo cáo đã duyệt hoặc đã khóa trong phạm vi đang chọn; dữ liệu thiếu được để trống.</p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-12">
+      <dl className="decision-summary-ribbon" aria-label="Các tín hiệu điều hành nổi bật">
+        <div>
+          <dt>Phạm vi có căn cứ</dt>
+          <dd>{villages.length} thôn</dd>
+          <p>Báo cáo đã duyệt hoặc đã khóa</p>
+        </div>
+        <div>
+          <dt>Khoảng trống BHYT</dt>
+          <dd>{bhytRows.length ? `${belowBhytTarget} thôn` : "—"}</dd>
+          <p>Đối chiếu mức tham chiếu 95%</p>
+        </div>
+        <div>
+          <dt>Tập trung an sinh</dt>
+          <dd>{paretoCutoff ? `${paretoCutoff} thôn` : "—"}</dd>
+          <p>Đạt khoảng 80% số hộ cần quan tâm</p>
+        </div>
+      </dl>
+
+      <div className="decision-chart-grid grid items-start gap-4 xl:grid-cols-12">
         <article className={`${chartCard} xl:col-span-7`}>
           <ChartHeader
             icon={LayoutGrid}

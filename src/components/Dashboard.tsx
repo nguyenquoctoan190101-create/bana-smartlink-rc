@@ -16,7 +16,7 @@ import {
   ChevronRight,
   BarChart3,
   Plus,
-  Download,
+  FileSpreadsheet,
   X,
   Maximize2,
   CheckCircle,
@@ -513,11 +513,13 @@ export default function Dashboard({
 
   return (
     <>
-      <div className="space-y-6">
+      <div
+        className={`space-y-6 ${userRole === "lanh_dao" ? "leadership-dashboard" : ""}`}
+      >
         <PageHeader
           eyebrow={
             userRole === "lanh_dao"
-              ? "Báo cáo tổng hợp"
+              ? "Dữ liệu phục vụ quyết định"
               : userRole === "admin_xa"
                 ? "Báo cáo và phê duyệt"
                 : "Dữ liệu địa bàn"
@@ -527,7 +529,9 @@ export default function Dashboard({
               ? "Dữ liệu của thôn"
               : userRole === "to_cnscd"
                 ? "Dữ liệu các thôn được hỗ trợ"
-              : "Tổng hợp số liệu"
+               : userRole === "lanh_dao"
+                 ? "Bức tranh điều hành toàn xã"
+                 : "Tổng hợp số liệu"
           }
           description={
             userRole === "can_bo_thon"
@@ -536,7 +540,7 @@ export default function Dashboard({
                 ? "Chỉ xem và hỗ trợ lập báo cáo cho các thôn được quản trị xã phân công. Dữ liệu chưa có không được quy đổi thành số 0."
               : userRole === "admin_xa"
                 ? "Xã tạo kỳ, theo dõi việc nộp, duyệt và công bố theo quy trình. Dữ liệu chưa có không được quy đổi thành số 0."
-                : "Mỗi số liệu được hiển thị theo kỳ, phạm vi và trạng thái nguồn. Dữ liệu chưa có không được quy đổi thành số 0."
+                 : "Đi từ kết luận nổi bật tới thôn cần ưu tiên và báo cáo nguồn. Chỉ số liệu đã duyệt hoặc đã khóa mới được dùng; dữ liệu thiếu luôn được để trống."
           }
         />
 
@@ -615,13 +619,13 @@ export default function Dashboard({
         <div className="filter-bar dashboard-filter-bar">
           <div className="dashboard-filter-bar__filters flex flex-wrap items-center gap-3 w-full md:w-auto">
             <div className="dashboard-filter-bar__field">
-              <label className="block text-3xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                Lọc theo Kỳ:
+              <label className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5">
+                Kỳ dữ liệu
               </label>
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                className="dashboard-filter-bar__select bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
               >
                 {periodOptions.map((period) => (
                   <option key={period.value} value={period.value}>
@@ -632,8 +636,8 @@ export default function Dashboard({
             </div>
 
             <div className="dashboard-filter-bar__field">
-              <label className="block text-3xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                {userRole === "to_cnscd" ? "Thôn được hỗ trợ:" : "Lọc theo thôn:"}
+              <label className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5">
+                {userRole === "to_cnscd" ? "Thôn được hỗ trợ" : "Phạm vi thôn"}
               </label>
               <select
                 value={effectiveVillageFilter}
@@ -642,7 +646,7 @@ export default function Dashboard({
                   (userRole === "can_bo_thon" || userRole === "to_cnscd") &&
                   selectableVillages.length <= 1
                 }
-                className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                className="dashboard-filter-bar__select bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
               >
                 {selectableVillages.length === 0 && (
                   <option value="">Chưa được phân công thôn</option>
@@ -663,7 +667,10 @@ export default function Dashboard({
             </div>
           </div>
 
-          <div className="dashboard-filter-bar__actions flex items-center gap-3 w-full md:w-auto">
+          <div
+            className="dashboard-filter-bar__actions flex items-end gap-2 w-full md:w-auto"
+            aria-label="Tải báo cáo"
+          >
             {(userRole === "can_bo_thon" || userRole === "to_cnscd") && (
               <button
                 onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
@@ -684,14 +691,16 @@ export default function Dashboard({
               <>
                 <button
                   onClick={() => handleExport("xlsx")}
-                  className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                  className="dashboard-export-button flex-1 md:flex-none"
+                  aria-label="Tải báo cáo định dạng XLSX"
                 >
-                  <Download className="w-4 h-4" />
+                  <FileSpreadsheet className="w-4 h-4" />
                   <span>Xuất XLSX</span>
                 </button>
                 <button
                   onClick={() => handleExport("docx")}
-                  className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                  className="dashboard-export-button flex-1 md:flex-none"
+                  aria-label="Tải báo cáo định dạng DOCX"
                 >
                   <FileText className="w-4 h-4" />
                   <span>Xuất DOCX</span>
@@ -702,7 +711,8 @@ export default function Dashboard({
               effectiveVillageFilter === "all" && (
                 <button
                   onClick={() => handleExport("pdf")}
-                  className="flex-1 md:flex-none bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                  className="dashboard-export-button flex-1 md:flex-none"
+                  aria-label="Tải báo cáo định dạng PDF"
                 >
                   <FileText className="w-4 h-4" />
                   <span>Xuất PDF</span>
@@ -761,9 +771,9 @@ export default function Dashboard({
           )}
 
         {/* Grid: 4 Core KPIs Card */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="leadership-metric-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* KPI 1: Households & Pop */}
-          <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-blue">
+          <div className="leadership-metric-card bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-blue">
             <div className="flex justify-between items-start mb-3">
               <div className="p-2.5 bg-blue-50 text-blue-700 rounded-lg">
                 <Users className="w-5 h-5" />
@@ -794,7 +804,7 @@ export default function Dashboard({
           </div>
 
           {/* KPI 2: Poverty Structure */}
-          <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-red">
+          <div className="leadership-metric-card bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-red">
             <div className="flex justify-between items-start mb-3">
               <div className="p-2.5 bg-rose-50 text-rose-600 rounded-lg">
                 <ShieldAlert className="w-5 h-5" />
@@ -825,7 +835,7 @@ export default function Dashboard({
           </div>
 
           {/* KPI 3: BHYT Coverage */}
-          <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-green">
+          <div className="leadership-metric-card bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-green">
             <div className="flex justify-between items-start mb-3">
               <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
                 <HeartPulse className="w-5 h-5" />
@@ -859,7 +869,7 @@ export default function Dashboard({
           </div>
 
           {/* KPI 4: Cultural achievements */}
-          <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-gold">
+          <div className="leadership-metric-card bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-gold">
             <div className="flex justify-between items-start mb-3">
               <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg">
                 <Award className="w-5 h-5" />

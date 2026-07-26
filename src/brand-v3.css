@@ -1094,6 +1094,135 @@ textarea::placeholder {
   border-top: 3px solid rgb(11 74 53 / 0.82);
 }
 
+/* Leadership space navigation remains one coherent decision strip. */
+.leader-space-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(11 74 53 / 0.28) transparent;
+}
+
+@media (min-width: 1024px) {
+  .leader-space-nav[data-space="dashboard"] {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .leader-space-nav[data-space="dashboard"] button {
+    min-width: 0;
+    padding-inline: 0.65rem;
+    white-space: normal;
+    line-height: 1.25;
+    text-align: center;
+  }
+}
+
+.leadership-dashboard .page-heading {
+  margin-bottom: 1rem;
+}
+
+.leadership-dashboard .dashboard-filter-bar {
+  align-items: end;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  background:
+    linear-gradient(105deg, rgb(11 74 53 / 0.035), transparent 44%),
+    #fff;
+}
+
+.dashboard-filter-bar__select {
+  min-height: 42px;
+}
+
+.dashboard-export-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--bn-line-strong);
+  border-radius: 0.72rem;
+  color: var(--bn-green-deep);
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgb(6 54 41 / 0.035);
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.dashboard-export-button:hover {
+  border-color: rgb(11 74 53 / 0.48);
+  background: var(--bn-green-soft);
+}
+
+.dashboard-export-button:active {
+  transform: translateY(1px);
+}
+
+.leadership-metric-card {
+  position: relative;
+  min-height: 10rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.leadership-metric-card:hover {
+  border-color: rgb(11 74 53 / 0.24) !important;
+  box-shadow: 0 12px 28px rgb(6 54 41 / 0.075);
+  transform: translateY(-1px);
+}
+
+.decision-summary-ribbon {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--bn-line);
+  border-radius: 1rem;
+  background: var(--bn-green-deep);
+  box-shadow: var(--bn-shadow-sm);
+}
+
+.decision-summary-ribbon > div {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border-right: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.decision-summary-ribbon > div:last-child {
+  border-right: 0;
+}
+
+.decision-summary-ribbon dt {
+  color: #bfe0d2;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.decision-summary-ribbon dd {
+  margin-top: 0.22rem;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 850;
+}
+
+.decision-summary-ribbon p {
+  margin-top: 0.18rem;
+  color: #dceae4;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.decision-chart-card {
+  box-shadow: 0 8px 22px rgb(6 54 41 / 0.05) !important;
+}
+
 .gov-shell .action-card {
   transition:
     border-color 160ms ease,
@@ -1831,8 +1960,8 @@ textarea::placeholder {
 
   .dashboard-filter-bar__actions {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding-right: 4rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-right: 0;
   }
 
   .dashboard-filter-bar__actions > * {
@@ -1842,6 +1971,25 @@ textarea::placeholder {
 
   .dashboard-filter-bar__new {
     grid-column: 1 / -1;
+  }
+
+  .dashboard-export-button {
+    gap: 0.3rem;
+    padding-inline: 0.45rem;
+    font-size: 0.7rem;
+  }
+
+  .decision-summary-ribbon {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-summary-ribbon > div {
+    border-right: 0;
+    border-bottom: 1px solid rgb(255 255 255 / 0.14);
+  }
+
+  .decision-summary-ribbon > div:last-child {
+    border-bottom: 0;
   }
 
   .report-form-screen .sticky-action-bar {

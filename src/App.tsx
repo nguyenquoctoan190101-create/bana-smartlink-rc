@@ -1764,7 +1764,8 @@ export default function App() {
           {userRole === "lanh_dao" && activeLeaderSpace && (
             <nav
               aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}
-              className="flex flex-nowrap gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xs lg:flex-wrap lg:overflow-visible"
+              className="leader-space-nav flex flex-nowrap gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xs"
+              data-space={activeLeaderSpace.id}
             >
               {activeLeaderSpace.items.map((item) => (
                 <button

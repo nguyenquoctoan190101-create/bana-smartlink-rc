@@ -3,9 +3,10 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlsplit
-from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 from fastapi import UploadFile
 
 
@@ -117,7 +118,14 @@ def _is_xlsx_workbook(content: bytes) -> bool:
                         parsed_target = urlsplit(target)
                         if parsed_target.scheme or target.startswith("//"):
                             return False
-    except (BadZipFile, ElementTree.ParseError, KeyError, OSError, RuntimeError):
+    except (
+        BadZipFile,
+        DefusedXmlException,
+        ElementTree.ParseError,
+        KeyError,
+        OSError,
+        RuntimeError,
+    ):
         return False
 
     # XLSX files are ZIP packages with these required workbook parts.
