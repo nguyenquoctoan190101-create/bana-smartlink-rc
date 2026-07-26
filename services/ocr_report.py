@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -70,6 +71,7 @@ _OCR_VERSION = "2.0"
 _LOW_CONFIDENCE_THRESHOLD = 0.8
 _MAX_PDF_IMAGES = 20
 _MAX_PDF_IMAGE_PIXELS_TOTAL = 50_000_000
+logger = logging.getLogger(__name__)
 
 
 class OcrError(RuntimeError):
@@ -804,9 +806,54 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
         raise OcrError(f"Gemini OCR request failed (HTTP {response.status_code})")
 
     from services.gemini import _extract_text
+
+    response_payload = response.json()
     try:
-        return _extract_text(response.json())
+        return _extract_text(response_payload)
     except GeminiError as exc:
+        candidates = (
+            response_payload.get("candidates")
+            if isinstance(response_payload, dict)
+            else None
+        )
+        first_candidate = (
+            candidates[0]
+            if isinstance(candidates, list)
+            and candidates
+            and isinstance(candidates[0], dict)
+            else {}
+        )
+        content = first_candidate.get("content")
+        parts = content.get("parts") if isinstance(content, dict) else None
+        part_shapes = [
+            {
+                "has_text": isinstance(part.get("text"), str),
+                "text_length": (
+                    len(part["text"]) if isinstance(part.get("text"), str) else 0
+                ),
+                "thought": part.get("thought") is True,
+                "keys": sorted(
+                    key
+                    for key in part
+                    if key not in {"text", "thoughtSignature", "thought_signature"}
+                ),
+            }
+            for part in parts
+            if isinstance(part, dict)
+        ] if isinstance(parts, list) else []
+        logger.warning(
+            "Gemini OCR response had no readable answer text",
+            extra={
+                "gemini_finish_reason": first_candidate.get("finishReason"),
+                "gemini_part_shapes": part_shapes,
+                "gemini_prompt_block_reason": (
+                    response_payload.get("promptFeedback", {}).get("blockReason")
+                    if isinstance(response_payload, dict)
+                    and isinstance(response_payload.get("promptFeedback"), dict)
+                    else None
+                ),
+            },
+        )
         raise OcrError("Could not parse Gemini OCR response") from exc
 
 
