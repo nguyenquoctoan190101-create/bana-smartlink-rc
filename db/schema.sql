@@ -1633,7 +1633,8 @@ create table public.action_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint action_items_commune_not_blank check (btrim(commune_id) <> ''),
-  constraint action_items_completion_check check ((status = 'completed' and completed_at is not null) or (status <> 'completed'))
+  constraint action_items_completion_check check ((status = 'completed' and completed_at is not null) or (status <> 'completed' and completed_at is null)),
+  constraint action_items_terminal_outcome_check check (status not in ('completed', 'cancelled') or nullif(btrim(outcome), '') is not null)
 );
 
 create table public.digital_maturity_assessments (

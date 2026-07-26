@@ -32,6 +32,14 @@ class ActionUpdateRequest(BaseModel):
     status: Literal["pending", "in_progress", "completed", "cancelled"]
     outcome: str | None = Field(default=None, max_length=2000)
 
+    @model_validator(mode="after")
+    def require_terminal_outcome(self) -> "ActionUpdateRequest":
+        if self.outcome is not None:
+            self.outcome = self.outcome.strip() or None
+        if self.status in {"completed", "cancelled"} and not self.outcome:
+            raise ValueError("A completion result or cancellation reason is required")
+        return self
+
 
 class MaturityCreateRequest(BaseModel):
     quarter_start: date
@@ -188,6 +196,9 @@ async def update_action(
     changes = payload.model_dump(exclude_none=True)
     if payload.status == "completed":
         changes["completed_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        # Reopening an item must not retain a timestamp that says it is complete.
+        changes["completed_at"] = None
     try:
         rows = await _caller_client(supabase, authorization)._rest_request("PATCH", f"/rest/v1/action_items?id=eq.{quote(str(action_id), safe='')}", changes, prefer="return=representation")
     except SupabaseAdminError as exc:

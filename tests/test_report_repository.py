@@ -202,6 +202,7 @@ async def test_submission_statuses_use_only_confirmed_aliases_and_server_timelin
     submitted = (due + timedelta(days=2)).isoformat() + "T08:00:00+00:00"
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(side_effect=[
+        [{"village_id": "v1"}],
         [{"id": "v1", "name": "Thôn A"}, {"id": "v2", "name": "Thôn B"}],
         [{"old_village_name": "Thôn A cũ", "new_village_id": "v1"}],
         [{"id": "r1", "village_id": "v1", "timeliness_status": "late", "submitted_at": submitted}],
@@ -211,10 +212,13 @@ async def test_submission_statuses_use_only_confirmed_aliases_and_server_timelin
     assert statuses[0].old_village_names == ["Thôn A cũ"]
     assert statuses[0].status == "late" and statuses[0].days_late == 2
     assert statuses[0].dashboard_color == "yellow"
-    assert statuses[1].status == "not_submitted" and statuses[1].report_id is None
-    alias_path = supabase._rest_request.await_args_list[1].args[1]
+    assert len(statuses) == 1
+    alias_path = supabase._rest_request.await_args_list[2].args[1]
     assert "mapping_status=eq.confirmed" in alias_path
     assert "new_village_id=not.is.null" in alias_path
+    assignment_path = supabase._rest_request.await_args_list[0].args[1]
+    assert "report_period_villages" in assignment_path
+    assert "period%2F1" in assignment_path
 
 
 @pytest.mark.asyncio

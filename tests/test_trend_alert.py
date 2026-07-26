@@ -17,6 +17,7 @@ async def test_get_trend_alerts_async_no_reports() -> None:
     ])
     alerts = await get_trend_alerts_async(supabase, "p1", "p2")
     assert alerts == []
+    assert "workflow_status=in.(approved,locked)" in supabase._rest_request.await_args_list[1].args[1]
 
 
 @pytest.mark.anyio
@@ -82,3 +83,5 @@ async def test_get_trend_alerts_async_with_alerts() -> None:
     assert alert2["prev_value"] == 200
     assert alert2["curr_value"] == 150
     assert alert2["change_pct"] == -25.0
+    assert "workflow_status=in.(approved,locked)" in supabase._rest_request.await_args_list[1].args[1]
+    assert "workflow_status=in.(approved,locked)" in supabase._rest_request.await_args_list[2].args[1]

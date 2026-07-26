@@ -9,7 +9,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from routers.auth import (
     get_optional_user,
@@ -67,6 +67,14 @@ class CaseCreateRequest(BaseModel):
 class CaseStatusRequest(BaseModel):
     status: Literal["verifying", "assigned", "in_progress", "completed", "out_of_scope", "rejected"]
     note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_terminal_reason(self) -> "CaseStatusRequest":
+        if self.note is not None:
+            self.note = self.note.strip() or None
+        if self.status in {"completed", "out_of_scope", "rejected"} and not self.note:
+            raise ValueError("A specific outcome or reason is required to close a field report")
+        return self
 
 
 class CaseAssignmentRequest(BaseModel):

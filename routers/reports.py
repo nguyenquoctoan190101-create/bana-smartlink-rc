@@ -494,15 +494,31 @@ async def list_report_periods(
     _: Annotated[UserProfile, Depends(require_authenticated_user)],
 ) -> list[dict[str, Any]]:
     try:
-        return await repository._supabase._rest_request(
+        rows = await repository._supabase._rest_request(
             "GET",
             (
                 "/rest/v1/report_periods"
                 "?select=id,name,due_date,template_name,template_path,"
-                "template_sha256,template_size_bytes,created_at"
+                "template_sha256,template_size_bytes,created_at,"
+                "report_period_villages(village_id)"
                 "&order=due_date.desc,created_at.desc"
             ),
         )
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            assignments = row.get("report_period_villages") or []
+            result = {
+                key: value
+                for key, value in row.items()
+                if key != "report_period_villages"
+            }
+            result["village_ids"] = [
+                str(item["village_id"])
+                for item in assignments
+                if isinstance(item, dict) and item.get("village_id") is not None
+            ]
+            results.append(result)
+        return results
     except SupabaseAdminError as exc:
         raise HTTPException(
             status_code=502, detail="Unable to load report periods"

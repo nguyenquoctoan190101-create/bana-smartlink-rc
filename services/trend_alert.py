@@ -59,11 +59,13 @@ async def get_trend_alerts_async(
     try:
         prev_reports = await supabase._rest_request(
             "GET",
-            f"/rest/v1/reports?period_id=eq.{encoded_prev}&select=id,village_id",
+            f"/rest/v1/reports?period_id=eq.{encoded_prev}"
+            "&workflow_status=in.(approved,locked)&select=id,village_id",
         )
         curr_reports = await supabase._rest_request(
             "GET",
-            f"/rest/v1/reports?period_id=eq.{encoded_curr}&select=id,village_id",
+            f"/rest/v1/reports?period_id=eq.{encoded_curr}"
+            "&workflow_status=in.(approved,locked)&select=id,village_id",
         )
     except SupabaseAdminError as exc:
         raise RuntimeError("Failed to fetch reports for trend analysis.") from exc

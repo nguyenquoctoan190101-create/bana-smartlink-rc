@@ -198,6 +198,14 @@ def test_case_create_track_and_internal_workflow(monkeypatch: pytest.MonkeyPatch
     }
 
 
+def test_terminal_case_status_requires_a_specific_note() -> None:
+    with pytest.raises(ValidationError, match="specific outcome or reason"):
+        cases.CaseStatusRequest(status="completed")
+    with pytest.raises(ValidationError, match="specific outcome or reason"):
+        cases.CaseStatusRequest(status="rejected", note="   ")
+    assert cases.CaseStatusRequest(status="completed", note="Đã vá mặt đường").note == "Đã vá mặt đường"
+
+
 def test_case_routing_catalogue_is_scoped_and_demo_labeled() -> None:
     client = FakeSupabase()
     settings = SimpleNamespace(bana_commune_id="ba_na")

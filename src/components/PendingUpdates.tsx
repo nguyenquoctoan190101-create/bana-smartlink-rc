@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { 
-  Check, X, AlertCircle, RefreshCw, ClipboardCheck, 
-  Calendar, MapPin, Eye, FileText, ArrowRight, 
-  Activity, Shield, CheckCircle2, XCircle
-} from "lucide-react";
+import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye, FileText, ArrowRight, Activity, Shield, CheckCircle2, XCircle } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 
@@ -71,22 +67,18 @@ interface AuditLogApiRow {
   created_at: string;
 }
 
-export default function PendingUpdates({ 
-  userRole, 
-  userVillageId, 
-  userName,
-  onUpdateProcessed 
-}: PendingUpdatesProps) {
+export default function PendingUpdates({ userRole, userVillageId, userName, onUpdateProcessed }: PendingUpdatesProps) {
   const { villages: new_villages } = useVillages();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [reportValues, setReportValues] = useState<ReportValue[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  
+
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Tab states: 'pending' (default) or 'history'
   const [statusFilter, setStatusFilter] = useState<"Pending" | "Processed">("Pending");
 
@@ -105,13 +97,13 @@ export default function PendingUpdates({
       CT11: "Người tham gia BHYT",
       CT12: "Thành viên Tổ Công nghệ số",
       CT13: "Người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ",
-      CT14: "Số vụ bạo lực gia đình"
+      CT14: "Số vụ bạo lực gia đình",
     };
     return names[code] || code;
   };
 
   const getVillageName = (id: string) => {
-    return new_villages.find(v => v.id === id)?.name || id;
+    return new_villages.find((v) => v.id === id)?.name || id;
   };
 
   // Load all required states
@@ -120,23 +112,23 @@ export default function PendingUpdates({
     setError(null);
     try {
       // 1. Fetch proposals
-      const url = userRole === "admin_xa" 
-        ? "/auth/proposals" 
-        : `/auth/proposals?village_id=${userVillageId || ""}`;
-      
+      const url = userRole === "admin_xa" ? "/auth/proposals" : `/auth/proposals?village_id=${userVillageId || ""}`;
+
       const dataProposals = await apiJson<ProposalApiRow[]>(url);
-      setProposals((Array.isArray(dataProposals) ? dataProposals : []).map((item) => ({
-        id: item.id,
-        report_id: item.report_id,
-        village_id: item.village_id || "",
-        proposed_changes: { [item.ct_code]: item.proposed_value },
-        previous_value: item.previous_value,
-        status: item.status.toLowerCase() === "approved" ? "Approved" : item.status.toLowerCase() === "rejected" ? "Rejected" : "Pending",
-        created_at: item.created_at || "",
-        reviewed_at: item.reviewed_at || undefined,
-        sla_due_at: item.sla_due_at,
-        sla_status: item.sla_status,
-      })));
+      setProposals(
+        (Array.isArray(dataProposals) ? dataProposals : []).map((item) => ({
+          id: item.id,
+          report_id: item.report_id,
+          village_id: item.village_id || "",
+          proposed_changes: { [item.ct_code]: item.proposed_value },
+          previous_value: item.previous_value,
+          status: item.status.toLowerCase() === "approved" ? "Approved" : item.status.toLowerCase() === "rejected" ? "Rejected" : "Pending",
+          created_at: item.created_at || "",
+          reviewed_at: item.reviewed_at || undefined,
+          sla_due_at: item.sla_due_at,
+          sla_status: item.sla_status,
+        })),
+      );
 
       // 2. Fetch the scoped report values from the central database.
       const dataValues = await apiJson<ReportValue[]>("/auth/report-values");
@@ -144,24 +136,29 @@ export default function PendingUpdates({
 
       // 3. Fetch audit logs
       const dataLogs = await apiJson<AuditLogApiRow[]>("/auth/audit-logs");
-      setAuditLogs((Array.isArray(dataLogs) ? dataLogs : []).map((item) => {
-        let payload: Record<string, unknown> = item.payload || {};
-        if (!item.payload && typeof item.details === "string") {
-          try { payload = JSON.parse(item.details); } catch { payload = {}; }
-        } else if (!item.payload && item.details && typeof item.details === "object") {
-          payload = item.details;
-        }
-        return {
-          id: String(item.id),
-          table_name: item.table_name,
-          row_id: item.row_id || item.record_id || "",
-          action: item.action,
-          actor: item.actor || item.user_id || "Hệ thống",
-          payload,
-          created_at: item.created_at,
-        };
-      }));
-
+      setAuditLogs(
+        (Array.isArray(dataLogs) ? dataLogs : []).map((item) => {
+          let payload: Record<string, unknown> = item.payload || {};
+          if (!item.payload && typeof item.details === "string") {
+            try {
+              payload = JSON.parse(item.details);
+            } catch {
+              payload = {};
+            }
+          } else if (!item.payload && item.details && typeof item.details === "object") {
+            payload = item.details;
+          }
+          return {
+            id: String(item.id),
+            table_name: item.table_name,
+            row_id: item.row_id || item.record_id || "",
+            action: item.action,
+            actor: item.actor || item.user_id || "Hệ thống",
+            payload,
+            created_at: item.created_at,
+          };
+        }),
+      );
     } catch (err) {
       setError(toUserFacingError(err, "Đã xảy ra lỗi khi tải dữ liệu."));
     } finally {
@@ -181,12 +178,17 @@ export default function PendingUpdates({
     }
     setError(null);
     setSuccess(null);
+    const notes = reviewNotes[proposalId]?.trim();
+    if (!notes || notes.length < 3) {
+      setError("Hãy ghi rõ căn cứ phê duyệt hoặc lý do từ chối kiến nghị.");
+      return;
+    }
     setActionLoading(proposalId);
 
     try {
       await apiJson(`/auth/proposals/${proposalId}/action`, {
         method: "POST",
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action, notes }),
       });
       setSuccess(action === "approve" ? "Đã phê duyệt đề xuất và ghi nhật ký kiểm toán." : "Đã từ chối đề xuất và ghi nhật ký kiểm toán.");
 
@@ -195,6 +197,7 @@ export default function PendingUpdates({
       if (onUpdateProcessed) {
         onUpdateProcessed();
       }
+      setReviewNotes((current) => ({ ...current, [proposalId]: "" }));
     } catch (err) {
       setError(toUserFacingError(err, "Giao dịch thất bại."));
     } finally {
@@ -203,7 +206,7 @@ export default function PendingUpdates({
   };
 
   // Filter proposals based on selected filter
-  const filteredProposals = proposals.filter(p => {
+  const filteredProposals = proposals.filter((p) => {
     if (statusFilter === "Pending") {
       return p.status === "Pending";
     } else {
@@ -217,7 +220,7 @@ export default function PendingUpdates({
     if (proposal.status !== "Pending") {
       return typeof proposal.previous_value === "number" ? proposal.previous_value : null;
     }
-    const valObj = reportValues.find(v => v.report_id === proposal.report_id && v.ct_code === ctCode);
+    const valObj = reportValues.find((v) => v.report_id === proposal.report_id && v.ct_code === ctCode);
     return valObj ? valObj.value : null;
   };
 
@@ -240,9 +243,7 @@ export default function PendingUpdates({
             <span>Thẩm định kiến nghị sửa đổi số liệu</span>
           </h1>
           <p className="text-2xs text-slate-500 mt-1">
-            {userRole === "admin_xa" 
-              ? "Phạm vi: Quản trị xã xem toàn bộ đề nghị đối chiếu từ người dân tại 10 thôn."
-              : `Quyền hạn: Cán bộ thôn - Xem đề xuất chỉnh sửa riêng của địa bàn ${getVillageName(userVillageId || "")}.`}
+            {userRole === "admin_xa" ? "Phạm vi: Quản trị xã xem toàn bộ đề nghị đối chiếu từ người dân tại 10 thôn." : `Quyền hạn: Cán bộ thôn - Xem đề xuất chỉnh sửa riêng của địa bàn ${getVillageName(userVillageId || "")}.`}
           </p>
         </div>
         <button
@@ -272,39 +273,27 @@ export default function PendingUpdates({
 
       {/* Grid Layout: Main Queue and Audit Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Main proposals list */}
         <div className="lg:col-span-2 space-y-4">
-          
           {/* Filters Tab */}
           <div className="flex border-b border-slate-200 bg-white px-4 rounded-xl border border-slate-100 shadow-3xs">
             <button
               onClick={() => setStatusFilter("Pending")}
               className={`py-3 px-4 text-2xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-                statusFilter === "Pending"
-                  ? "border-emerald-800 text-emerald-950 font-black"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
+                statusFilter === "Pending" ? "border-emerald-800 text-emerald-950 font-black" : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
             >
               <span>Chờ phê duyệt</span>
-              <span className={`px-1.5 py-0.5 text-4xs rounded-full ${
-                statusFilter === "Pending" ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-500"
-              }`}>
-                {proposals.filter(p => p.status === "Pending").length}
-              </span>
+              <span className={`px-1.5 py-0.5 text-4xs rounded-full ${statusFilter === "Pending" ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-500"}`}>{proposals.filter((p) => p.status === "Pending").length}</span>
             </button>
             <button
               onClick={() => setStatusFilter("Processed")}
               className={`py-3 px-4 text-2xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 ${
-                statusFilter === "Processed"
-                  ? "border-emerald-800 text-emerald-950 font-black"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
+                statusFilter === "Processed" ? "border-emerald-800 text-emerald-950 font-black" : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
             >
               <span>Lịch sử xử lý</span>
-              <span className="px-1.5 py-0.5 text-4xs rounded-full bg-slate-100 text-slate-500">
-                {proposals.filter(p => p.status !== "Pending").length}
-              </span>
+              <span className="px-1.5 py-0.5 text-4xs rounded-full bg-slate-100 text-slate-500">{proposals.filter((p) => p.status !== "Pending").length}</span>
             </button>
           </div>
 
@@ -318,24 +307,16 @@ export default function PendingUpdates({
               <ClipboardCheck className="w-12 h-12 text-slate-300 mx-auto" />
               <div>
                 <h3 className="font-bold text-slate-800 text-sm">Không có đề xuất nào</h3>
-                <p className="text-2xs text-slate-400 mt-1">
-                  {statusFilter === "Pending" 
-                    ? "Tất cả các kiến nghị chỉnh sửa từ người dân đã được thẩm định xong."
-                    : "Chưa có đề xuất nào được phê duyệt hoặc từ chối trong phiên làm việc."}
-                </p>
+                <p className="text-2xs text-slate-400 mt-1">{statusFilter === "Pending" ? "Tất cả các kiến nghị chỉnh sửa từ người dân đã được thẩm định xong." : "Chưa có đề xuất nào được phê duyệt hoặc từ chối trong phiên làm việc."}</p>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               {filteredProposals.map((proposal) => (
-                <div 
-                  key={proposal.id} 
+                <div
+                  key={proposal.id}
                   className={`bg-white rounded-2xl border transition-all p-5 shadow-3xs flex flex-col gap-4 ${
-                    proposal.status === "Pending" 
-                      ? "border-slate-100 hover:border-slate-200"
-                      : proposal.status === "Approved"
-                      ? "border-emerald-100 bg-emerald-25/10"
-                      : "border-rose-100 bg-rose-25/10"
+                    proposal.status === "Pending" ? "border-slate-100 hover:border-slate-200" : proposal.status === "Approved" ? "border-emerald-100 bg-emerald-25/10" : "border-rose-100 bg-rose-25/10"
                   }`}
                 >
                   {/* Top metadata row */}
@@ -346,13 +327,11 @@ export default function PendingUpdates({
                           <MapPin className="w-3.5 h-3.5 text-emerald-800" />
                           <span>{getVillageName(proposal.village_id)}</span>
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-4xs font-bold uppercase ${
-                          proposal.status === "Pending" 
-                            ? "bg-amber-100 text-amber-800"
-                            : proposal.status === "Approved"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-rose-100 text-rose-800"
-                        }`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-4xs font-bold uppercase ${
+                            proposal.status === "Pending" ? "bg-amber-100 text-amber-800" : proposal.status === "Approved" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
                           {proposal.status === "Pending" ? "Chờ duyệt" : proposal.status === "Approved" ? "Đã duyệt" : "Từ chối"}
                         </span>
                       </div>
@@ -365,14 +344,9 @@ export default function PendingUpdates({
                         <span>Mã báo cáo: {proposal.report_id}</span>
                       </div>
                     </div>
-
                   </div>
 
-                  {proposal.status === "Pending" && (
-                    <p className={`rounded-lg px-3 py-2 text-sm font-semibold ${proposal.sla_status === "overdue" ? "bg-rose-50 text-rose-800" : "bg-amber-50 text-amber-800"}`}>
-                      {formatSla(proposal)}
-                    </p>
-                  )}
+                  {proposal.status === "Pending" && <p className={`rounded-lg px-3 py-2 text-sm font-semibold ${proposal.sla_status === "overdue" ? "bg-rose-50 text-rose-800" : "bg-amber-50 text-amber-800"}`}>{formatSla(proposal)}</p>}
 
                   {/* Core Value Comparison Card */}
                   <div className="space-y-2">
@@ -380,9 +354,7 @@ export default function PendingUpdates({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {Object.entries(proposal.proposed_changes).map(([ct_code, proposed_val]) => {
                         const old_val = getOldValue(proposal, ct_code);
-                        const oldValueLabel = old_val == null
-                          ? proposal.status === "Pending" ? "Chưa có dữ liệu" : "Không có bản lưu dữ liệu"
-                          : old_val;
+                        const oldValueLabel = old_val == null ? (proposal.status === "Pending" ? "Chưa có dữ liệu" : "Không có bản lưu dữ liệu") : old_val;
                         return (
                           <div key={ct_code} className="border border-slate-100 rounded-xl p-3 bg-slate-25/40 flex flex-col justify-between gap-2.5">
                             <div>
@@ -410,46 +382,50 @@ export default function PendingUpdates({
 
                   {/* Action buttons (only for pending) */}
                   {proposal.status === "Pending" && (
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100/60">
-                      <button
-                        onClick={() => handleAction(proposal.id, "reject")}
-                        disabled={actionLoading !== null}
-                        className="flex items-center gap-1 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 bg-white px-3.5 py-1.5 rounded-lg text-2xs font-bold shadow-3xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                      >
-                        {actionLoading === proposal.id ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <X className="w-3.5 h-3.5" />
-                        )}
-                        <span>Từ chối kiến nghị</span>
-                      </button>
-                      <button
-                        onClick={() => handleAction(proposal.id, "approve")}
-                        disabled={actionLoading !== null}
-                        className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-1.5 rounded-lg text-2xs font-bold shadow-3xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                      >
-                        {actionLoading === proposal.id ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Check className="w-3.5 h-3.5" />
-                        )}
-                        <span>Phê duyệt đề nghị</span>
-                      </button>
+                    <div className="space-y-3 pt-3 border-t border-slate-100/60">
+                      <label className="block text-sm font-semibold text-slate-700">
+                        Căn cứ xử lý kiến nghị
+                        <textarea
+                          className="mt-1 w-full"
+                          rows={3}
+                          maxLength={1000}
+                          value={reviewNotes[proposal.id] || ""}
+                          onChange={(event) =>
+                            setReviewNotes((current) => ({
+                              ...current,
+                              [proposal.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Nêu tài liệu đã đối chiếu và lý do chấp thuận hoặc từ chối…"
+                        />
+                      </label>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleAction(proposal.id, "reject")}
+                          disabled={actionLoading !== null || (reviewNotes[proposal.id]?.trim().length || 0) < 3}
+                          className="flex items-center gap-1 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-600 bg-white px-3.5 py-1.5 rounded-lg text-2xs font-bold shadow-3xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {actionLoading === proposal.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                          <span>Từ chối kiến nghị</span>
+                        </button>
+                        <button
+                          onClick={() => handleAction(proposal.id, "approve")}
+                          disabled={actionLoading !== null || (reviewNotes[proposal.id]?.trim().length || 0) < 3}
+                          className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-1.5 rounded-lg text-2xs font-bold shadow-3xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {actionLoading === proposal.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          <span>Phê duyệt đề nghị</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   {/* Reviewed timestamp for processed ones */}
-                  {proposal.status !== "Pending" && proposal.reviewed_at && (
-                    <div className="text-4xs text-slate-400 font-semibold italic text-right mt-1">
-                      Đã xử lý lúc: {new Date(proposal.reviewed_at).toLocaleString("vi-VN")}
-                    </div>
-                  )}
-
+                  {proposal.status !== "Pending" && proposal.reviewed_at && <div className="text-4xs text-slate-400 font-semibold italic text-right mt-1">Đã xử lý lúc: {new Date(proposal.reviewed_at).toLocaleString("vi-VN")}</div>}
                 </div>
               ))}
             </div>
           )}
-
         </div>
 
         {/* Right sidebar: Real-time Audit Logs Panel */}
@@ -475,18 +451,20 @@ export default function PendingUpdates({
                 {auditLogs.map((log) => (
                   <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-4xs space-y-2">
                     <div className="flex justify-between items-start gap-1">
-                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
-                        {log.action}
-                      </span>
-                      <span className="text-slate-400 font-mono font-medium">
-                        {new Date(log.created_at).toLocaleTimeString("vi-VN")}
-                      </span>
+                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">{log.action}</span>
+                      <span className="text-slate-400 font-mono font-medium">{new Date(log.created_at).toLocaleTimeString("vi-VN")}</span>
                     </div>
 
                     <div className="space-y-0.5 text-slate-600">
-                      <div>Tác nhân: <b className="text-slate-800">{log.actor}</b></div>
-                      <div>Bảng ghi: <span className="font-mono text-slate-700">{log.table_name}</span></div>
-                      <div>Khóa dòng: <span className="font-mono text-slate-700 text-[10px] break-all">{log.row_id}</span></div>
+                      <div>
+                        Tác nhân: <b className="text-slate-800">{log.actor}</b>
+                      </div>
+                      <div>
+                        Bảng ghi: <span className="font-mono text-slate-700">{log.table_name}</span>
+                      </div>
+                      <div>
+                        Khóa dòng: <span className="font-mono text-slate-700 text-[10px] break-all">{log.row_id}</span>
+                      </div>
                     </div>
 
                     {/* Show payload changes recursively */}
@@ -513,7 +491,6 @@ export default function PendingUpdates({
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

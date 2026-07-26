@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
+from routers.operations import ActionUpdateRequest
 from services.operations import build_safe_period_brief, quality_snapshot, validate_maturity_scores
+
+
+def test_terminal_action_requires_a_recorded_outcome() -> None:
+    with pytest.raises(ValidationError, match="completion result or cancellation reason"):
+        ActionUpdateRequest(status="completed")
+    with pytest.raises(ValidationError, match="completion result or cancellation reason"):
+        ActionUpdateRequest(status="cancelled", outcome="  ")
+    assert ActionUpdateRequest(status="completed", outcome="Đã kiểm tra hồ sơ").outcome == "Đã kiểm tra hồ sơ"
 
 
 def test_quality_snapshot_preserves_missing_values_and_blocks_deterministic_errors() -> None:

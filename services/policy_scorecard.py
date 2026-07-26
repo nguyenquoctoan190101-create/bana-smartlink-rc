@@ -101,6 +101,7 @@ class PolicyScorecardService:
             (
                 "/rest/v1/reports"
                 f"?period_id=eq.{encoded_period_id}"
+                "&timeliness_status=in.(on_time,late)"
                 "&select=id,village_id,report_source"
             ),
         )

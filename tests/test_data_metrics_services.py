@@ -42,6 +42,7 @@ async def test_policy_scorecard_uses_lineage_and_historical_household_snapshot()
     assert result.once_only_score.percent == 10.71
     assert "50%" in result.interpretation
     assert "period%2F1" in supabase._rest_request.await_args_list[0].args[1]
+    assert "timeliness_status=in.(on_time,late)" in supabase._rest_request.await_args_list[1].args[1]
 
 
 @pytest.mark.asyncio
@@ -83,7 +84,7 @@ async def test_cnscd_impact_preserves_missing_ct13_instead_of_zero() -> None:
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(side_effect=[
         [{"id": "p1", "name": "Tháng 7/2026"}],
-        [{"id": "v1", "name": "Thôn A"}, {"id": "v2", "name": "Thôn B"}],
+        [{"village_id": "v1", "villages": {"id": "v1", "name": "Thôn A"}}, {"village_id": "v2", "villages": {"id": "v2", "name": "Thôn B"}}],
         [
             {"id": "r1", "village_id": "v1", "assisted_by_cnscd": True},
             {"id": "r2", "village_id": "v2", "assisted_by_cnscd": False},
@@ -101,6 +102,7 @@ async def test_cnscd_impact_preserves_missing_ct13_instead_of_zero() -> None:
     assert result.villages[0].difference == 4
     assert result.villages[1].ct13_value is None
     assert "thiếu dữ liệu" in result.interpretation
+    assert "timeliness_status=in.(on_time,late)" in supabase._rest_request.await_args_list[2].args[1]
 
 
 @pytest.mark.asyncio
@@ -108,7 +110,7 @@ async def test_cnscd_impact_complete_data_calculates_total_and_includes_unsubmit
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(side_effect=[
         [{"id": "p1", "name": "Kỳ đủ"}],
-        [{"id": "v1", "name": "Thôn A"}, {"id": "v2", "name": "Thôn B"}],
+        [{"village_id": "v1", "villages": {"id": "v1", "name": "Thôn A"}}, {"village_id": "v2", "villages": {"id": "v2", "name": "Thôn B"}}],
         [{"id": "r1", "village_id": "v1", "assisted_by_cnscd": True}],
         [{"report_id": "r1", "value": "7"}],
     ])
@@ -127,7 +129,7 @@ async def test_cnscd_impact_no_reports_skips_value_request() -> None:
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(side_effect=[
         [{"id": "p1", "name": "Kỳ chưa nộp"}],
-        [{"id": "v1", "name": "Thôn A"}],
+        [{"village_id": "v1", "villages": {"id": "v1", "name": "Thôn A"}}],
         [],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")

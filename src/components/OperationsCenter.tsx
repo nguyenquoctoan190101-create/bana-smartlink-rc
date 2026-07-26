@@ -10,9 +10,31 @@ type Props = {
   maturityEnabled?: boolean;
   onNavigate?: (target: "dashboard" | "cases" | "progress-dashboard") => void;
 };
-type Action = { id: string; title: string; priority: string; status: string; due_date?: string | null; owner_name?: string | null };
-type Quality = { report_id: string; village_name: string; workflow_status?: string; quality_score: number; quality_status: string; unresolved_flag_count: number; outlier_count: number; lineage: { report_source: string; report_version: number } };
-type TrendAlert = { village_id: string; village_name: string; ct_code: string; indicator_name: string; change_pct: number };
+type Action = {
+  id: string;
+  title: string;
+  priority: string;
+  status: string;
+  due_date?: string | null;
+  owner_name?: string | null;
+};
+type Quality = {
+  report_id: string;
+  village_name: string;
+  workflow_status?: string;
+  quality_score: number;
+  quality_status: string;
+  unresolved_flag_count: number;
+  outlier_count: number;
+  lineage: { report_source: string; report_version: number };
+};
+type TrendAlert = {
+  village_id: string;
+  village_name: string;
+  ct_code: string;
+  indicator_name: string;
+  change_pct: number;
+};
 type QualityResponse = {
   period?: { id: string; name?: string | null };
   generated_at?: string;
@@ -20,7 +42,12 @@ type QualityResponse = {
   reports?: Quality[];
   rule_version?: string;
 };
-type LoadResult = { key: "quality" | "actions" | "alerts" | "drafts" | "maturity" | "initiatives"; label: string; value: unknown; error?: unknown };
+type LoadResult = {
+  key: "quality" | "actions" | "alerts" | "drafts" | "maturity" | "initiatives";
+  label: string;
+  value: unknown;
+  error?: unknown;
+};
 type Availability = Record<LoadResult["key"], boolean | null>;
 
 const reportSourceLabels: Record<string, string> = {
@@ -38,10 +65,26 @@ const priorityLabels: Record<string, string> = {
 };
 
 const roleCopy: Record<string, { eyebrow: string; title: string; description: string }> = {
-  admin_xa: { eyebrow: "Điều hành toàn xã", title: "Công việc điều hành", description: "Ưu tiên việc quá hạn và cảnh báo dữ liệu trước khi xem số liệu tổng hợp." },
-  lanh_dao: { eyebrow: "Điều hành toàn xã", title: "Tóm tắt điều hành", description: "Tổng hợp việc cần xử lý, chất lượng dữ liệu và căn cứ theo kỳ báo cáo." },
-  can_bo_thon: { eyebrow: "Không gian cán bộ thôn", title: "Việc của tôi", description: "Hoàn thành việc được giao, rà soát báo cáo và theo dõi trạng thái nộp." },
-  to_cnscd: { eyebrow: "Tổ công nghệ số cộng đồng", title: "Việc hỗ trợ của tôi", description: "Theo dõi việc hỗ trợ thôn và các báo cáo cần đối chiếu dữ liệu." },
+  admin_xa: {
+    eyebrow: "Điều hành toàn xã",
+    title: "Công việc điều hành",
+    description: "Ưu tiên việc quá hạn và cảnh báo dữ liệu trước khi xem số liệu tổng hợp.",
+  },
+  lanh_dao: {
+    eyebrow: "Điều hành toàn xã",
+    title: "Tóm tắt điều hành",
+    description: "Tổng hợp việc cần xử lý, chất lượng dữ liệu và căn cứ theo kỳ báo cáo.",
+  },
+  can_bo_thon: {
+    eyebrow: "Không gian cán bộ thôn",
+    title: "Việc của tôi",
+    description: "Hoàn thành việc được giao, rà soát báo cáo và theo dõi trạng thái nộp.",
+  },
+  to_cnscd: {
+    eyebrow: "Tổ công nghệ số cộng đồng",
+    title: "Việc hỗ trợ của tôi",
+    description: "Theo dõi việc hỗ trợ thôn và các báo cáo cần đối chiếu dữ liệu.",
+  },
 };
 
 export default function OperationsCenter({ periodId, role, maturityEnabled = false, onNavigate }: Props) {
@@ -51,7 +94,15 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
   const [drafts, setDrafts] = useState<any[]>([]);
   const [maturity, setMaturity] = useState<any[]>([]);
   const [initiatives, setInitiatives] = useState<any[]>([]);
-  const [available, setAvailable] = useState<Availability>({ quality: null, actions: null, alerts: null, drafts: null, maturity: null, initiatives: null });
+  const [actionOutcomes, setActionOutcomes] = useState<Record<string, string>>({});
+  const [available, setAvailable] = useState<Availability>({
+    quality: null,
+    actions: null,
+    alerts: null,
+    drafts: null,
+    maturity: null,
+    initiatives: null,
+  });
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const internal = role === "admin_xa" || role === "lanh_dao";
@@ -59,16 +110,16 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
   const copy = roleCopy[role] ?? roleCopy.can_bo_thon;
 
   const refresh = async () => {
-    setLoading(true); setNotice(null);
+    setLoading(true);
+    setNotice(null);
     const load = async (key: LoadResult["key"], label: string, request: Promise<unknown>): Promise<LoadResult> => {
-      try { return { key, label, value: await request }; }
-      catch (error) { return { key, label, value: null, error }; }
+      try {
+        return { key, label, value: await request };
+      } catch (error) {
+        return { key, label, value: null, error };
+      }
     };
-    const requests: Promise<LoadResult>[] = [
-      load("quality", "chất lượng dữ liệu", periodId ? apiJson(`/api/operations/quality?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve(null)),
-      load("actions", "danh sách việc", apiJson("/api/operations/actions")),
-      load("alerts", "biến động theo kỳ", periodId ? apiJson(`/reports/trend-alerts?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve([])),
-    ];
+    const requests: Promise<LoadResult>[] = [load("quality", "chất lượng dữ liệu", periodId ? apiJson(`/api/operations/quality?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve(null)), load("actions", "danh sách việc", apiJson("/api/operations/actions")), load("alerts", "biến động theo kỳ", periodId ? apiJson(`/reports/trend-alerts?period_id=${encodeURIComponent(periodId)}`) : Promise.resolve([]))];
     if (internal) {
       requests.push(load("drafts", "nội dung điều hành chờ duyệt", apiJson("/api/operations/ai-drafts")));
     }
@@ -87,8 +138,8 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
     for (const result of results) {
       if (result.error) continue;
       if (result.key === "quality") setQuality(result.value as typeof quality);
-      if (result.key === "actions") setActions(Array.isArray(result.value) ? result.value as Action[] : []);
-      if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? result.value as TrendAlert[] : []);
+      if (result.key === "actions") setActions(Array.isArray(result.value) ? (result.value as Action[]) : []);
+      if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? (result.value as TrendAlert[]) : []);
       if (result.key === "drafts") setDrafts(Array.isArray(result.value) ? result.value : []);
       if (result.key === "maturity") setMaturity(Array.isArray(result.value) ? result.value : []);
       if (result.key === "initiatives") setInitiatives(Array.isArray(result.value) ? result.value : []);
@@ -100,131 +151,323 @@ export default function OperationsCenter({ periodId, role, maturityEnabled = fal
     setLoading(false);
   };
 
-  useEffect(() => { void refresh(); }, [periodId, role]);
+  useEffect(() => {
+    void refresh();
+  }, [periodId, role]);
 
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
   const overdueActions = useMemo(() => openActions.filter((item) => item.due_date && new Date(item.due_date).getTime() < Date.now()), [openActions]);
-  const approvedReports = useMemo(
-    () => (quality?.reports ?? []).filter((item) => !item.workflow_status || ["approved", "locked"].includes(item.workflow_status)),
-    [quality],
-  );
+  const approvedReports = useMemo(() => (quality?.reports ?? []).filter((item) => !item.workflow_status || ["approved", "locked"].includes(item.workflow_status)), [quality]);
   const flaggedReports = useMemo(() => (quality?.reports ?? []).filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [quality]);
   const flaggedApprovedReports = useMemo(() => approvedReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [approvedReports]);
   const pendingDrafts = useMemo(() => drafts.filter((item) => item.status === "pending_review"), [drafts]);
-  const executiveMessage = approvedReports.length === 0
-    ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ."
-    : overdueActions.length
-    ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.`
-    : flaggedApprovedReports.length
-      ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.`
-      : alerts.length
-        ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.`
-      : openActions.length
-        ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.`
-        : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
-  const generatedAt = quality?.generated_at
-    ? new Date(quality.generated_at).toLocaleString("vi-VN")
-    : "Chưa có thời điểm tổng hợp";
+  const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : alerts.length ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
+  const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
   const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
   const overdueOwners = Array.from(new Set(overdueActions.map((item) => item.owner_name).filter(Boolean))).join(", ") || "Chưa phân công";
 
   const updateAction = async (id: string, status: "in_progress" | "completed") => {
-    const response = await apiFetch(`/api/operations/actions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    if (!response.ok) setNotice("Không thể cập nhật việc. Chỉ chủ việc hoặc quản trị xã được phép."); else void refresh();
+    const outcome = actionOutcomes[id]?.trim();
+    if (status === "completed" && !outcome) {
+      setNotice("Hãy ghi kết quả hoàn thành trước khi đóng công việc.");
+      return;
+    }
+    const response = await apiFetch(`/api/operations/actions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, outcome: outcome || undefined }),
+    });
+    if (!response.ok) setNotice("Không thể cập nhật việc. Chỉ chủ việc hoặc quản trị xã được phép.");
+    else {
+      setActionOutcomes((current) => ({ ...current, [id]: "" }));
+      void refresh();
+    }
   };
   const createDraft = async () => {
     if (!periodId) return;
-    const response = await apiFetch("/api/operations/ai-drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ period_id: periodId, kind: "period_brief" }) });
+    const response = await apiFetch("/api/operations/ai-drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ period_id: periodId, kind: "period_brief" }),
+    });
     setNotice(response.ok ? "Đã tạo nội dung gợi ý có dẫn chứng. Nội dung đang chờ người có thẩm quyền xem xét." : "Không thể tạo nội dung gợi ý.");
     if (response.ok) void refresh();
   };
   const reviewDraft = async (id: string, decision: "accepted" | "rejected") => {
-    const response = await apiFetch(`/api/operations/ai-drafts/${id}/review`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
-    if (!response.ok) setNotice("Không thể duyệt nội dung gợi ý."); else void refresh();
+    const response = await apiFetch(`/api/operations/ai-drafts/${id}/review`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision }),
+    });
+    if (!response.ok) setNotice("Không thể duyệt nội dung gợi ý.");
+    else void refresh();
   };
 
-  if (loading) return <div role="status" className="flex min-h-64 items-center justify-center gap-2 text-sm text-slate-600"><Loader2 className="h-5 w-5 animate-spin text-emerald-800" />Đang tải không gian điều hành…</div>;
-
-  return <div className="space-y-6">
-    <PageHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.description} actions={<Button variant="secondary" onClick={() => void refresh()}>Làm mới</Button>} />
-    {notice && (notice.startsWith("Không") ? <ErrorState description={notice} onRetry={() => void refresh()} /> : <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">{notice}</div>)}
-
-    <DataScope period={quality?.period?.name || (periodId ? "Kỳ đang chọn" : "Chưa có kỳ")} scope={role === "can_bo_thon" ? "Thôn được phân công" : role === "to_cnscd" ? "Thôn được hỗ trợ" : "Toàn xã"} quality={quality?.rule_version ? `Bộ quy tắc ${quality.rule_version} · tổng hợp ${generatedAt}` : "Chưa có dữ liệu đánh giá"} qualityLabel="Đánh giá" />
-
-    {internal && (
-      <SectionCard className="executive-brief p-5 md:p-6" aria-labelledby="executive-summary-title">
-        <div className="executive-brief__heading">
-          <div>
-            <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
-            <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
-            <p>{executiveMessage}</p>
-          </div>
-          <StatusBadge
-            status={overdueActions.length ? "overdue" : flaggedReports.length ? "needs_review" : "ready"}
-            label={overdueActions.length ? "Cần xử lý ngay" : flaggedReports.length ? "Cần rà soát" : "Trong kiểm soát"}
-          />
-        </div>
-        <dl className="executive-brief__facts">
-          <div>
-            <dt><CalendarDays aria-hidden="true" /> Kỳ dữ liệu</dt>
-            <dd>{quality?.period?.name || "Chưa xác định"}</dd>
-          </div>
-          <div>
-            <dt><FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt</dt>
-            <dd>{approvedReports.length} báo cáo</dd>
-          </div>
-          <div>
-            <dt><Clock3 aria-hidden="true" /> Độ mới</dt>
-            <dd>{generatedAt}</dd>
-          </div>
-          <div>
-            <dt><GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý</dt>
-            <dd>{available.alerts === false ? "—" : alerts.length}</dd>
-          </div>
-          <div>
-            <dt><AlertTriangle aria-hidden="true" /> Việc quá hạn</dt>
-            <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
-          </div>
-          <div>
-            <dt><UserRoundCheck aria-hidden="true" /> Người phụ trách</dt>
-            <dd>{overdueOwners}</dd>
-          </div>
-        </dl>
-        <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
-        {onNavigate && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => onNavigate("dashboard")}><Link2 />Xem báo cáo và căn cứ</Button>
-            <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}><Link2 />Xem tiến độ các thôn</Button>
-            <Button variant="secondary" onClick={() => onNavigate("cases")}><Link2 />Xem công việc và cảnh báo</Button>
-          </div>
-        )}
-      </SectionCard>
-    )}
-
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
-      <MetricCard label="Điểm chất lượng" value={available.quality === false || quality?.average_quality_score == null ? "—" : `${quality.average_quality_score}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : quality?.average_quality_score == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
-      <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${quality?.reports?.length ?? 0} báo cáo trong phạm vi`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
-      {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : quality?.reports?.length ?? "—"} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
-    </div>
-
-    <SectionCard className="p-5 md:p-6">
-      <div><h2 className="text-lg font-bold text-slate-900">Việc cần xử lý</h2><p className="mt-1 text-sm text-slate-600">Sắp xếp theo hạn và mức ưu tiên; trạng thái được cập nhật ngay trên hệ thống.</p></div>
-      <div className="mt-5 space-y-3">
-        {available.actions === false ? <ErrorState title="Chưa tải được danh sách việc" description="Các chỉ số khác vẫn dùng được. Hãy thử tải lại danh sách việc." onRetry={() => void refresh()} /> : <>{!actions.length && <EmptyState title="Chưa có việc được phân công" description="Việc mới sẽ xuất hiện tại đây cùng người phụ trách và thời hạn xử lý." />}{actions.map((item) => { const overdue = item.due_date && new Date(item.due_date).getTime() < Date.now() && !["completed", "cancelled"].includes(item.status); return <ActionCard key={item.id} title={item.title} meta={<span>{item.owner_name ? `Phụ trách: ${item.owner_name} · ` : ""}Ưu tiên {priorityLabels[item.priority] ?? "chưa phân loại"} · Hạn {item.due_date ? new Date(item.due_date).toLocaleDateString("vi-VN") : "chưa đặt"}</span>} status={<StatusBadge status={overdue ? "overdue" : item.status} />}>{item.status === "pending" && role !== "lanh_dao" && <Button variant="secondary" onClick={() => void updateAction(item.id, "in_progress")}>Nhận việc</Button>}{item.status === "in_progress" && role !== "lanh_dao" && <Button onClick={() => void updateAction(item.id, "completed")}><CheckCircle2 />Hoàn tất</Button>}</ActionCard>; })}</>}
+  if (loading)
+    return (
+      <div role="status" className="flex min-h-64 items-center justify-center gap-2 text-sm text-slate-600">
+        <Loader2 className="h-5 w-5 animate-spin text-emerald-800" />
+        Đang tải không gian điều hành…
       </div>
-    </SectionCard>
+    );
 
-    {internal && <SectionCard className="p-5 md:p-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start"><div><h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><BrainCircuit className="h-5 w-5 text-indigo-700" />Nội dung điều hành gợi ý — chờ phê duyệt</h2><p className="mt-1 text-sm text-slate-600">Không sử dụng thông tin cá nhân hoặc CT14; nội dung gợi ý không tự giao việc, phê duyệt hay công bố.</p></div>{admin && <Button onClick={() => void createDraft()} disabled={!periodId}><Sparkles />Tạo nội dung gợi ý</Button>}</div>
-      <div className="mt-5 space-y-3">{available.drafts === false ? <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} /> : <>{!drafts.length && <EmptyState title="Chưa có nội dung gợi ý" description="Quản trị xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}{drafts.slice(0, 5).map((draft) => <article key={draft.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4"><p className="text-sm leading-relaxed text-slate-800">{draft.content}</p><div className="mt-3 flex flex-wrap items-center gap-2"><StatusBadge status={draft.status} /><span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>{admin && draft.status === "pending_review" && <div className="ml-auto flex gap-2"><Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button><Button variant="secondary" onClick={() => void reviewDraft(draft.id, "rejected")}>Từ chối</Button></div>}</div></article>)}</>}</div>
-    </SectionCard>}
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        description={copy.description}
+        actions={
+          <Button variant="secondary" onClick={() => void refresh()}>
+            Làm mới
+          </Button>
+        }
+      />
+      {notice &&
+        (notice.startsWith("Không") ? (
+          <ErrorState description={notice} onRetry={() => void refresh()} />
+        ) : (
+          <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
+            {notice}
+          </div>
+        ))}
 
-    <SectionCard className="overflow-hidden">
-      <div className="border-b border-slate-200 p-5 md:p-6"><h2 className="text-lg font-bold text-slate-900">Chất lượng dữ liệu theo báo cáo</h2><p className="mt-1 text-sm text-slate-600">Mỗi dòng có nguồn nhập, phiên bản và số cảnh báo cần người có trách nhiệm xem lại.</p></div>
-      <div className="overflow-x-auto">{available.quality === false ? <div className="p-5"><ErrorState title="Chưa tải được chất lượng dữ liệu" description="Không hiển thị số 0 thay cho dữ liệu chưa tải được." onRetry={() => void refresh()} /></div> : <><table className="min-w-[760px]"><thead><tr><th>Thôn</th><th>Điểm</th><th>Trạng thái</th><th>Cần xem</th><th>Nguồn và phiên bản</th></tr></thead><tbody>{(quality?.reports ?? []).map((item) => <tr key={item.report_id}><td className="font-semibold">{item.village_name}</td><td>{item.quality_score}%</td><td><StatusBadge status={item.quality_status} /></td><td>{item.unresolved_flag_count} lỗi · {item.outlier_count} bất thường</td><td>{reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"} · phiên bản {item.lineage.report_version}</td></tr>)}</tbody></table>{!quality?.reports?.length && <EmptyState title="Chưa có báo cáo để đánh giá" description="Dữ liệu chất lượng sẽ xuất hiện sau khi kỳ báo cáo có bản ghi trong phạm vi quyền." />}</>}</div>
-    </SectionCard>
+      <DataScope period={quality?.period?.name || (periodId ? "Kỳ đang chọn" : "Chưa có kỳ")} scope={role === "can_bo_thon" ? "Thôn được phân công" : role === "to_cnscd" ? "Thôn được hỗ trợ" : "Toàn xã"} quality={quality?.rule_version ? `Bộ quy tắc ${quality.rule_version} · tổng hợp ${generatedAt}` : "Chưa có dữ liệu đánh giá"} qualityLabel="Đánh giá" />
 
-    {admin && <div className="grid gap-4 md:grid-cols-2">{maturityEnabled && <MetricCard label="Đánh giá trưởng thành số — thử nghiệm" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} />}<MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} /></div>}
-  </div>;
+      {internal && (
+        <SectionCard className="executive-brief p-5 md:p-6" aria-labelledby="executive-summary-title">
+          <div className="executive-brief__heading">
+            <div>
+              <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
+              <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
+              <p>{executiveMessage}</p>
+            </div>
+            <StatusBadge status={overdueActions.length ? "overdue" : flaggedReports.length ? "needs_review" : "ready"} label={overdueActions.length ? "Cần xử lý ngay" : flaggedReports.length ? "Cần rà soát" : "Trong kiểm soát"} />
+          </div>
+          <dl className="executive-brief__facts">
+            <div>
+              <dt>
+                <CalendarDays aria-hidden="true" /> Kỳ dữ liệu
+              </dt>
+              <dd>{quality?.period?.name || "Chưa xác định"}</dd>
+            </div>
+            <div>
+              <dt>
+                <FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt
+              </dt>
+              <dd>{approvedReports.length} báo cáo</dd>
+            </div>
+            <div>
+              <dt>
+                <Clock3 aria-hidden="true" /> Độ mới
+              </dt>
+              <dd>{generatedAt}</dd>
+            </div>
+            <div>
+              <dt>
+                <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
+              </dt>
+              <dd>{available.alerts === false ? "—" : alerts.length}</dd>
+            </div>
+            <div>
+              <dt>
+                <AlertTriangle aria-hidden="true" /> Việc quá hạn
+              </dt>
+              <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
+            </div>
+            <div>
+              <dt>
+                <UserRoundCheck aria-hidden="true" /> Người phụ trách
+              </dt>
+              <dd>{overdueOwners}</dd>
+            </div>
+          </dl>
+          <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
+          {onNavigate && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => onNavigate("dashboard")}>
+                <Link2 />
+                Xem báo cáo và căn cứ
+              </Button>
+              <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}>
+                <Link2 />
+                Xem tiến độ các thôn
+              </Button>
+              <Button variant="secondary" onClick={() => onNavigate("cases")}>
+                <Link2 />
+                Xem công việc và cảnh báo
+              </Button>
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
+        <MetricCard label="Điểm chất lượng" value={available.quality === false || quality?.average_quality_score == null ? "—" : `${quality.average_quality_score}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : quality?.average_quality_score == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
+        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${quality?.reports?.length ?? 0} báo cáo trong phạm vi`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
+        {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
+      </div>
+
+      <SectionCard className="p-5 md:p-6">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Việc cần xử lý</h2>
+          <p className="mt-1 text-sm text-slate-600">Sắp xếp theo hạn và mức ưu tiên; trạng thái được cập nhật ngay trên hệ thống.</p>
+        </div>
+        <div className="mt-5 space-y-3">
+          {available.actions === false ? (
+            <ErrorState title="Chưa tải được danh sách việc" description="Các chỉ số khác vẫn dùng được. Hãy thử tải lại danh sách việc." onRetry={() => void refresh()} />
+          ) : (
+            <>
+              {!actions.length && <EmptyState title="Chưa có việc được phân công" description="Việc mới sẽ xuất hiện tại đây cùng người phụ trách và thời hạn xử lý." />}
+              {actions.map((item) => {
+                const overdue = item.due_date && new Date(item.due_date).getTime() < Date.now() && !["completed", "cancelled"].includes(item.status);
+                return (
+                  <ActionCard
+                    key={item.id}
+                    title={item.title}
+                    meta={
+                      <span>
+                        {item.owner_name ? `Phụ trách: ${item.owner_name} · ` : ""}
+                        Ưu tiên {priorityLabels[item.priority] ?? "chưa phân loại"} · Hạn {item.due_date ? new Date(item.due_date).toLocaleDateString("vi-VN") : "chưa đặt"}
+                      </span>
+                    }
+                    status={<StatusBadge status={overdue ? "overdue" : item.status} />}
+                  >
+                    {item.status === "pending" && role !== "lanh_dao" && (
+                      <Button variant="secondary" onClick={() => void updateAction(item.id, "in_progress")}>
+                        Nhận việc
+                      </Button>
+                    )}
+                    {item.status === "in_progress" && role !== "lanh_dao" && (
+                      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end">
+                        <label className="flex-1 text-sm font-semibold text-slate-700">
+                          Kết quả hoàn thành
+                          <input
+                            className="mt-1 w-full"
+                            maxLength={2000}
+                            value={actionOutcomes[item.id] || ""}
+                            onChange={(event) =>
+                              setActionOutcomes((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Nêu kết quả và căn cứ kiểm tra…"
+                          />
+                        </label>
+                        <Button disabled={!actionOutcomes[item.id]?.trim()} onClick={() => void updateAction(item.id, "completed")}>
+                          <CheckCircle2 />
+                          Hoàn tất
+                        </Button>
+                      </div>
+                    )}
+                  </ActionCard>
+                );
+              })}
+            </>
+          )}
+        </div>
+      </SectionCard>
+
+      {internal && (
+        <SectionCard className="p-5 md:p-6">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+                <BrainCircuit className="h-5 w-5 text-indigo-700" />
+                Nội dung điều hành gợi ý — chờ phê duyệt
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">Không sử dụng thông tin cá nhân hoặc CT14; nội dung gợi ý không tự giao việc, phê duyệt hay công bố.</p>
+            </div>
+            {admin && (
+              <Button onClick={() => void createDraft()} disabled={!periodId}>
+                <Sparkles />
+                Tạo nội dung gợi ý
+              </Button>
+            )}
+          </div>
+          <div className="mt-5 space-y-3">
+            {available.drafts === false ? (
+              <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
+            ) : (
+              <>
+                {!drafts.length && <EmptyState title="Chưa có nội dung gợi ý" description="Quản trị xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
+                {drafts.slice(0, 5).map((draft) => (
+                  <article key={draft.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <StatusBadge status={draft.status} />
+                      <span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>
+                      {admin && draft.status === "pending_review" && (
+                        <div className="ml-auto flex gap-2">
+                          <Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button>
+                          <Button variant="secondary" onClick={() => void reviewDraft(draft.id, "rejected")}>
+                            Từ chối
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
+      <SectionCard className="overflow-hidden">
+        <div className="border-b border-slate-200 p-5 md:p-6">
+          <h2 className="text-lg font-bold text-slate-900">Chất lượng dữ liệu theo báo cáo</h2>
+          <p className="mt-1 text-sm text-slate-600">Mỗi dòng có nguồn nhập, phiên bản và số cảnh báo cần người có trách nhiệm xem lại.</p>
+        </div>
+        <div className="overflow-x-auto">
+          {available.quality === false ? (
+            <div className="p-5">
+              <ErrorState title="Chưa tải được chất lượng dữ liệu" description="Không hiển thị số 0 thay cho dữ liệu chưa tải được." onRetry={() => void refresh()} />
+            </div>
+          ) : (
+            <>
+              <table className="min-w-[760px]">
+                <thead>
+                  <tr>
+                    <th>Thôn</th>
+                    <th>Điểm</th>
+                    <th>Trạng thái</th>
+                    <th>Cần xem</th>
+                    <th>Nguồn và phiên bản</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(quality?.reports ?? []).map((item) => (
+                    <tr key={item.report_id}>
+                      <td className="font-semibold">{item.village_name}</td>
+                      <td>{item.quality_score}%</td>
+                      <td>
+                        <StatusBadge status={item.quality_status} />
+                      </td>
+                      <td>
+                        {item.unresolved_flag_count} lỗi · {item.outlier_count} bất thường
+                      </td>
+                      <td>
+                        {reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"} · phiên bản {item.lineage.report_version}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!quality?.reports?.length && <EmptyState title="Chưa có báo cáo để đánh giá" description="Dữ liệu chất lượng sẽ xuất hiện sau khi kỳ báo cáo có bản ghi trong phạm vi quyền." />}
+            </>
+          )}
+        </div>
+      </SectionCard>
+
+      {admin && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {maturityEnabled && <MetricCard label="Đánh giá trưởng thành số — thử nghiệm" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} />}
+          <MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} />
+        </div>
+      )}
+    </div>
+  );
 }

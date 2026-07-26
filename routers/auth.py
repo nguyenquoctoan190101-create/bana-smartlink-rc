@@ -8,7 +8,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from services.passwords import generate_temporary_password
 from services.rate_limit import limiter
@@ -135,7 +135,15 @@ class AuditLogResponse(BaseModel):
 
 class ProposalActionRequest(BaseModel):
     action: Literal["approve", "reject"]
-    notes: str | None = Field(default=None, max_length=1000)
+    notes: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("notes")
+    @classmethod
+    def normalize_review_notes(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("Review notes must explain the decision")
+        return normalized
 
 
 def get_settings() -> Settings:

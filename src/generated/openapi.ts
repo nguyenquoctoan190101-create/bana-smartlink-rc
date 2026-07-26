@@ -2426,7 +2426,7 @@ export interface components {
              */
             action: "approve" | "reject";
             /** Notes */
-            notes?: string | null;
+            notes: string;
         };
         /** ProposalResponse */
         ProposalResponse: {

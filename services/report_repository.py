@@ -199,8 +199,17 @@ class ReportRepository:
         )
 
     async def submission_statuses(self, period_id: str) -> list[VillageSubmissionStatus]:
-        """Return dashboard status for all current villages, using merge aliases."""
+        """Return status only for villages assigned to the selected period."""
         encoded_period_id = quote(period_id, safe="")
+        assignments = await self._supabase._rest_request(
+            "GET",
+            (
+                "/rest/v1/report_period_villages"
+                f"?period_id=eq.{encoded_period_id}"
+                "&select=village_id"
+            ),
+        )
+        assigned_village_ids = {str(row["village_id"]) for row in assignments}
         villages = await self._supabase._rest_request(
             "GET",
             "/rest/v1/villages?select=id,name&order=name.asc",
@@ -237,6 +246,8 @@ class ReportRepository:
         statuses: list[VillageSubmissionStatus] = []
         for village in villages:
             village_id = str(village["id"])
+            if village_id not in assigned_village_ids:
+                continue
             report = reports_by_village.get(village_id)
             status_value = str(report["timeliness_status"]) if report is not None else "not_submitted"
             status = _safe_report_status(status_value)

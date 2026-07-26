@@ -80,6 +80,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260726_0023_release_blocker_hardening.sql",
         "20260726_0024_case_village_scope_hardening.sql",
         "20260726_0025_report_mutation_integrity.sql",
+        "20260726_0026_business_workflow_integrity.sql",
     ]
 
 

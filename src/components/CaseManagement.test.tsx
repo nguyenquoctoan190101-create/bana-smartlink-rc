@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import CaseManagement from "./CaseManagement";
+import CaseManagement, { allowedNextCaseStatuses } from "./CaseManagement";
 
 const mocks = vi.hoisted(() => ({ apiJson: vi.fn() }));
 
@@ -48,6 +48,17 @@ describe("CaseManagement", () => {
       }
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
+  });
+
+  it("offers only transitions allowed by role and current workflow state", () => {
+    expect(allowedNextCaseStatuses("received", "admin_xa")).toEqual([
+      "verifying",
+      "out_of_scope",
+      "rejected",
+    ]);
+    expect(allowedNextCaseStatuses("assigned", "to_cnscd")).toEqual(["in_progress"]);
+    expect(allowedNextCaseStatuses("received", "to_cnscd")).toEqual([]);
+    expect(allowedNextCaseStatuses("completed", "admin_xa")).toEqual([]);
   });
 
   it("shows demo SLA disclosure, queue data and routing catalogue", async () => {

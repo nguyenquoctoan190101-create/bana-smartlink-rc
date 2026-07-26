@@ -40,7 +40,7 @@ class CnscdImpactService:
     async def calculate(self, period_id: str) -> CnscdImpact:
         """Compare actual CNSCD-assisted submissions with self-declared CT13."""
         period = await self._fetch_period(period_id)
-        villages = await self._fetch_villages()
+        villages = await self._fetch_villages(period_id)
         reports = await self._fetch_reports(period_id)
         values_by_report = await self._fetch_ct13_values([str(report["id"]) for report in reports])
 
@@ -115,11 +115,22 @@ class CnscdImpactService:
 
         return rows[0]
 
-    async def _fetch_villages(self) -> list[dict[str, Any]]:
-        return await self._supabase._rest_request(
+    async def _fetch_villages(self, period_id: str) -> list[dict[str, Any]]:
+        encoded_period_id = quote(period_id, safe="")
+        assignments = await self._supabase._rest_request(
             "GET",
-            "/rest/v1/villages?select=id,name&order=name.asc",
+            (
+                "/rest/v1/report_period_villages"
+                f"?period_id=eq.{encoded_period_id}"
+                "&select=village_id,villages(id,name)"
+            ),
         )
+        villages: list[dict[str, Any]] = []
+        for row in assignments:
+            village = row.get("villages")
+            if isinstance(village, dict) and village.get("id") is not None:
+                villages.append(village)
+        return sorted(villages, key=lambda item: str(item.get("name", "")))
 
     async def _fetch_reports(self, period_id: str) -> list[dict[str, Any]]:
         encoded_period_id = quote(period_id, safe="")
@@ -128,6 +139,7 @@ class CnscdImpactService:
             (
                 "/rest/v1/reports"
                 f"?period_id=eq.{encoded_period_id}"
+                "&timeliness_status=in.(on_time,late)"
                 "&select=id,village_id,assisted_by_cnscd"
             ),
         )

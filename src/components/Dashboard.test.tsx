@@ -4,6 +4,7 @@ import type { ReportData, ReportPeriod } from "../types";
 import Dashboard, {
   buildDashboardPeriodOptions,
   filterDashboardReportsByPeriod,
+  reportsForDecisionMetrics,
   splitDashboardReports,
 } from "./Dashboard";
 
@@ -65,6 +66,15 @@ describe("Dashboard device drafts", () => {
     expect(result.localDrafts).toEqual([localDraft]);
     expect(result.serverReports).toEqual([serverReport]);
     expect(result.serverReports[0].CT01).toBe(318);
+  });
+
+  it("uses only approved or locked reports for leadership metrics", () => {
+    const approved = report({ id: "approved", workflow_status: "approved" });
+    const locked = report({ id: "locked", workflow_status: "locked" });
+    const submitted = report({ id: "submitted", workflow_status: "submitted" });
+    const draft = report({ id: "draft", workflow_status: "draft" });
+
+    expect(reportsForDecisionMetrics([draft, submitted, approved, locked])).toEqual([approved, locked]);
   });
 
   it("keeps duplicate period names separate by UUID", () => {
@@ -208,7 +218,7 @@ describe("Dashboard device drafts", () => {
     expect(screen.queryByText("Xuất PDF")).not.toBeInTheDocument();
   });
 
-  it("shows three message-led charts for commune analysis", () => {
+  it("shows five message-led decision views instead of repeated bars", () => {
     render(
       <Dashboard
         reports={[report()]}
@@ -219,9 +229,11 @@ describe("Dashboard device drafts", () => {
       />,
     );
 
-    expect(screen.getByText("Ba góc nhìn giúp xác định nơi cần ưu tiên")).toBeInTheDocument();
-    expect(screen.getByText(/mức tham gia BHYT/)).toBeInTheDocument();
-    expect(screen.getByText(/hộ nghèo và cận nghèo nhất/)).toBeInTheDocument();
-    expect(screen.getByText(/người được hướng dẫn nhất/)).toBeInTheDocument();
+    expect(screen.getByText("Năm góc nhìn để xác định ưu tiên và phân bổ nguồn lực")).toBeInTheDocument();
+    expect(screen.getByText(/Bản đồ ưu tiên/i)).toBeInTheDocument();
+    expect(screen.getByText(/thôn đầu chiếm khoảng/i)).toBeInTheDocument();
+    expect(screen.getByText(/mức tham gia BHYT 95%/i)).toBeInTheDocument();
+    expect(screen.getByText(/cường độ hướng dẫn cao nhất/i)).toBeInTheDocument();
+    expect(screen.getByText(/trẻ em hoàn cảnh đặc biệt cao nhất/i)).toBeInTheDocument();
   });
 });

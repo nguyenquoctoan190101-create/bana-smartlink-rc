@@ -2644,20 +2644,15 @@
             "type": "string"
           },
           "notes": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Notes",
+            "type": "string"
           }
         },
         "required": [
-          "action"
+          "action",
+          "notes"
         ],
         "title": "ProposalActionRequest",
         "type": "object"

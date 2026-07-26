@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from main import create_app
-from routers.auth import require_admin_xa
+from routers.auth import require_admin_xa, require_authenticated_user
 from routers.reports import get_report_repository
 from services.supabase_admin import UserProfile
 
@@ -84,3 +84,25 @@ def test_template_upload_rejects_non_xlsx_before_storage() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+
+def test_period_list_includes_the_explicit_village_scope() -> None:
+    supabase = SimpleNamespace()
+    supabase._rest_request = AsyncMock(return_value=[{
+        "id": "period-1",
+        "name": "Tháng 7/2026",
+        "due_date": "2026-07-31T17:00:00+07:00",
+        "report_period_villages": [{"village_id": "village-1"}, {"village_id": "village-2"}],
+    }])
+    app = create_app()
+    app.dependency_overrides[require_authenticated_user] = _admin
+    app.dependency_overrides[get_report_repository] = lambda: SimpleNamespace(_supabase=supabase)
+    try:
+        client = TestClient(app)
+        response = client.get("/report-periods")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200, response.text
+    assert response.json()[0]["village_ids"] == ["village-1", "village-2"]
+    assert "report_period_villages(village_id)" in supabase._rest_request.await_args.args[1]

@@ -245,9 +245,9 @@ def test_action_proposal(mock_exec, client, mock_get_user_profile):
     
     mock_exec.return_value = {"id": "1", "status": "approved", "report_id": "r1", "ct_code": "CT01"}
     
-    res = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve"}, headers={"Authorization": f"Bearer {token}"})
+    res = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve", "notes": "Đã đối chiếu sổ nguồn"}, headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200
-    mock_exec.assert_called_once_with(proposal_id, "approve", UUID(sub), None)
+    mock_exec.assert_called_once_with(proposal_id, "approve", UUID(sub), "Đã đối chiếu sổ nguồn")
 
 @patch("routers.auth.execute_proposal_action", new_callable=AsyncMock)
 def test_duplicate_proposal_approval_returns_409(mock_exec, client, mock_get_user_profile):
@@ -258,12 +258,12 @@ def test_duplicate_proposal_approval_returns_409(mock_exec, client, mock_get_use
     
     # First call succeeds
     mock_exec.return_value = {"id": "1", "status": "approved", "report_id": "r1", "ct_code": "CT01"}
-    res1 = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve"}, headers={"Authorization": f"Bearer {token}"})
+    res1 = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve", "notes": "Đã đối chiếu sổ nguồn"}, headers={"Authorization": f"Bearer {token}"})
     assert res1.status_code == 200
     
     # Second call raises ValueError indicating it's not pending anymore
     mock_exec.side_effect = ValueError("Proposal is not pending")
-    res2 = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve"}, headers={"Authorization": f"Bearer {token}"})
+    res2 = client.post(f"/auth/proposals/{proposal_id}/action", json={"action": "approve", "notes": "Đã đối chiếu sổ nguồn"}, headers={"Authorization": f"Bearer {token}"})
     
     assert res2.status_code == 409
     assert res2.json()["message"] == "Đề xuất này đã được xử lý trước đó."
