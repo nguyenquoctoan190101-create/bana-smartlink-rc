@@ -31,7 +31,7 @@ services:
         value: "true"
       # Keep OCR independent from future chatbot model changes.
       - key: GEMINI_OCR_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash-lite
       - key: FEATURE_IOT_PILOT
         value: "false"
       - key: FEATURE_TOURISM_PILOT

@@ -59,7 +59,7 @@ _OCR_USER_PROMPT = (
 _OCR_MAX_TOKENS = 4096
 _OCR_TEMPERATURE = 0.0
 _OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
-_OCR_FALLBACK_MODEL = "gemini-2.5-flash-lite"
+_OCR_FALLBACK_MODEL = "gemini-3.6-flash"
 
 _MIME_BY_MAGIC: dict[bytes, str] = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -754,7 +754,7 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
         raise OcrError("Gemini OCR is not configured")
     mime = _detect_mime(cropped_bytes)
     b64_data = base64.b64encode(cropped_bytes).decode("ascii")
-    primary_model = settings.gemini_ocr_model.strip() or "gemini-2.5-flash"
+    primary_model = settings.gemini_ocr_model.strip() or "gemini-3.5-flash-lite"
     models = [primary_model]
     if primary_model != _OCR_FALLBACK_MODEL:
         models.append(_OCR_FALLBACK_MODEL)
@@ -789,17 +789,22 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
     last_error: OcrError | None = None
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt, model in enumerate(models):
+            generation_config: dict[str, Any] = {
+                **base_payload["generationConfig"],
+                "thinkingConfig": (
+                    {"thinkingLevel": "minimal"}
+                    if model.lower().startswith("gemini-3")
+                    else {"thinkingBudget": 0}
+                ),
+            }
+            # Gemini 3.5+ rejects legacy sampling parameters. OCR remains
+            # deterministic through a strict prompt and structured MIME.
+            if model.lower().startswith(("gemini-3.5", "gemini-3.6")):
+                generation_config.pop("temperature", None)
+
             payload = {
                 **base_payload,
-                "generationConfig": {
-                    **base_payload["generationConfig"],
-                    # OCR is bounded transcription, not a reasoning task.
-                    "thinkingConfig": (
-                        {"thinkingLevel": "minimal"}
-                        if model.lower().startswith("gemini-3")
-                        else {"thinkingBudget": 0}
-                    ),
-                },
+                "generationConfig": generation_config,
             }
             url = f"{base_url}/v1beta/models/{model}:generateContent"
             try:

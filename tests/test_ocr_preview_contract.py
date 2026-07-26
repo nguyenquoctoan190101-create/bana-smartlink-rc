@@ -345,7 +345,7 @@ async def test_gemini_ocr_uses_one_stable_fallback_after_provider_failure(
         "/v1beta/models/gemini-3.1-flash-lite:generateContent"
     )
     assert fake.post.await_args_list[1].args[0].endswith(
-        "/v1beta/models/gemini-2.5-flash-lite:generateContent"
+        "/v1beta/models/gemini-3.6-flash:generateContent"
     )
 
 

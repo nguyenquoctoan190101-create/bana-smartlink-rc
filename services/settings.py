@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     # Keep document OCR on a stable vision-capable model even when the
     # conversational assistant is upgraded independently.
-    gemini_ocr_model: str = "gemini-2.5-flash"
+    gemini_ocr_model: str = "gemini-3.5-flash-lite"
     supabase_url: str = ""
     supabase_publishable_key: str = Field(
         default="",
