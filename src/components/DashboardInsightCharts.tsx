@@ -184,7 +184,7 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
               <p className="mb-2 text-2xs font-semibold text-slate-500 sm:hidden">
                 Vuốt ngang để xem đủ bốn nội dung.
               </p>
-              <table className="w-full min-w-[38rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
+              <table className="w-full min-w-[35rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
                 <thead>
                   <tr className="text-left text-slate-500">
                     <th className="w-28 pb-2 font-semibold">Thôn</th>
