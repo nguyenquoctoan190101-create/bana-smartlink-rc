@@ -28,6 +28,7 @@ def _client() -> tuple[TestClient, object]:
         _env_file=None,
         app_env="test",
         feature_external_ocr=True,
+        gemini_api_key="unit-test-provider-key",
     )
     return TestClient(app), app
 
@@ -70,6 +71,7 @@ def test_import_capabilities_are_backend_confirmed() -> None:
         "excel_preview_enabled": True,
         "ocr_preview_enabled": False,
         "accepted_ocr_types": [],
+        "ocr_setup_status": "disabled",
     }
 
     enabled_client, enabled_app = _client()
@@ -83,6 +85,32 @@ def test_import_capabilities_are_backend_confirmed() -> None:
         "excel_preview_enabled": True,
         "ocr_preview_enabled": True,
         "accepted_ocr_types": [".jpg", ".jpeg", ".png", ".pdf"],
+        "ocr_setup_status": "ready",
+    }
+
+    provider_missing_app = create_app()
+    provider_missing_app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
+        id=str(uuid4()),
+        role="can_bo_thon",
+        village_id=str(uuid4()),
+        force_password_reset=False,
+    )
+    provider_missing_app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None,
+        app_env="test",
+        feature_external_ocr=True,
+    )
+    try:
+        provider_missing = TestClient(provider_missing_app).get("/reports/capabilities")
+    finally:
+        provider_missing_app.dependency_overrides.clear()
+
+    assert provider_missing.status_code == 200
+    assert provider_missing.json() == {
+        "excel_preview_enabled": True,
+        "ocr_preview_enabled": False,
+        "accepted_ocr_types": [],
+        "ocr_setup_status": "provider_not_configured",
     }
 
 
@@ -135,6 +163,38 @@ def _ambiguous_two_table_scan() -> bytes:
         drawing.line((20, y, 380, y), fill="black", width=4)
     drawing.text((30, 520), "CT01", fill="black")
 
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _handwritten_style_scan() -> bytes:
+    """Create a skewed 14-row form without copying any citizen information."""
+    image = Image.new("RGB", (800, 1300), "white")
+    drawing = ImageDraw.Draw(image)
+    drawing.text((80, 60), "PHIEU BAO CAO VIET TAY", fill="black")
+    drawing.rectangle((80, 180, 600, 245), fill=(220, 0, 0))
+    drawing.text((100, 200), "VUNG THONG TIN CA NHAN", fill="white")
+
+    left, top, right, bottom = 30, 390, 770, 1240
+    row_height = (bottom - top) // 15
+    columns = (left, 150, 500, 625, right)
+    for x in columns:
+        drawing.line((x, top + 4, x - 5, bottom), fill="black", width=4)
+    for index in range(16):
+        y = top + index * row_height
+        drawing.line((left, y, right, y + (index % 3) - 1), fill="black", width=4)
+        if index:
+            code = f"CT{index:02d}"
+            drawing.text((55, y - row_height + 18), code, fill="black")
+            drawing.text((655, y - row_height + 18), str(index * 17), fill="black")
+
+    image = image.rotate(
+        -1.2,
+        Image.Resampling.BICUBIC,
+        expand=False,
+        fillcolor="white",
+    )
     output = BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
@@ -298,6 +358,20 @@ def test_privacy_crop_excludes_pii_below_old_fixed_header_boundary() -> None:
         )
         assert red_pixels == 0
         assert image.height < 300
+
+
+def test_privacy_crop_keeps_full_skewed_handwritten_table() -> None:
+    cropped = ocr_report.extract_table_region(_handwritten_style_scan())
+
+    with Image.open(BytesIO(cropped)) as image:
+        red_pixels = sum(
+            1
+            for red, green, blue in image.convert("RGB").get_flattened_data()
+            if red > 180 and green < 40 and blue < 40
+        )
+        assert red_pixels == 0
+        assert image.width >= 700
+        assert image.height >= 760
 
 
 def test_ocr_preview_rejects_unbounded_scan_before_external_call(monkeypatch) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import math
@@ -29,9 +30,12 @@ _TABLE_MIN_HORIZONTAL_LINES = 4
 _TABLE_MIN_VERTICAL_COVERAGE = 0.42
 _TABLE_ANALYSIS_MAX_WIDTH = 1200
 _TABLE_ANALYSIS_MAX_HEIGHT = 1800
+_TABLE_DESKEW_ANGLES = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
 
 _OCR_SYSTEM_PROMPT = (
-    "Ban la he thong OCR chinh xac cho phieu bao cao hanh chinh Viet Nam. "
+    "Ban la he thong OCR cho phieu bao cao hanh chinh Viet Nam, bao gom ca chu va so viet tay. "
+    "Anh chi chua bang du lieu da cat bo thong tin nhan dang. "
+    "Doi chieu tung ma CT01 den CT14 voi dung o trong cot So lieu; bo qua cot Don vi va Ghi chu. "
     "Doc bang so lieu trong anh va tra ve JSON thuan tuy, "
     "khong them bat ky giai thich nao. "
     "Chi duoc tra ve so nguyen hoac null cho moi o. "
@@ -40,7 +44,8 @@ _OCR_SYSTEM_PROMPT = (
 )
 
 _OCR_USER_PROMPT = (
-    "Doc bang so lieu trong anh, tra ve JSON cho CT01 den CT14. "
+    "Doc bang so lieu in hoac viet tay trong anh, tra ve JSON cho CT01 den CT14. "
+    "Chi lay chu so trong cot So lieu cung hang voi ma CT; khong lay so trong ten chi tieu. "
     "Moi chi tieu co dang "
     '{"raw_value": <chuoi nhin thay hoac null>, '
     '"normalized_value": <so nguyen hoac null>, '
@@ -164,6 +169,174 @@ def _cluster_nearby(values: list[int], *, distance: int) -> list[list[int]]:
     return clusters
 
 
+def _horizontal_alignment_score(image: Any) -> float:
+    """Score long dark rules so phone photos can be deskewed without OCR."""
+    from PIL import ImageOps  # type: ignore[import]
+
+    grayscale = ImageOps.autocontrast(image.convert("L"))
+    width, height = grayscale.size
+    pixels = grayscale.load()
+    scores: list[float] = []
+    for y in range(max(0, int(height * 0.28)), height):
+        left, right, dark_count = _longest_dark_run(
+            pixels,
+            y=y,
+            width=width,
+            threshold=190,
+            max_gap=max(3, width // 250),
+        )
+        span = right - left + 1
+        if span >= width * _TABLE_MIN_WIDTH_RATIO and dark_count / span >= 0.42:
+            scores.append(span * (dark_count / span) ** 2)
+    return sum(sorted(scores, reverse=True)[:24])
+
+
+def _deskew_table_image(image: Any) -> tuple[Any, float]:
+    """Rotate a bounded analysis raster to align hand-drawn horizontal rules."""
+    from PIL import Image  # type: ignore[import]
+
+    candidates: list[tuple[float, float, Any]] = []
+    for angle in _TABLE_DESKEW_ANGLES:
+        rotated = image if angle == 0 else image.rotate(
+            angle,
+            Image.Resampling.BICUBIC,
+            expand=False,
+            fillcolor="white",
+        )
+        # Prefer the smaller correction when two scores are effectively equal.
+        candidates.append((_horizontal_alignment_score(rotated), -abs(angle), rotated))
+    _, _, best = max(candidates, key=lambda item: (item[0], item[1]))
+    best_index = next(index for index, item in enumerate(candidates) if item[2] is best)
+    return best, _TABLE_DESKEW_ANGLES[best_index]
+
+
+def _detect_vertical_grid_candidates(image: Any) -> list[tuple[int, int, int, int]]:
+    """Find complete table regions from three or more sustained vertical rules."""
+    from PIL import ImageChops, ImageFilter, ImageOps  # type: ignore[import]
+
+    grayscale = image.convert("L")
+    background = grayscale.filter(ImageFilter.GaussianBlur(radius=8))
+    local_contrast = ImageChops.subtract(background, grayscale)
+    edges = ImageOps.invert(ImageOps.autocontrast(local_contrast, cutoff=1))
+    width, height = edges.size
+    pixels = edges.load()
+    band = max(3, width // 300)
+    row_gap = max(6, height // 250)
+    minimum_span = int(height * 0.28)
+    segments: list[tuple[int, int, int, float]] = []
+
+    for x in range(width):
+        dark_rows = [
+            y
+            for y in range(int(height * 0.22), height)
+            if any(
+                pixels[candidate_x, y] < 220
+                for candidate_x in range(max(0, x - band), min(width, x + band + 1))
+            )
+        ]
+        for cluster in _cluster_nearby(dark_rows, distance=row_gap):
+            top, bottom = cluster[0], cluster[-1]
+            span = bottom - top + 1
+            density = len(cluster) / span
+            # Ignore page-edge strokes that begin at the image boundary, but
+            # retain upper identity tables so a document with two independent
+            # grids is rejected before any bytes leave the application.
+            if span >= minimum_span and density >= 0.42 and top >= height * 0.04:
+                segments.append((x, top, bottom, density))
+
+    x_clusters: list[list[tuple[int, int, int, float]]] = []
+    x_gap = max(6, width // 100)
+    y_tolerance = max(8, height // 40)
+    for segment in segments:
+        matched = False
+        for cluster in reversed(x_clusters):
+            prior = cluster[-1]
+            if segment[0] - prior[0] > x_gap:
+                continue
+            if (
+                abs(segment[1] - prior[1]) <= y_tolerance
+                and abs(segment[2] - prior[2]) <= y_tolerance
+            ):
+                cluster.append(segment)
+                matched = True
+                break
+        if not matched:
+            x_clusters.append([segment])
+    rules = [
+        max(cluster, key=lambda item: (item[2] - item[1], item[3]))
+        for cluster in x_clusters
+    ]
+
+    regions: list[list[tuple[int, int, int, float]]] = []
+    for rule in rules:
+        for region in regions:
+            median_top = sorted(item[1] for item in region)[len(region) // 2]
+            median_bottom = sorted(item[2] for item in region)[len(region) // 2]
+            if (
+                abs(rule[1] - median_top) <= height * 0.10
+                and abs(rule[2] - median_bottom) <= height * 0.16
+            ):
+                region.append(rule)
+                break
+        else:
+            regions.append([rule])
+
+    candidates: list[tuple[int, int, int, int]] = []
+    for region in regions:
+        if len(region) < 3:
+            continue
+        xs = sorted(item[0] for item in region)
+        tops = sorted(item[1] for item in region)
+        left = xs[0]
+        right = xs[-1]
+        if left < width * 0.20:
+            left = 0
+        if right > width * 0.80:
+            right = width - 1
+        top = tops[len(tops) // 2]
+        bottom = max(item[2] for item in region)
+        if right - left < width * _TABLE_MIN_WIDTH_RATIO:
+            continue
+        candidates.append((left, top, right, bottom))
+
+    # Thick or hand-drawn vertical rules can be detected as several nested
+    # fragments of the same table. Merge only candidates that overlap on both
+    # axes; independent identity/data tables remain separate and are rejected.
+    merged: list[tuple[int, int, int, int]] = []
+    for candidate in sorted(candidates, key=lambda item: (item[1], item[0])):
+        for index, existing in enumerate(merged):
+            overlap_x = max(
+                0,
+                min(candidate[2], existing[2]) - max(candidate[0], existing[0]),
+            )
+            overlap_y = max(
+                0,
+                min(candidate[3], existing[3]) - max(candidate[1], existing[1]),
+            )
+            smaller_width = max(
+                1,
+                min(candidate[2] - candidate[0], existing[2] - existing[0]),
+            )
+            smaller_height = max(
+                1,
+                min(candidate[3] - candidate[1], existing[3] - existing[1]),
+            )
+            if (
+                overlap_x / smaller_width >= 0.80
+                and overlap_y / smaller_height >= 0.80
+            ):
+                merged[index] = (
+                    min(candidate[0], existing[0]),
+                    min(candidate[1], existing[1]),
+                    max(candidate[2], existing[2]),
+                    max(candidate[3], existing[3]),
+                )
+                break
+        else:
+            merged.append(candidate)
+    return merged
+
+
 def _detect_table_bounds(image: Any) -> tuple[int, int, int, int]:
     """Locate a bordered data table and return bounds in analysis coordinates."""
     from PIL import ImageOps  # type: ignore[import]
@@ -174,8 +347,8 @@ def _detect_table_bounds(image: Any) -> tuple[int, int, int, int]:
         raise OcrInputError("Không thể xác định vùng bảng dữ liệu an toàn")
 
     pixels = grayscale.load()
-    threshold = 175
-    max_gap = max(2, width // 400)
+    threshold = 190
+    max_gap = max(3, width // 250)
     minimum_span = int(width * _TABLE_MIN_WIDTH_RATIO)
     row_runs: dict[int, tuple[int, int, int]] = {}
     for y in range(height):
@@ -187,7 +360,7 @@ def _detect_table_bounds(image: Any) -> tuple[int, int, int, int]:
             max_gap=max_gap,
         )
         span = run[1] - run[0] + 1
-        if span >= minimum_span and run[2] / span >= 0.55:
+        if span >= minimum_span and run[2] / span >= 0.42:
             row_runs[y] = run
 
     row_clusters = _cluster_nearby(
@@ -287,6 +460,42 @@ def _detect_table_bounds(image: Any) -> tuple[int, int, int, int]:
             ):
                 candidates.append(candidate)
 
+    # Hand-drawn tables often have complete horizontal rules but broken or
+    # slightly curved outer borders. A second, still fail-closed detector uses
+    # one continuous sequence of at least four long rules. Multiple sequences
+    # are rejected because an upper identity table must never be merged with or
+    # mistaken for the CT data table.
+    if not candidates:
+        line_gap = max(20, int(height * 0.07))
+        sequences: list[list[tuple[int, int, int]]] = []
+        for line in sorted(horizontal_lines):
+            if not sequences or line[0] - sequences[-1][-1][0] > line_gap:
+                sequences.append([line])
+            else:
+                sequences[-1].append(line)
+        fallback_candidates: list[tuple[int, int, int, int]] = []
+        for sequence in sequences:
+            if len(sequence) < _TABLE_MIN_HORIZONTAL_LINES:
+                continue
+            top = sequence[0][0]
+            bottom = sequence[-1][0]
+            if bottom - top < height * _TABLE_MIN_HEIGHT_RATIO:
+                continue
+            lefts = sorted(line[1] for line in sequence)
+            rights = sorted(line[2] for line in sequence)
+            left = lefts[len(lefts) // 2]
+            right = rights[len(rights) // 2]
+            if right - left < minimum_span:
+                continue
+            fallback_candidates.append((left, top, right, bottom))
+        candidates = fallback_candidates
+
+    vertical_grid_candidates = _detect_vertical_grid_candidates(image)
+    if vertical_grid_candidates:
+        # Vertical rules preserve the full table height on curved hand-drawn
+        # forms where only the last few horizontal rules are perfectly aligned.
+        candidates = vertical_grid_candidates
+
     if len(candidates) != 1:
         reason = (
             "Phát hiện nhiều bảng có thể chứa thông tin cá nhân"
@@ -328,7 +537,14 @@ def extract_table_region(image_bytes: bytes) -> bytes:
                 (_TABLE_ANALYSIS_MAX_WIDTH, _TABLE_ANALYSIS_MAX_HEIGHT),
                 Image.Resampling.LANCZOS,
             )
+            analysis, deskew_angle = _deskew_table_image(analysis)
             left, top, right, bottom = _detect_table_bounds(analysis)
+            working = img if deskew_angle == 0 else img.rotate(
+                deskew_angle,
+                Image.Resampling.BICUBIC,
+                expand=False,
+                fillcolor="white",
+            )
             scale_x = width / analysis.width
             scale_y = height / analysis.height
             crop_box = (
@@ -339,7 +555,7 @@ def extract_table_region(image_bytes: bytes) -> bytes:
             )
             if crop_box[2] <= crop_box[0] or crop_box[3] <= crop_box[1]:
                 raise OcrInputError("Không thể tách vùng dữ liệu an toàn từ ảnh")
-            cropped = img.crop(crop_box)
+            cropped = working.crop(crop_box)
             buf = BytesIO()
             fmt = "JPEG" if _detect_mime(image_bytes) == "image/jpeg" else "PNG"
             if fmt == "JPEG" and cropped.mode not in {"RGB", "L"}:
@@ -719,7 +935,10 @@ async def ocr_report_document_async(document_bytes: bytes) -> OcrPreview:
     router) MUST return OcrPreview to the frontend and wait for the can bo
     to review, correct, and explicitly confirm before calling the save route.
     """
-    cropped_pages = prepare_ocr_pages(document_bytes)
+    # PDF parsing, raster sanitization and hand-drawn grid detection are
+    # CPU-bound. Keep them off the ASGI event loop so one large phone photo
+    # cannot stall unrelated API requests.
+    cropped_pages = await asyncio.to_thread(prepare_ocr_pages, document_bytes)
     known_codes = _load_indicator_codes()
     raw_values: dict[str, int | float | str | None] = {
         code: None for code in known_codes

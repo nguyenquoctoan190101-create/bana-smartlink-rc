@@ -85,18 +85,30 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   const [previewReviewToken, setPreviewReviewToken] = useState<string | null>(null);
   const [previewImportMetadata, setPreviewImportMetadata] = useState<ExtractionMetadata | null>(null);
   const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [ocrSetupStatus, setOcrSetupStatus] = useState<
+    "ready" | "disabled" | "provider_not_configured"
+  >("disabled");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
   useEffect(() => {
     let active = true;
-    void apiJson<{ ocr_preview_enabled?: boolean }>("/reports/capabilities")
+    void apiJson<{
+      ocr_preview_enabled?: boolean;
+      ocr_setup_status?: "ready" | "disabled" | "provider_not_configured";
+    }>("/reports/capabilities")
       .then((capabilities) => {
-        if (active) setOcrEnabled(capabilities.ocr_preview_enabled === true);
+        if (active) {
+          setOcrEnabled(capabilities.ocr_preview_enabled === true);
+          setOcrSetupStatus(capabilities.ocr_setup_status ?? "disabled");
+        }
       })
       .catch(() => {
-        if (active) setOcrEnabled(false);
+        if (active) {
+          setOcrEnabled(false);
+          setOcrSetupStatus("disabled");
+        }
       });
     return () => {
       active = false;
@@ -188,7 +200,11 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       return;
     }
     if (isOcrDocument && !ocrEnabled) {
-      setError("Chỉ nhận biểu mẫu Excel (.xlsx). Nhận dạng ảnh/PDF đang khóa để bảo vệ dữ liệu cá nhân.");
+      setError(
+        ocrSetupStatus === "provider_not_configured"
+          ? "Nhận dạng ảnh/PDF đang chờ quản trị cấu hình dịch vụ trên máy chủ. Hiện tại vui lòng dùng Excel hoặc nhập trực tiếp."
+          : "Chỉ nhận biểu mẫu Excel (.xlsx). Nhận dạng ảnh/PDF hiện chưa được bật.",
+      );
       clearSelectedFile(true);
       return;
     }
@@ -510,7 +526,9 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
           <p className="text-xs text-slate-500 leading-relaxed">
             {ocrEnabled
               ? "Excel được đọc theo ô; ảnh/PDF quét được nhận dạng. Cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo."
-              : "Đọc biểu mẫu Excel; cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo."}
+              : ocrSetupStatus === "provider_not_configured"
+                ? "Đọc biểu mẫu Excel. Nhận dạng ảnh/PDF sẽ xuất hiện sau khi quản trị hoàn tất cấu hình dịch vụ trên máy chủ."
+                : "Đọc biểu mẫu Excel; cán bộ luôn rà soát và xác nhận trước khi điền vào báo cáo."}
           </p>
         </div>
         {reviewRows && (

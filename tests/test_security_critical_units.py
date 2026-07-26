@@ -458,10 +458,24 @@ def test_unknown_environment_is_rejected_instead_of_falling_back_to_development(
         settings.validate_for_startup()
 
 
-def test_external_ocr_cannot_be_enabled_in_staging_or_production() -> None:
-    settings = _production_settings(feature_external_ocr=True)
-    with pytest.raises(SettingsError, match="FEATURE_EXTERNAL_OCR"):
-        settings.validate_for_startup()
+def test_external_ocr_requires_both_feature_flag_and_provider_key() -> None:
+    provider_missing = _production_settings(feature_external_ocr=True)
+    provider_missing.validate_for_startup()
+    assert provider_missing.external_ocr_ready is False
+
+    disabled = _production_settings(
+        feature_external_ocr=False,
+        gemini_api_key="unit-test-provider-key",
+    )
+    disabled.validate_for_startup()
+    assert disabled.external_ocr_ready is False
+
+    ready = _production_settings(
+        feature_external_ocr=True,
+        gemini_api_key="unit-test-provider-key",
+    )
+    ready.validate_for_startup()
+    assert ready.external_ocr_ready is True
 
 
 def test_development_settings_and_issuer_derivation() -> None:

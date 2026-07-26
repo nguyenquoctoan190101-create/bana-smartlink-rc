@@ -67,7 +67,10 @@ describe("UploadReport", () => {
   beforeEach(() => {
     mockedApiUpload.mockReset();
     mockedApiJson.mockReset();
-    mockedApiJson.mockResolvedValue({ ocr_preview_enabled: false });
+    mockedApiJson.mockResolvedValue({
+      ocr_preview_enabled: false,
+      ocr_setup_status: "disabled",
+    });
   });
 
   it("rejects image and PDF files without calling the external OCR endpoint", () => {
@@ -81,13 +84,16 @@ describe("UploadReport", () => {
       target: { files: [new File(["%PDF-1.7"], "bao-cao.pdf", { type: "application/pdf" })] },
     });
 
-    expect(screen.getByText(/Nhận dạng ảnh\/PDF đang khóa/)).toBeInTheDocument();
+    expect(screen.getByText(/Nhận dạng ảnh\/PDF hiện chưa được bật/)).toBeInTheDocument();
     expect(mockedApiUpload).not.toHaveBeenCalled();
     expect(input).toHaveAttribute("accept", ".xlsx");
   });
 
   it("offers OCR only after the backend confirms the capability", async () => {
-    mockedApiJson.mockResolvedValue({ ocr_preview_enabled: true });
+    mockedApiJson.mockResolvedValue({
+      ocr_preview_enabled: true,
+      ocr_setup_status: "ready",
+    });
     const ocrPreview = {
       ...previewResponse(),
       filename: "bao-cao.pdf",
@@ -118,6 +124,26 @@ describe("UploadReport", () => {
       expect.any(Function),
     ));
     expect(await screen.findByText(/Kết quả trích xuất/)).toBeInTheDocument();
+  });
+
+  it("explains when OCR awaits server-side provider configuration", async () => {
+    mockedApiJson.mockResolvedValue({
+      ocr_preview_enabled: false,
+      ocr_setup_status: "provider_not_configured",
+    });
+    const { container } = render(
+      <UploadReport onDataExtracted={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    await screen.findByText(/sau khi quản trị hoàn tất cấu hình dịch vụ/);
+
+    fireEvent.change(input!, {
+      target: { files: [new File(["image"], "bao-cao.png", { type: "image/png" })] },
+    });
+
+    expect(screen.getByText(/đang chờ quản trị cấu hình dịch vụ trên máy chủ/)).toBeInTheDocument();
+    expect(mockedApiUpload).not.toHaveBeenCalled();
   });
 
   it("accepts an Excel preview with signed review evidence", async () => {

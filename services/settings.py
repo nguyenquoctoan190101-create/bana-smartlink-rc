@@ -146,6 +146,11 @@ class Settings(BaseSettings):
                 ) from exc
         return tuple(networks)
 
+    @property
+    def external_ocr_ready(self) -> bool:
+        """Expose OCR only when both the feature and provider are configured."""
+        return self.feature_external_ocr and bool(self.gemini_api_key.strip())
+
     def validate_for_startup(self) -> None:
         """Fail closed in staging/production without disclosing secret values."""
         environment = self.app_env.strip().lower()
@@ -156,11 +161,6 @@ class Settings(BaseSettings):
             _ = self.required_mfa_roles
             _ = self.internal_ip_networks
             return
-
-        if self.feature_external_ocr:
-            raise SettingsError(
-                "FEATURE_EXTERNAL_OCR must remain disabled in staging/production"
-            )
 
         _ = self.required_mfa_roles
         _ = self.internal_ip_networks

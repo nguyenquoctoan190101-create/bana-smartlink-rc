@@ -431,6 +431,7 @@ class ReportImportCapabilities(BaseModel):
     excel_preview_enabled: bool = True
     ocr_preview_enabled: bool
     accepted_ocr_types: list[str] = Field(default_factory=list)
+    ocr_setup_status: Literal["ready", "disabled", "provider_not_configured"] = "disabled"
 
 
 def _build_import_metadata(
@@ -1285,10 +1286,18 @@ async def report_import_capabilities(
 ) -> ReportImportCapabilities:
     """Return only backend-confirmed import features used to render the UI."""
 
-    ocr_enabled = bool(settings.feature_external_ocr)
+    ocr_enabled = settings.external_ocr_ready
+    ocr_status: Literal["ready", "disabled", "provider_not_configured"]
+    if ocr_enabled:
+        ocr_status = "ready"
+    elif settings.feature_external_ocr:
+        ocr_status = "provider_not_configured"
+    else:
+        ocr_status = "disabled"
     return ReportImportCapabilities(
         ocr_preview_enabled=ocr_enabled,
         accepted_ocr_types=[".jpg", ".jpeg", ".png", ".pdf"] if ocr_enabled else [],
+        ocr_setup_status=ocr_status,
     )
 
 
@@ -1300,14 +1309,14 @@ async def ocr_photo_preview(
     settings: Annotated[Settings, Depends(get_settings)],
     file: UploadFile = File(...),
 ) -> OcrPreviewResponse:
-    """Experimental OCR preview; disabled unless explicitly enabled in dev/test."""
+    """Return a non-persistent OCR preview when the server provider is ready."""
     _ = request
-    if not settings.feature_external_ocr:
+    if not settings.external_ocr_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "Nhận dạng ảnh/PDF đang khóa để bảo vệ dữ liệu cá nhân. "
-                "Vui lòng dùng biểu mẫu Excel hoặc nhập trực tiếp."
+                "Nhận dạng ảnh/PDF chưa được cấu hình đầy đủ trên máy chủ. "
+                "Vui lòng dùng biểu mẫu Excel hoặc nhập trực tiếp trong lúc chờ quản trị cấu hình."
             ),
         )
     suffix = Path(file.filename or "").suffix.lower()

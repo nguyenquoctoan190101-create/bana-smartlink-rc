@@ -25,6 +25,10 @@ services:
         value: "true"
       - key: FEATURE_VOICE
         value: "true"
+      # OCR remains non-persistent and sends only the locally detected table
+      # crop. It becomes available only when GEMINI_API_KEY is also present.
+      - key: FEATURE_EXTERNAL_OCR
+        value: "true"
       - key: FEATURE_IOT_PILOT
         value: "false"
       - key: FEATURE_TOURISM_PILOT
@@ -45,4 +49,6 @@ services:
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
       - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false

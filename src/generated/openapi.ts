@@ -1331,7 +1331,7 @@ export interface paths {
         put?: never;
         /**
          * Ocr Photo Preview
-         * @description Experimental OCR preview; disabled unless explicitly enabled in dev/test.
+         * @description Return a non-persistent OCR preview when the server provider is ready.
          */
         post: operations["ocr_photo_preview_reports_ocr_preview_post"];
         delete?: never;
@@ -2571,6 +2571,12 @@ export interface components {
             excel_preview_enabled: boolean;
             /** Ocr Preview Enabled */
             ocr_preview_enabled: boolean;
+            /**
+             * Ocr Setup Status
+             * @default disabled
+             * @enum {string}
+             */
+            ocr_setup_status: "ready" | "disabled" | "provider_not_configured";
         };
         /**
          * ReportNarrativeRequest

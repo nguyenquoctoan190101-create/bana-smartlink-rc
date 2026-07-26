@@ -2918,6 +2918,16 @@
           "ocr_preview_enabled": {
             "title": "Ocr Preview Enabled",
             "type": "boolean"
+          },
+          "ocr_setup_status": {
+            "default": "disabled",
+            "enum": [
+              "ready",
+              "disabled",
+              "provider_not_configured"
+            ],
+            "title": "Ocr Setup Status",
+            "type": "string"
           }
         },
         "required": [
@@ -9259,7 +9269,7 @@
     },
     "/reports/ocr-preview": {
       "post": {
-        "description": "Experimental OCR preview; disabled unless explicitly enabled in dev/test.",
+        "description": "Return a non-persistent OCR preview when the server provider is ready.",
         "operationId": "ocr_photo_preview_reports_ocr_preview_post",
         "parameters": [
           {
