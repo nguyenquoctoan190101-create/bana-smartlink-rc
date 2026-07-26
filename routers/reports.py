@@ -558,6 +558,58 @@ def _report_period_change_error(exc: SupabaseAdminError) -> HTTPException:
     return HTTPException(status_code=502, detail="Không xử lý được yêu cầu thay đổi kỳ báo cáo.")
 
 
+def _ocr_provider_failure_detail(exc: OcrError) -> dict[str, str]:
+    """Return an actionable, secret-free OCR provider failure."""
+    reason = str(exc).lower()
+    if "http 429" in reason:
+        return {
+            "code": "OCR_PROVIDER_QUOTA",
+            "message": (
+                "Dịch vụ nhận dạng đã hết hạn mức hoặc đang giới hạn yêu cầu. "
+                "Quản trị cần kiểm tra hạn mức Gemini API."
+            ),
+        }
+    if "http 401" in reason or "http 403" in reason:
+        return {
+            "code": "OCR_PROVIDER_AUTH",
+            "message": (
+                "Máy chủ OCR chưa được Gemini API chấp nhận khóa truy cập. "
+                "Quản trị cần kiểm tra API key và quyền Generative Language API."
+            ),
+        }
+    if "http 404" in reason:
+        return {
+            "code": "OCR_PROVIDER_MODEL",
+            "message": (
+                "Model nhận dạng đang cấu hình không khả dụng cho API key này. "
+                "Quản trị cần kiểm tra GEMINI_OCR_MODEL."
+            ),
+        }
+    if "timed out" in reason or "network error" in reason:
+        return {
+            "code": "OCR_PROVIDER_NETWORK",
+            "message": (
+                "Dịch vụ nhận dạng không phản hồi đúng thời hạn. "
+                "Vui lòng thử lại sau hoặc kiểm tra kết nối máy chủ tới Gemini."
+            ),
+        }
+    if "parse" in reason or "json" in reason:
+        return {
+            "code": "OCR_PROVIDER_RESPONSE",
+            "message": (
+                "Gemini đã phản hồi nhưng không trả kết quả nhận dạng hợp lệ. "
+                "Hệ thống không ghi dữ liệu và yêu cầu quản trị kiểm tra model OCR."
+            ),
+        }
+    return {
+        "code": "OCR_PROVIDER_FAILED",
+        "message": (
+            "Dịch vụ nhận dạng bên ngoài không xử lý được tệp. "
+            "Hệ thống không ghi dữ liệu; quản trị cần kiểm tra cấu hình OCR."
+        ),
+    }
+
+
 @period_router.get("")
 async def list_report_periods(
     repository: Annotated[ReportRepository, Depends(get_report_repository)],
@@ -1347,8 +1399,10 @@ async def ocr_photo_preview(
             extra={"ocr_failure_reason": str(exc)},
         )
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="OCR processing failed",
+            # 424 keeps this controlled diagnostic visible to the authenticated
+            # officer; generic 5xx responses are intentionally redacted.
+            status_code=status.HTTP_424_FAILED_DEPENDENCY,
+            detail=_ocr_provider_failure_detail(exc),
         ) from exc
 
     source_type = "pdf_ocr" if suffix == ".pdf" else "photo_ocr"
