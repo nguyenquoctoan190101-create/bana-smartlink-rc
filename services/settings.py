@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_api_url: str = "https://generativelanguage.googleapis.com"
     gemini_model: str = "gemini-2.5-flash"
+    # Keep document OCR on a stable vision-capable model even when the
+    # conversational assistant is upgraded independently.
+    gemini_ocr_model: str = "gemini-2.5-flash"
     supabase_url: str = ""
     supabase_publishable_key: str = Field(
         default="",

@@ -239,7 +239,7 @@ async def _call_ocr_with_fake_transport(
             _env_file=None,
             gemini_api_key="unit-test-provider-key",
             gemini_api_url="https://gemini.example",
-            gemini_model="test-model",
+            gemini_ocr_model="test-model",
         ),
     )
     monkeypatch.setattr(
@@ -297,7 +297,7 @@ async def test_gemini_3_ocr_uses_minimal_thinking_level(monkeypatch) -> None:
             _env_file=None,
             gemini_api_key="unit-test-provider-key",
             gemini_api_url="https://gemini.example",
-            gemini_model="gemini-3.1-flash-lite",
+            gemini_ocr_model="gemini-3.1-flash-lite",
         ),
     )
     monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
@@ -307,6 +307,46 @@ async def test_gemini_3_ocr_uses_minimal_thinking_level(monkeypatch) -> None:
     assert result == '{"CT01": 145}'
     config = fake.post.await_args.kwargs["json"]["generationConfig"]
     assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_uses_one_stable_fallback_after_provider_failure(
+    monkeypatch,
+) -> None:
+    fake = _FakeOcrHttpClient()
+    fake.post.side_effect = [
+        httpx.Response(503, json={"error": {"message": "temporary"}}),
+        httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {"content": {"parts": [{"text": '{"CT01": 427}'}]}}
+                ]
+            },
+        ),
+    ]
+    monkeypatch.setattr(
+        ocr_report,
+        "load_settings",
+        lambda: Settings(
+            _env_file=None,
+            gemini_api_key="unit-test-provider-key",
+            gemini_api_url="https://gemini.example",
+            gemini_ocr_model="gemini-3.1-flash-lite",
+        ),
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+
+    result = await ocr_report._call_gemini_ocr(_png_scan())
+
+    assert result == '{"CT01": 427}'
+    assert fake.post.await_count == 2
+    assert fake.post.await_args_list[0].args[0].endswith(
+        "/v1beta/models/gemini-3.1-flash-lite:generateContent"
+    )
+    assert fake.post.await_args_list[1].args[0].endswith(
+        "/v1beta/models/gemini-2.5-flash-lite:generateContent"
+    )
 
 
 @pytest.mark.asyncio

@@ -59,6 +59,7 @@ _OCR_USER_PROMPT = (
 _OCR_MAX_TOKENS = 4096
 _OCR_TEMPERATURE = 0.0
 _OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
+_OCR_FALLBACK_MODEL = "gemini-2.5-flash-lite"
 
 _MIME_BY_MAGIC: dict[bytes, str] = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -753,14 +754,12 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
         raise OcrError("Gemini OCR is not configured")
     mime = _detect_mime(cropped_bytes)
     b64_data = base64.b64encode(cropped_bytes).decode("ascii")
-    model = settings.gemini_model
-    thinking_config = (
-        {"thinkingLevel": "minimal"}
-        if model.strip().lower().startswith("gemini-3")
-        else {"thinkingBudget": 0}
-    )
+    primary_model = settings.gemini_ocr_model.strip() or "gemini-2.5-flash"
+    models = [primary_model]
+    if primary_model != _OCR_FALLBACK_MODEL:
+        models.append(_OCR_FALLBACK_MODEL)
 
-    payload: dict[str, Any] = {
+    base_payload: dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": _OCR_SYSTEM_PROMPT}]},
         "contents": [
             {
@@ -775,86 +774,124 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             "maxOutputTokens": _OCR_MAX_TOKENS,
             "temperature": _OCR_TEMPERATURE,
             "responseMimeType": "application/json",
-            # OCR is bounded transcription, not a reasoning task. Gemini 3
-            # uses thinkingLevel while Gemini 2.5 uses thinkingBudget.
-            "thinkingConfig": thinking_config,
         },
     }
 
     base_url = settings.gemini_api_url.rstrip("/")
-    url = f"{base_url}/v1beta/models/{model}:generateContent"
-
-    try:
-        timeout = httpx.Timeout(
-            connect=10.0,
-            read=_OCR_PROVIDER_READ_TIMEOUT_SECONDS,
-            write=20.0,
-            pool=10.0,
-        )
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                url,
-                headers={"x-goog-api-key": settings.gemini_api_key},
-                json=payload,
-            )
-    except httpx.TimeoutException as exc:
-        raise OcrError("Gemini OCR request timed out") from exc
-    except httpx.HTTPError as exc:
-        raise OcrError("Gemini OCR request failed (network error)") from exc
-
-    if response.status_code >= 400:
-        raise OcrError(f"Gemini OCR request failed (HTTP {response.status_code})")
-
     from services.gemini import _extract_text
 
-    response_payload = response.json()
-    try:
-        return _extract_text(response_payload)
-    except GeminiError as exc:
-        candidates = (
-            response_payload.get("candidates")
-            if isinstance(response_payload, dict)
-            else None
-        )
-        first_candidate = (
-            candidates[0]
-            if isinstance(candidates, list)
-            and candidates
-            and isinstance(candidates[0], dict)
-            else {}
-        )
-        content = first_candidate.get("content")
-        parts = content.get("parts") if isinstance(content, dict) else None
-        part_shapes = [
-            {
-                "has_text": isinstance(part.get("text"), str),
-                "text_length": (
-                    len(part["text"]) if isinstance(part.get("text"), str) else 0
-                ),
-                "thought": part.get("thought") is True,
-                "keys": sorted(
-                    key
-                    for key in part
-                    if key not in {"text", "thoughtSignature", "thought_signature"}
-                ),
+    timeout = httpx.Timeout(
+        connect=10.0,
+        read=_OCR_PROVIDER_READ_TIMEOUT_SECONDS,
+        write=20.0,
+        pool=10.0,
+    )
+    last_error: OcrError | None = None
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for attempt, model in enumerate(models):
+            payload = {
+                **base_payload,
+                "generationConfig": {
+                    **base_payload["generationConfig"],
+                    # OCR is bounded transcription, not a reasoning task.
+                    "thinkingConfig": (
+                        {"thinkingLevel": "minimal"}
+                        if model.lower().startswith("gemini-3")
+                        else {"thinkingBudget": 0}
+                    ),
+                },
             }
-            for part in parts
-            if isinstance(part, dict)
-        ] if isinstance(parts, list) else []
-        logger.warning(
-            "Gemini OCR response had no readable answer text",
-            extra={
-                "gemini_finish_reason": first_candidate.get("finishReason"),
-                "gemini_part_shapes": part_shapes,
-                "gemini_prompt_block_reason": (
-                    response_payload.get("promptFeedback", {}).get("blockReason")
+            url = f"{base_url}/v1beta/models/{model}:generateContent"
+            try:
+                response = await client.post(
+                    url,
+                    headers={"x-goog-api-key": settings.gemini_api_key},
+                    json=payload,
+                )
+            except httpx.TimeoutException as exc:
+                last_error = OcrError("Gemini OCR request timed out")
+                if attempt + 1 < len(models):
+                    continue
+                raise last_error from exc
+            except httpx.HTTPError as exc:
+                last_error = OcrError("Gemini OCR request failed (network error)")
+                if attempt + 1 < len(models):
+                    continue
+                raise last_error from exc
+
+            if response.status_code >= 400:
+                last_error = OcrError(
+                    f"Gemini OCR request failed (HTTP {response.status_code})"
+                )
+                # Authentication/permission failures cannot be repaired by
+                # switching models. All other provider/model failures get one
+                # bounded fallback attempt.
+                if response.status_code in {401, 403} or attempt + 1 >= len(models):
+                    raise last_error
+                continue
+
+            try:
+                response_payload = response.json()
+                return _extract_text(response_payload)
+            except (GeminiError, ValueError) as exc:
+                last_error = OcrError("Could not parse Gemini OCR response")
+                candidates = (
+                    response_payload.get("candidates")
                     if isinstance(response_payload, dict)
-                    and isinstance(response_payload.get("promptFeedback"), dict)
                     else None
-                ),
-            },
-        )
-        raise OcrError("Could not parse Gemini OCR response") from exc
+                )
+                first_candidate = (
+                    candidates[0]
+                    if isinstance(candidates, list)
+                    and candidates
+                    and isinstance(candidates[0], dict)
+                    else {}
+                )
+                content = first_candidate.get("content")
+                parts = content.get("parts") if isinstance(content, dict) else None
+                part_shapes = [
+                    {
+                        "has_text": isinstance(part.get("text"), str),
+                        "text_length": (
+                            len(part["text"]) if isinstance(part.get("text"), str) else 0
+                        ),
+                        "thought": part.get("thought") is True,
+                        "keys": sorted(
+                            key
+                            for key in part
+                            if key not in {
+                                "text",
+                                "thoughtSignature",
+                                "thought_signature",
+                            }
+                        ),
+                    }
+                    for part in parts
+                    if isinstance(part, dict)
+                ] if isinstance(parts, list) else []
+                logger.warning(
+                    "Gemini OCR response had no readable answer text",
+                    extra={
+                        "gemini_ocr_model": model,
+                        "gemini_finish_reason": first_candidate.get("finishReason"),
+                        "gemini_part_shapes": part_shapes,
+                        "gemini_prompt_block_reason": (
+                            response_payload.get("promptFeedback", {}).get("blockReason")
+                            if isinstance(response_payload, dict)
+                            and isinstance(
+                                response_payload.get("promptFeedback"), dict
+                            )
+                            else None
+                        ),
+                    },
+                )
+                if attempt + 1 < len(models):
+                    continue
+                raise last_error from exc
+
+    if last_error is not None:
+        raise last_error
+    raise OcrError("Gemini OCR request failed")
 
 
 def _parse_ocr_json(raw_text: str) -> dict[str, Any]:
