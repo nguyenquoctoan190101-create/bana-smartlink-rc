@@ -39,6 +39,7 @@ class _FakeOcrHttpClient:
     def __init__(self, response: httpx.Response | None = None, error: Exception | None = None):
         self.response = response
         self.error = error
+        self.get = AsyncMock(return_value=httpx.Response(503))
         self.post = AsyncMock(side_effect=self._post)
 
     async def _post(self, *args, **kwargs):
@@ -347,6 +348,35 @@ async def test_gemini_ocr_uses_one_stable_fallback_after_provider_failure(
     assert fake.post.await_args_list[1].args[0].endswith(
         "/v1beta/models/gemini-3.6-flash:generateContent"
     )
+
+
+@pytest.mark.asyncio
+async def test_ocr_selects_models_available_to_the_configured_api_key() -> None:
+    fake = _FakeOcrHttpClient()
+    fake.get.return_value = httpx.Response(
+        200,
+        json={
+            "models": [
+                {
+                    "name": "models/gemini-3.5-flash-lite",
+                    "supportedGenerationMethods": ["generateContent"],
+                },
+                {
+                    "name": "models/text-embedding",
+                    "supportedGenerationMethods": ["embedContent"],
+                },
+            ]
+        },
+    )
+
+    selected = await ocr_report._available_ocr_models(
+        fake,
+        base_url="https://gemini.example",
+        api_key="unit-test-provider-key",
+        configured_model="retired-model",
+    )
+
+    assert selected == ["gemini-3.5-flash-lite"]
 
 
 @pytest.mark.asyncio

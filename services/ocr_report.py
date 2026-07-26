@@ -60,6 +60,13 @@ _OCR_MAX_TOKENS = 4096
 _OCR_TEMPERATURE = 0.0
 _OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
 _OCR_FALLBACK_MODEL = "gemini-3.6-flash"
+_OCR_MODEL_PREFERENCES = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3-flash-preview",
+)
 
 _MIME_BY_MAGIC: dict[bytes, str] = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -81,6 +88,60 @@ class OcrError(RuntimeError):
 
 class OcrInputError(OcrError):
     """Raised when an uploaded OCR document cannot be processed safely."""
+
+
+async def _available_ocr_models(
+    client: Any,
+    *,
+    base_url: str,
+    api_key: str,
+    configured_model: str,
+) -> list[str]:
+    """Return at most two generateContent models available to this API key."""
+    fallbacks = [configured_model, _OCR_FALLBACK_MODEL]
+    try:
+        response = await client.get(
+            f"{base_url}/v1beta/models",
+            headers={"x-goog-api-key": api_key},
+            params={"pageSize": 1000},
+            timeout=10.0,
+        )
+        if response.status_code >= 400:
+            return list(dict.fromkeys(fallbacks))
+        payload = response.json()
+        entries = payload.get("models") if isinstance(payload, dict) else None
+        if not isinstance(entries, list):
+            return list(dict.fromkeys(fallbacks))
+        available = {
+            str(item.get("name", "")).removeprefix("models/")
+            for item in entries
+            if isinstance(item, dict)
+            and "generateContent" in item.get("supportedGenerationMethods", [])
+        }
+        preferred = [
+            configured_model,
+            *_OCR_MODEL_PREFERENCES,
+            *sorted(
+                model
+                for model in available
+                if model.startswith("gemini-")
+                and "flash" in model
+                and not any(
+                    excluded in model
+                    for excluded in ("image", "live", "tts", "embedding")
+                )
+            ),
+        ]
+        selected = list(dict.fromkeys(
+            model for model in preferred if model in available
+        ))
+        return selected[:2] or list(dict.fromkeys(fallbacks))
+    except Exception as exc:
+        logger.warning(
+            "Unable to list Gemini OCR models",
+            extra={"ocr_model_discovery_error": type(exc).__name__},
+        )
+        return list(dict.fromkeys(fallbacks))
 
 
 @dataclass(frozen=True)
@@ -755,10 +816,6 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
     mime = _detect_mime(cropped_bytes)
     b64_data = base64.b64encode(cropped_bytes).decode("ascii")
     primary_model = settings.gemini_ocr_model.strip() or "gemini-3.5-flash-lite"
-    models = [primary_model]
-    if primary_model != _OCR_FALLBACK_MODEL:
-        models.append(_OCR_FALLBACK_MODEL)
-
     base_payload: dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": _OCR_SYSTEM_PROMPT}]},
         "contents": [
@@ -788,6 +845,12 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
     )
     last_error: OcrError | None = None
     async with httpx.AsyncClient(timeout=timeout) as client:
+        models = await _available_ocr_models(
+            client,
+            base_url=base_url,
+            api_key=settings.gemini_api_key,
+            configured_model=primary_model,
+        )
         for attempt, model in enumerate(models):
             generation_config: dict[str, Any] = {
                 **base_payload["generationConfig"],
