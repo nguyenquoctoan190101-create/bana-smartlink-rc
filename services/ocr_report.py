@@ -55,7 +55,7 @@ _OCR_USER_PROMPT = (
     "Tra ve JSON thuan tuy -- khong bao kem markdown hay mo ta."
 )
 
-_OCR_MAX_TOKENS = 1536
+_OCR_MAX_TOKENS = 4096
 _OCR_TEMPERATURE = 0.0
 _OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
 
@@ -751,6 +751,12 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
         raise OcrError("Gemini OCR is not configured")
     mime = _detect_mime(cropped_bytes)
     b64_data = base64.b64encode(cropped_bytes).decode("ascii")
+    model = settings.gemini_model
+    thinking_config = (
+        {"thinkingLevel": "minimal"}
+        if model.strip().lower().startswith("gemini-3")
+        else {"thinkingBudget": 0}
+    )
 
     payload: dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": _OCR_SYSTEM_PROMPT}]},
@@ -767,14 +773,13 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             "maxOutputTokens": _OCR_MAX_TOKENS,
             "temperature": _OCR_TEMPERATURE,
             "responseMimeType": "application/json",
-            # OCR is bounded transcription, not a reasoning task. Disabling
-            # dynamic thinking materially reduces latency on Gemini 2.5 Flash.
-            "thinkingConfig": {"thinkingBudget": 0},
+            # OCR is bounded transcription, not a reasoning task. Gemini 3
+            # uses thinkingLevel while Gemini 2.5 uses thinkingBudget.
+            "thinkingConfig": thinking_config,
         },
     }
 
     base_url = settings.gemini_api_url.rstrip("/")
-    model = settings.gemini_model
     url = f"{base_url}/v1beta/models/{model}:generateContent"
 
     try:

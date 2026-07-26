@@ -143,11 +143,20 @@ def _extract_text(payload: Any) -> str:
     if not isinstance(parts, list) or not parts:
         raise GeminiError("Unexpected Gemini response")
 
-    first_part = parts[0]
-    if not isinstance(first_part, dict) or not isinstance(first_part.get("text"), str):
+    # Thinking-capable models may return metadata-only or thought parts before
+    # the final answer. Read every non-thought text part instead of assuming
+    # the first part contains the user-visible response.
+    text_parts = [
+        part["text"]
+        for part in parts
+        if isinstance(part, dict)
+        and isinstance(part.get("text"), str)
+        and part.get("thought") is not True
+    ]
+    if not text_parts:
         raise GeminiError("Unexpected Gemini response")
 
-    return first_part["text"]
+    return "".join(text_parts)
 
 
 @lru_cache

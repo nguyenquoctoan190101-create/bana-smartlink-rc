@@ -126,3 +126,21 @@ async def test_gemini_transport_and_http_errors_are_redacted() -> None:
 def test_extract_text_rejects_every_malformed_shape(payload) -> None:
     with pytest.raises(GeminiError, match="Unexpected"):
         _extract_text(payload)
+
+
+def test_extract_text_skips_thought_and_metadata_only_parts() -> None:
+    payload = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {"thoughtSignature": "opaque"},
+                        {"text": "internal", "thought": True},
+                        {"text": '{"CT01":427}'},
+                    ]
+                }
+            }
+        ]
+    }
+
+    assert _extract_text(payload) == '{"CT01":427}'
