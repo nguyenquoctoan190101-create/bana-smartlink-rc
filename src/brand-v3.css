@@ -1436,7 +1436,8 @@ textarea::placeholder {
 }
 
 .role-screen #manage-accounts-container > div:first-child,
-.role-screen section[aria-labelledby="create-period-title"] > header {
+.role-screen section[aria-labelledby="create-period-title"] > header,
+.role-screen section[aria-labelledby="period-change-title"] > header {
   border-color: rgb(218 175 55 / 0.34);
   background:
     radial-gradient(
@@ -1445,6 +1446,14 @@ textarea::placeholder {
       transparent 13rem
     ),
     linear-gradient(120deg, var(--bn-green), var(--bn-green-deep)) !important;
+}
+
+.role-screen section[aria-labelledby="period-change-title"] > header h1 {
+  color: #fff !important;
+}
+
+.role-screen section[aria-labelledby="period-change-title"] > header p {
+  color: #d1fae5 !important;
 }
 
 .role-screen .progress-dashboard__summary {
