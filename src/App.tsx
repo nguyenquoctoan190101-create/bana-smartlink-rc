@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { getAllReports, getLocalDrafts, deleteReport } from "./lib/db";
 import { apiFetch, apiJson, toUserFacingError } from "./lib/apiClient";
 import { useAuth } from "./lib/AuthContext";
@@ -7,10 +7,15 @@ import { ReportData, UserRole } from "./types";
 import SyncStatus from "./components/SyncStatus";
 import ChatWidget from "./components/ChatWidget";
 import PrivacyPolicy from "./components/PrivacyPolicy";
-import { Button, TopographicPattern, Wordmark } from "./components/ui";
+import { BaNaBrandScenery, Button, TopographicPattern, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
 import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
+import {
+  deleteServerReport,
+  publishServerReport,
+  transitionServerReport,
+} from "./lib/reportWorkflow";
 import { 
   BarChart3, 
   FileText, 
@@ -33,6 +38,8 @@ import {
   Radio,
   FileSearch,
   ChevronDown,
+  MoreHorizontal,
+  X,
 } from "lucide-react";
 
 const Dashboard = React.lazy(() => import("./components/Dashboard"));
@@ -202,6 +209,14 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
   const [showRoleScope, setShowRoleScope] = useState<boolean>(false);
+  const [showMobileMore, setShowMobileMore] = useState<boolean>(false);
+  const mobileMoreDialogRef = useRef<HTMLDivElement>(null);
+  const mobileMoreCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileMoreTriggerRef = useRef<HTMLButtonElement>(null);
+  const [pilotStatus, setPilotStatus] = useState<{ iot_enabled: boolean; tourism_enabled: boolean }>({
+    iot_enabled: false,
+    tourism_enabled: false,
+  });
 
   const fetchNotifications = async () => {
     if (!isLoggedIn || userRole === "dan") return;
@@ -225,6 +240,31 @@ export default function App() {
       }, 30000);
       return () => window.clearInterval(interval);
     }
+  }, [isLoggedIn, userRole]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !["admin_xa", "lanh_dao"].includes(userRole)) {
+      setPilotStatus({ iot_enabled: false, tourism_enabled: false });
+      return;
+    }
+    let cancelled = false;
+    const loadPilotStatus = async () => {
+      try {
+        const status = await apiJson<{ iot_enabled?: boolean; tourism_enabled?: boolean }>("/api/pilots/status");
+        if (!cancelled) {
+          setPilotStatus({
+            iot_enabled: status.iot_enabled === true,
+            tourism_enabled: status.tourism_enabled === true,
+          });
+        }
+      } catch {
+        if (!cancelled) setPilotStatus({ iot_enabled: false, tourism_enabled: false });
+      }
+    };
+    void loadPilotStatus();
+    return () => {
+      cancelled = true;
+    };
   }, [isLoggedIn, userRole]);
 
   const handleMarkAsRead = async (id: string, url?: string) => {
@@ -268,6 +308,58 @@ export default function App() {
       window.removeEventListener("offline", updateOnline);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showMobileMore) return;
+
+    const dialog = mobileMoreDialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : mobileMoreTriggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    mobileMoreCloseRef.current?.focus();
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowMobileMore(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ) as HTMLElement[];
+      const visibleFocusable = focusable.filter(
+        (element) => element.getAttribute("aria-hidden") !== "true",
+      );
+      if (visibleFocusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = visibleFocusable[0];
+      const last = visibleFocusable[visibleFocusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDialogKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [showMobileMore]);
 
   // Synchronize tab state with URL path
   const changeTab = (tab: AppTab, search = new URLSearchParams()) => {
@@ -370,62 +462,57 @@ export default function App() {
     changeTab("report-form");
   };
 
-  const handleDeleteReport = async (id: string, localOnly = false) => {
+  const handleDeleteReport = async (report: ReportData, localOnly = false) => {
     const confirmation = localOnly
       ? "Bạn có chắc chắn muốn xóa bản nháp này khỏi thiết bị?"
       : "Bạn có chắc chắn muốn xóa báo cáo này khỏi hệ thống?";
     if (window.confirm(confirmation)) {
       try {
         if (localOnly) {
-          await deleteReport(id);
+          await deleteReport(report.id);
         } else {
-          await apiJson<void>(`/reports/${id}`, { method: "DELETE" });
+          await deleteServerReport(report);
         }
         await loadAllReports();
       } catch (e) {
         console.error("Lỗi xóa báo cáo:", e);
+        alert(toUserFacingError(e, "Không thể xóa báo cáo."));
       }
     }
   };
 
-  const handleApproveReport = async (id: string) => {
+  const handleApproveReport = async (report: ReportData) => {
     if (window.confirm("Bạn xác nhận duyệt báo cáo này?")) {
       try {
-        const response = await apiFetch(`/reports/${id}/approve`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "approve" })
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          alert("Lỗi duyệt báo cáo: " + (errorData.detail || "Không xác định"));
-          return;
-        }
+        await transitionServerReport(report, "approve");
         await loadAllReports();
       } catch (e) {
         console.error("Lỗi duyệt báo cáo:", e);
-        alert("Lỗi mạng khi duyệt báo cáo.");
+        alert(toUserFacingError(e, "Không thể duyệt báo cáo."));
       }
     }
   };
 
-  const handleLockReport = async (id: string) => {
+  const handleLockReport = async (report: ReportData) => {
     if (window.confirm("Bạn xác nhận khóa báo cáo này? (Sau khi khóa sẽ không thể sửa đổi)")) {
       try {
-        const response = await apiFetch(`/reports/${id}/approve`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "lock" })
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          alert("Lỗi khóa báo cáo: " + (errorData.detail || "Không xác định"));
-          return;
-        }
+        await transitionServerReport(report, "lock");
         await loadAllReports();
       } catch (e) {
         console.error("Lỗi khóa báo cáo:", e);
-        alert("Lỗi mạng khi khóa báo cáo.");
+        alert(toUserFacingError(e, "Không thể khóa báo cáo."));
+      }
+    }
+  };
+
+  const handlePublishReport = async (report: ReportData) => {
+    if (window.confirm("Bạn xác nhận công bố báo cáo này trên cổng thông tin?")) {
+      try {
+        await publishServerReport(report);
+        await loadAllReports();
+      } catch (e) {
+        console.error("Lỗi công bố báo cáo:", e);
+        alert(toUserFacingError(e, "Không thể công bố báo cáo."));
       }
     }
   };
@@ -450,6 +537,7 @@ export default function App() {
     if (publicMode === "public") {
       return (
         <div className="public-shell min-h-screen bg-[#f6f8f7] flex flex-col font-sans antialiased text-slate-800">
+          <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
           {/* Public Header */}
           <header className="public-header bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 min-h-20 flex items-center justify-between gap-4">
@@ -467,7 +555,7 @@ export default function App() {
           </header>
 
           {/* Main content */}
-          <main className="public-content flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
+          <main id="main-content" tabIndex={-1} className="public-content flex-1 py-6 md:py-10 px-4 sm:px-6 lg:px-10">
             <React.Suspense fallback={<LoadingPanel />}>
               <PublicVillagePage onGoToLogin={() => setPublicMode("login")} />
             </React.Suspense>
@@ -478,12 +566,12 @@ export default function App() {
             <div className="font-semibold">
               © 2026 UBND xã Bà Nà · Bà Nà SmartLink
             </div>
-            <div className="flex justify-center items-center gap-2 text-slate-500 normal-case text-xs">
+            <div className="flex justify-center items-center gap-2 text-emerald-100 normal-case text-xs">
               <button 
                 onClick={() => setShowPrivacy(true)}
-                className="hover:text-emerald-450 text-slate-400 font-semibold transition-colors underline cursor-pointer"
+                className="font-semibold text-emerald-100 underline transition-colors hover:text-white cursor-pointer"
               >
-                Thông báo Bảo mật & Quyền riêng tư (dự thảo)
+                Thông báo bảo vệ dữ liệu cá nhân và quyền riêng tư
               </button>
             </div>
           </footer>
@@ -493,7 +581,7 @@ export default function App() {
           
           {/* Privacy Policy Modal overlay */}
           {showPrivacy && (
-            <PrivacyPolicy isModal={true} onClose={() => setShowPrivacy(false)} />
+            <PrivacyPolicy isModal={true} isOpen={true} onClose={() => setShowPrivacy(false)} />
           )}
         </div>
       );
@@ -501,10 +589,12 @@ export default function App() {
 
     return (
       <div className="login-shell min-h-screen flex flex-col lg:flex-row font-sans antialiased text-slate-800 bg-[#f6f8f7]">
+        <a className="skip-link" href="#main-content">Đi tới biểu mẫu đăng nhập</a>
         
         {/* LEFT COLUMN: Visual Showcase & Brand illustration */}
         <div className="login-visual hidden lg:flex lg:w-[58%] bg-[#0b4437] relative flex-col justify-between p-12 xl:p-16 overflow-hidden text-white">
           <TopographicPattern className="text-white" />
+          <BaNaBrandScenery className="login-brand-scenery" />
           
           {/* Top left overlay metadata */}
           <div className="relative z-10">
@@ -538,8 +628,9 @@ export default function App() {
         </div>
 
         {/* RIGHT COLUMN: The Login Form */}
-        <div className="login-panel w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
+        <main id="main-content" tabIndex={-1} className="login-panel w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
           <TopographicPattern className="text-emerald-800 lg:hidden" />
+          <BaNaBrandScenery className="login-panel-scenery lg:hidden" />
           
           {/* Logo showing up for mobile screen only */}
           <div className="login-mobile-brand block lg:hidden mb-10 relative z-10">
@@ -633,11 +724,11 @@ export default function App() {
                 onClick={() => setShowPrivacy(true)}
                 className="hover:text-emerald-800 transition-colors underline cursor-pointer font-semibold"
               >
-                Thông báo Bảo mật & Quyền riêng tư (dự thảo)
+                Thông báo bảo vệ dữ liệu cá nhân và quyền riêng tư
               </button>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -691,46 +782,41 @@ export default function App() {
   // -------------------------------------------------------------
   
   // Tab menu definition for each role
-  const getNavItems = (): { id: typeof activeTab; label: string; icon: any; group?: string }[] => {
+  const getNavItems = (): { id: typeof activeTab; label: string; icon: any; group?: string; primary?: boolean }[] => {
+    const pilotsEnabled = pilotStatus.iot_enabled || pilotStatus.tourism_enabled;
     switch (userRole) {
       case "admin_xa":
         return [
-          { id: "operations", label: "Hộp việc điều hành", icon: UserCheck, group: "Công việc" },
+          { id: "operations", label: "Tổng quan điều hành", icon: UserCheck, group: "Công việc và cảnh báo", primary: true },
           { id: "pending-updates", label: "Duyệt kiến nghị", icon: MessageSquare },
           { id: "cases", label: "Xử lý phản ánh", icon: MapPinned },
           { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
-          { id: "dashboard", label: "Tổng hợp số liệu", icon: BarChart3, group: "Báo cáo & phê duyệt" },
+          { id: "dashboard", label: "Báo cáo toàn xã", icon: BarChart3, group: "Báo cáo và quyết định", primary: true },
           { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
-          { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Điều hành" },
-          { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
-          { id: "create-period", label: "Tạo kỳ báo cáo", icon: Plus, group: "Quản trị" },
-          { id: "legacy-import", label: "Nhập 22 thôn cũ", icon: FileArchive },
-          { id: "admin-panel", label: "Tài khoản cán bộ", icon: Shield },
-          { id: "knowledge", label: "Kho tri thức & kịch bản", icon: FileArchive, group: "Năng lực" },
-          { id: "pilots", label: "Pilot IoT & du lịch", icon: Radio, group: "Thí điểm" }
+          { id: "policy-scorecard", label: "Theo dõi thực hiện kế hoạch", icon: Award },
+          { id: "cnscd-impact", label: "Hiệu quả tổ công nghệ số", icon: UserCheck },
+          { id: "create-period", label: "Kỳ và biểu mẫu báo cáo", icon: Plus, group: "Quản trị và cấu hình", primary: true },
+          { id: "legacy-import", label: "Tiếp nhận dữ liệu 22 thôn cũ", icon: FileArchive },
+          { id: "admin-panel", label: "Tài khoản và phân quyền", icon: Shield },
+          { id: "knowledge", label: "Kho tri thức và kịch bản", icon: FileArchive },
+          ...(pilotsEnabled ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm", icon: Radio }] : [])
         ];
       case "can_bo_thon":
       case "to_cnscd":
         return [
-          { id: "operations", label: "Việc của tôi", icon: UserCheck, group: "Công việc" },
+          { id: "operations", label: "Việc cần xử lý", icon: UserCheck, group: "Công việc hôm nay", primary: true },
           { id: "cases", label: "Phản ánh hiện trường", icon: MapPinned },
-          { id: "report-form", label: "Nhập báo cáo", icon: FileText },
-          { id: "dashboard", label: "Dữ liệu của thôn", icon: BarChart3, group: "Theo dõi" },
+          { id: "report-form", label: "Lập báo cáo", icon: FileText, group: "Báo cáo của thôn", primary: true },
+          { id: "dashboard", label: "Theo dõi số liệu", icon: BarChart3 },
           { id: "citizen-proposal", label: "Đề nghị sửa số liệu", icon: MessageSquare },
-          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
-          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" }
+          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch, group: "Tra cứu và hỗ trợ", primary: true },
+          { id: "knowledge", label: "Hướng dẫn nghiệp vụ", icon: FileArchive }
         ];
       case "lanh_dao":
         return [
-          { id: "operations", label: "Brief quyết định", icon: UserCheck, group: "Điều hành" },
-          { id: "cases", label: "Giám sát phản ánh", icon: MapPinned },
-          { id: "record-lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
-          { id: "dashboard", label: "Tổng hợp toàn xã", icon: BarChart3 },
-          { id: "progress-dashboard", label: "Tiến độ 10 thôn", icon: Clock },
-          { id: "policy-scorecard", label: "Đối chiếu KH02", icon: Award, group: "Đánh giá" },
-          { id: "cnscd-impact", label: "Hiệu quả CNSCĐ", icon: UserCheck },
-          { id: "knowledge", label: "Kho tri thức", icon: FileArchive, group: "Năng lực" },
-          { id: "pilots", label: "Pilot IoT & du lịch", icon: Radio, group: "Thí điểm" }
+          { id: "operations", label: "Tổng quan điều hành", icon: UserCheck, group: "Ba không gian làm việc", primary: true },
+          { id: "cases", label: "Công việc và cảnh báo", icon: MapPinned, primary: true },
+          { id: "dashboard", label: "Báo cáo và quyết định", icon: BarChart3, primary: true },
         ];
       case "dan":
       default:
@@ -743,12 +829,49 @@ export default function App() {
   };
 
   const navItems = getNavItems();
-  const activeNavItem = navItems.find((item) => item.id === activeTab);
+  const leaderSpaces = [
+    {
+      id: "operations" as const,
+      items: [
+        { id: "operations" as const, label: "Tóm tắt điều hành" },
+        { id: "record-lookup" as const, label: "Tra cứu hồ sơ" },
+      ],
+    },
+    {
+      id: "cases" as const,
+      items: [
+        { id: "cases" as const, label: "Công việc và cảnh báo" },
+      ],
+    },
+    {
+      id: "dashboard" as const,
+      items: [
+        { id: "dashboard" as const, label: "Báo cáo toàn xã" },
+        { id: "progress-dashboard" as const, label: "Tiến độ các thôn" },
+        { id: "policy-scorecard" as const, label: "Thực hiện kế hoạch" },
+        { id: "cnscd-impact" as const, label: "Hiệu quả tổ công nghệ số" },
+        ...(pilotStatus.iot_enabled || pilotStatus.tourism_enabled
+          ? [{ id: "pilots" as const, label: "Mô hình thử nghiệm" }]
+          : []),
+        { id: "knowledge" as const, label: "Căn cứ và hướng dẫn" },
+      ],
+    },
+  ];
+  const activeLeaderSpace = leaderSpaces.find((space) => (
+    space.items.some((item) => item.id === activeTab)
+  ));
+  const activeSpaceId = userRole === "lanh_dao"
+    ? (activeLeaderSpace?.id ?? "dashboard")
+    : activeTab;
+  const activeNavItem = navItems.find((item) => item.id === activeSpaceId);
+  const activeLeaderItem = activeLeaderSpace?.items.find((item) => item.id === activeTab);
 
-  const mobileNavItems = navItems;
+  const mobilePrimaryItems = navItems.filter((item) => item.primary).slice(0, 4);
+  const mobileMoreItems = navItems.filter((item) => !mobilePrimaryItems.some((primary) => primary.id === item.id));
 
   return (
     <div className="gov-shell flex flex-col md:flex-row font-sans antialiased" data-user-role={userRole}>
+      <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       
       {/* -------------------------------------------------------------
           DESKTOP SIDEBAR: FIXED LEFT SIDEBAR FOR DESKTOP
@@ -797,9 +920,9 @@ export default function App() {
                     setEditingReport(null);
                     changeTab(item.id);
                   }}
-                  aria-current={activeTab === item.id ? "page" : undefined}
+                  aria-current={activeSpaceId === item.id ? "page" : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
-                    activeTab === item.id
+                    activeSpaceId === item.id
                       ? "bg-white text-emerald-950"
                       : "text-emerald-100 hover:bg-white/8 hover:text-white"
                   }`}
@@ -825,7 +948,7 @@ export default function App() {
               ) : (
                 <>
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                  <span className="text-rose-300 font-bold">Lưu Offline</span>
+                  <span className="text-rose-300 font-bold">Đã lưu trên thiết bị</span>
                 </>
               )}
             </span>
@@ -855,14 +978,14 @@ export default function App() {
             {!isOnline && (
               <span className="flex items-center gap-1 bg-rose-900/80 border border-rose-800 px-2 py-1 rounded-md text-4xs font-bold text-rose-100 animate-pulse">
                 <WifiOff className="w-3 h-3" />
-                <span>Đã lưu offline</span>
+                <span>Ngoại tuyến</span>
               </span>
             )}
 
             {isOnline && (
               <span className="flex items-center gap-1 bg-emerald-900/80 border border-emerald-800 px-2 py-1 rounded-md text-4xs font-bold text-emerald-300">
                 <Wifi className="w-3 h-3" />
-                <span>Đang Online</span>
+                <span>Đang kết nối</span>
               </span>
             )}
 
@@ -871,6 +994,9 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                  aria-label="Mở danh sách thông báo"
+                  aria-expanded={showNotifDropdown}
+                  aria-controls="mobile-notification-list"
                   className="relative p-1.5 bg-emerald-900 hover:bg-emerald-850 rounded-lg text-white cursor-pointer"
                   title="Thông báo"
                 >
@@ -883,7 +1009,7 @@ export default function App() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-150 py-1.5 z-50 text-slate-800">
+                  <div id="mobile-notification-list" className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-150 py-1.5 z-50 text-slate-800">
                     <div className="px-3.5 py-1.5 border-b border-slate-100 flex items-center justify-between">
                       <span className="font-extrabold text-[10px] uppercase text-slate-900">Thông báo ({unreadCount})</span>
                     </div>
@@ -894,17 +1020,18 @@ export default function App() {
                         </div>
                       ) : (
                         notifications.map((notif) => (
-                          <div 
+                          <button
+                            type="button"
                             key={notif.id}
                             onClick={() => handleMarkAsRead(notif.id, notif.url)}
-                            className={`px-3 py-2 hover:bg-slate-50 cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
+                            className={`block w-full px-3 py-2 text-left hover:bg-slate-50 cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
                           >
                             <div className="flex items-start justify-between gap-1">
                               <span className="text-4xs font-bold text-slate-900">{notif.title}</span>
                               {!notif.is_read && <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1"></span>}
                             </div>
                             <p className="text-[10px] text-slate-500 font-semibold mt-0.5 leading-tight">{notif.body}</p>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
@@ -916,6 +1043,7 @@ export default function App() {
             {/* Logout trigger on mobile top header */}
             <button
               onClick={handleLogout}
+              aria-label="Đăng xuất"
               className="p-1.5 bg-emerald-900 hover:bg-emerald-800 text-rose-300 hover:text-rose-200 rounded-lg transition-colors cursor-pointer"
               title="Đăng xuất"
             >
@@ -929,6 +1057,7 @@ export default function App() {
           MAIN CONTENT CONTAINER: SCREEN FLOW
           ------------------------------------------------------------- */}
       <div className="gov-shell__main flex flex-col min-h-0">
+        <BaNaBrandScenery className="gov-brand-scenery" />
         
         {/* Desktop Top Header Bar */}
         <header className="gov-topbar hidden md:flex bg-white border-b border-slate-200 px-8 py-3.5 min-h-16 items-center justify-between sticky top-0 z-40">
@@ -936,13 +1065,19 @@ export default function App() {
             <span className="text-sm font-semibold text-slate-500">Không gian làm việc</span>
             <span className="text-slate-300">/</span>
             <span className="text-sm font-bold text-slate-900">{activeNavItem?.label ?? "Tổng quan"}</span>
+            {userRole === "lanh_dao" && activeLeaderItem && activeLeaderItem.id !== activeSpaceId && (
+              <>
+                <span className="text-slate-300">/</span>
+                <span className="text-sm font-semibold text-slate-700">{activeLeaderItem.label}</span>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-4">
             {/* Connection Status */}
             <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
               <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-rose-500 animate-pulse"}`}></span>
-              <span>{isOnline ? "Đang Online" : "Ngoại tuyến"}</span>
+              <span>{isOnline ? "Đang kết nối" : "Ngoại tuyến"}</span>
             </span>
 
             {/* Notification Bell Dropdown Button */}
@@ -950,6 +1085,9 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                  aria-label="Mở danh sách thông báo"
+                  aria-expanded={showNotifDropdown}
+                  aria-controls="desktop-notification-list"
                   className="relative p-2 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 cursor-pointer focus:outline-none flex items-center justify-center"
                   title="Thông báo hệ thống"
                 >
@@ -962,7 +1100,7 @@ export default function App() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-150 py-2 z-50 animate-in fade-in slide-in-from-top-3 duration-200 text-slate-800">
+                  <div id="desktop-notification-list" className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-150 py-2 z-50 animate-in fade-in slide-in-from-top-3 duration-200 text-slate-800">
                     <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
                       <span className="font-extrabold text-xs text-slate-900 uppercase tracking-tight">Thông báo ({unreadCount})</span>
                     </div>
@@ -974,10 +1112,11 @@ export default function App() {
                         </div>
                       ) : (
                         notifications.map((notif) => (
-                          <div 
+                          <button
+                            type="button"
                             key={notif.id}
                             onClick={() => handleMarkAsRead(notif.id, notif.url)}
-                            className={`px-4 py-3 hover:bg-slate-25 transition-all cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
+                            className={`block w-full px-4 py-3 text-left hover:bg-slate-25 transition-all cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <span className={`text-xs font-bold text-slate-900 ${!notif.is_read ? "text-emerald-950 font-black" : "text-slate-600"}`}>
@@ -991,7 +1130,7 @@ export default function App() {
                             <span className="text-xs text-slate-500 font-medium mt-1 block">
                               {new Date(notif.created_at).toLocaleTimeString("vi-VN")} - {new Date(notif.created_at).toLocaleDateString("vi-VN")}
                             </span>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
@@ -1011,7 +1150,29 @@ export default function App() {
           </div>
         )}
 
-        <main className="gov-shell__content flex-1 space-y-6">
+        <main id="main-content" tabIndex={-1} className="gov-shell__content flex-1 space-y-6">
+          {userRole === "lanh_dao" && activeLeaderSpace && (
+            <nav
+              aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}
+              className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xs"
+            >
+              {activeLeaderSpace.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => changeTab(item.id)}
+                  aria-current={activeTab === item.id ? "page" : undefined}
+                  className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                    activeTab === item.id
+                      ? "bg-emerald-800 text-white"
+                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          )}
           
           {(isLoading || isAuthLoading) ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-500">
@@ -1041,6 +1202,7 @@ export default function App() {
                     onDeleteReport={handleDeleteReport}
                     onApproveReport={userRole === "admin_xa" ? handleApproveReport : undefined}
                     onLockReport={userRole === "admin_xa" ? handleLockReport : undefined}
+                    onPublishReport={userRole === "admin_xa" ? handlePublishReport : undefined}
                     onAddNewReport={(periodId) => {
                       setEditingReport(null);
                       const search = new URLSearchParams();
@@ -1134,15 +1296,15 @@ export default function App() {
                 onClick={() => setShowPrivacy(true)}
                 className="hover:text-emerald-800 transition-colors underline cursor-pointer"
               >
-                Chính sách Bảo mật & Quyền riêng tư
+                Thông báo bảo vệ dữ liệu cá nhân và quyền riêng tư
               </button>
               <span className="text-slate-300 font-normal">•</span>
-              <span>Cần rà soát pháp lý trước khi vận hành thật</span>
+              <span>Dữ liệu công bố theo phê duyệt của cơ quan có thẩm quyền</span>
               <span className="text-slate-300 font-normal">•</span>
-              <span>Bà Nà SmartLink RC</span>
+              <span>Ba Na SmartLink</span>
             </div>
             <p className="text-slate-400 font-medium text-[10px]">
-              © 2026 Ủy ban Nhân dân xã Bà Nà, huyện Hòa Vang, TP. Đà Nẵng. Mọi quyền được bảo lưu.
+              © 2026 Ủy ban Nhân dân xã Bà Nà, thành phố Đà Nẵng. Mọi quyền được bảo lưu.
             </p>
           </footer>
         </main>
@@ -1152,9 +1314,9 @@ export default function App() {
           MOBILE BOTTOM NAVIGATION: FLOATING STICKY NAVIGATION FOR PHONES
           ------------------------------------------------------------- */}
       <nav aria-label="Điều hướng chính trên thiết bị di động" className="gov-mobile-nav md:hidden fixed bottom-0 left-0 right-0 z-45 bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg flex items-center min-h-16 overflow-x-auto">
-        {mobileNavItems.map((item) => {
+        {mobilePrimaryItems.map((item) => {
           const IconComp = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = activeSpaceId === item.id;
           return (
             <button
               key={item.id}
@@ -1176,7 +1338,64 @@ export default function App() {
             </button>
           );
         })}
+        {mobileMoreItems.length > 0 && (
+          <button
+            ref={mobileMoreTriggerRef}
+            type="button"
+            onClick={() => setShowMobileMore(true)}
+            aria-haspopup="dialog"
+            aria-expanded={showMobileMore}
+            aria-controls="mobile-more-dialog"
+            className="flex min-h-12 min-w-20 flex-col items-center justify-center px-2 py-1 text-center font-medium text-slate-500"
+          >
+            <div className="rounded-lg p-1"><MoreHorizontal className="h-5.5 w-5.5" aria-hidden="true" /></div>
+            <span className="mt-0.5 text-xs leading-tight">Thêm</span>
+          </button>
+        )}
       </nav>
+
+      {showMobileMore && (
+        <div
+          id="mobile-more-dialog"
+          ref={mobileMoreDialogRef}
+          className="gov-mobile-more md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mobile-more-title"
+          tabIndex={-1}
+        >
+          <button type="button" tabIndex={-1} className="gov-mobile-more__backdrop" aria-label="Đóng danh sách chức năng" onClick={() => setShowMobileMore(false)} />
+          <section className="gov-mobile-more__sheet">
+            <div className="gov-mobile-more__header">
+              <div>
+                <p id="mobile-more-title">Chức năng khác</p>
+                <span>Chọn nội dung cần mở</span>
+              </div>
+              <button ref={mobileMoreCloseRef} type="button" onClick={() => setShowMobileMore(false)} aria-label="Đóng"><X aria-hidden="true" /></button>
+            </div>
+            <div className="gov-mobile-more__list">
+              {mobileMoreItems.map((item) => {
+                const IconComp = item.icon;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    aria-current={activeTab === item.id ? "page" : undefined}
+                    onClick={() => {
+                      setShowMobileMore(false);
+                      setEditingReport(null);
+                      changeTab(item.id);
+                    }}
+                  >
+                    <IconComp aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
       
       {/* Smart Chatbot Widget */}
       <ChatWidget userPhone={userPhone} />
@@ -1185,7 +1404,7 @@ export default function App() {
 
       {/* Privacy Policy Modal overlay */}
       {showPrivacy && (
-        <PrivacyPolicy isModal={true} onClose={() => setShowPrivacy(false)} />
+        <PrivacyPolicy isModal={true} isOpen={true} onClose={() => setShowPrivacy(false)} />
       )}
     </div>
   );

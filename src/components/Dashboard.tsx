@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ReportData, ReportPeriod, UserRole, workflowStatusOf } from "../types";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { 
   TrendingUp, Users, Home, HeartPulse, ShieldAlert, Award, FileText, 
-  Trash2, Edit, Cpu, HelpCircle, ChevronRight, BarChart3, Plus, Download, X, Maximize2, CheckCircle, Lock
+  Trash2, Edit, Cpu, HelpCircle, ChevronRight, BarChart3, Plus, Download, X, Maximize2, CheckCircle, Lock, Globe2
 } from "lucide-react";
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
@@ -12,9 +12,10 @@ import { Button, DataScope, PageHeader, SectionCard, StatusBadge } from "./ui";
 interface DashboardProps {
   reports: ReportData[];
   onEditReport: (report: ReportData) => void;
-  onDeleteReport: (id: string, localOnly?: boolean) => void;
-  onApproveReport?: (id: string) => void;
-  onLockReport?: (id: string) => void;
+  onDeleteReport: (report: ReportData, localOnly?: boolean) => void;
+  onApproveReport?: (report: ReportData) => void;
+  onLockReport?: (report: ReportData) => void;
+  onPublishReport?: (report: ReportData) => void;
   onAddNewReport: (periodId?: string) => void;
   userRole?: UserRole;
   reportPeriods?: ReportPeriod[];
@@ -113,12 +114,59 @@ export function splitDashboardReports(reports: ReportData[]) {
   };
 }
 
-export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onAddNewReport, userRole = "can_bo_thon", reportPeriods = [] }: DashboardProps) {
+export default function Dashboard({ reports, onEditReport, onDeleteReport, onApproveReport, onLockReport, onPublishReport, onAddNewReport, userRole = "can_bo_thon", reportPeriods = [] }: DashboardProps) {
   const { userVillageId } = useAuth();
   const { villages: new_villages } = useVillages();
   const [selectedPeriod, setSelectedPeriod] = useState<string>(ALL_PERIODS);
   const [selectedVillageFilter, setSelectedVillageFilter] = useState<string>("all");
   const [showChartModal, setShowChartModal] = useState<boolean>(false);
+  const chartDialogRef = useRef<HTMLDivElement>(null);
+  const chartCloseRef = useRef<HTMLButtonElement>(null);
+  const chartTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showChartModal) return undefined;
+    const dialog = chartDialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : chartTriggerRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    chartCloseRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowChartModal(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ) as HTMLElement[];
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        dialog.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [showChartModal]);
 
   // A village officer must never be invited by the interface to browse a
   // different village. The API is still the authorization authority.
@@ -131,6 +179,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
   const effectiveVillageFilter = userRole === "can_bo_thon" && userVillageId
     ? userVillageId
     : selectedVillageFilter;
+  const canExportSelectedScope = userRole === "admin_xa"
+    || userRole === "lanh_dao"
+    || (
+      (userRole === "can_bo_thon" || userRole === "to_cnscd")
+      && effectiveVillageFilter !== "all"
+    );
 
   const { localDrafts, serverReports } = useMemo(
     () => splitDashboardReports(reports),
@@ -287,7 +341,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                     <Button type="button" onClick={() => onEditReport(draft)}>
                       <Edit className="h-4 w-4" /> Tiếp tục nhập
                     </Button>
-                    <Button type="button" variant="danger" onClick={() => onDeleteReport(draft.id, true)}>
+                    <Button type="button" variant="danger" onClick={() => onDeleteReport(draft, true)}>
                       <Trash2 className="h-4 w-4" /> Xóa bản nháp
                     </Button>
                   </div>
@@ -315,14 +369,14 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           </div>
 
           <div>
-            <label className="block text-3xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Lọc theo Thôn mới:</label>
+            <label className="block text-3xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Lọc theo thôn:</label>
             <select
               value={selectedVillageFilter}
               onChange={(e) => setSelectedVillageFilter(e.target.value)}
               disabled={userRole === "can_bo_thon" && Boolean(userVillageId)}
               className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
             >
-              {userRole !== "can_bo_thon" && <option value="all">Tất cả 10 thôn mới</option>}
+              {userRole !== "can_bo_thon" && <option value="all">Tất cả 10 thôn</option>}
               {new_villages.filter((v) => userRole !== "can_bo_thon" || !userVillageId || v.id === userVillageId).map(v => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
@@ -331,7 +385,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">
-          {userRole !== "dan" && userRole !== "lanh_dao" && (
+          {(userRole === "can_bo_thon" || userRole === "to_cnscd") && (
             <button
               onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
               className="flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
@@ -341,30 +395,32 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             </button>
           )}
           
-          <button
-            onClick={() => handleExport("xlsx")}
-            className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
-          >
-            <Download className="w-4 h-4" />
-            <span>Xuất XLSX</span>
-          </button>
-          {userRole !== "dan" && (
-            <button
-              onClick={() => handleExport("docx")}
-              className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Xuất DOCX</span>
-            </button>
-          )}
-          {(userRole === "admin_xa" || userRole === "lanh_dao") && effectiveVillageFilter === "all" && (
+          {canExportSelectedScope && (
+            <>
               <button
-                onClick={() => handleExport("pdf")}
-                className="flex-1 md:flex-none bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+                onClick={() => handleExport("xlsx")}
+                className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+              >
+                <Download className="w-4 h-4" />
+                <span>Xuất XLSX</span>
+              </button>
+              <button
+                onClick={() => handleExport("docx")}
+                className="flex-1 md:flex-none bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
               >
                 <FileText className="w-4 h-4" />
-                <span>Xuất PDF</span>
+                <span>Xuất DOCX</span>
               </button>
+            </>
+          )}
+          {(userRole === "admin_xa" || userRole === "lanh_dao") && effectiveVillageFilter === "all" && (
+            <button
+              onClick={() => handleExport("pdf")}
+              className="flex-1 md:flex-none bg-rose-700 hover:bg-rose-800 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Xuất PDF</span>
+            </button>
           )}
         </div>
       </div>
@@ -381,7 +437,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             </div>
             <span className="text-3xs font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded-sm">QUY MÔ</span>
           </div>
-          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Hộ dân & Nhân khẩu</h3>
+          <h3 className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">Hộ dân và nhân khẩu</h3>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-bold text-slate-800">{totalHouseholds !== null ? totalHouseholds.toLocaleString() : "—"}</span>
             <span className="text-xs text-slate-500">hộ</span>
@@ -454,7 +510,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Cơ cấu Hộ dân & Nhân khẩu theo Thôn</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Cơ cấu hộ dân và nhân khẩu theo thôn</h3>
               </div>
               <span className="text-3xs font-mono text-slate-400">Đơn vị: Người / Hộ</span>
             </div>
@@ -529,7 +585,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                             y={180 - hhHeight}
                             width="10"
                             height={hhHeight}
-                            fill="#94a3b8"
+                            fill="#64748b"
                             rx="2"
                             className="transition-all duration-300 group-hover:opacity-80"
                           />
@@ -563,11 +619,12 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               <span className="text-slate-500 font-medium">Tổng số nhân khẩu (CT02)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-slate-400 rounded-xs"></span>
+              <span className="w-3 h-3 bg-slate-600 rounded-xs"></span>
               <span className="text-slate-500 font-medium">Tổng số hộ dân (CT01)</span>
             </div>
           </div>
           <button
+            ref={chartTriggerRef}
             onClick={() => setShowChartModal(true)}
             className="mt-3 flex items-center gap-1.5 text-xs text-emerald-700 font-bold hover:text-emerald-900 transition-colors self-end"
           >
@@ -584,14 +641,14 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Cpu className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Chuyển đổi số & Công nghệ</h3>
+              <h3 className="font-bold text-slate-800 text-sm">Chuyển đổi số và công nghệ</h3>
             </div>
 
             <div className="space-y-4">
               {/* Metric 1: Tech community members */}
               <div className="bg-slate-25 p-3.5 rounded-lg border border-slate-100/50">
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-500 font-medium">Thành viên Tổ CNSCĐ (CT12)</span>
+                  <span className="text-slate-500 font-medium">Thành viên Tổ công nghệ số cộng đồng (CT12)</span>
                   <span className="font-bold text-emerald-700 text-right">{totalDigitalTeam === null ? "—" : `${totalDigitalTeam} người`}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -605,7 +662,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
               {/* Metric 2: Online public services instruction */}
               <div className="bg-slate-25 p-3.5 rounded-lg border border-slate-100/50">
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-500 font-medium">Số lượt hướng dẫn DVC trực tuyến (CT13)</span>
+                  <span className="text-slate-500 font-medium">Số lượt hướng dẫn dịch vụ công trực tuyến (CT13)</span>
                   <span className="font-bold text-emerald-700 text-right">{totalOnlineServiceGuided === null ? "—" : `${totalOnlineServiceGuided} lượt`}</span>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
@@ -646,7 +703,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           <div>
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <FileText className="w-5 h-5 text-emerald-600" />
-              <span>Nhật ký báo cáo & Trạng thái thẩm định các thôn</span>
+              <span>Nhật ký báo cáo và trạng thái thẩm định các thôn</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">Danh sách toàn bộ báo cáo từ các thôn đã quy đổi hoặc nhập mới được lưu tại thiết bị.</p>
           </div>
@@ -657,12 +714,14 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
           <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
             <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-xs text-slate-500">Chưa có bản báo cáo nào được ghi nhận khớp với bộ lọc.</p>
-            <button 
-              onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
-              className="mt-3 text-xs text-emerald-600 hover:text-emerald-800 font-bold"
-            >
-              Khai báo ngay
-            </button>
+            {(userRole === "can_bo_thon" || userRole === "to_cnscd") && (
+              <button
+                onClick={() => onAddNewReport(selectedPeriodOption.periodId)}
+                className="mt-3 text-xs text-emerald-600 hover:text-emerald-800 font-bold"
+              >
+                Khai báo ngay
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -729,24 +788,36 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                         <div className="flex items-center justify-end gap-1.5">
                           {userRole === "admin_xa" && workflowStatusOf(report) === "submitted" && onApproveReport && (
                             <button
-                              onClick={() => onApproveReport(report.id)}
+                              onClick={() => onApproveReport(report)}
                               className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-50 rounded transition-colors"
                               title="Duyệt báo cáo"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {userRole === "admin_xa" && (workflowStatusOf(report) === "submitted" || workflowStatusOf(report) === "approved") && onLockReport && (
+                          {userRole === "admin_xa" && workflowStatusOf(report) === "approved" && report.publication_status === "private" && onLockReport && (
                             <button
-                              onClick={() => onLockReport(report.id)}
+                              onClick={() => onLockReport(report)}
                               className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-slate-50 rounded transition-colors"
                               title="Khóa báo cáo (không cho sửa)"
                             >
                               <Lock className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {workflowStatusOf(report) !== "locked" && (userRole !== "admin_xa" || workflowStatusOf(report) === "draft") && (
-                            <>
+                          {userRole === "admin_xa"
+                            && report.publication_status === "private"
+                            && (workflowStatusOf(report) === "approved" || workflowStatusOf(report) === "locked")
+                            && onPublishReport && (
+                            <button
+                              onClick={() => onPublishReport(report)}
+                              className="p-1.5 text-slate-400 hover:text-sky-700 hover:bg-slate-50 rounded transition-colors"
+                              title="Công bố báo cáo"
+                            >
+                              <Globe2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(userRole === "can_bo_thon" || userRole === "to_cnscd")
+                            && (workflowStatusOf(report) === "draft" || workflowStatusOf(report) === "needs_revision") && (
                               <button
                                 onClick={() => onEditReport(report)}
                                 className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-50 rounded transition-colors"
@@ -754,14 +825,16 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
+                          )}
+                          {((userRole === "admin_xa" && workflowStatusOf(report) === "draft")
+                            || ((userRole === "can_bo_thon" || userRole === "to_cnscd") && workflowStatusOf(report) === "draft")) && (
                               <button
-                                onClick={() => onDeleteReport(report.id)}
+                                onClick={() => onDeleteReport(report)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded transition-colors"
                                 title="Xóa báo cáo"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            </>
                           )}
                         </div>
                       </td>
@@ -782,19 +855,27 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
         onClick={() => setShowChartModal(false)}
       >
         <div
+          ref={chartDialogRef}
           className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dashboard-chart-title"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Modal Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-800 text-sm">Cơ cấu Hộ dân & Nhân khẩu theo Thôn</h3>
+              <h3 id="dashboard-chart-title" className="font-bold text-slate-800 text-sm">Cơ cấu hộ dân và nhân khẩu theo thôn</h3>
               {selectedPeriod !== ALL_PERIODS && (
                 <span className="text-xs text-slate-500 font-medium">— {selectedPeriodLabel}</span>
               )}
             </div>
             <button
+              ref={chartCloseRef}
+              type="button"
+              aria-label="Đóng biểu đồ toàn màn hình"
               onClick={() => setShowChartModal(false)}
               className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
             >
@@ -831,7 +912,7 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
                         <g key={report.id} className="group cursor-pointer">
                           <rect x={xBase - 20} y="10" width="66" height="285" fill="transparent" className="hover:fill-slate-500/5 transition-colors" />
                           <rect x={xBase} y={280 - popHeight} width="14" height={popHeight} fill="#059669" rx="3" className="transition-all duration-300 group-hover:opacity-75" />
-                          <rect x={xBase + 16} y={280 - hhHeight} width="14" height={hhHeight} fill="#94a3b8" rx="3" className="transition-all duration-300 group-hover:opacity-75" />
+                          <rect x={xBase + 16} y={280 - hhHeight} width="14" height={hhHeight} fill="#64748b" rx="3" className="transition-all duration-300 group-hover:opacity-75" />
                           {/* Population value */}
                           <text x={xBase + 7} y={280 - popHeight - 5} style={{ fontSize: "9px", fontWeight: 700 }} className="fill-emerald-700" textAnchor="middle">{report.CT02}</text>
                           {/* HH value */}
@@ -855,8 +936,8 @@ export default function Dashboard({ reports, onEditReport, onDeleteReport, onApp
             {/* Legend */}
             <div className="flex gap-6 mt-4 text-sm">
               <div className="flex items-center gap-2"><span className="w-3 h-3 bg-emerald-600 rounded"></span><span className="text-slate-600 font-medium">Nhân khẩu (CT02)</span></div>
-              <div className="flex items-center gap-2"><span className="w-3 h-3 bg-slate-400 rounded"></span><span className="text-slate-600 font-medium">Hộ dân (CT01)</span></div>
-              <span className="ml-auto text-xs text-slate-400">Hover vào cột để xem chi tiết</span>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 bg-slate-600 rounded"></span><span className="text-slate-600 font-medium">Hộ dân (CT01)</span></div>
+              <span className="ml-auto text-xs text-slate-500">Số liệu chi tiết có trong bảng báo cáo</span>
             </div>
           </div>
         </div>

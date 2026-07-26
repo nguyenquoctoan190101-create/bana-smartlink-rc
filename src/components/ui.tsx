@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 import {
   AlertTriangle,
   Ban,
@@ -16,7 +16,13 @@ export function Wordmark({ compact = false, inverse = false }: { compact?: boole
   return (
     <div className="brand-wordmark" data-inverse={inverse || undefined} aria-label="Ba Na SmartLink">
       <span className="brand-wordmark__mark" aria-hidden="true">
-        <img src="/images/ba-na-brand-logo.png" alt="" />
+        <img
+          src="/images/ba-na-brand-mark-96.png"
+          srcSet="/images/ba-na-brand-mark-96.png 1x, /images/ba-na-brand-mark-192.png 2x"
+          width="96"
+          height="96"
+          alt=""
+        />
       </span>
       <span className="brand-wordmark__copy">
         <strong>Ba Na SmartLink</strong>
@@ -37,6 +43,118 @@ export function TopographicPattern({ className = "" }: { className?: string }) {
       <circle cx="338" cy="181" r="22" />
       <circle cx="338" cy="181" r="44" />
       <circle cx="338" cy="181" r="66" />
+    </svg>
+  );
+}
+
+export function BaNaBrandScenery({ className = "" }: { className?: string }) {
+  const prefix = useId().replace(/:/g, "");
+  const skyId = `${prefix}-sky`;
+  const farId = `${prefix}-far`;
+  const nearId = `${prefix}-near`;
+  const digitalId = `${prefix}-digital`;
+  const goldId = `${prefix}-gold`;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={`brand-scenery ${className}`}
+      viewBox="0 0 1400 560"
+      preserveAspectRatio="xMidYMax slice"
+      fill="none"
+    >
+      <defs>
+        <linearGradient id={skyId} x1="182" y1="10" x2="1188" y2="517" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2C8A69" stopOpacity="0.08" />
+          <stop offset="0.5" stopColor="#0B4A35" stopOpacity="0.18" />
+          <stop offset="1" stopColor="#063629" stopOpacity="0.72" />
+        </linearGradient>
+        <linearGradient id={farId} x1="0" y1="180" x2="1268" y2="481" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#B7D8CC" stopOpacity="0.18" />
+          <stop offset="1" stopColor="#79B69E" stopOpacity="0.58" />
+        </linearGradient>
+        <linearGradient id={nearId} x1="158" y1="268" x2="1194" y2="551" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#0D6048" stopOpacity="0.54" />
+          <stop offset="1" stopColor="#073528" stopOpacity="0.96" />
+        </linearGradient>
+        <linearGradient id={digitalId} x1="118" y1="469" x2="1260" y2="278" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#67D8EF" />
+          <stop offset="0.48" stopColor="#19A9C7" />
+          <stop offset="1" stopColor="#256EDB" />
+        </linearGradient>
+        <linearGradient id={goldId} x1="66" y1="478" x2="1288" y2="328" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F5D66F" />
+          <stop offset="0.45" stopColor="#DAAF37" />
+          <stop offset="1" stopColor="#B77E10" />
+        </linearGradient>
+        <filter id={`${prefix}-glow`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="10" />
+        </filter>
+      </defs>
+
+      <ellipse cx="1118" cy="122" rx="190" ry="132" fill={`url(#${skyId})`} />
+      <circle cx="1122" cy="116" r="55" fill="#F3D26C" fillOpacity="0.2" filter={`url(#${prefix}-glow)`} />
+      <circle cx="1122" cy="116" r="25" fill="#F5D66F" fillOpacity="0.32" />
+
+      <path
+        className="brand-scenery__mountain brand-scenery__mountain--far"
+        d="M-40 428C83 342 183 360 275 303C368 245 430 181 516 205C592 227 626 322 704 318C797 313 848 192 939 187C1029 181 1077 299 1160 302C1240 305 1282 244 1448 214V560H-40V428Z"
+        fill={`url(#${farId})`}
+      />
+      <path
+        className="brand-scenery__ridge"
+        d="M208 353L379 244L461 296L542 221L675 341L823 223L967 334L1089 238L1276 367"
+        stroke="#E7F3EE"
+        strokeOpacity="0.24"
+        strokeWidth="3"
+      />
+      <path
+        className="brand-scenery__mountain brand-scenery__mountain--near"
+        d="M-48 492C88 413 187 397 308 413C407 426 472 365 566 339C688 306 751 437 856 427C959 417 1031 339 1146 347C1243 354 1317 409 1448 402V560H-48V492Z"
+        fill={`url(#${nearId})`}
+      />
+
+      <path
+        className="brand-scenery__golden-road"
+        d="M40 491C258 443 429 407 610 409C814 412 953 461 1355 330"
+        stroke={`url(#${goldId})`}
+        strokeWidth="13"
+        strokeLinecap="round"
+      />
+      <path
+        className="brand-scenery__digital-trail"
+        d="M62 466C281 423 427 369 629 377C846 385 1015 423 1342 286"
+        stroke={`url(#${digitalId})`}
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray="18 15"
+      />
+
+      {[
+        [145, 450],
+        [357, 396],
+        [603, 377],
+        [835, 404],
+        [1070, 389],
+        [1263, 320],
+      ].map(([cx, cy], index) => (
+        <g key={`${cx}-${cy}`} className="brand-scenery__node" style={{ animationDelay: `${index * 180}ms` }}>
+          <circle cx={cx} cy={cy} r="12" fill="#083F2F" fillOpacity="0.82" stroke="#8DE8F4" strokeWidth="2" />
+          <circle cx={cx} cy={cy} r="3.5" fill="#FFFFFF" />
+        </g>
+      ))}
+
+      <g className="brand-scenery__network" stroke="#8DE8F4" strokeOpacity="0.35" strokeWidth="1.6">
+        <path d="M948 196L1024 244L1105 214L1177 261L1253 220" />
+        <path d="M1024 244L1062 306L1177 261L1214 329" />
+        <circle cx="948" cy="196" r="5" fill="#8DE8F4" />
+        <circle cx="1024" cy="244" r="5" fill="#8DE8F4" />
+        <circle cx="1105" cy="214" r="5" fill="#8DE8F4" />
+        <circle cx="1177" cy="261" r="5" fill="#8DE8F4" />
+        <circle cx="1253" cy="220" r="5" fill="#8DE8F4" />
+        <circle cx="1062" cy="306" r="5" fill="#8DE8F4" />
+        <circle cx="1214" cy="329" r="5" fill="#8DE8F4" />
+      </g>
     </svg>
   );
 }
@@ -90,10 +208,17 @@ const statusMap: Record<string, { label: string; tone: string; icon: ReactNode }
   blocked: { label: "Bị chặn", tone: "danger", icon: <AlertTriangle /> },
   cancelled: { label: "Đã hủy", tone: "neutral", icon: <CircleAlert /> },
   overdue: { label: "Quá hạn", tone: "danger", icon: <AlertTriangle /> },
+  good: { label: "Tốt", tone: "success", icon: <CheckCircle2 /> },
+  suspect: { label: "Cần kiểm tra", tone: "warning", icon: <AlertTriangle /> },
+  bad: { label: "Không đạt", tone: "danger", icon: <XCircle /> },
+  uncalibrated: { label: "Chưa hiệu chuẩn", tone: "neutral", icon: <CircleAlert /> },
+  open: { label: "Đang mở", tone: "warning", icon: <CircleAlert /> },
+  acknowledged: { label: "Đã xác nhận", tone: "info", icon: <CheckCircle2 /> },
+  resolved: { label: "Đã giải quyết", tone: "success", icon: <CheckCircle2 /> },
 };
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
-  const config = statusMap[status] ?? { label: status, tone: "neutral", icon: <CircleAlert /> };
+  const config = statusMap[status] ?? { label: "Trạng thái khác", tone: "neutral", icon: <CircleAlert /> };
   return (
     <span className="status-badge" data-tone={config.tone} data-status={status}>
       {config.icon}

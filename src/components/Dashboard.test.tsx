@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReportData, ReportPeriod } from "../types";
 import Dashboard, {
   buildDashboardPeriodOptions,
@@ -48,6 +48,8 @@ const report = (overrides: Partial<ReportData> = {}): ReportData => ({
 });
 
 describe("Dashboard device drafts", () => {
+  afterEach(() => cleanup());
+
   it("keeps a device draft separate from the server report with the same id", () => {
     const serverReport = report();
     const localDraft = report({
@@ -133,6 +135,76 @@ describe("Dashboard device drafts", () => {
     expect(screen.getByText("Bản nháp trên thiết bị")).toBeInTheDocument();
     expect(screen.getByText(/Chỉ lưu trong trình duyệt này/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Xóa bản nháp/i }));
-    expect(onDeleteReport).toHaveBeenCalledWith("report-1", true);
+    expect(onDeleteReport).toHaveBeenCalledWith(localDraft, true);
+  });
+
+  it("offers only valid admin workflow transitions for each report state", () => {
+    const onApproveReport = vi.fn();
+    const onLockReport = vi.fn();
+    const onPublishReport = vi.fn();
+    const submitted = report({
+      workflow_status: "submitted",
+      publication_status: "private",
+      version: 4,
+    });
+
+    const { rerender } = render(
+      <Dashboard
+        reports={[submitted]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onApproveReport={onApproveReport}
+        onLockReport={onLockReport}
+        onPublishReport={onPublishReport}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle("Duyệt báo cáo"));
+    expect(onApproveReport).toHaveBeenCalledWith(submitted);
+    expect(screen.queryByTitle(/Khóa báo cáo/)).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Công bố báo cáo")).not.toBeInTheDocument();
+
+    const approved = report({
+      workflow_status: "approved",
+      publication_status: "private",
+      version: 5,
+    });
+    rerender(
+      <Dashboard
+        reports={[approved]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onApproveReport={onApproveReport}
+        onLockReport={onLockReport}
+        onPublishReport={onPublishReport}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    fireEvent.click(screen.getByTitle(/Khóa báo cáo/));
+    fireEvent.click(screen.getByTitle("Công bố báo cáo"));
+    expect(onLockReport).toHaveBeenCalledWith(approved);
+    expect(onPublishReport).toHaveBeenCalledWith(approved);
+    expect(screen.queryByTitle("Xóa báo cáo")).not.toBeInTheDocument();
+  });
+
+  it("does not expose internal exports or report creation to citizens", () => {
+    render(
+      <Dashboard
+        reports={[report()]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="dan"
+      />,
+    );
+
+    expect(screen.queryByText("Lập báo cáo mới")).not.toBeInTheDocument();
+    expect(screen.queryByText("Xuất XLSX")).not.toBeInTheDocument();
+    expect(screen.queryByText("Xuất DOCX")).not.toBeInTheDocument();
+    expect(screen.queryByText("Xuất PDF")).not.toBeInTheDocument();
   });
 });

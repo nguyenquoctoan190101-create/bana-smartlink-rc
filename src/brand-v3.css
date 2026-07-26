@@ -13,6 +13,9 @@
   --bn-gold: #daaf37;
   --bn-gold-dark: #a77b13;
   --bn-gold-soft: #fbf3d9;
+  --bn-digital: #159fbd;
+  --bn-digital-deep: #256edb;
+  --bn-digital-soft: #dff5fa;
   --bn-ink: #152722;
   --bn-muted: #5d6d67;
   --bn-line: #d8e4df;
@@ -71,8 +74,42 @@ body {
   background: var(--bn-green);
 }
 
-:focus-visible {
-  outline-color: rgb(218 175 55 / 0.82) !important;
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #fff !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 5px var(--bn-green) !important;
+}
+
+/* Slate 400 is too light for meaningful labels at the compact sizes used by
+   the portal. Keep the utility semantics while meeting AA contrast on white. */
+.text-slate-400 {
+  color: #526176 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #596a64 !important;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 2px solid #fff;
+  border-radius: 0.7rem;
+  color: #fff;
+  background: var(--bn-green-deep);
+  font-size: 0.875rem;
+  font-weight: 800;
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -87,7 +124,7 @@ body {
   position: relative;
   width: 2.75rem;
   height: 2.75rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgb(11 74 53 / 0.16);
   border-radius: 0.82rem;
   background: #fff;
@@ -98,11 +135,13 @@ body {
 
 .brand-wordmark__mark img {
   display: block;
-  width: 152%;
-  max-width: none;
-  height: 152%;
-  object-fit: cover;
-  transform: translate(-17.1%, -17.1%);
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  padding: 0.1rem;
+  border-radius: 0.78rem;
+  object-fit: contain;
+  transform: none;
 }
 
 .brand-wordmark[data-inverse] .brand-wordmark__mark {
@@ -132,6 +171,50 @@ body {
 
 .brand-wordmark[data-inverse] small {
   color: rgb(255 255 255 / 0.72);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ba Na landscape + digital transformation trail                             */
+/* -------------------------------------------------------------------------- */
+
+.brand-scenery {
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+.brand-scenery__digital-trail {
+  filter: drop-shadow(0 0 8px rgb(77 207 236 / 0.34));
+  animation: bn-digital-flow 12s linear infinite;
+}
+
+.brand-scenery__golden-road {
+  filter: drop-shadow(0 5px 10px rgb(77 49 5 / 0.22));
+}
+
+.brand-scenery__node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bn-node-pulse 3.4s ease-in-out infinite;
+}
+
+@keyframes bn-digital-flow {
+  to {
+    stroke-dashoffset: -132;
+  }
+}
+
+@keyframes bn-node-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.88);
+  }
+  48% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -171,13 +254,13 @@ body {
 
 .public-hero {
   isolation: isolate;
-  min-height: clamp(430px, 42vw, 570px);
+  min-height: clamp(470px, 43vw, 610px);
   padding: clamp(2rem, 4vw, 3.5rem) clamp(1.5rem, 5vw, 4.5rem) 2.8rem !important;
   border: 1px solid rgb(218 175 55 / 0.72) !important;
   border-radius: 1.75rem !important;
   background:
-    linear-gradient(90deg, rgb(4 47 35 / 0.97) 0%, rgb(7 65 46 / 0.9) 43%, rgb(7 59 43 / 0.36) 74%, rgb(7 49 37 / 0.16) 100%),
-    url("/images/ba-na-golden-bridge.webp") center 55% / cover no-repeat !important;
+    radial-gradient(circle at 87% 14%, rgb(245 214 111 / 0.2), transparent 15rem),
+    linear-gradient(118deg, #05382a 0%, #0b5b43 58%, #0d7555 100%) !important;
   box-shadow: 0 28px 72px rgb(3 44 32 / 0.22);
 }
 
@@ -188,8 +271,8 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 84% 13%, rgb(244 213 120 / 0.33), transparent 17rem),
-    linear-gradient(115deg, rgb(41 143 103 / 0.14), transparent 45%);
+    linear-gradient(90deg, rgb(3 42 31 / 0.94) 0%, rgb(3 42 31 / 0.72) 42%, rgb(3 42 31 / 0.08) 76%),
+    radial-gradient(circle at 83% 10%, rgb(244 213 120 / 0.27), transparent 17rem);
 }
 
 .public-hero::after {
@@ -205,7 +288,21 @@ body {
 .public-hero .topographic-pattern {
   z-index: 1;
   width: min(48rem, 65vw);
-  opacity: 0.11;
+  opacity: 0.08;
+}
+
+.public-brand-scenery {
+  position: absolute;
+  z-index: 1;
+  right: -4%;
+  bottom: -2.5rem;
+  width: min(79%, 71rem);
+  height: 95%;
+  opacity: 0.98;
+}
+
+.public-hero-copy {
+  max-width: min(47rem, 58%) !important;
 }
 
 .public-hero .public-brand-lockup,
@@ -229,11 +326,13 @@ body {
 }
 
 .public-brand-lockup img {
-  width: 48px;
-  height: 48px;
+  width: 54px;
+  height: 54px;
+  padding: 2px;
   border: 1px solid rgb(255 255 255 / 0.38);
   border-radius: 0.85rem;
-  object-fit: cover;
+  background: #fff;
+  object-fit: contain;
   box-shadow: 0 8px 22px rgb(0 0 0 / 0.24);
 }
 
@@ -276,7 +375,7 @@ body {
 }
 
 .public-hero .public-hero-nav {
-  max-width: 940px;
+  max-width: 760px;
   margin-top: 2rem !important;
   padding-top: 1.25rem;
   border-top: 1px solid rgb(255 255 255 / 0.29);
@@ -308,6 +407,34 @@ body {
 .public-hero .public-hero-nav > *:first-child:hover {
   color: var(--bn-green-deep) !important;
   background: var(--bn-gold-soft) !important;
+}
+
+.public-hero--compact {
+  min-height: 0;
+  padding-block: 1.25rem 1.35rem !important;
+  background-position: center 58% !important;
+}
+
+.public-hero--compact .public-brand-scenery {
+  right: -1%;
+  bottom: -5.2rem;
+  width: min(72%, 62rem);
+  height: 170%;
+  opacity: 0.48;
+}
+
+.public-hero--compact .public-brand-lockup {
+  margin-bottom: 0.75rem;
+}
+
+.public-hero--compact .public-hero-copy > p,
+.public-hero--compact .public-hero-copy > h1 {
+  display: none;
+}
+
+.public-hero--compact .public-hero-nav {
+  margin-top: 0 !important;
+  padding-top: 0.9rem;
 }
 
 #public-village-portal > :not(.public-hero) {
@@ -367,8 +494,8 @@ body {
   isolation: isolate;
   border-right: 1px solid rgb(218 175 55 / 0.32);
   background:
-    linear-gradient(180deg, rgb(3 45 33 / 0.68) 0%, rgb(4 54 39 / 0.58) 42%, rgb(3 42 31 / 0.93) 100%),
-    url("/images/ba-na-golden-bridge.webp") 58% center / cover no-repeat !important;
+    radial-gradient(circle at 82% 12%, rgb(245 214 111 / 0.18), transparent 18rem),
+    linear-gradient(145deg, #043428, #0a6047 68%, #0e7657) !important;
 }
 
 .login-visual::before {
@@ -378,8 +505,8 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgb(5 54 40 / 0.42), transparent 65%),
-    radial-gradient(circle at 80% 14%, rgb(218 175 55 / 0.3), transparent 18rem);
+    linear-gradient(90deg, rgb(3 42 31 / 0.82), rgb(3 42 31 / 0.18) 72%),
+    radial-gradient(circle at 80% 14%, rgb(218 175 55 / 0.24), transparent 18rem);
 }
 
 .login-visual::after {
@@ -398,7 +525,17 @@ body {
 
 .login-visual .topographic-pattern {
   z-index: 1;
-  opacity: 0.13;
+  opacity: 0.08;
+}
+
+.login-brand-scenery {
+  position: absolute;
+  z-index: 1;
+  right: -18%;
+  bottom: -2.5%;
+  width: 132%;
+  height: 72%;
+  opacity: 0.95;
 }
 
 .login-visual h1 {
@@ -442,6 +579,16 @@ body {
     linear-gradient(150deg, transparent 0 51%, var(--bn-green) 52% 54%, transparent 55%),
     linear-gradient(140deg, transparent 0 60%, var(--bn-gold) 61% 62%, transparent 63%);
   transform: rotate(-4deg);
+}
+
+.login-panel-scenery {
+  position: absolute;
+  z-index: 0;
+  right: -26%;
+  bottom: -4rem;
+  width: 145%;
+  height: 42%;
+  opacity: 0.18;
 }
 
 .login-card,
@@ -495,8 +642,9 @@ body {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(115deg, rgb(4 42 31 / 0.95), rgb(8 78 55 / 0.9)),
-    url("/images/ba-na-golden-bridge.webp") center / cover !important;
+    radial-gradient(ellipse at 82% 64%, transparent 0 20%, rgb(218 175 55 / 0.66) 20.4% 21%, transparent 21.5%),
+    radial-gradient(circle at 82% 84%, #14805b, transparent 40%),
+    linear-gradient(115deg, #042a1f, #084e37) !important;
 }
 
 .password-reset-card {
@@ -554,6 +702,12 @@ body {
   font-size: 1.05rem;
 }
 
+.gov-shell__sidebar .brand-wordmark__copy small {
+  max-width: 10.8rem;
+  white-space: normal;
+  line-height: 1.3;
+}
+
 .gov-shell__sidebar-scroll {
   position: relative;
   z-index: 3;
@@ -605,10 +759,24 @@ body {
 }
 
 .gov-shell__main {
+  position: relative;
+  isolation: isolate;
   background: transparent;
 }
 
+.gov-brand-scenery {
+  position: absolute;
+  z-index: 0;
+  top: 2.9rem;
+  right: 0;
+  width: min(72rem, 76%);
+  height: 19rem;
+  opacity: 0.1;
+}
+
 .gov-topbar {
+  position: relative;
+  z-index: 3;
   min-height: 4.25rem !important;
   border-bottom-color: rgb(11 74 53 / 0.11) !important;
   background: rgb(255 255 255 / 0.89) !important;
@@ -621,10 +789,12 @@ body {
   position: absolute;
   inset: auto 0 -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(218 175 55 / 0.5), transparent);
+  background: linear-gradient(90deg, transparent, rgb(21 159 189 / 0.58), rgb(218 175 55 / 0.62), transparent);
 }
 
 .gov-shell__content {
+  position: relative;
+  z-index: 2;
   width: min(100%, 1540px);
   padding: 1.75rem clamp(1rem, 2.7vw, 2.75rem) 6.25rem;
 }
@@ -647,11 +817,12 @@ body {
   width: min(34rem, 52vw);
   height: 12rem;
   pointer-events: none;
-  opacity: 0.12;
+  opacity: 0.08;
   background:
     radial-gradient(ellipse at 18% 100%, transparent 0 48%, var(--bn-green) 49% 50%, transparent 51%),
     radial-gradient(ellipse at 56% 100%, transparent 0 57%, var(--bn-green) 58% 59%, transparent 60%),
-    linear-gradient(167deg, transparent 0 68%, var(--bn-gold) 69% 69.6%, transparent 70%);
+    linear-gradient(167deg, transparent 0 64%, var(--bn-digital) 65% 65.7%, transparent 66%),
+    linear-gradient(172deg, transparent 0 72%, var(--bn-gold) 73% 73.6%, transparent 74%);
 }
 
 .gov-shell .page-heading {
@@ -667,7 +838,7 @@ body {
   inset: 0 auto 1.15rem 0;
   width: 4px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--bn-gold), var(--bn-green));
+  background: linear-gradient(180deg, var(--bn-digital), var(--bn-gold), var(--bn-green));
 }
 
 .gov-shell .page-heading h1 {
@@ -698,8 +869,20 @@ body {
 }
 
 .gov-shell .metric-card {
+  overflow: hidden;
   min-height: 9.25rem;
   transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+}
+
+.gov-shell .metric-card::after,
+#public-village-portal .metric-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto auto;
+  width: 46%;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--bn-digital), var(--bn-gold));
 }
 
 .gov-shell .metric-card:hover {
@@ -1058,9 +1241,21 @@ body {
     padding: 1.35rem 1.15rem 1.55rem !important;
     border-radius: 1.15rem !important;
     background:
-      linear-gradient(180deg, rgb(3 47 35 / 0.95) 0%, rgb(7 66 47 / 0.84) 61%, rgb(5 52 39 / 0.6) 100%),
-      url("/images/ba-na-golden-bridge.webp") 63% center / cover no-repeat !important;
+      radial-gradient(circle at 90% 10%, rgb(245 214 111 / 0.2), transparent 10rem),
+      linear-gradient(145deg, #05382a, #0b6448 68%, #117a59) !important;
     box-shadow: 0 16px 38px rgb(3 44 32 / 0.2);
+  }
+
+  .public-brand-scenery {
+    right: -56%;
+    bottom: -1.8rem;
+    width: 170%;
+    height: 74%;
+    opacity: 0.58;
+  }
+
+  .public-hero-copy {
+    max-width: 100% !important;
   }
 
   .public-brand-lockup {
@@ -1069,8 +1264,8 @@ body {
   }
 
   .public-brand-lockup img {
-    width: 42px;
-    height: 42px;
+    width: 46px;
+    height: 46px;
   }
 
   .public-brand-name {
@@ -1088,13 +1283,32 @@ body {
 
   .public-hero .public-hero-nav {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 1.35rem !important;
     padding-top: 1rem;
   }
 
   .public-hero .public-hero-nav > * {
     width: 100%;
+    min-height: 54px;
+    padding-inline: 0.65rem !important;
+    text-align: center;
+  }
+
+  .public-hero .public-hero-nav > *:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .public-hero--compact {
+    padding-block: 1rem 1.15rem !important;
+  }
+
+  .public-hero--compact .public-brand-lockup {
+    margin-bottom: 0.65rem;
+  }
+
+  .public-hero--compact .public-hero-nav {
+    margin-top: 0 !important;
   }
 
   #public-village-portal :is(.ui-card, .metric-card, .filter-bar, .action-card) {
@@ -1122,6 +1336,14 @@ body {
 
   .gov-shell__content {
     padding: 1rem 0.75rem 6rem;
+  }
+
+  .gov-brand-scenery {
+    top: 2.4rem;
+    right: -45%;
+    width: 150%;
+    height: 14rem;
+    opacity: 0.065;
   }
 
   .role-screen::before {
@@ -1179,9 +1401,201 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand-scenery__digital-trail,
+  .brand-scenery__node,
   .gov-shell .metric-card,
   #public-village-portal .metric-card,
   .gov-shell__sidebar nav button {
+    animation: none;
     transition: none;
+  }
+}
+
+/* Mobile keeps four high-frequency actions visible; the rest remain available
+   in an accessible bottom sheet instead of becoming a long horizontal rail. */
+.gov-mobile-more {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+}
+
+.gov-mobile-more__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(3 31 23 / 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.gov-mobile-more__sheet {
+  position: relative;
+  width: 100%;
+  max-height: min(74vh, 38rem);
+  overflow: hidden;
+  border: 1px solid rgb(11 74 53 / 0.14);
+  border-radius: 1.4rem 1.4rem 0 0;
+  background: #fff;
+  box-shadow: 0 -24px 60px rgb(3 31 23 / 0.24);
+}
+
+.gov-mobile-more__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0.95rem;
+  border-bottom: 1px solid var(--bn-line);
+  background: linear-gradient(135deg, var(--bn-green-mist), #fff);
+}
+
+.gov-mobile-more__header p {
+  margin: 0;
+  color: var(--bn-green-deep);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.gov-mobile-more__header span {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--bn-muted);
+  font-size: 0.75rem;
+}
+
+.gov-mobile-more__header button {
+  display: grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--bn-line);
+  border-radius: 0.8rem;
+  color: var(--bn-green);
+  background: #fff;
+}
+
+.gov-mobile-more__header svg,
+.gov-mobile-more__list svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.gov-mobile-more__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  max-height: calc(min(74vh, 38rem) - 5.2rem);
+  overflow-y: auto;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+.gov-mobile-more__list button {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem;
+  border: 1px solid var(--bn-line);
+  border-radius: 0.9rem;
+  color: var(--bn-ink);
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.gov-mobile-more__list button[aria-current="page"] {
+  border-color: rgb(218 175 55 / 0.7);
+  color: var(--bn-green-deep);
+  background: var(--bn-gold-soft);
+}
+
+.gov-mobile-more__list button svg {
+  flex: 0 0 auto;
+  color: var(--bn-green);
+}
+
+.executive-brief {
+  border-color: rgb(218 175 55 / 0.48) !important;
+  background:
+    linear-gradient(135deg, rgb(11 74 53 / 0.045), transparent 55%),
+    #fff;
+  box-shadow: 0 18px 42px rgb(6 54 41 / 0.09) !important;
+}
+
+.executive-brief__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.executive-brief__heading h2 {
+  margin: 0.2rem 0 0;
+  color: var(--bn-green-deep);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.executive-brief__heading p:not(.page-heading__eyebrow) {
+  max-width: 52rem;
+  margin: 0.45rem 0 0;
+  color: var(--bn-muted);
+  line-height: 1.55;
+}
+
+.executive-brief__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+}
+
+.executive-brief__facts > div {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--bn-line);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.82);
+}
+
+.executive-brief__facts dt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--bn-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.executive-brief__facts dt svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--bn-green);
+}
+
+.executive-brief__facts dd {
+  margin: 0.45rem 0 0;
+  color: var(--bn-ink);
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.executive-brief__note {
+  margin: 0.9rem 0 0;
+  color: var(--bn-muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 720px) {
+  .executive-brief__heading {
+    flex-direction: column;
+  }
+
+  .executive-brief__facts {
+    grid-template-columns: 1fr;
   }
 }
