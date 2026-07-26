@@ -22,7 +22,8 @@
   --bn-line-strong: #c5d6cf;
   --bn-canvas: #f4f7f5;
   --bn-surface: #ffffff;
-  --bn-shadow-sm: 0 1px 2px rgb(11 74 53 / 0.04), 0 7px 20px rgb(11 74 53 / 0.055);
+  --bn-shadow-sm:
+    0 1px 2px rgb(11 74 53 / 0.04), 0 7px 20px rgb(11 74 53 / 0.055);
   --bn-shadow-md: 0 16px 42px rgb(6 54 41 / 0.11);
   --bn-radius-sm: 0.75rem;
   --bn-radius-md: 1rem;
@@ -65,7 +66,11 @@ html {
 body {
   color: var(--bn-ink);
   background:
-    radial-gradient(circle at 92% -8%, rgb(218 175 55 / 0.1), transparent 28rem),
+    radial-gradient(
+      circle at 92% -8%,
+      rgb(218 175 55 / 0.1),
+      transparent 28rem
+    ),
     var(--bn-canvas);
 }
 
@@ -222,8 +227,12 @@ textarea::placeholder {
 /* -------------------------------------------------------------------------- */
 
 .public-shell {
-  background:
-    linear-gradient(180deg, #f8faf9 0%, var(--bn-canvas) 52%, #edf3f0 100%);
+  background: linear-gradient(
+    180deg,
+    #f8faf9 0%,
+    var(--bn-canvas) 52%,
+    #edf3f0 100%
+  );
 }
 
 .public-header {
@@ -237,7 +246,12 @@ textarea::placeholder {
   position: absolute;
   inset: auto 0 -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(218 175 55 / 0.78), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(218 175 55 / 0.78),
+    transparent
+  );
 }
 
 .public-header > div {
@@ -266,7 +280,11 @@ textarea::placeholder {
   border: 1px solid rgb(218 175 55 / 0.72) !important;
   border-radius: 1.35rem !important;
   background:
-    radial-gradient(circle at 87% 14%, rgb(245 214 111 / 0.2), transparent 15rem),
+    radial-gradient(
+      circle at 87% 14%,
+      rgb(245 214 111 / 0.2),
+      transparent 15rem
+    ),
     linear-gradient(118deg, #05382a 0%, #0b5b43 58%, #0d7555 100%) !important;
   box-shadow: 0 28px 72px rgb(3 44 32 / 0.22);
 }
@@ -296,9 +314,19 @@ textarea::placeholder {
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgb(2 35 26 / 0.96) 0%, rgb(3 42 31 / 0.81) 44%, rgb(3 42 31 / 0.18) 75%, rgb(3 42 31 / 0.08) 100%),
+    linear-gradient(
+      90deg,
+      rgb(2 35 26 / 0.96) 0%,
+      rgb(3 42 31 / 0.81) 44%,
+      rgb(3 42 31 / 0.18) 75%,
+      rgb(3 42 31 / 0.08) 100%
+    ),
     linear-gradient(180deg, rgb(2 28 21 / 0.06), rgb(2 28 21 / 0.36)),
-    radial-gradient(circle at 83% 10%, rgb(244 213 120 / 0.19), transparent 17rem);
+    radial-gradient(
+      circle at 83% 10%,
+      rgb(244 213 120 / 0.19),
+      transparent 17rem
+    );
 }
 
 .public-hero::after {
@@ -308,7 +336,13 @@ textarea::placeholder {
   inset: auto 0 0;
   height: 5px;
   pointer-events: none;
-  background: linear-gradient(90deg, #b98415, #f3d26c 42%, var(--bn-gold) 70%, #b98415);
+  background: linear-gradient(
+    90deg,
+    #b98415,
+    #f3d26c 42%,
+    var(--bn-gold) 70%,
+    #b98415
+  );
 }
 
 .public-hero-copy {
@@ -485,7 +519,10 @@ textarea::placeholder {
 
 #public-village-portal .metric-card {
   min-height: 9rem;
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 #public-village-portal .metric-card:hover {
@@ -578,7 +615,9 @@ textarea::placeholder {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 520ms ease, filter 520ms ease;
+  transition:
+    transform 520ms ease,
+    filter 520ms ease;
 }
 
 .public-place-story__card--feature img {
@@ -590,7 +629,11 @@ textarea::placeholder {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(180deg, transparent 28%, rgb(2 29 21 / 0.93) 100%);
+  background: linear-gradient(
+    180deg,
+    transparent 28%,
+    rgb(2 29 21 / 0.93) 100%
+  );
 }
 
 .public-place-story__card:hover img {
@@ -645,7 +688,11 @@ textarea::placeholder {
   border-top: 3px solid var(--bn-gold) !important;
   color: rgb(255 255 255 / 0.72) !important;
   background:
-    radial-gradient(circle at 80% 0%, rgb(218 175 55 / 0.13), transparent 18rem),
+    radial-gradient(
+      circle at 80% 0%,
+      rgb(218 175 55 / 0.13),
+      transparent 18rem
+    ),
     var(--bn-green-deep) !important;
 }
 
@@ -661,7 +708,11 @@ textarea::placeholder {
   isolation: isolate;
   border-right: 1px solid rgb(218 175 55 / 0.32);
   background:
-    radial-gradient(circle at 82% 12%, rgb(245 214 111 / 0.18), transparent 18rem),
+    radial-gradient(
+      circle at 82% 12%,
+      rgb(245 214 111 / 0.18),
+      transparent 18rem
+    ),
     linear-gradient(145deg, rgb(4 52 40 / 0.82), rgb(10 96 71 / 0.42)),
     url("/images/ba-na/ba-na-login-cloud-station.jpg") center / cover no-repeat !important;
 }
@@ -674,7 +725,11 @@ textarea::placeholder {
   pointer-events: none;
   background:
     linear-gradient(90deg, rgb(3 42 31 / 0.82), rgb(3 42 31 / 0.18) 72%),
-    radial-gradient(circle at 80% 14%, rgb(218 175 55 / 0.24), transparent 18rem);
+    radial-gradient(
+      circle at 80% 14%,
+      rgb(218 175 55 / 0.24),
+      transparent 18rem
+    );
 }
 
 .login-visual::after {
@@ -683,7 +738,12 @@ textarea::placeholder {
   z-index: 1;
   inset: auto 0 0;
   height: 5px;
-  background: linear-gradient(90deg, var(--bn-gold-dark), #f0cf68, var(--bn-gold));
+  background: linear-gradient(
+    90deg,
+    var(--bn-gold-dark),
+    #f0cf68,
+    var(--bn-gold)
+  );
 }
 
 .login-visual > * {
@@ -716,7 +776,11 @@ textarea::placeholder {
   overflow-x: hidden !important;
   overflow-y: auto !important;
   background:
-    radial-gradient(circle at 100% 0%, rgb(218 175 55 / 0.13), transparent 21rem),
+    radial-gradient(
+      circle at 100% 0%,
+      rgb(218 175 55 / 0.13),
+      transparent 21rem
+    ),
     linear-gradient(180deg, #f9fbfa, #edf3f0) !important;
 }
 
@@ -734,7 +798,12 @@ textarea::placeholder {
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  background: linear-gradient(90deg, var(--bn-green), var(--bn-gold), var(--bn-green));
+  background: linear-gradient(
+    90deg,
+    var(--bn-green),
+    var(--bn-gold),
+    var(--bn-green)
+  );
 }
 
 .login-card form > div:first-child > p:first-child {
@@ -785,7 +854,11 @@ textarea::placeholder {
 
 .gov-shell {
   background:
-    radial-gradient(circle at 96% 0%, rgb(218 175 55 / 0.095), transparent 26rem),
+    radial-gradient(
+      circle at 96% 0%,
+      rgb(218 175 55 / 0.095),
+      transparent 26rem
+    ),
     linear-gradient(180deg, #f7f9f8, var(--bn-canvas));
 }
 
@@ -805,7 +878,12 @@ textarea::placeholder {
   z-index: 2;
   inset: 0 0 auto;
   height: 4px;
-  background: linear-gradient(90deg, var(--bn-gold-dark), #f1d06b, var(--bn-gold));
+  background: linear-gradient(
+    90deg,
+    var(--bn-gold-dark),
+    #f1d06b,
+    var(--bn-gold)
+  );
 }
 
 .gov-shell__sidebar .brand-wordmark__mark {
@@ -838,7 +916,11 @@ textarea::placeholder {
   min-height: 2.7rem;
   border: 1px solid transparent;
   border-radius: 0.75rem !important;
-  transition: color 160ms ease, background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
 }
 
 .gov-shell__sidebar nav button:hover {
@@ -895,7 +977,13 @@ textarea::placeholder {
   position: absolute;
   inset: auto 0 -1px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(21 159 189 / 0.58), rgb(218 175 55 / 0.62), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(21 159 189 / 0.58),
+    rgb(218 175 55 / 0.62),
+    transparent
+  );
 }
 
 .gov-shell__content {
@@ -927,7 +1015,12 @@ textarea::placeholder {
   inset: 0 auto 1.15rem 0;
   width: 4px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--bn-digital), var(--bn-gold), var(--bn-green));
+  background: linear-gradient(
+    180deg,
+    var(--bn-digital),
+    var(--bn-gold),
+    var(--bn-green)
+  );
 }
 
 .gov-shell .page-heading h1 {
@@ -948,7 +1041,8 @@ textarea::placeholder {
   box-shadow: var(--bn-shadow-sm);
 }
 
-.gov-shell :is(.bg-white.rounded-2xl, .bg-white.rounded-xl, .bg-white.rounded-lg) {
+.gov-shell
+  :is(.bg-white.rounded-2xl, .bg-white.rounded-xl, .bg-white.rounded-lg) {
   border-color: var(--bn-line) !important;
   box-shadow: var(--bn-shadow-sm);
 }
@@ -960,7 +1054,10 @@ textarea::placeholder {
 .gov-shell .metric-card {
   overflow: hidden;
   min-height: 9.25rem;
-  transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+  transition:
+    transform 170ms ease,
+    border-color 170ms ease,
+    box-shadow 170ms ease;
 }
 
 .gov-shell .metric-card::after,
@@ -971,7 +1068,12 @@ textarea::placeholder {
   width: 46%;
   height: 2px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--bn-digital), var(--bn-gold));
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--bn-digital),
+    var(--bn-gold)
+  );
 }
 
 .gov-shell .metric-card:hover {
@@ -993,7 +1095,9 @@ textarea::placeholder {
 }
 
 .gov-shell .action-card {
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .gov-shell .action-card:hover {
@@ -1039,7 +1143,13 @@ textarea::placeholder {
   background-color: var(--bn-green) !important;
 }
 
-.gov-shell :is(.text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) {
+.gov-shell
+  :is(
+    .text-emerald-700,
+    .text-emerald-800,
+    .text-emerald-900,
+    .text-emerald-950
+  ) {
   color: var(--bn-green) !important;
 }
 
@@ -1077,6 +1187,12 @@ textarea::placeholder {
   backdrop-filter: blur(14px);
 }
 
+@media (min-width: 1024px) {
+  .gov-shell:has(.report-form-screen) .chat-widget {
+    bottom: 6.75rem;
+  }
+}
+
 .gov-shell .empty-state {
   min-height: 13rem;
   border-radius: 0.9rem;
@@ -1107,7 +1223,11 @@ textarea::placeholder {
   padding-top: env(safe-area-inset-top);
   border-bottom-color: rgb(218 175 55 / 0.38) !important;
   background:
-    radial-gradient(circle at 85% 0%, rgb(218 175 55 / 0.14), transparent 10rem),
+    radial-gradient(
+      circle at 85% 0%,
+      rgb(218 175 55 / 0.14),
+      transparent 10rem
+    ),
     var(--bn-green-deep) !important;
   box-shadow: 0 8px 24px rgb(6 54 41 / 0.18);
 }
@@ -1142,7 +1262,13 @@ textarea::placeholder {
 }
 
 /* Keep specialist pages visually coherent without changing their structure. */
-.gov-shell :is(.knowledge-section__header, .bg-slate-50, .bg-slate-50\/50, .bg-slate-50\/70) {
+.gov-shell
+  :is(
+    .knowledge-section__header,
+    .bg-slate-50,
+    .bg-slate-50\/50,
+    .bg-slate-50\/70
+  ) {
   background-color: var(--bn-green-mist) !important;
 }
 
@@ -1170,7 +1296,11 @@ textarea::placeholder {
   border-radius: var(--bn-radius-md);
   padding: 1.35rem;
   background:
-    radial-gradient(circle at 92% 0%, rgb(218 175 55 / 0.12), transparent 12rem),
+    radial-gradient(
+      circle at 92% 0%,
+      rgb(218 175 55 / 0.12),
+      transparent 12rem
+    ),
     linear-gradient(120deg, #fff, var(--bn-green-mist));
   box-shadow: var(--bn-shadow-sm);
 }
@@ -1179,19 +1309,29 @@ textarea::placeholder {
 .role-screen section[aria-labelledby="create-period-title"] > header {
   border-color: rgb(218 175 55 / 0.34);
   background:
-    radial-gradient(circle at 88% 0%, rgb(218 175 55 / 0.18), transparent 13rem),
+    radial-gradient(
+      circle at 88% 0%,
+      rgb(218 175 55 / 0.18),
+      transparent 13rem
+    ),
     linear-gradient(120deg, var(--bn-green), var(--bn-green-deep)) !important;
 }
 
 .role-screen .progress-dashboard__summary {
   border-color: rgb(218 175 55 / 0.32);
   background:
-    radial-gradient(circle at 90% 0%, rgb(218 175 55 / 0.16), transparent 13rem),
+    radial-gradient(
+      circle at 90% 0%,
+      rgb(218 175 55 / 0.16),
+      transparent 13rem
+    ),
     linear-gradient(115deg, var(--bn-green), var(--bn-green-deep));
   box-shadow: var(--bn-shadow-md);
 }
 
-.role-screen .progress-dashboard__summary :is(h1, h2, .progress-dashboard__eyebrow) {
+.role-screen
+  .progress-dashboard__summary
+  :is(h1, h2, .progress-dashboard__eyebrow) {
   color: #fff;
 }
 
@@ -1276,7 +1416,11 @@ textarea::placeholder {
 .privacy-policy-modal__header {
   border-bottom: 3px solid var(--bn-gold);
   background:
-    radial-gradient(circle at 90% 0%, rgb(218 175 55 / 0.16), transparent 10rem),
+    radial-gradient(
+      circle at 90% 0%,
+      rgb(218 175 55 / 0.16),
+      transparent 10rem
+    ),
     var(--bn-green);
 }
 
@@ -1464,7 +1608,11 @@ textarea::placeholder {
     padding: 1.35rem 1.15rem 1.55rem !important;
     border-radius: 1.15rem !important;
     background:
-      radial-gradient(circle at 90% 10%, rgb(245 214 111 / 0.2), transparent 10rem),
+      radial-gradient(
+        circle at 90% 10%,
+        rgb(245 214 111 / 0.2),
+        transparent 10rem
+      ),
       linear-gradient(145deg, #05382a, #0b6448 68%, #117a59) !important;
     box-shadow: 0 16px 38px rgb(3 44 32 / 0.2);
   }
@@ -1476,7 +1624,12 @@ textarea::placeholder {
 
   .public-hero::before {
     background:
-      linear-gradient(145deg, rgb(2 34 25 / 0.96) 0%, rgb(3 43 31 / 0.83) 62%, rgb(3 42 31 / 0.52) 100%),
+      linear-gradient(
+        145deg,
+        rgb(2 34 25 / 0.96) 0%,
+        rgb(3 43 31 / 0.83) 62%,
+        rgb(3 42 31 / 0.52) 100%
+      ),
       linear-gradient(180deg, rgb(2 28 21 / 0.04), rgb(2 28 21 / 0.36));
   }
 
@@ -1545,7 +1698,8 @@ textarea::placeholder {
     margin-top: 0 !important;
   }
 
-  #public-village-portal :is(.ui-card, .metric-card, .filter-bar, .action-card) {
+  #public-village-portal
+    :is(.ui-card, .metric-card, .filter-bar, .action-card) {
     border-radius: 0.85rem;
   }
 
@@ -1641,6 +1795,21 @@ textarea::placeholder {
 @media (max-width: 1023px) {
   .gov-shell .chat-widget {
     bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    right: 0.75rem;
+  }
+
+  .gov-shell .chat-widget__fab {
+    width: 48px;
+    height: 48px;
+  }
+
+  .gov-shell .chat-widget__fab > .chat-widget__brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .gov-shell:has(.report-form-screen) .chat-widget {
+    bottom: calc(9.75rem + env(safe-area-inset-bottom));
   }
 
   .gov-shell .chat-widget__panel {
@@ -1649,6 +1818,44 @@ textarea::placeholder {
 }
 
 @media (max-width: 480px) {
+  .dashboard-filter-bar__filters {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-filter-bar__field,
+  .dashboard-filter-bar__field select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-filter-bar__actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-filter-bar__actions > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-filter-bar__new {
+    grid-column: 1 / -1;
+  }
+
+  .report-form-screen .sticky-action-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0.5rem;
+  }
+
+  .report-form-screen .sticky-action-bar > * {
+    min-width: 0;
+    padding-inline: 0.5rem;
+    font-size: 0.72rem;
+  }
+
   .chat-widget__panel {
     height: min(520px, calc(100dvh - 100px));
   }
@@ -1822,8 +2029,7 @@ textarea::placeholder {
 .executive-brief {
   border-color: rgb(218 175 55 / 0.48) !important;
   background:
-    linear-gradient(135deg, rgb(11 74 53 / 0.045), transparent 55%),
-    #fff;
+    linear-gradient(135deg, rgb(11 74 53 / 0.045), transparent 55%), #fff;
   box-shadow: 0 18px 42px rgb(6 54 41 / 0.09) !important;
 }
 
