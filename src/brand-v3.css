@@ -708,11 +708,6 @@ textarea::placeholder {
   z-index: 2;
 }
 
-.login-visual .topographic-pattern {
-  z-index: 1;
-  opacity: 0.08;
-}
-
 .login-brand-scenery {
   position: absolute;
   z-index: 1;

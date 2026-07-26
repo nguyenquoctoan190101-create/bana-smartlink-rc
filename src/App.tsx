@@ -7,7 +7,7 @@ import { ReportData, UserRole } from "./types";
 import SyncStatus from "./components/SyncStatus";
 import ChatWidget from "./components/ChatWidget";
 import PrivacyPolicy from "./components/PrivacyPolicy";
-import { BaNaBrandScenery, Button, TopographicPattern, Wordmark } from "./components/ui";
+import { BaNaBrandScenery, Button, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
 import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
@@ -634,7 +634,6 @@ export default function App() {
         
         {/* LEFT COLUMN: Visual Showcase & Brand illustration */}
         <div className="login-visual hidden lg:flex lg:w-[58%] bg-[#0b4437] relative flex-col justify-between p-12 xl:p-16 overflow-hidden text-white">
-          <TopographicPattern className="text-white" />
           <BaNaBrandScenery className="login-brand-scenery" />
           
           {/* Top left overlay metadata */}
@@ -668,7 +667,6 @@ export default function App() {
 
         {/* RIGHT COLUMN: The Login Form */}
         <main id="main-content" tabIndex={-1} className="login-panel w-full lg:w-[42%] bg-[#f6f8f7] flex flex-col justify-center px-5 py-10 sm:px-12 lg:px-14 relative overflow-hidden">
-          <TopographicPattern className="text-emerald-800 lg:hidden" />
           <BaNaBrandScenery className="login-panel-scenery lg:hidden" />
           
           {/* Logo showing up for mobile screen only */}
