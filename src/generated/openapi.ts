@@ -2105,6 +2105,16 @@ export interface components {
             id: string;
             /** Is Active */
             is_active: boolean;
+            /**
+             * Mfa Required
+             * @default false
+             */
+            mfa_required: boolean;
+            /**
+             * Mfa Verified
+             * @default false
+             */
+            mfa_verified: boolean;
             /** Phone */
             phone: string | null;
             /** Role */

@@ -148,6 +148,8 @@ export interface AuthProfile {
   is_active: boolean;
   force_password_reset: boolean;
   assigned_village_ids?: string[];
+  mfa_required?: boolean;
+  mfa_verified?: boolean;
 }
 
 export interface NarrativeAnalysisResponse {

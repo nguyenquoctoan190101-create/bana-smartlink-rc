@@ -35,6 +35,9 @@ class UserProfile:
     phone: str | None = None
     is_active: bool = True
     commune_id: str | None = None
+    # Authenticator Assurance Level copied only from a locally verified JWT.
+    # It is never read from user-editable profile metadata.
+    aal: str = "aal1"
 
 
 class SupabaseAdminClient:

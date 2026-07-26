@@ -1485,6 +1485,16 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "mfa_required": {
+            "default": false,
+            "title": "Mfa Required",
+            "type": "boolean"
+          },
+          "mfa_verified": {
+            "default": false,
+            "title": "Mfa Verified",
+            "type": "boolean"
+          },
           "phone": {
             "anyOf": [
               {

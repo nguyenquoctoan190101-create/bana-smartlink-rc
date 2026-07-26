@@ -26,10 +26,10 @@ quyết định chính sách truy cập mạng/IP.
 | Giao diện vai trò | Đạt visual QA kỹ thuật | Người dân, cán bộ thôn, CNSCĐ, quản trị và lãnh đạo đã được kiểm tra desktop/mobile; lãnh đạo có ba không gian chính |
 | Dashboard lãnh đạo | Đạt ở mức sản phẩm | Dữ liệu đã duyệt/khóa; ma trận ưu tiên, Pareto, bullet, phân tán, cơ cấu, dải tín hiệu và liên kết tới báo cáo nguồn |
 | An toàn ứng dụng | Đạt baseline | CSP, HSTS, chống nhúng trang, no-store cho API nghiệp vụ, CORS rõ nguồn, giới hạn tần suất, giới hạn tệp/ZIP/PDF/ảnh, parser XML chống entity bomb |
-| Kiểm thử tự động | Đạt tại ứng viên `cf3dc20` | Backend 541 kiểm thử; frontend 95 kiểm thử/23 tệp; typecheck, build, bundle budget, Ruff và release scan 484 tệp đều đạt |
+| Kiểm thử tự động | Đạt trước khi phát hành MFA/IP | Backend 546 kiểm thử; frontend 97 kiểm thử/24 tệp; typecheck, build, bundle budget, Ruff và release scan 489 tệp đều đạt |
 | Chuỗi cung ứng | Đạt tại lần kiểm tra 26/07 | `pip-audit` không có lỗ hổng đã biết; `npm audit --omit=dev` có 0 lỗ hổng; Bandit mức cao, secret/release scan và SBOM trong CI |
 | CI đa nền tảng | Đạt | GitHub Actions run `30206056071`: supply-chain, Ubuntu, Windows và database-contract đều hoàn tất thành công |
-| Bản chạy Render | Đạt smoke ở ứng viên `cf3dc20` | `/health/live` và `/health/ready` trả đúng full commit; 20/20 yêu cầu thành công, p95 lần lượt 348 ms và 480 ms. Đây là smoke endpoint sức khỏe, không thay thế kiểm thử tải nghiệp vụ |
+| Tải đọc giới hạn | Đạt ngày 26/07 | 100/100 yêu cầu ở concurrency 10 cho từng endpoint: p95 live 602 ms, ready 437 ms, dữ liệu công khai 582 ms; ngưỡng 2.000 ms. Chưa thay thế tải ghi và tải nghiệp vụ có xác thực |
 
 ## Trạng thái bảo vệ địa chỉ IP và mạng
 
@@ -39,6 +39,10 @@ quyết định chính sách truy cập mạng/IP.
   mở trực tiếp cổng ứng dụng ra Internet.
 - Ứng dụng dùng CORS với đúng origin triển khai, CSP/HSTS, JWT và RLS. Đây là
   các lớp bảo vệ danh tính và dữ liệu, không phải IP allowlist.
+- Ứng dụng đã có cổng CIDR tùy chọn: khi cấu hình
+  `INTERNAL_ALLOWED_IP_CIDRS`, `/app` và mọi yêu cầu mang bearer token chỉ được
+  nhận từ mạng cho phép, trong khi endpoint người dân vẫn công khai. Cổng chưa
+  bật trên Render vì cơ quan chưa cung cấp dải IP/VPN được phê duyệt.
 - `FORWARDED_ALLOW_IPS="*"` trong Blueprint chỉ cho Uvicorn tin proxy phía trước
   để đọc đúng thông tin chuyển tiếp. Giá trị này **không có nghĩa chỉ các IP
   được phép mới vào hệ thống**.
@@ -78,11 +82,11 @@ thể thay đổi, gây tự khóa người dùng hợp lệ.
 | Cổng | Hiện trạng | Điều kiện đóng cổng |
 |---|---|---|
 | UAT năm vai trò | Chưa có biên bản ký | Mỗi vai trò thực hiện kịch bản chính, ghi lỗi, kết luận và chữ ký |
-| Bảo mật tài khoản | Tài khoản demo còn phục vụ kiểm thử | Thu hồi demo, tạo tài khoản định danh, MFA cho quản trị/lãnh đạo, quy trình joiner–mover–leaver |
-| IP/Zero Trust | Chưa bật allowlist cho web service | Quyết định kiến trúc public/internal, dải IP/VPN hoặc chính sách Zero Trust, thử khóa và phương án khôi phục |
+| Bảo mật tài khoản | TOTP MFA đã bắt buộc bằng `aal2` cho quản trị/lãnh đạo; tài khoản demo còn phục vụ kiểm thử | Từng người quét mã bằng ứng dụng xác thực; thu hồi demo, tạo tài khoản định danh và hoàn tất quy trình joiner–mover–leaver |
+| IP/Zero Trust | Cổng CIDR đã có trong mã, chưa điền allowlist trên Render | Cung cấp dải IP/VPN đã phê duyệt hoặc chọn Zero Trust; thử khóa, truy cập di động và phương án khôi phục |
 | Quyền riêng tư/pháp lý | Chưa có phê duyệt chính thức | Chủ quản dữ liệu phê duyệt notice, mục đích, thời hạn lưu, quyền của chủ thể và xử lý sự cố |
 | Sao lưu/khôi phục | Đã có smoke lịch sử, chưa có drill cho bản phát hành cuối | Backup có hash, restore vào môi trường biệt lập, kiểm số đếm và RPO/RTO |
-| Hiệu năng | Chưa có p95 tải mục tiêu | Định nghĩa số người dùng đồng thời, đo p50/p95/error rate và giới hạn |
+| Hiệu năng | Đạt tải đọc giới hạn 100 yêu cầu/concurrency 10; chưa có tải ghi/xác thực theo nghiệp vụ | Định nghĩa số người dùng đồng thời và SLO, chạy kịch bản kỳ cao điểm trên staging, đo p50/p95/error rate và dung lượng DB |
 | Giám sát/sự cố | Mã hỗ trợ Sentry/log, cấu hình owner chưa được xác nhận | Dashboard, cảnh báo, trực ca, runbook, diễn tập và kênh báo sự cố |
 | OCR ảnh/PDF | Chủ động tắt ngoài production | Chỉ mở sau bộ dữ liệu benchmark, privacy review, redaction và giới hạn chi phí |
 | Độ chính xác/hiệu quả | Chưa có đo thực địa | Không công bố tỷ lệ chính xác hoặc giảm thời gian cho đến khi có dữ liệu đo và chữ ký |

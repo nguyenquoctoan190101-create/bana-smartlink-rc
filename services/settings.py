@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import ipaddress
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field
@@ -46,6 +47,17 @@ class Settings(BaseSettings):
     supabase_jwt_issuer: str = ""
     supabase_jwt_audience: str = "authenticated"
     extraction_review_signing_key: str = ""
+    mfa_required_roles: str = Field(
+        default="",
+        validation_alias=AliasChoices("MFA_REQUIRED_ROLES", "REQUIRE_MFA_FOR_ROLES"),
+    )
+    internal_allowed_ip_cidrs: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "INTERNAL_ALLOWED_IP_CIDRS",
+            "INTERNAL_IP_ALLOWLIST",
+        ),
+    )
     feature_external_ocr: bool = Field(
         default=False,
         validation_alias=AliasChoices(
@@ -96,6 +108,44 @@ class Settings(BaseSettings):
             return ""
         return f"{self.normalized_supabase_url}/auth/v1/.well-known/jwks.json"
 
+    @property
+    def required_mfa_roles(self) -> frozenset[str]:
+        allowed = {"admin_xa", "lanh_dao", "can_bo_thon", "to_cnscd"}
+        roles = {
+            value.strip().lower()
+            for value in self.mfa_required_roles.split(",")
+            if value.strip()
+        }
+        # Privileged MFA is fail-safe in deployed environments even when an
+        # existing Render service has not yet synchronized the new Blueprint
+        # variable. Development/test remain opt-in to keep local fixtures usable.
+        if not roles and self.app_env.strip().lower() in {"staging", "production"}:
+            roles = {"admin_xa", "lanh_dao"}
+        unknown = roles - allowed
+        if unknown:
+            raise SettingsError(
+                "MFA_REQUIRED_ROLES contains unsupported roles: "
+                + ", ".join(sorted(unknown))
+            )
+        return frozenset(roles)
+
+    @property
+    def internal_ip_networks(
+        self,
+    ) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+        networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        for value in self.internal_allowed_ip_cidrs.split(","):
+            candidate = value.strip()
+            if not candidate:
+                continue
+            try:
+                networks.append(ipaddress.ip_network(candidate, strict=False))
+            except ValueError as exc:
+                raise SettingsError(
+                    "INTERNAL_ALLOWED_IP_CIDRS contains an invalid IPv4/IPv6 CIDR"
+                ) from exc
+        return tuple(networks)
+
     def validate_for_startup(self) -> None:
         """Fail closed in staging/production without disclosing secret values."""
         environment = self.app_env.strip().lower()
@@ -103,12 +153,17 @@ class Settings(BaseSettings):
             raise SettingsError("APP_ENV/ENVIRONMENT has an unsupported value")
 
         if environment not in {"staging", "production"}:
+            _ = self.required_mfa_roles
+            _ = self.internal_ip_networks
             return
 
         if self.feature_external_ocr:
             raise SettingsError(
                 "FEATURE_EXTERNAL_OCR must remain disabled in staging/production"
             )
+
+        _ = self.required_mfa_roles
+        _ = self.internal_ip_networks
 
         required = {
             "DATABASE_URL": self.database_url,

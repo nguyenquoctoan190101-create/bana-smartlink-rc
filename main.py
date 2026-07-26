@@ -29,6 +29,7 @@ from routers.report_imports import router as report_imports_router
 from routers.push import router as push_router, api_router
 from services.logger import get_logger  # noqa: F401  — side-effect: initialises Sentry + JSON logging
 from services.rate_limit import limiter
+from services.network_access import is_internal_request, requires_internal_network
 from services.settings import load_settings
 
 _log = get_logger(__name__)
@@ -132,6 +133,30 @@ def create_app() -> FastAPI:
     async def _security_headers(request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid4())
         request.state.request_id = request_id
+        if settings.internal_ip_networks and requires_internal_network(
+            request.url.path,
+            request.headers.get("Authorization"),
+        ):
+            client_host = request.client.host if request.client else None
+            if not is_internal_request(client_host, settings.internal_ip_networks):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "code": "INTERNAL_NETWORK_REQUIRED",
+                        "message": "Khu vực nội bộ chỉ cho phép truy cập từ mạng được cơ quan phê duyệt.",
+                        "details": None,
+                        "request_id": request_id,
+                    },
+                    headers={
+                        "X-Request-ID": request_id,
+                        "X-Content-Type-Options": "nosniff",
+                        "X-Frame-Options": "DENY",
+                        "X-Permitted-Cross-Domain-Policies": "none",
+                        "Referrer-Policy": "no-referrer",
+                        "Cache-Control": "no-store, max-age=0",
+                        "Pragma": "no-cache",
+                    },
+                )
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"

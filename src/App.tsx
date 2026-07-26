@@ -76,6 +76,7 @@ const KnowledgeCenter = React.lazy(
 const CaseManagement = React.lazy(() => import("./components/CaseManagement"));
 const PilotWorkbench = React.lazy(() => import("./components/PilotWorkbench"));
 const RecordLookup = React.lazy(() => import("./components/RecordLookup"));
+const MfaGate = React.lazy(() => import("./components/MfaGate"));
 
 type AppTab =
   | "dashboard"
@@ -431,12 +432,15 @@ export default function App() {
     isAuthLoading,
     isLoginSubmitting,
     requiresPasswordReset,
+    mfaStatus,
+    mfaFactorId,
     setLoginPhone,
     setLoginPassword,
     setLoginError,
     setPublicMode,
     handleLoginSubmit,
     handlePasswordChange,
+    refreshMfaStatus,
     handleLogout,
   } = useAuth();
   const { villages } = useVillages();
@@ -1200,6 +1204,19 @@ export default function App() {
           </div>
         </form>
       </main>
+    );
+  }
+
+  if (!["not_required", "verified"].includes(mfaStatus)) {
+    return (
+      <React.Suspense fallback={<LoadingPanel />}>
+        <MfaGate
+          status={mfaStatus}
+          factorId={mfaFactorId}
+          onRefresh={refreshMfaStatus}
+          onLogout={handleLogout}
+        />
+      </React.Suspense>
     );
   }
 

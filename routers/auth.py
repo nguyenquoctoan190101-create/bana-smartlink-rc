@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+from dataclasses import replace
 from typing import Annotated, Literal
 from urllib.parse import quote
 from uuid import UUID
@@ -61,6 +62,8 @@ class CurrentUserResponse(BaseModel):
     is_active: bool
     force_password_reset: bool
     assigned_village_ids: list[str] = Field(default_factory=list)
+    mfa_required: bool = False
+    mfa_verified: bool = False
 
 
 class CitizenPendingUpdateRequest(BaseModel):
@@ -248,6 +251,7 @@ async def require_admin_xa(
 ) -> UserProfile:
     profile = await _authenticated_profile(settings, supabase, authorization)
     _enforce_profile_access(profile)
+    _enforce_mfa_access(profile, settings)
     if profile.role != "admin_xa":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -264,6 +268,7 @@ async def require_authenticated_user(
 ) -> UserProfile:
     profile = await _authenticated_profile(settings, supabase, authorization)
     _enforce_profile_access(profile)
+    _enforce_mfa_access(profile, settings)
     return profile
 
 
@@ -313,6 +318,7 @@ async def get_optional_user(
         return None
     profile = await _authenticated_profile(settings, supabase, authorization)
     _enforce_profile_access(profile)
+    _enforce_mfa_access(profile, settings)
     return profile
 
 
@@ -354,6 +360,13 @@ async def _authenticated_profile(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User profile not found",
         )
+    aal = str(claims.get("aal") or "aal1").lower()
+    if isinstance(profile, UserProfile):
+        return replace(profile, aal=aal)
+    # Dependency fakes in downstream tests may provide a profile-compatible
+    # object instead of the frozen dataclass. Production always returns
+    # UserProfile from SupabaseAdminClient.
+    setattr(profile, "aal", aal)
     return profile
 
 
@@ -375,10 +388,22 @@ def _enforce_profile_access(profile: UserProfile) -> None:
         )
 
 
+def _enforce_mfa_access(profile: UserProfile, settings: Settings) -> None:
+    if profile.role not in settings.required_mfa_roles:
+        return
+    if profile.aal != "aal2":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "MFA_REQUIRED",
+                "message": "Tài khoản phải xác nhận mã bảo mật trước khi truy cập dữ liệu nội bộ.",
+            },
+        )
 @router.get("/me", response_model=CurrentUserResponse)
 async def get_current_user(
     profile: Annotated[UserProfile, Depends(require_active_user)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> CurrentUserResponse:
     """Return the canonical profile without allowing business mutations."""
     assigned_village_ids: list[str] = []
@@ -404,6 +429,8 @@ async def get_current_user(
         is_active=profile.is_active,
         force_password_reset=profile.force_password_reset,
         assigned_village_ids=assigned_village_ids,
+        mfa_required=profile.role in settings.required_mfa_roles,
+        mfa_verified=profile.aal == "aal2",
     )
 
 

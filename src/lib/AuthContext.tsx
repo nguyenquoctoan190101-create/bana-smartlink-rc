@@ -21,15 +21,26 @@ interface AuthContextType {
   isAuthLoading: boolean;
   isLoginSubmitting: boolean;
   requiresPasswordReset: boolean;
+  mfaStatus: MfaStatus;
+  mfaFactorId: string | null;
   setLoginPhone: (phone: string) => void;
   setLoginPassword: (password: string) => void;
   setLoginError: (error: string | null) => void;
   setPublicMode: (mode: "public" | "login") => void;
   handleLoginSubmit: (event: React.FormEvent) => Promise<void>;
   handlePasswordChange: (newPassword: string) => Promise<void>;
+  refreshMfaStatus: () => Promise<void>;
   handleLogout: () => Promise<void>;
   getUserId: () => string;
 }
+
+export type MfaStatus =
+  | "not_required"
+  | "checking"
+  | "setup_required"
+  | "challenge_required"
+  | "verified"
+  | "unavailable";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -55,6 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [identity, setIdentity] = useState<IdentityState>(PUBLIC_STATE);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [requiresPasswordReset, setRequiresPasswordReset] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaStatus, setMfaStatus] = useState<MfaStatus>("not_required");
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -66,7 +80,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIdentity(PUBLIC_STATE);
     setIsLoggedIn(false);
     setRequiresPasswordReset(false);
+    setMfaRequired(false);
+    setMfaStatus("not_required");
+    setMfaFactorId(null);
     setOfflineOwner(null, null);
+  }, []);
+
+  const assessMfa = useCallback(async (required: boolean) => {
+    setMfaRequired(required);
+    setMfaFactorId(null);
+    if (!required) {
+      setMfaStatus("not_required");
+      return;
+    }
+    setMfaStatus("checking");
+    try {
+      const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assurance.error) throw assurance.error;
+      if (assurance.data.currentLevel === "aal2") {
+        setMfaStatus("verified");
+        return;
+      }
+      const factors = await supabase.auth.mfa.listFactors();
+      if (factors.error) throw factors.error;
+      const verifiedTotp = factors.data.totp.find((factor) => factor.status === "verified");
+      if (verifiedTotp) {
+        setMfaFactorId(verifiedTotp.id);
+        setMfaStatus("challenge_required");
+      } else {
+        setMfaStatus("setup_required");
+      }
+    } catch {
+      setMfaStatus("unavailable");
+    }
   }, []);
 
   const loadProfile = useCallback(async (session: Session): Promise<boolean> => {
@@ -93,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setOfflineOwner(profile.id || session.user.id, profile.village_id);
       setRequiresPasswordReset(Boolean(profile.force_password_reset));
       setIsLoggedIn(true);
+      await assessMfa(Boolean(profile.mfa_required));
       return true;
     } catch {
       await supabase.auth.signOut();
@@ -100,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoginError("Không xác minh được hồ sơ và quyền truy cập. Vui lòng đăng nhập lại.");
       return false;
     }
-  }, [resetIdentity]);
+  }, [assessMfa, resetIdentity]);
 
   useEffect(() => {
     let mounted = true;
@@ -176,6 +223,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRequiresPasswordReset(false);
   };
 
+  const refreshMfaStatus = useCallback(async () => {
+    await assessMfa(mfaRequired);
+  }, [assessMfa, mfaRequired]);
+
   const handleLogout = async () => {
     // Clear only the current user's local partition; never erase unrelated
     // browser data or another officer's queue.
@@ -194,15 +245,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthLoading,
     isLoginSubmitting,
     requiresPasswordReset,
+    mfaStatus,
+    mfaFactorId,
     setLoginPhone,
     setLoginPassword,
     setLoginError,
     setPublicMode,
     handleLoginSubmit,
     handlePasswordChange,
+    refreshMfaStatus,
     handleLogout,
     getUserId: () => identity.userId || "guest",
-  }), [identity, isLoggedIn, loginPhone, loginPassword, loginError, publicMode, isAuthLoading, isLoginSubmitting, requiresPasswordReset]);
+  }), [identity, isLoggedIn, loginPhone, loginPassword, loginError, publicMode, isAuthLoading, isLoginSubmitting, requiresPasswordReset, mfaStatus, mfaFactorId, refreshMfaStatus]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

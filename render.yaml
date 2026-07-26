@@ -31,6 +31,13 @@ services:
         value: "false"
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
+      # Privileged users are gated in the frontend and every authenticated API
+      # request is checked for the verified Supabase aal2 claim.
+      - key: MFA_REQUIRED_ROLES
+        value: admin_xa,lanh_dao
+      # Configure INTERNAL_ALLOWED_IP_CIDRS in the Render Dashboard only after
+      # the authority supplies approved office/VPN CIDRs. Keeping it unset
+      # avoids locking out mobile staff and preserves the citizen portal.
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL
