@@ -10,6 +10,7 @@ import PrivacyPolicy from "./components/PrivacyPolicy";
 import { Button, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
+import { preferredLeadershipPeriodId } from "./lib/reportPeriods";
 import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
 import {
   deleteServerReport,
@@ -371,9 +372,12 @@ export default function App() {
   } = useAuth();
   const { villages } = useVillages();
   const { periods } = useReportPeriods();
-  const activePeriodId = periods[0]?.id || "";
 
   const [reports, setReports] = useState<ReportData[]>([]);
+  const activePeriodId =
+    userRole === "lanh_dao"
+      ? preferredLeadershipPeriodId(periods, reports)
+      : periods[0]?.id || "";
   const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [editingReport, setEditingReport] = useState<ReportData | null>(null);
   const [requestedPeriodId, setRequestedPeriodId] = useState<string | null>(
@@ -1361,7 +1365,7 @@ export default function App() {
           },
           {
             id: "dashboard",
-            label: "Báo cáo và theo dõi",
+            label: "Báo cáo và quyết định",
             icon: BarChart3,
             primary: true,
           },
@@ -1784,7 +1788,7 @@ export default function App() {
           {userRole === "lanh_dao" && activeLeaderSpace && (
             <nav
               aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}
-              className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xs"
+              className="flex flex-nowrap gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xs lg:flex-wrap lg:overflow-visible"
             >
               {activeLeaderSpace.items.map((item) => (
                 <button
@@ -1792,7 +1796,7 @@ export default function App() {
                   type="button"
                   onClick={() => changeTab(item.id)}
                   aria-current={activeTab === item.id ? "page" : undefined}
-                  className={`min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors ${
+                  className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-4 text-sm font-semibold transition-colors ${
                     activeTab === item.id
                       ? "bg-emerald-800 text-white"
                       : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950"
@@ -1878,6 +1882,7 @@ export default function App() {
 
                 {activeTab === "policy-scorecard" && (
                   <PolicyScorecard
+                    preferredPeriodId={activePeriodId}
                     onBackToDashboard={() => changeTab("dashboard")}
                   />
                 )}

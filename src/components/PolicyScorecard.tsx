@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { 
   Award, 
   Globe, 
@@ -26,9 +26,16 @@ interface ScorecardData {
   interpretation: string;
 }
 
-export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboard?: () => void }) {
+export default function PolicyScorecard({
+  onBackToDashboard,
+  preferredPeriodId = "",
+}: {
+  onBackToDashboard?: () => void;
+  preferredPeriodId?: string;
+}) {
   const { periods: availablePeriods } = useReportPeriods();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
+  const userSelectedPeriodRef = useRef(false);
   const [data, setData] = useState<ScorecardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,10 +83,33 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
   }, [selectedPeriod]);
 
   useEffect(() => {
+    const preferredIsAvailable = availablePeriods.some(
+      (period) => period.id === preferredPeriodId,
+    );
+    if (!userSelectedPeriodRef.current && preferredIsAvailable) {
+      setSelectedPeriod(preferredPeriodId);
+      return;
+    }
     if (!selectedPeriod && availablePeriods.length > 0) {
       setSelectedPeriod(availablePeriods[0].id);
     }
-  }, [availablePeriods, selectedPeriod]);
+  }, [availablePeriods, preferredPeriodId, selectedPeriod]);
+
+  const electronicDenominator = getDenominator(data?.electronic_profile_rate);
+  const inheritedDenominator = getDenominator(data?.once_only_score);
+  const hasElectronicRate = electronicDenominator > 0;
+  const hasInheritedRate = inheritedDenominator > 0;
+  const summary = data
+    ? `Kỳ ${data.period_name}: ${
+        hasElectronicRate
+          ? `${Math.round(getPercent(data.electronic_profile_rate))}% báo cáo nộp điện tử`
+          : "chưa có báo cáo đủ điều kiện để tính tỷ lệ báo cáo điện tử"
+      }; ${
+        hasInheritedRate
+          ? `tỷ lệ dữ liệu được kế thừa ${Math.round(getPercent(data.once_only_score))}%`
+          : "chưa có trường dữ liệu đủ điều kiện để tính tỷ lệ được kế thừa"
+      }.`
+    : "";
 
   return (
     <div className="bg-white rounded-2xl border border-slate-150 p-6 sm:p-8 shadow-xs max-w-4xl mx-auto space-y-8 animate-fade-in">
@@ -126,7 +156,10 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
           {availablePeriods.map((p) => (
             <button
               key={p.id}
-              onClick={() => setSelectedPeriod(p.id)}
+              onClick={() => {
+                userSelectedPeriodRef.current = true;
+                setSelectedPeriod(p.id);
+              }}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 selectedPeriod === p.id
                   ? "bg-emerald-800 text-white shadow-xs"
@@ -160,7 +193,7 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
           <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4 shadow-3xs">
             <h3 className="text-3xs font-black uppercase text-emerald-800 tracking-wider mb-1.5">Tóm tắt kết quả theo dõi</h3>
             <p className="text-sm font-bold text-emerald-950 leading-snug">
-              {data.interpretation}
+              {summary}
             </p>
           </div>
 
@@ -185,10 +218,14 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-3xl font-black text-slate-900 tracking-tight">
-                    {Math.round(getPercent(data?.electronic_profile_rate))}%
+                    {hasElectronicRate
+                      ? `${Math.round(getPercent(data?.electronic_profile_rate))}%`
+                      : "—"}
                   </span>
                   <span className="text-4xs text-slate-400 font-bold">
-                    {getNumerator(data?.electronic_profile_rate)}/{getDenominator(data?.electronic_profile_rate)} báo cáo nộp điện tử
+                    {hasElectronicRate
+                      ? `${getNumerator(data?.electronic_profile_rate)}/${electronicDenominator} báo cáo nộp điện tử`
+                      : "Chưa có báo cáo để tính"}
                   </span>
                 </div>
                 
@@ -220,10 +257,14 @@ export default function PolicyScorecard({ onBackToDashboard }: { onBackToDashboa
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-3xl font-black text-slate-900 tracking-tight">
-                    {Math.round(getPercent(data?.once_only_score))}%
+                    {hasInheritedRate
+                      ? `${Math.round(getPercent(data?.once_only_score))}%`
+                      : "—"}
                   </span>
                   <span className="text-4xs text-slate-400 font-bold">
-                    Tối ưu hóa quy trình ({getNumerator(data?.once_only_score)}/{getDenominator(data?.once_only_score)} chỉ số)
+                    {hasInheritedRate
+                      ? `Tối ưu hóa quy trình (${getNumerator(data?.once_only_score)}/${inheritedDenominator} chỉ số)`
+                      : "Chưa có trường dữ liệu để tính"}
                   </span>
                 </div>
                 

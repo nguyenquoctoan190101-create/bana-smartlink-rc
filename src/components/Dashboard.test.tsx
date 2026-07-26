@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReportData, ReportPeriod } from "../types";
 import Dashboard, {
@@ -121,6 +121,43 @@ describe("Dashboard device drafts", () => {
     );
 
     expect(screen.getByRole("option", { name: "Tháng 8/2026" })).toBeInTheDocument();
+  });
+
+  it("opens leadership on a period with approved evidence instead of a newer empty period", async () => {
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "approved-report",
+            period_id: "approved-period",
+            report_period: "Tháng 7/2026",
+            workflow_status: "approved",
+          }),
+        ]}
+        reportPeriods={[
+          {
+            id: "future-empty",
+            name: "1/2027",
+            due_date: "2027-01-31T17:00:00+07:00",
+          },
+          {
+            id: "approved-period",
+            name: "Tháng 7/2026",
+            due_date: "2026-07-31T17:00:00+07:00",
+          },
+        ]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="lanh_dao"
+      />,
+    );
+
+    await waitFor(() =>
+      expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe(
+        "period:approved-period",
+      ),
+    );
   });
 
   it("shows where the draft is stored and deletes only the local copy", () => {

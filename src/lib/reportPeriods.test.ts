@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   decorateReportPeriod,
   normalizeReportPeriodName,
+  preferredLeadershipPeriodId,
   reportPeriodNameIssue,
 } from "./reportPeriods";
+import type { ReportData, ReportPeriod } from "../types";
 
 describe("report period names", () => {
   it("normalizes harmless whitespace", () => {
@@ -34,5 +36,30 @@ describe("report period names", () => {
     expect(decorated.name).toBe("0/2026");
     expect(decorated.display_name).toBe("Kỳ cần rà soát: 0/2026");
     expect(decorated.requires_review).toBe(true);
+  });
+
+  it("opens leadership on the newest period with approved evidence", () => {
+    const periods: ReportPeriod[] = [
+      { id: "future-empty", name: "1/2027", due_date: "2027-01-31T17:00:00Z" },
+      { id: "approved-period", name: "Tháng 7/2026", due_date: "2026-07-31T17:00:00Z" },
+    ];
+    const approvedReport = {
+      period_id: "approved-period",
+      workflow_status: "approved",
+      local_only: false,
+    } as ReportData;
+
+    expect(preferredLeadershipPeriodId(periods, [approvedReport])).toBe(
+      "approved-period",
+    );
+  });
+
+  it("falls back to the newest configured period when no evidence is approved", () => {
+    const periods: ReportPeriod[] = [
+      { id: "older", name: "12/2026", due_date: "2026-12-31T17:00:00Z" },
+      { id: "newer", name: "1/2027", due_date: "2027-01-31T17:00:00Z" },
+    ];
+
+    expect(preferredLeadershipPeriodId(periods, [])).toBe("newer");
   });
 });

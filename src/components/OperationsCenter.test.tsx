@@ -66,4 +66,66 @@ describe("OperationsCenter", () => {
     expect(screen.queryByText("accepted")).not.toBeInTheDocument();
     expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
+
+  it("keeps leadership evidence approved and scoped to the selected period", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          rule_version: "2026-07-14",
+          reports: [
+            {
+              report_id: "approved-report",
+              village_name: "Thôn đã duyệt",
+              workflow_status: "approved",
+              quality_score: 96,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 2 },
+            },
+            {
+              report_id: "submitted-report",
+              village_name: "Thôn đang bổ sung",
+              workflow_status: "needs_revision",
+              quality_score: 40,
+              quality_status: "needs_review",
+              unresolved_flag_count: 2,
+              outlier_count: 1,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "current-draft",
+            period_id: "period-1",
+            status: "accepted",
+            content: "Nội dung đúng kỳ",
+            confidence: 0.9,
+          },
+          {
+            id: "other-draft",
+            period_id: "period-2",
+            status: "accepted",
+            content: "Nội dung kỳ khác",
+            confidence: 0.8,
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="lanh_dao" />);
+
+    expect(await screen.findByText("Thôn đã duyệt")).toBeInTheDocument();
+    expect(screen.queryByText("Thôn đang bổ sung")).not.toBeInTheDocument();
+    expect(screen.getByText("Nội dung đúng kỳ")).toBeInTheDocument();
+    expect(screen.queryByText("Nội dung kỳ khác")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("1 báo cáo trong phạm vi quyết định").length,
+    ).toBeGreaterThan(0);
+  });
 });

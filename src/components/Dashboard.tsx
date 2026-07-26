@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
+import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge } from "./ui";
 import DashboardInsightCharts from "./DashboardInsightCharts";
 
@@ -285,18 +286,24 @@ export default function Dashboard({
 
   useEffect(() => {
     if (defaultPeriodInitializedRef.current) return;
-    const latestPeriod = [...reportPeriods]
-      .filter((period) => Boolean(period.id))
-      .sort((left, right) =>
-        (right.due_date || "").localeCompare(left.due_date || ""),
-      )[0];
+    const leadershipPeriodId =
+      userRole === "lanh_dao"
+        ? preferredLeadershipPeriodId(reportPeriods, serverReports)
+        : "";
+    const latestPeriod = leadershipPeriodId
+      ? reportPeriods.find((period) => period.id === leadershipPeriodId)
+      : [...reportPeriods]
+          .filter((period) => Boolean(period.id))
+          .sort((left, right) =>
+            (right.due_date || "").localeCompare(left.due_date || ""),
+          )[0];
     const preferredValue = latestPeriod
       ? `period:${latestPeriod.id}`
       : periodOptions.find((option) => option.value !== ALL_PERIODS)?.value;
     if (!preferredValue) return;
     setSelectedPeriod(preferredValue);
     defaultPeriodInitializedRef.current = true;
-  }, [periodOptions, reportPeriods]);
+  }, [periodOptions, reportPeriods, serverReports, userRole]);
 
   useEffect(() => {
     if (!periodOptions.some((option) => option.value === selectedPeriod)) {

@@ -181,9 +181,31 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
   const overdueActions = useMemo(() => openActions.filter((item) => item.due_date && new Date(item.due_date).getTime() < Date.now()), [openActions]);
   const approvedReports = useMemo(() => (quality?.reports ?? []).filter((item) => !item.workflow_status || ["approved", "locked"].includes(item.workflow_status)), [quality]);
-  const flaggedReports = useMemo(() => (quality?.reports ?? []).filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [quality]);
+  const visibleQualityReports = useMemo(
+    () => (role === "lanh_dao" ? approvedReports : quality?.reports ?? []),
+    [approvedReports, quality, role],
+  );
+  const visibleAverageQuality = useMemo(
+    () =>
+      visibleQualityReports.length
+        ? Math.round(
+            (visibleQualityReports.reduce(
+              (total, item) => total + item.quality_score,
+              0,
+            ) /
+              visibleQualityReports.length) *
+              10,
+          ) / 10
+        : null,
+    [visibleQualityReports],
+  );
+  const flaggedReports = useMemo(() => visibleQualityReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [visibleQualityReports]);
   const flaggedApprovedReports = useMemo(() => approvedReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [approvedReports]);
-  const pendingDrafts = useMemo(() => drafts.filter((item) => item.status === "pending_review"), [drafts]);
+  const currentPeriodDrafts = useMemo(
+    () => drafts.filter((item) => !item.period_id || item.period_id === periodId),
+    [drafts, periodId],
+  );
+  const pendingDrafts = useMemo(() => currentPeriodDrafts.filter((item) => item.status === "pending_review"), [currentPeriodDrafts]);
   const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : alerts.length ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
   const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
   const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
@@ -327,8 +349,8 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
-        <MetricCard label="Điểm chất lượng" value={available.quality === false || quality?.average_quality_score == null ? "—" : `${quality.average_quality_score}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : quality?.average_quality_score == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
-        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${quality?.reports?.length ?? 0} báo cáo trong phạm vi`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
+        <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
+        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong phạm vi quyết định`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
         {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
       </div>
 
@@ -399,9 +421,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
             <div>
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
                 <BrainCircuit className="h-5 w-5 text-indigo-700" />
-                Nội dung điều hành gợi ý — chờ phê duyệt
+                Nội dung điều hành gợi ý
               </h2>
-              <p className="mt-1 text-sm text-slate-600">Không sử dụng thông tin cá nhân hoặc CT14; nội dung gợi ý không tự giao việc, phê duyệt hay công bố.</p>
+              <p className="mt-1 text-sm text-slate-600">Chỉ hiển thị nội dung thuộc kỳ đang xem. Trạng thái cho biết nội dung còn chờ hay đã được người có thẩm quyền xử lý; hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
             </div>
             {admin && (
               <Button onClick={() => void createDraft()} disabled={!periodId}>
@@ -415,13 +437,18 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
               <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
             ) : (
               <>
-                {!drafts.length && <EmptyState title="Chưa có nội dung gợi ý" description="Quản trị xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
-                {drafts.slice(0, 5).map((draft) => (
+                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Quản trị xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
+                {currentPeriodDrafts.slice(0, 5).map((draft) => (
                   <article key={draft.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <StatusBadge status={draft.status} />
                       <span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>
+                      {draft.created_at && (
+                        <span className="text-xs text-slate-500">
+                          Tạo lúc {new Date(draft.created_at).toLocaleString("vi-VN")}
+                        </span>
+                      )}
                       {admin && draft.status === "pending_review" && (
                         <div className="ml-auto flex gap-2">
                           <Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button>
@@ -462,7 +489,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                   </tr>
                 </thead>
                 <tbody>
-                  {(quality?.reports ?? []).map((item) => (
+                  {visibleQualityReports.map((item) => (
                     <tr key={item.report_id}>
                       <td className="font-semibold">{item.village_name}</td>
                       <td>{item.quality_score}%</td>
@@ -479,7 +506,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                   ))}
                 </tbody>
               </table>
-              {!quality?.reports?.length && <EmptyState title="Chưa có báo cáo để đánh giá" description="Dữ liệu chất lượng sẽ xuất hiện sau khi kỳ báo cáo có bản ghi trong phạm vi quyền." />}
+              {!visibleQualityReports.length && <EmptyState title="Chưa có báo cáo để đánh giá" description="Dữ liệu chất lượng sẽ xuất hiện sau khi kỳ báo cáo có bản ghi trong phạm vi quyết định." />}
             </>
           )}
         </div>

@@ -1,4 +1,4 @@
-import type { ReportPeriod } from "../types";
+import type { ReportData, ReportPeriod } from "../types";
 
 const CALENDAR_PERIOD_RE = /^(?:th[aá]ng\s*)?(\d{1,2})\s*\/\s*(\d{4})$/iu;
 
@@ -28,4 +28,32 @@ export function decorateReportPeriod(period: ReportPeriod): ReportPeriod {
     display_name: `Kỳ cần rà soát: ${period.name}`,
     requires_review: true,
   };
+}
+
+/**
+ * Leadership opens on the newest period that actually has decision-ready
+ * evidence. A newer empty period may still be selected elsewhere, but it must
+ * not replace the useful executive picture with a screen full of zeroes.
+ */
+export function preferredLeadershipPeriodId(
+  periods: ReportPeriod[],
+  reports: ReportData[],
+): string {
+  const approvedPeriodIds = new Set(
+    reports
+      .filter(
+        (report) =>
+          !report.local_only &&
+          Boolean(report.period_id) &&
+          ["approved", "locked"].includes(report.workflow_status),
+      )
+      .map((report) => report.period_id as string),
+  );
+  const candidates = periods.filter((period) =>
+    approvedPeriodIds.has(period.id),
+  );
+  const source = candidates.length ? candidates : periods;
+  return [...source].sort((left, right) =>
+    (right.due_date || "").localeCompare(left.due_date || ""),
+  )[0]?.id || "";
 }
