@@ -136,6 +136,18 @@ describe("Dashboard device drafts", () => {
     );
 
     expect(screen.getByRole("option", { name: "Tháng 8/2026" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Phạm vi báo cáo và xuất dữ liệu" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Số liệu tổng quan" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Phân tích ưu tiên theo thôn" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Báo cáo nguồn và hành động nghiệp vụ" }),
+    ).toBeInTheDocument();
   });
 
   it("opens leadership on a period with approved evidence instead of a newer empty period", async () => {

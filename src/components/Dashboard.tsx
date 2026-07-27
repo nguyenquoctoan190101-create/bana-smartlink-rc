@@ -26,7 +26,7 @@ import {
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
 import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
-import { Button, DataScope, PageHeader, SectionCard, StatusBadge } from "./ui";
+import { Button, DataScope, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
 import DashboardInsightCharts from "./DashboardInsightCharts";
 
 interface DashboardProps {
@@ -615,8 +615,15 @@ export default function Dashboard({
             </SectionCard>
           )}
 
-        {/* Filters Toolbar */}
-        <div className="filter-bar dashboard-filter-bar">
+        <WorkSection
+          index="01"
+          title="Phạm vi báo cáo và xuất dữ liệu"
+          description="Chọn kỳ, phạm vi thôn và định dạng xuất trước khi đọc số liệu; mọi khối bên dưới dùng chung đúng bộ lọc này."
+          tone="focus"
+          icon={<FileSpreadsheet />}
+        >
+          {/* Filters Toolbar */}
+          <div className="filter-bar dashboard-filter-bar">
           <div className="dashboard-filter-bar__filters flex flex-wrap items-center gap-3 w-full md:w-auto">
             <div className="dashboard-filter-bar__field">
               <label className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5">
@@ -719,59 +726,67 @@ export default function Dashboard({
                 </button>
               )}
           </div>
-        </div>
-
-        <DataScope
-          period={selectedPeriodLabel}
-          scope={
-            !effectiveVillageFilter
-              ? "Chưa được phân công thôn"
-              : effectiveVillageFilter === "all"
-              ? userRole === "to_cnscd"
-                ? `${selectableVillages.length} thôn được hỗ trợ`
-                : "Toàn bộ phạm vi được phép xem"
-              : getVillageName(effectiveVillageFilter)
-          }
-          quality={
-            expectedVillageCount > 0
-              ? `${coveredVillageCount}/${expectedVillageCount} thôn có dữ liệu đã duyệt`
-              : analyticsReports.length
-                ? `${analyticsReports.length} báo cáo đã duyệt`
-                : "Chưa có dữ liệu đã duyệt"
-          }
-          qualityLabel="Độ phủ"
-        />
-
-        {isCrossPeriodSnapshot && (
-          <div
-            className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"
-            role="status"
-          >
-            Chế độ theo dõi đang hiển thị bản mới nhất của từng thôn, có thể
-            thuộc các kỳ khác nhau. Hệ thống không tính số tổng hợp trong chế độ
-            này.
           </div>
-        )}
 
-        {!isCrossPeriodSnapshot &&
-          expectedVillageCount > 0 &&
-          !hasCompleteCoverage && (
+          <DataScope
+            period={selectedPeriodLabel}
+            scope={
+              !effectiveVillageFilter
+                ? "Chưa được phân công thôn"
+                : effectiveVillageFilter === "all"
+                ? userRole === "to_cnscd"
+                  ? `${selectableVillages.length} thôn được hỗ trợ`
+                  : "Toàn bộ phạm vi được phép xem"
+                : getVillageName(effectiveVillageFilter)
+            }
+            quality={
+              expectedVillageCount > 0
+                ? `${coveredVillageCount}/${expectedVillageCount} thôn có dữ liệu đã duyệt`
+                : analyticsReports.length
+                  ? `${analyticsReports.length} báo cáo đã duyệt`
+                  : "Chưa có dữ liệu đã duyệt"
+            }
+            qualityLabel="Độ phủ"
+          />
+
+          {isCrossPeriodSnapshot && (
             <div
-              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+              className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"
               role="status"
             >
-              Kỳ báo cáo hiện có dữ liệu đã duyệt của {coveredVillageCount}/
-              {expectedVillageCount} thôn. Các thẻ và biểu đồ bên dưới chỉ tổng
-              hợp {coveredVillageCount} thôn đã duyệt, chưa đủ{" "}
-              {userRole === "to_cnscd" || userRole === "can_bo_thon"
-                ? "phạm vi được phân công"
-                : "để đại diện cho toàn xã"}
-              ; dữ liệu của các thôn còn lại vẫn được để trống.
+              Chế độ theo dõi đang hiển thị bản mới nhất của từng thôn, có thể
+              thuộc các kỳ khác nhau. Hệ thống không tính số tổng hợp trong chế độ
+              này.
             </div>
           )}
 
-        {/* Grid: 4 Core KPIs Card */}
-        <div className="leadership-metric-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {!isCrossPeriodSnapshot &&
+            expectedVillageCount > 0 &&
+            !hasCompleteCoverage && (
+              <div
+                className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+                role="status"
+              >
+                Kỳ báo cáo hiện có dữ liệu đã duyệt của {coveredVillageCount}/
+                {expectedVillageCount} thôn. Các thẻ và biểu đồ bên dưới chỉ tổng
+                hợp {coveredVillageCount} thôn đã duyệt, chưa đủ{" "}
+                {userRole === "to_cnscd" || userRole === "can_bo_thon"
+                  ? "phạm vi được phân công"
+                  : "để đại diện cho toàn xã"}
+                ; dữ liệu của các thôn còn lại vẫn được để trống.
+              </div>
+            )}
+        </WorkSection>
+
+        <WorkSection
+          index="02"
+          title="Số liệu tổng quan"
+          description="Bốn thẻ chỉ số cấp cao được gom riêng để quét nhanh quy mô, an sinh, y tế và văn hóa trong phạm vi đã chọn."
+          tone="evidence"
+          icon={<BarChart3 />}
+        >
+          {/* Grid: 4 Core KPIs Card */}
+          <div className="leadership-metric-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* KPI 1: Households & Pop */}
           <div className="leadership-metric-card bg-white rounded-xl border border-slate-100 p-5 shadow-2xs gov-card-accent-blue">
             <div className="flex justify-between items-start mb-3">
@@ -903,13 +918,13 @@ export default function Dashboard({
               )}
             </p>
           </div>
-        </div>
+          </div>
 
-        {/* Bento Grid: Custom SVG Graphs & Tech Progress */}
-        <div
-          className="hidden grid-cols-1 xl:grid-cols-12 gap-6"
-          aria-hidden="true"
-        >
+          {/* Bento Grid: Custom SVG Graphs & Tech Progress */}
+          <div
+            className="hidden grid-cols-1 xl:grid-cols-12 gap-6"
+            aria-hidden="true"
+          >
           {/* Left Bento: Population distribution bar graph */}
           <div className="xl:col-span-8 bg-white rounded-xl border border-slate-100 p-6 shadow-2xs flex flex-col justify-between">
             <div>
@@ -1182,15 +1197,31 @@ export default function Dashboard({
               </span>
             </div>
           </div>
-        </div>
+          </div>
+        </WorkSection>
 
-        <DashboardInsightCharts
-          reports={analyticsReports}
-          villageName={getVillageName}
-        />
+        <WorkSection
+          index="03"
+          title="Phân tích ưu tiên theo thôn"
+          description="Tách các biểu đồ so sánh và tín hiệu cần chú ý khỏi số liệu tổng quan; đây là vùng hỗ trợ rà soát, không phải bảng xếp hạng."
+          tone="support"
+          icon={<TrendingUp />}
+        >
+          <DashboardInsightCharts
+            reports={analyticsReports}
+            villageName={getVillageName}
+          />
+        </WorkSection>
 
         {/* Section: Interactive Submissions Log and Details Table */}
-        <div className="bg-white rounded-xl border border-slate-100 shadow-2xs p-6">
+        <WorkSection
+          index="04"
+          title="Báo cáo nguồn và hành động nghiệp vụ"
+          description="Danh sách báo cáo gốc được đặt trong vùng riêng để cán bộ đối chiếu trạng thái, người lập và các thao tác duyệt, khóa hoặc công bố."
+          tone="tasks"
+          icon={<FileText />}
+        >
+          <div className="bg-white rounded-xl border border-slate-100 shadow-2xs p-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
             <div>
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
@@ -1378,7 +1409,8 @@ export default function Dashboard({
               </table>
             </div>
           )}
-        </div>
+          </div>
+        </WorkSection>
       </div>
 
       {/* Chart Modal Fullscreen */}
