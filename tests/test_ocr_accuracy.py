@@ -360,6 +360,36 @@ def _scanned_pdf_bytes(*, pages: int = 1) -> bytes:
     return output.getvalue()
 
 
+@pytest.mark.parametrize("image_format", ["WEBP", "BMP", "TIFF"])
+def test_prepare_ocr_pages_sanitizes_supported_raster_formats(
+    image_format: str,
+    monkeypatch,
+):
+    from services import ocr_report
+
+    output = BytesIO()
+    Image.new("RGB", (240, 180), "white").save(output, format=image_format)
+    monkeypatch.setattr(ocr_report, "extract_table_region", lambda content: content)
+
+    pages = ocr_report.prepare_ocr_pages(output.getvalue())
+    assert len(pages) == 1
+    assert pages[0][0] == 1
+    assert pages[0][1].startswith(b"\x89PNG")
+
+
+def test_prepare_ocr_pages_keeps_all_frames_of_bounded_tiff(monkeypatch):
+    from services import ocr_report
+
+    frames = [Image.new("RGB", (32, 32), color) for color in ("white", "gray")]
+    output = BytesIO()
+    frames[0].save(output, format="TIFF", save_all=True, append_images=frames[1:])
+    monkeypatch.setattr(ocr_report, "extract_table_region", lambda content: content)
+
+    pages = ocr_report.prepare_ocr_pages(output.getvalue())
+    assert [page_number for page_number, _ in pages] == [1, 2]
+    assert all(content.startswith(b"\x89PNG") for _, content in pages)
+
+
 def test_extract_pdf_scan_pages_reencodes_raster_without_metadata():
     from services.ocr_report import extract_pdf_scan_pages
 

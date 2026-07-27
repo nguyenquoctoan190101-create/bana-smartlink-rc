@@ -17,9 +17,21 @@ MAX_COMPRESSION_RATIO = 100
 MAX_IMAGE_PIXELS = 25_000_000
 MAX_PDF_PAGES = 5
 MAX_PDF_OBJECTS = 2_000
-ALLOWED_EXTENSIONS = {".xlsx", ".jpg", ".jpeg", ".png", ".pdf"}
+ALLOWED_EXTENSIONS = {
+    ".xlsx",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".bmp",
+    ".tif",
+    ".tiff",
+    ".pdf",
+}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 JPEG_SIGNATURE = b"\xff\xd8\xff"
+BMP_SIGNATURE = b"BM"
+TIFF_SIGNATURES = (b"II*\x00", b"MM\x00*")
 PDF_SIGNATURE = b"%PDF-"
 ZIP_SIGNATURES = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 
@@ -44,7 +56,7 @@ async def validate_report_upload(upload_file: UploadFile) -> bytes:
     if not _has_valid_magic_bytes(suffix, content):
         raise UploadValidationError("File content does not match extension")
 
-    if suffix in {".jpg", ".jpeg", ".png"}:
+    if suffix in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}:
         _validate_image(content)
     elif suffix == ".pdf":
         _validate_pdf(content)
@@ -59,6 +71,19 @@ def _has_valid_magic_bytes(suffix: str, content: bytes) -> bool:
 
     if suffix in {".jpg", ".jpeg"}:
         return content.startswith(JPEG_SIGNATURE)
+
+    if suffix == ".webp":
+        return (
+            len(content) >= 12
+            and content.startswith(b"RIFF")
+            and content[8:12] == b"WEBP"
+        )
+
+    if suffix == ".bmp":
+        return content.startswith(BMP_SIGNATURE)
+
+    if suffix in {".tif", ".tiff"}:
+        return content.startswith(TIFF_SIGNATURES)
 
     if suffix == ".xlsx":
         return _is_xlsx_workbook(content)

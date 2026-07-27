@@ -192,10 +192,21 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
   const handleFileSelected = (selectedFile: File) => {
     const extension = selectedFile.name.split(".").pop()?.toLowerCase();
     const isExcel = ["xlsx"].includes(extension || "");
-    const isOcrDocument = ["jpg", "jpeg", "png", "pdf"].includes(extension || "");
+    const isOcrDocument = [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "bmp",
+      "tif",
+      "tiff",
+      "pdf",
+    ].includes(extension || "");
 
     if (!isExcel && !isOcrDocument) {
-      setError("Chỉ nhận biểu mẫu Excel (.xlsx), ảnh (.jpg, .png) hoặc PDF quét.");
+      setError(
+        "Chỉ nhận Excel (.xlsx), JPG/JPEG, PNG, WebP, BMP, TIFF/TIF hoặc PDF quét.",
+      );
       clearSelectedFile(true);
       return;
     }
@@ -570,7 +581,11 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                   type="file"
                   ref={fileInputRef}
                   id="file-upload-input"
-                  accept={ocrEnabled ? ".xlsx,.jpg,.jpeg,.png,.pdf" : ".xlsx"}
+                  accept={
+                    ocrEnabled
+                      ? ".xlsx,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.pdf"
+                      : ".xlsx"
+                  }
                   className="sr-only"
                   onChange={handleFileChange}
                   disabled={isProcessing}
@@ -612,7 +627,13 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                         Kéo thả tệp báo cáo của thôn hoặc <span className="text-emerald-800 underline">Bấm để duyệt tệp</span>
                       </p>
                       <p className="text-2xs text-slate-400">
-                        {ocrEnabled ? "Excel, ảnh hoặc PDF quét" : "Excel theo biểu mẫu"} <b className="font-mono text-emerald-900">{ocrEnabled ? ".xlsx · .jpg · .png · .pdf" : ".xlsx"}</b>; tối đa 5 MB
+                        {ocrEnabled ? "Excel, ảnh hoặc PDF quét" : "Excel theo biểu mẫu"}{" "}
+                        <b className="font-mono text-emerald-900">
+                          {ocrEnabled
+                            ? ".xlsx · .jpg/.jpeg · .png · .webp · .bmp · .tif/.tiff · .pdf"
+                            : ".xlsx"}
+                        </b>
+                        ; tối đa 5 MB
                       </p>
                     </div>
 

@@ -28,7 +28,7 @@ test nội bộ của đội phát triển không thay thế chữ ký UAT.
 3. Ngoại tuyến–đồng bộ lại không tạo bản ghi trùng và giữ lại mục bị từ chối kèm
    hướng dẫn xử lý.
 
-## 4. Quản trị xã
+## 4. Cán bộ xã
 
 1. Thấy kiến nghị chờ xử lý, SLA 72 giờ và nhãn quá hạn nếu có.
 2. Duyệt/từ chối kiến nghị; báo cáo được kiểm tra lại và bản công khai phải được

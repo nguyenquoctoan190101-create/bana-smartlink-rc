@@ -7,7 +7,7 @@ import {
 
 describe("role presentation", () => {
   it("labels all staff roles in Vietnamese", () => {
-    expect(getRoleLabel("admin_xa")).toBe("Quản trị xã");
+    expect(getRoleLabel("admin_xa")).toBe("Cán bộ xã");
     expect(getRoleLabel("to_cnscd")).toBe("Tổ công nghệ số cộng đồng");
     expect(getRoleLabel("lanh_dao")).toBe("Lãnh đạo xã");
   });

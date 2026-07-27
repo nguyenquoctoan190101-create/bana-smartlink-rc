@@ -61,7 +61,7 @@ vi, dừng làm việc và báo quản trị.
 4. Không duyệt, khóa, công bố, quản trị tài khoản hoặc tự thay quyết định của cán
    bộ chịu trách nhiệm.
 
-## Quản trị xã — `admin_xa`
+## Cán bộ xã — `admin_xa`
 
 1. Tạo kỳ và biểu mẫu; kiểm tra danh sách thôn, hạn nộp và phạm vi áp dụng.
 2. Tạo/kích hoạt tài khoản theo nguyên tắc quyền tối thiểu; không gửi mật khẩu

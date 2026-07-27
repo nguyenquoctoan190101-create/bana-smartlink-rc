@@ -99,7 +99,7 @@ describe("ReportPeriodChangeRequests", () => {
         village_ids: periods[0].village_ids,
       },
       requested_at: "2026-07-26T03:00:00Z",
-      requester_name: "Quản trị xã",
+      requester_name: "Cán bộ xã",
       status: "pending",
       decision: null,
     };

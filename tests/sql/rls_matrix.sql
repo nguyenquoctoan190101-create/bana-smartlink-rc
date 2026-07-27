@@ -23,7 +23,7 @@ values
   ('00000000-0000-4000-8000-00000000a003', 'ba_na', 'CNSCĐ', 'to_cnscd', null, true, false),
   ('00000000-0000-4000-8000-00000000a004', 'ba_na', 'Lãnh đạo', 'lanh_dao', null, true, false),
   ('00000000-0000-4000-8000-00000000a005', 'ba_na', 'Buộc đổi mật khẩu', 'can_bo_thon', '00000000-0000-4000-8000-00000000c002', true, true),
-  ('00000000-0000-4000-8000-00000000a006', 'commune_other', 'Quản trị xã khác', 'admin_xa', null, true, false);
+  ('00000000-0000-4000-8000-00000000a006', 'commune_other', 'Cán bộ xã khác', 'admin_xa', null, true, false);
 
 insert into public.user_village_assignments (user_id, village_id, assigned_by)
 values (

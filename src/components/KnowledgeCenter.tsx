@@ -61,7 +61,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const roleLabel = (role: string) =>
   ({
-    admin_xa: "Quản trị xã",
+    admin_xa: "Cán bộ xã",
     to_cnscd: "Tổ công nghệ số cộng đồng",
     can_bo_thon: "Cán bộ thôn",
     lanh_dao: "Lãnh đạo",
@@ -172,7 +172,7 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
       });
       setArticleTitle("");
       setArticleBody("");
-    }, "Đã lưu bài viết ở trạng thái bản nháp. Quản trị xã phải duyệt trước khi trợ lý nội bộ sử dụng.");
+    }, "Đã lưu bài viết ở trạng thái bản nháp. Cán bộ xã phải duyệt trước khi trợ lý nội bộ sử dụng.");
 
   const approveArticle = (id: string) =>
     submit(
@@ -396,7 +396,7 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                 ))}
               </ItemList>
             ) : (
-              <EmptyState title="Chưa có Đại sứ số" description="Quản trị xã chọn cán bộ trong danh sách để phân công hỗ trợ." />
+              <EmptyState title="Chưa có Đại sứ số" description="Cán bộ xã chọn cán bộ trong danh sách để phân công hỗ trợ." />
             )}
             {admin && (
               <Disclosure title="Phân công Đại sứ số" description="Chọn cán bộ, kỹ năng và lịch hỗ trợ trước khi công bố nội bộ.">
@@ -463,7 +463,7 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                 ))}
               </ItemList>
             ) : (
-              <EmptyState title="Chưa có điểm hỗ trợ" description="Quản trị xã cấu hình địa điểm và thiết bị dùng chung trước khi công khai nội bộ." />
+              <EmptyState title="Chưa có điểm hỗ trợ" description="Cán bộ xã cấu hình địa điểm và thiết bị dùng chung trước khi công khai nội bộ." />
             )}
             {admin && (
               <Disclosure title="Thêm điểm hỗ trợ" description="Cấu hình thông tin tối thiểu để cán bộ biết nơi và thời gian hỗ trợ.">
@@ -505,7 +505,7 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
 
       {canViewEvacuation && (
         <SectionCard className="knowledge-section knowledge-section--evacuation">
-          <SectionTitle tone="location" icon={<MapPin />} title="Điểm sơ tán" description="Quản trị xã rà soát hồ sơ và quyết định công bố; lãnh đạo theo dõi. Chỉ điểm đã được duyệt mới xuất hiện trên cổng công khai." count={`${evacuationPoints.length} điểm`} />
+          <SectionTitle tone="location" icon={<MapPin />} title="Điểm sơ tán" description="Cán bộ xã rà soát hồ sơ và quyết định công bố; lãnh đạo theo dõi. Chỉ điểm đã được duyệt mới xuất hiện trên cổng công khai." count={`${evacuationPoints.length} điểm`} />
           <div className="knowledge-section__body">
             {evacuationPoints.length ? (
               <ItemList>
@@ -630,7 +630,7 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                   </article>
                 ))
               ) : (
-                <EmptyState title="Chưa có kịch bản" description="Quản trị xã tạo kịch bản để thử các giả định dân số, ngân sách hoặc nhu cầu dịch vụ." />
+                <EmptyState title="Chưa có kịch bản" description="Cán bộ xã tạo kịch bản để thử các giả định dân số, ngân sách hoặc nhu cầu dịch vụ." />
               )}
             </div>
             {scenarioResult && (

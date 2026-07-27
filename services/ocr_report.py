@@ -73,6 +73,9 @@ _OCR_MODEL_PREFERENCES = (
 _MIME_BY_MAGIC: dict[bytes, str] = {
     b"\xff\xd8\xff": "image/jpeg",
     b"\x89PNG": "image/png",
+    b"BM": "image/bmp",
+    b"II*\x00": "image/tiff",
+    b"MM\x00*": "image/tiff",
 }
 _PDF_MAGIC = b"%PDF-"
 _OCR_EXTRACTOR = "gemini_multimodal"
@@ -670,6 +673,51 @@ def _sanitize_raster_image(image_bytes: bytes) -> bytes:
         raise OcrInputError("PDF không chứa ảnh quét có thể xử lý") from exc
 
 
+def _sanitize_standalone_raster_pages(
+    image_bytes: bytes,
+) -> list[tuple[int, bytes]]:
+    """Decode every bounded raster frame and re-encode it as metadata-free PNG.
+
+    Multi-page TIFF files and animated WebP scans are treated like PDF pages.
+    The same five-page and per-frame pixel limits keep processing bounded.
+    """
+    try:
+        from PIL import Image, ImageOps, UnidentifiedImageError  # type: ignore[import]
+    except ImportError as exc:
+        raise OcrError("OCR privacy processing is unavailable") from exc
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as source:
+            frame_count = int(getattr(source, "n_frames", 1))
+            if not 1 <= frame_count <= MAX_PDF_PAGES:
+                raise OcrInputError(
+                    f"Tệp ảnh phải có từ 1 đến {MAX_PDF_PAGES} trang/khung"
+                )
+
+            pages: list[tuple[int, bytes]] = []
+            for frame_index in range(frame_count):
+                source.seek(frame_index)
+                frame = ImageOps.exif_transpose(source.copy())
+                frame.load()
+                width, height = frame.size
+                if (
+                    width <= 0
+                    or height <= 0
+                    or width * height > MAX_IMAGE_PIXELS
+                ):
+                    raise OcrInputError("Kích thước ảnh quét không hợp lệ")
+                if frame.mode not in {"RGB", "L"}:
+                    frame = frame.convert("RGB")
+                output = BytesIO()
+                frame.save(output, format="PNG", optimize=True)
+                pages.append((frame_index + 1, output.getvalue()))
+            return pages
+    except OcrError:
+        raise
+    except (EOFError, UnidentifiedImageError, OSError, ValueError) as exc:
+        raise OcrInputError("Ảnh bị lỗi hoặc không thể xử lý an toàn") from exc
+
+
 def _preflight_pdf_page_images(page: Any) -> None:
     """Bound image dimensions/count before pypdf decompresses image streams."""
     resources_ref = page.get("/Resources")
@@ -787,9 +835,9 @@ def prepare_ocr_pages(document_bytes: bytes) -> list[tuple[int, bytes]]:
     if document_bytes.startswith(_PDF_MAGIC):
         scan_pages = extract_pdf_scan_pages(document_bytes)
     else:
-        # _detect_mime validates the magic bytes before Pillow is invoked.
+        # Validate magic bytes before Pillow decodes every bounded raster frame.
         _detect_mime(document_bytes)
-        scan_pages = [(1, _sanitize_raster_image(document_bytes))]
+        scan_pages = _sanitize_standalone_raster_pages(document_bytes)
 
     # Crop every page fail-closed. This may remove a repeated page heading,
     # but guarantees that names/phone numbers in the upper form header are
@@ -1265,6 +1313,12 @@ async def ocr_report_async(image_bytes: bytes) -> OcrPreview:
 
 def _detect_mime(image_bytes: bytes) -> str:
     """Detect image MIME type from magic bytes."""
+    if (
+        len(image_bytes) >= 12
+        and image_bytes.startswith(b"RIFF")
+        and image_bytes[8:12] == b"WEBP"
+    ):
+        return "image/webp"
     for magic, mime in _MIME_BY_MAGIC.items():
         if image_bytes.startswith(magic):
             return mime

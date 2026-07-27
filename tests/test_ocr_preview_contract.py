@@ -105,7 +105,16 @@ def test_import_capabilities_are_backend_confirmed() -> None:
     assert enabled.json() == {
         "excel_preview_enabled": True,
         "ocr_preview_enabled": True,
-        "accepted_ocr_types": [".jpg", ".jpeg", ".png", ".pdf"],
+        "accepted_ocr_types": [
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".bmp",
+            ".tif",
+            ".tiff",
+            ".pdf",
+        ],
         "ocr_setup_status": "ready",
     }
 

@@ -132,7 +132,7 @@ def test_list_change_requests_joins_decision_and_actor_names() -> None:
                     "decided_at": "2026-07-26T01:00:00Z",
                 }],
                 [
-                    {"id": admin_id, "display_name": "Quản trị xã"},
+                    {"id": admin_id, "display_name": "Cán bộ xã"},
                     {"id": leader_id, "display_name": "Lãnh đạo xã"},
                 ],
                 [{"id": period_id, "name": "Kỳ trùng", "archived_at": None}],
@@ -144,7 +144,7 @@ def test_list_change_requests_joins_decision_and_actor_names() -> None:
     assert response.status_code == 200, response.text
     row = response.json()[0]
     assert row["status"] == "rejected"
-    assert row["requester_name"] == "Quản trị xã"
+    assert row["requester_name"] == "Cán bộ xã"
     assert row["decision"]["decider_name"] == "Lãnh đạo xã"
 
 

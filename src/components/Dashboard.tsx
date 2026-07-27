@@ -677,7 +677,7 @@ export default function Dashboard({
                 disabled={selectableVillages.length === 0}
                 title={
                   selectableVillages.length === 0
-                    ? "Quản trị xã cần phân công ít nhất một thôn trước khi lập báo cáo."
+                    ? "Cán bộ xã cần phân công ít nhất một thôn trước khi lập báo cáo."
                     : undefined
                 }
                 className="dashboard-filter-bar__new flex-1 md:flex-none bg-emerald-800 hover:bg-emerald-850 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"

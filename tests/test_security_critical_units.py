@@ -711,6 +711,21 @@ def test_upload_validator_accepts_decoded_image() -> None:
     assert validated.startswith(b"\x89PNG")
 
 
+@pytest.mark.parametrize(
+    ("extension", "image_format"),
+    [("webp", "WEBP"), ("bmp", "BMP"), ("tif", "TIFF"), ("tiff", "TIFF")],
+)
+def test_upload_validator_accepts_common_scanned_image_formats(
+    extension: str,
+    image_format: str,
+) -> None:
+    output = BytesIO()
+    Image.new("RGB", (16, 16), "white").save(output, format=image_format)
+    validated, upload = _validate_upload(f"report.{extension}", output.getvalue())
+    assert validated == output.getvalue()
+    assert upload.file.tell() == 0
+
+
 def test_upload_validator_accepts_bounded_static_pdf_and_rewinds_stream() -> None:
     content = _scanned_pdf()
     validated, upload = _validate_upload("report.pdf", content)

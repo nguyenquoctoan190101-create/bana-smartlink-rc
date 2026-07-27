@@ -1344,7 +1344,18 @@ async def report_import_capabilities(
         ocr_status = "disabled"
     return ReportImportCapabilities(
         ocr_preview_enabled=ocr_enabled,
-        accepted_ocr_types=[".jpg", ".jpeg", ".png", ".pdf"] if ocr_enabled else [],
+        accepted_ocr_types=[
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".bmp",
+            ".tif",
+            ".tiff",
+            ".pdf",
+        ]
+        if ocr_enabled
+        else [],
         ocr_setup_status=ocr_status,
     )
 
@@ -1368,10 +1379,19 @@ async def ocr_photo_preview(
             ),
         )
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png", ".pdf"}:
+    if suffix not in {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".pdf",
+    }:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OCR chỉ nhận ảnh .jpg, .png hoặc PDF quét.",
+            detail="OCR chỉ nhận JPG/JPEG, PNG, WebP, BMP, TIFF/TIF hoặc PDF quét.",
         )
 
     try:

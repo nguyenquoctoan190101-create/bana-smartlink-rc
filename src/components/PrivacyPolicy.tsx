@@ -28,7 +28,7 @@ const INDICATORS = [
 
 const ROLES_INFO = [
   {
-    role: "Quản trị viên xã",
+    role: "Cán bộ xã",
     desc: "Quản lý kỳ/tài khoản; xem toàn xã; duyệt, khóa, công bố và xuất báo cáo.",
   },
   {

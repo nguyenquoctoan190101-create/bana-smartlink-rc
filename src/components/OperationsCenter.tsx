@@ -443,7 +443,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
               <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
             ) : (
               <>
-                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Quản trị xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
+                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Cán bộ xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
                 {currentPeriodDrafts.slice(0, 5).map((draft) => (
                   <article key={draft.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>

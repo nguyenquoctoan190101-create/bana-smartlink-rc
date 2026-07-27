@@ -264,7 +264,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
             <span>Thẩm định kiến nghị sửa đổi số liệu</span>
           </h1>
           <p className="text-2xs text-slate-500 mt-1">
-            {userRole === "admin_xa" ? "Phạm vi: Quản trị xã xem toàn bộ đề nghị đối chiếu từ người dân tại 10 thôn." : `Quyền hạn: Cán bộ thôn - Xem đề xuất chỉnh sửa riêng của địa bàn ${getVillageName(userVillageId || "")}.`}
+            {userRole === "admin_xa" ? "Phạm vi: Cán bộ xã xem toàn bộ đề nghị đối chiếu từ người dân tại 10 thôn." : `Quyền hạn: Cán bộ thôn - Xem đề xuất chỉnh sửa riêng của địa bàn ${getVillageName(userVillageId || "")}.`}
           </p>
         </div>
         <button

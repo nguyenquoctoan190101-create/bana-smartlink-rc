@@ -112,7 +112,7 @@ describe("UploadReport", () => {
     );
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();
-    await waitFor(() => expect(input).toHaveAttribute("accept", ".xlsx,.jpg,.jpeg,.png,.pdf"));
+    await waitFor(() => expect(input).toHaveAttribute("accept", ".xlsx,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.pdf"));
 
     fireEvent.change(input!, {
       target: { files: [new File(["%PDF-1.7"], "bao-cao.pdf", { type: "application/pdf" })] },
@@ -160,7 +160,7 @@ describe("UploadReport", () => {
     );
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();
-    await waitFor(() => expect(input).toHaveAttribute("accept", ".xlsx,.jpg,.jpeg,.png,.pdf"));
+    await waitFor(() => expect(input).toHaveAttribute("accept", ".xlsx,.jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff,.pdf"));
 
     fireEvent.change(input!, {
       target: { files: [new File(["image"], "bao-cao.jpg", { type: "image/jpeg" })] },

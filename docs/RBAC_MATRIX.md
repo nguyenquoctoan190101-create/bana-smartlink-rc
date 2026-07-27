@@ -29,7 +29,7 @@ FastAPI và Row Level Security trong PostgreSQL.
 | Người dân | Anonymous, không tài khoản | Dữ liệu đã công bố gồm CT01, CT02, CT09, CT12, CT13; gửi phản ánh/kiến nghị và tra cứu trạng thái đã lọc |
 | Cán bộ hoặc trưởng thôn | `can_bo_thon` | Báo cáo, công việc và dữ liệu đúng thôn được gán |
 | Tổ công nghệ số cộng đồng/điều phối hỗ trợ | `to_cnscd` | Hỗ trợ các thôn được phân công; không duyệt, khóa hoặc công bố |
-| Quản trị xã | `admin_xa` | Quản trị trong đúng xã: kỳ, tài khoản, phân công, duyệt, khóa, công bố, nhập cũ và audit |
+| Cán bộ xã | `admin_xa` | Quản trị trong đúng xã: kỳ, tài khoản, phân công, duyệt, khóa, công bố, nhập cũ và audit |
 | Lãnh đạo | `lanh_dao` | Chỉ đọc dữ liệu nội bộ và xuất báo cáo được phép; không mutation |
 
 “Cán bộ xã”, “trưởng thôn” và “điều phối” là chức danh/ngữ cảnh nghiệp vụ, không

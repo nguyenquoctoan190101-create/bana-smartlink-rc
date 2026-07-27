@@ -1,7 +1,7 @@
 import type { UserRole } from "../types";
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  admin_xa: "Quản trị xã",
+  admin_xa: "Cán bộ xã",
   can_bo_thon: "Cán bộ thôn",
   to_cnscd: "Tổ công nghệ số cộng đồng",
   lanh_dao: "Lãnh đạo xã",
