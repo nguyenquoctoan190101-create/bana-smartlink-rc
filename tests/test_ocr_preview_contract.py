@@ -354,6 +354,7 @@ async def test_gemini_ocr_uses_one_stable_fallback_after_provider_failure(
     fake = _FakeOcrHttpClient()
     fake.post.side_effect = [
         httpx.Response(503, json={"error": {"message": "temporary"}}),
+        httpx.Response(503, json={"error": {"message": "temporary"}}),
         httpx.Response(
             200,
             json={
@@ -374,17 +375,66 @@ async def test_gemini_ocr_uses_one_stable_fallback_after_provider_failure(
         ),
     )
     monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+    sleep = AsyncMock()
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", sleep)
+
+    result = await ocr_report._call_gemini_ocr(_png_scan())
+
+    assert result == '{"CT01": 427}'
+    assert fake.post.await_count == 3
+    assert fake.post.await_args_list[0].args[0].endswith(
+        "/v1beta/models/gemini-3.1-flash-lite:generateContent"
+    )
+    assert fake.post.await_args_list[1].args[0].endswith(
+        "/v1beta/models/gemini-3.1-flash-lite:generateContent"
+    )
+    assert fake.post.await_args_list[2].args[0].endswith(
+        "/v1beta/models/gemini-3.6-flash:generateContent"
+    )
+    sleep.assert_awaited_once_with(0.6)
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_retries_transient_failure_before_fallback(
+    monkeypatch,
+) -> None:
+    fake = _FakeOcrHttpClient()
+    fake.post.side_effect = [
+        httpx.Response(429, json={"error": {"message": "rate limited"}}),
+        httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {"content": {"parts": [{"text": '{"CT01": 427}'}]}}
+                ]
+            },
+        ),
+    ]
+    monkeypatch.setattr(
+        ocr_report,
+        "load_settings",
+        lambda: Settings(
+            _env_file=None,
+            gemini_api_key="unit-test-provider-key",
+            gemini_api_url="https://gemini.example",
+            gemini_ocr_model="gemini-3.5-flash-lite",
+        ),
+    )
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+    sleep = AsyncMock()
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", sleep)
 
     result = await ocr_report._call_gemini_ocr(_png_scan())
 
     assert result == '{"CT01": 427}'
     assert fake.post.await_count == 2
-    assert fake.post.await_args_list[0].args[0].endswith(
-        "/v1beta/models/gemini-3.1-flash-lite:generateContent"
+    assert all(
+        call.args[0].endswith(
+            "/v1beta/models/gemini-3.5-flash-lite:generateContent"
+        )
+        for call in fake.post.await_args_list
     )
-    assert fake.post.await_args_list[1].args[0].endswith(
-        "/v1beta/models/gemini-3.6-flash:generateContent"
-    )
+    sleep.assert_awaited_once_with(0.6)
 
 
 @pytest.mark.asyncio

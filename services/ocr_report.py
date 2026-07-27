@@ -59,6 +59,8 @@ _OCR_USER_PROMPT = (
 _OCR_MAX_TOKENS = 4096
 _OCR_TEMPERATURE = 0.0
 _OCR_PROVIDER_READ_TIMEOUT_SECONDS = 75.0
+_OCR_TRANSIENT_RETRIES_PER_MODEL = 1
+_OCR_RETRY_BASE_DELAY_SECONDS = 0.6
 _OCR_FALLBACK_MODEL = "gemini-3.6-flash"
 _OCR_MODEL_PREFERENCES = (
     "gemini-3.5-flash-lite",
@@ -80,6 +82,12 @@ _LOW_CONFIDENCE_THRESHOLD = 0.8
 _MAX_PDF_IMAGES = 20
 _MAX_PDF_IMAGE_PIXELS_TOTAL = 50_000_000
 logger = logging.getLogger(__name__)
+
+
+def _is_transient_provider_status(status_code: int) -> bool:
+    """Return whether the same provider/model call is safe to retry once."""
+
+    return status_code in {408, 409, 425, 429} or status_code >= 500
 
 
 class OcrError(RuntimeError):
@@ -868,7 +876,7 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             api_key=settings.gemini_api_key,
             configured_model=primary_model,
         )
-        for attempt, model in enumerate(models):
+        for model_index, model in enumerate(models):
             generation_config: dict[str, Any] = {
                 **base_payload["generationConfig"],
             }
@@ -889,92 +897,118 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                 "generationConfig": generation_config,
             }
             url = f"{base_url}/v1beta/models/{model}:generateContent"
-            try:
-                response = await client.post(
-                    url,
-                    headers={"x-goog-api-key": settings.gemini_api_key},
-                    json=payload,
-                )
-            except httpx.TimeoutException as exc:
-                last_error = OcrError("Gemini OCR request timed out")
-                if attempt + 1 < len(models):
-                    continue
-                raise last_error from exc
-            except httpx.HTTPError as exc:
-                last_error = OcrError("Gemini OCR request failed (network error)")
-                if attempt + 1 < len(models):
-                    continue
-                raise last_error from exc
+            for retry_index in range(_OCR_TRANSIENT_RETRIES_PER_MODEL + 1):
+                try:
+                    response = await client.post(
+                        url,
+                        headers={"x-goog-api-key": settings.gemini_api_key},
+                        json=payload,
+                    )
+                except httpx.TimeoutException as exc:
+                    last_error = OcrError("Gemini OCR request timed out")
+                    if retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL:
+                        await asyncio.sleep(
+                            _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
+                        )
+                        continue
+                    if model_index + 1 < len(models):
+                        break
+                    raise last_error from exc
+                except httpx.HTTPError as exc:
+                    last_error = OcrError("Gemini OCR request failed (network error)")
+                    if retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL:
+                        await asyncio.sleep(
+                            _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
+                        )
+                        continue
+                    if model_index + 1 < len(models):
+                        break
+                    raise last_error from exc
 
-            if response.status_code >= 400:
-                last_error = OcrError(
-                    f"Gemini OCR request failed (HTTP {response.status_code})"
-                )
-                # Authentication/permission failures cannot be repaired by
-                # switching models. All other provider/model failures get one
-                # bounded fallback attempt.
-                if response.status_code in {401, 403} or attempt + 1 >= len(models):
+                if response.status_code >= 400:
+                    last_error = OcrError(
+                        f"Gemini OCR request failed (HTTP {response.status_code})"
+                    )
+                    # Authentication/permission failures cannot be repaired
+                    # by a retry or model switch.
+                    if response.status_code in {401, 403}:
+                        raise last_error
+                    if (
+                        _is_transient_provider_status(response.status_code)
+                        and retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL
+                    ):
+                        await asyncio.sleep(
+                            _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
+                        )
+                        continue
+                    if model_index + 1 < len(models):
+                        break
                     raise last_error
-                continue
 
-            try:
-                response_payload = response.json()
-                return _extract_text(response_payload)
-            except (GeminiError, ValueError) as exc:
-                last_error = OcrError("Could not parse Gemini OCR response")
-                candidates = (
-                    response_payload.get("candidates")
-                    if isinstance(response_payload, dict)
-                    else None
-                )
-                first_candidate = (
-                    candidates[0]
-                    if isinstance(candidates, list)
-                    and candidates
-                    and isinstance(candidates[0], dict)
-                    else {}
-                )
-                content = first_candidate.get("content")
-                parts = content.get("parts") if isinstance(content, dict) else None
-                part_shapes = [
-                    {
-                        "has_text": isinstance(part.get("text"), str),
-                        "text_length": (
-                            len(part["text"]) if isinstance(part.get("text"), str) else 0
-                        ),
-                        "thought": part.get("thought") is True,
-                        "keys": sorted(
-                            key
-                            for key in part
-                            if key not in {
-                                "text",
-                                "thoughtSignature",
-                                "thought_signature",
-                            }
-                        ),
-                    }
-                    for part in parts
-                    if isinstance(part, dict)
-                ] if isinstance(parts, list) else []
-                logger.warning(
-                    "Gemini OCR response had no readable answer text",
-                    extra={
-                        "gemini_ocr_model": model,
-                        "gemini_finish_reason": first_candidate.get("finishReason"),
-                        "gemini_part_shapes": part_shapes,
-                        "gemini_prompt_block_reason": (
-                            response_payload.get("promptFeedback", {}).get("blockReason")
-                            if isinstance(response_payload, dict)
-                            and isinstance(
-                                response_payload.get("promptFeedback"), dict
-                            )
-                            else None
-                        ),
-                    },
-                )
-                if attempt + 1 < len(models):
-                    continue
-                raise last_error from exc
+                try:
+                    response_payload = response.json()
+                    return _extract_text(response_payload)
+                except (GeminiError, ValueError) as exc:
+                    last_error = OcrError("Could not parse Gemini OCR response")
+                    candidates = (
+                        response_payload.get("candidates")
+                        if isinstance(response_payload, dict)
+                        else None
+                    )
+                    first_candidate = (
+                        candidates[0]
+                        if isinstance(candidates, list)
+                        and candidates
+                        and isinstance(candidates[0], dict)
+                        else {}
+                    )
+                    content = first_candidate.get("content")
+                    parts = content.get("parts") if isinstance(content, dict) else None
+                    part_shapes = [
+                        {
+                            "has_text": isinstance(part.get("text"), str),
+                            "text_length": (
+                                len(part["text"]) if isinstance(part.get("text"), str) else 0
+                            ),
+                            "thought": part.get("thought") is True,
+                            "keys": sorted(
+                                key
+                                for key in part
+                                if key not in {
+                                    "text",
+                                    "thoughtSignature",
+                                    "thought_signature",
+                                }
+                            ),
+                        }
+                        for part in parts
+                        if isinstance(part, dict)
+                    ] if isinstance(parts, list) else []
+                    logger.warning(
+                        "Gemini OCR response had no readable answer text",
+                        extra={
+                            "gemini_ocr_model": model,
+                            "gemini_retry_index": retry_index,
+                            "gemini_finish_reason": first_candidate.get("finishReason"),
+                            "gemini_part_shapes": part_shapes,
+                            "gemini_prompt_block_reason": (
+                                response_payload.get("promptFeedback", {}).get("blockReason")
+                                if isinstance(response_payload, dict)
+                                and isinstance(
+                                    response_payload.get("promptFeedback"), dict
+                                )
+                                else None
+                            ),
+                        },
+                    )
+                    if retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL:
+                        await asyncio.sleep(
+                            _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
+                        )
+                        continue
+                    if model_index + 1 < len(models):
+                        break
+                    raise last_error from exc
 
     if last_error is not None:
         raise last_error

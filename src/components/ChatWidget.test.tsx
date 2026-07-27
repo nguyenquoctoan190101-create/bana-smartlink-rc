@@ -148,7 +148,59 @@ describe("ChatWidget suggestions", () => {
     const utterance = speak.mock.calls[0][0];
     expect(utterance.lang).toBe("vi-VN");
     expect(utterance.voice).toBe(daNangVoice);
-    expect(await screen.findByText(/Giọng Đà Nẵng\/miền Trung/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Giọng miền Trung: Da Nang Central Vietnamese/),
+    ).toBeInTheDocument();
+  });
+
+  it("never falls back to an English voice when Vietnamese is unavailable", async () => {
+    class FakeSpeechSynthesisUtterance {
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      voice: SpeechSynthesisVoice | null = null;
+      onstart: ((event: Event) => void) | null = null;
+      onend: ((event: Event) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+    }
+    const englishVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "English default",
+      voiceURI: "local-english",
+    } as SpeechSynthesisVoice;
+    const speak = vi.fn();
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+    vi.stubGlobal("speechSynthesis", {
+      cancel: vi.fn(),
+      getVoices: vi.fn(() => [englishVoice]),
+      onvoiceschanged: null,
+      speak,
+    });
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse({ voice_enabled: true }))
+      .mockResolvedValueOnce(jsonResponse({
+        answer: "Toàn xã có 18.359 nhân khẩu.",
+        intent: "COMMUNE_INDICATOR",
+        rows_retrieved: 1,
+        sources: [],
+        data_scope: "public_published",
+        limitations: [],
+      }));
+
+    render(<ChatWidget userPhone={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
+    expect(
+      await screen.findByText(/không dùng giọng tiếng Anh thay thế/, {}, { timeout: 1600 }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }));
+
+    const readButton = await screen.findByRole("button", {
+      name: "Đọc câu trả lời bằng giọng nói",
+    });
+    expect(readButton).toBeDisabled();
+    expect(speak).not.toHaveBeenCalled();
   });
 
   it("renders the source, update time, scope and limitations returned by the API", async () => {
