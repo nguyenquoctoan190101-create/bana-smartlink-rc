@@ -42,6 +42,8 @@ import {
   FileSearch,
   ChevronDown,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
 } from "lucide-react";
 
@@ -524,6 +526,9 @@ export default function App() {
   const knownNotificationIdsRef = useRef<Set<string> | null>(null);
   const notificationSoundEnabledRef = useRef(notificationSoundEnabled);
   const [showRoleScope, setShowRoleScope] = useState<boolean>(false);
+  const [sidebarPinned, setSidebarPinned] = useState<boolean>(
+    () => window.localStorage.getItem("bn-sidebar-pinned") === "true",
+  );
   const [showMobileMore, setShowMobileMore] = useState<boolean>(false);
   const mobileMoreDialogRef = useRef<HTMLDivElement>(null);
   const mobileMoreCloseRef = useRef<HTMLButtonElement>(null);
@@ -693,6 +698,14 @@ export default function App() {
         next ? "on" : "off",
       );
       if (next) playNotificationChime();
+      return next;
+    });
+  };
+
+  const handleToggleSidebar = () => {
+    setSidebarPinned((current) => {
+      const next = !current;
+      window.localStorage.setItem("bn-sidebar-pinned", String(next));
       return next;
     });
   };
@@ -1405,13 +1418,21 @@ export default function App() {
             : []),
         ];
       case "can_bo_thon":
-      case "to_cnscd":
+      case "to_cnscd": {
+        const workGroup =
+          userRole === "to_cnscd"
+            ? "Công việc hỗ trợ"
+            : "Công việc của thôn";
+        const reportGroup =
+          userRole === "to_cnscd"
+            ? "Báo cáo các thôn hỗ trợ"
+            : "Báo cáo của thôn";
         return [
           {
             id: "operations",
             label: "Việc cần xử lý",
             icon: UserCheck,
-            group: "Công việc",
+            group: workGroup,
             primary: true,
           },
           { id: "cases", label: "Phản ánh hiện trường", icon: MapPinned },
@@ -1419,7 +1440,7 @@ export default function App() {
             id: "report-form",
             label: "Lập báo cáo",
             icon: FileText,
-            group: "Báo cáo của thôn",
+            group: reportGroup,
             primary: true,
           },
           { id: "dashboard", label: "Theo dõi số liệu", icon: BarChart3 },
@@ -1437,25 +1458,28 @@ export default function App() {
           },
           { id: "knowledge", label: "Hướng dẫn nghiệp vụ", icon: FileArchive },
         ];
+      }
       case "lanh_dao":
         return [
           {
             id: "operations",
             label: "Tổng quan điều hành",
             icon: UserCheck,
-            group: "Chức năng chính",
+            group: "Tổng quan và tra cứu",
             primary: true,
           },
           {
             id: "cases",
             label: "Công việc và cảnh báo",
             icon: MapPinned,
+            group: "Điều phối và cảnh báo",
             primary: true,
           },
           {
             id: "dashboard",
             label: "Báo cáo và quyết định",
             icon: BarChart3,
+            group: "Báo cáo và quyết định",
             primary: true,
           },
         ];
@@ -1535,124 +1559,162 @@ export default function App() {
       {/* -------------------------------------------------------------
           DESKTOP SIDEBAR: FIXED LEFT SIDEBAR FOR DESKTOP
           ------------------------------------------------------------- */}
-      <aside className="gov-shell__sidebar hidden lg:flex flex-col shrink-0 sticky top-0 border-r border-white/10">
-        <div className="gov-shell__sidebar-scroll flex min-h-0 flex-1 flex-col">
-          {/* Header Branding */}
-          <div className="p-5 border-b border-white/10">
-            <Wordmark inverse />
-          </div>
-
-          {/* Active Logged-In User Profile */}
-          <div className="p-4 mx-3 my-4 bg-white/6 border border-white/10 rounded-xl space-y-1 text-xs">
-            <div className="flex items-center gap-2 text-white font-semibold">
-              <User className="w-4 h-4 text-emerald-200" />
-              <span>{userName}</span>
-            </div>
-            <div className="pl-6 space-y-1 text-emerald-100 text-xs">
-              <p>{getRoleLabel(userRole)}</p>
-              {userRole === "to_cnscd" ? (
-                <p>
-                  Phạm vi hỗ trợ:{" "}
-                  <span className="font-bold text-white">
-                    {userVillageIds.length
-                      ? `${userVillageIds.length} thôn được phân công`
-                      : "Chưa được phân công thôn"}
-                  </span>
-                </p>
-              ) : userVillageId ? (
-                <p>
-                  Thôn phụ trách:{" "}
-                  <span className="font-bold text-white">
-                    {villages.find((v) => v.id === userVillageId)?.name ||
-                      "Thôn được phân công"}
-                  </span>
-                </p>
-              ) : null}
+      <div
+        className="gov-shell__sidebar-frame hidden lg:block"
+        data-pinned={sidebarPinned || undefined}
+      >
+        <aside
+          className="gov-shell__sidebar flex flex-col border-r border-white/10"
+          aria-label="Thanh điều hướng tài khoản"
+        >
+          <div className="gov-shell__sidebar-scroll flex min-h-0 flex-1 flex-col">
+            {/* Header Branding */}
+            <div className="sidebar-brand flex items-center justify-between gap-2 border-b border-white/10">
+              <Wordmark inverse />
               <button
                 type="button"
-                onClick={() => setShowRoleScope((visible) => !visible)}
-                aria-expanded={showRoleScope}
-                className="mt-2 flex min-h-8 w-full items-center justify-between rounded-lg border border-white/10 px-2 py-1.5 text-left font-semibold text-white hover:bg-white/8"
+                className="sidebar-pin-toggle"
+                aria-label={
+                  sidebarPinned
+                    ? "Thu gọn thanh điều hướng"
+                    : "Ghim mở thanh điều hướng"
+                }
+                aria-pressed={sidebarPinned}
+                title={
+                  sidebarPinned
+                    ? "Thu gọn thanh điều hướng"
+                    : "Ghim mở thanh điều hướng"
+                }
+                onClick={handleToggleSidebar}
               >
-                <span>Phạm vi quyền</span>
-                <ChevronDown
-                  aria-hidden="true"
-                  className={`h-4 w-4 transition-transform ${showRoleScope ? "rotate-180" : ""}`}
-                />
+                {sidebarPinned ? (
+                  <PanelLeftClose aria-hidden="true" />
+                ) : (
+                  <PanelLeftOpen aria-hidden="true" />
+                )}
               </button>
-              {showRoleScope && (
-                <p className="rounded-lg bg-emerald-950/45 p-2 leading-relaxed text-emerald-50">
-                  {getRoleScope(userRole)}
-                </p>
-              )}
             </div>
+
+            {/* Active Logged-In User Profile */}
+            <div className="sidebar-profile mx-3 my-4 bg-white/6 border border-white/10 rounded-xl text-xs">
+              <div className="sidebar-profile__summary flex items-center gap-2 text-white font-semibold">
+                <User className="w-4 h-4 shrink-0 text-emerald-200" />
+                <span className="sidebar-profile__name">{userName}</span>
+              </div>
+              <div className="sidebar-profile__details space-y-1 text-emerald-100 text-xs">
+                <p>{getRoleLabel(userRole)}</p>
+                {userRole === "to_cnscd" ? (
+                  <p>
+                    Phạm vi hỗ trợ:{" "}
+                    <span className="font-bold text-white">
+                      {userVillageIds.length
+                        ? `${userVillageIds.length} thôn được phân công`
+                        : "Chưa được phân công thôn"}
+                    </span>
+                  </p>
+                ) : userVillageId ? (
+                  <p>
+                    Thôn phụ trách:{" "}
+                    <span className="font-bold text-white">
+                      {villages.find((v) => v.id === userVillageId)?.name ||
+                        "Thôn được phân công"}
+                    </span>
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setShowRoleScope((visible) => !visible)}
+                  aria-expanded={showRoleScope}
+                  className="mt-2 flex min-h-8 w-full items-center justify-between rounded-lg border border-white/10 px-2 py-1.5 text-left font-semibold text-white hover:bg-white/8"
+                >
+                  <span>Phạm vi quyền</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 transition-transform ${showRoleScope ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {showRoleScope && (
+                  <p className="rounded-lg bg-emerald-950/45 p-2 leading-relaxed text-emerald-50">
+                    {getRoleScope(userRole)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Left Navigation Items */}
+            <nav
+              className="sidebar-navigation px-3 pb-4 space-y-1"
+              aria-label="Điều hướng nghiệp vụ"
+            >
+              {navItems.map((item) => {
+                const IconComp = item.icon;
+                return (
+                  <React.Fragment key={item.id}>
+                    {item.group && <p className="gov-nav-group">{item.group}</p>}
+                    <button
+                      onClick={() => {
+                        setEditingReport(null);
+                        changeTab(item.id);
+                      }}
+                      aria-current={
+                        activeSpaceId === item.id ? "page" : undefined
+                      }
+                      title={item.label}
+                      className={`sidebar-nav-button w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                        activeSpaceId === item.id
+                          ? "bg-white text-emerald-950"
+                          : "text-emerald-100 hover:bg-white/8 hover:text-white"
+                      }`}
+                    >
+                      <IconComp className="w-5 h-5 shrink-0" />
+                      <span className="sidebar-nav-label">{item.label}</span>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </nav>
           </div>
 
-          {/* Left Navigation Items */}
-          <nav
-            className="px-3 pb-4 space-y-1"
-            aria-label="Điều hướng nghiệp vụ"
+          {/* Footer actions with Logout */}
+          <div
+            data-sidebar-footer
+            className="shrink-0 p-4 border-t border-emerald-900 space-y-2"
           >
-            {navItems.map((item) => {
-              const IconComp = item.icon;
-              return (
-                <React.Fragment key={item.id}>
-                  {item.group && <p className="gov-nav-group">{item.group}</p>}
-                  <button
-                    onClick={() => {
-                      setEditingReport(null);
-                      changeTab(item.id);
-                    }}
-                    aria-current={
-                      activeSpaceId === item.id ? "page" : undefined
-                    }
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
-                      activeSpaceId === item.id
-                        ? "bg-white text-emerald-950"
-                        : "text-emerald-100 hover:bg-white/8 hover:text-white"
-                    }`}
-                  >
-                    <IconComp className="w-5 h-5 shrink-0" />
-                    <span>{item.label}</span>
-                  </button>
-                </React.Fragment>
-              );
-            })}
-          </nav>
-        </div>
+            {/* Offline indicator for desktop sidebar */}
+            {(!isOnline || backendConfirmed) && (
+              <div className="sidebar-server-status flex items-center justify-between text-3xs font-semibold text-slate-300">
+                <span className="flex items-center gap-1">
+                  {backendConfirmed ? (
+                    <>
+                      <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-500"></span>
+                      <span className="sidebar-footer-label">
+                        Máy chủ đã sẵn sàng
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-rose-500 animate-pulse"></span>
+                      <span className="sidebar-footer-label text-rose-300 font-bold">
+                        Đã lưu trên thiết bị
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
+            )}
 
-        {/* Footer actions with Logout */}
-        <div className="shrink-0 p-4 border-t border-emerald-900 space-y-2">
-          {/* Offline indicator for desktop sidebar */}
-          {(!isOnline || backendConfirmed) && (
-            <div className="flex items-center justify-between px-2 text-3xs font-semibold text-slate-300">
-              <span className="flex items-center gap-1">
-                {backendConfirmed ? (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span>Máy chủ đã sẵn sàng</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                    <span className="text-rose-300 font-bold">
-                      Đã lưu trên thiết bị
-                    </span>
-                  </>
-                )}
-              </span>
-            </div>
-          )}
-
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-rose-300 bg-emerald-900/40 hover:bg-rose-950/20 hover:text-rose-200 border border-emerald-900/60 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>ĐĂNG XUẤT</span>
-          </button>
-        </div>
-      </aside>
+            <button
+              onClick={handleLogout}
+              aria-label="Đăng xuất"
+              title="Đăng xuất"
+              className="sidebar-logout w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold text-rose-300 bg-emerald-900/40 hover:bg-rose-950/20 hover:text-rose-200 border border-emerald-900/60 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span className="sidebar-footer-label">ĐĂNG XUẤT</span>
+            </button>
+          </div>
+        </aside>
+      </div>
 
       {/* -------------------------------------------------------------
           MOBILE HEADER: TOP BAR FOR MOBILE DEVICES
