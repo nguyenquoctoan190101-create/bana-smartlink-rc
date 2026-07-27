@@ -122,7 +122,10 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
     const requestLabels = ["bài viết", "Đại sứ số", "điểm hỗ trợ"];
     const scenarioIndex = showScenarioSimulation ? requests.push(apiJson<Scenario[]>("/api/knowledge/scenarios")) - 1 : -1;
     if (scenarioIndex >= 0) requestLabels.push("kịch bản mô phỏng");
-    const officerIndex = canViewEvacuation ? requests.push(apiJson<Officer[]>("/auth/officers")) - 1 : -1;
+    // The officer directory contains staff contact data and is an administrator
+    // capability. Leadership can still read published knowledge and evacuation
+    // evidence without making an unauthorized or unnecessary directory request.
+    const officerIndex = admin ? requests.push(apiJson<Officer[]>("/auth/officers")) - 1 : -1;
     if (officerIndex >= 0) requestLabels.push("danh sách cán bộ");
     const villageIndex = canViewEvacuation ? requests.push(loadVillages()) - 1 : -1;
     if (villageIndex >= 0) requestLabels.push("danh mục thôn");
@@ -140,7 +143,8 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
     if (scenarioIndex >= 0) assign<Scenario[]>(scenarioIndex, setScenarios);
     else setScenarios([]);
     if (canViewEvacuation) {
-      assign<Officer[]>(officerIndex, setOfficers);
+      if (officerIndex >= 0) assign<Officer[]>(officerIndex, setOfficers);
+      else setOfficers([]);
       const villageResult = results[villageIndex];
       if (villageResult?.status === "fulfilled")
         setVillages(
