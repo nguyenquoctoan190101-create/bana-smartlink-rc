@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
+import { WorkSection } from "./ui";
 
 interface PolicyMetric {
   numerator: number;
@@ -140,54 +141,68 @@ export default function PolicyScorecard({
         )}
       </div>
 
-      {/* Period Selection Controls */}
-      <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="bg-white p-2 rounded-lg border border-slate-200 text-emerald-700 shadow-3xs">
-            <Calendar className="w-4 h-4" />
+      <WorkSection
+        index="01"
+        title="Chọn phạm vi theo dõi"
+        description="Chọn một kỳ báo cáo trước khi đọc kết quả; toàn bộ chỉ số phía dưới dùng chung đúng phạm vi này."
+        tone="focus"
+        icon={<Calendar />}
+      >
+        <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="bg-white p-2 rounded-lg border border-slate-200 text-emerald-700 shadow-3xs">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <label className="block text-3xs font-extrabold text-slate-400 uppercase tracking-wider">Kỳ báo cáo</label>
+              <span className="text-xs font-bold text-slate-700">Dữ liệu theo kỳ báo cáo đã chọn</span>
+            </div>
           </div>
-          <div>
-            <label className="block text-3xs font-extrabold text-slate-400 uppercase tracking-wider">Kỳ báo cáo</label>
-            <span className="text-xs font-bold text-slate-700">Dữ liệu theo kỳ báo cáo đã chọn</span>
-          </div>
-        </div>
 
-        <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-3xs w-full sm:w-auto overflow-x-auto">
-          {availablePeriods.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                userSelectedPeriodRef.current = true;
-                setSelectedPeriod(p.id);
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                selectedPeriod === p.id
-                  ? "bg-emerald-800 text-white shadow-xs"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Loading state rendering */}
-      {loading ? (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
-          <p className="text-xs font-bold">Đang tổng hợp chỉ số từ dữ liệu báo cáo...</p>
-        </div>
-      ) : error ? (
-        <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="text-xs font-bold text-red-900">Tính toán chỉ số thất bại</h4>
-            <p className="text-4xs text-red-700 font-medium leading-relaxed">{error}</p>
+          <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-3xs w-full sm:w-auto overflow-x-auto">
+            {availablePeriods.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => {
+                  userSelectedPeriodRef.current = true;
+                  setSelectedPeriod(p.id);
+                }}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  selectedPeriod === p.id
+                    ? "bg-emerald-800 text-white shadow-xs"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
           </div>
         </div>
-      ) : data ? (
-        <div className="space-y-8">
+      </WorkSection>
+
+      <WorkSection
+        index="02"
+        title="Kết quả và ý nghĩa theo dõi"
+        description="Tách phần kết luận, từng chỉ số và cách diễn giải khỏi khu vực chọn kỳ để tránh đọc nhầm phạm vi."
+        tone="evidence"
+        icon={<Award />}
+      >
+        {/* Loading state rendering */}
+        {loading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
+            <p className="text-xs font-bold">Đang tổng hợp chỉ số từ dữ liệu báo cáo...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-red-900">Tính toán chỉ số thất bại</h4>
+              <p className="text-4xs text-red-700 font-medium leading-relaxed">{error}</p>
+            </div>
+          </div>
+        ) : data ? (
+          <div className="space-y-8">
           
           {/* Output text as requested */}
           <div className="bg-emerald-50/40 border border-emerald-100 rounded-xl p-4 shadow-3xs">
@@ -293,10 +308,11 @@ export default function PolicyScorecard({
             </div>
           </div>
 
-        </div>
-      ) : (
-        <p className="text-xs text-slate-400 text-center">Không tìm thấy dữ liệu báo cáo nộp cho kỳ này.</p>
-      )}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400 text-center">Không tìm thấy dữ liệu báo cáo nộp cho kỳ này.</p>
+        )}
+      </WorkSection>
 
     </div>
   );

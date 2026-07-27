@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
+import { WorkSection } from "./ui";
 
 interface Officer {
   id: string;
@@ -261,6 +262,20 @@ export default function ManageAccounts() {
         </div>
       )}
 
+      <WorkSection
+        index="01"
+        title="Cấp mới và khôi phục quyền truy cập"
+        description="Tách riêng thao tác tạo tài khoản, cấp lại mật khẩu và thông tin bàn giao khỏi danh sách nhân sự đang quản lý."
+        tone="tasks"
+        icon={<KeyRound />}
+      >
+        <div className="space-y-4">
+          {!showCreateForm && !resetPasswordResult && !createdAccount && (
+            <div className="rounded-xl border border-dashed border-emerald-200 bg-white/75 p-5 text-sm text-slate-600">
+              Chọn <strong>Cấp tài khoản mới</strong> ở đầu trang để mở biểu mẫu. Kết quả tạo tài khoản hoặc cấp lại mật khẩu sẽ chỉ xuất hiện trong khu vực này.
+            </div>
+          )}
+
       {/* Password Reset Result UI */}
       {resetPasswordResult && (
         <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-5 space-y-4 animate-fade-in max-w-2xl mx-auto shadow-sm">
@@ -445,9 +460,18 @@ export default function ManageAccounts() {
           </form>
         </div>
       )}
+        </div>
+      </WorkSection>
 
       {/* Accounts List and Search/Filters Panel */}
-      <div className="bg-white rounded-2xl border border-slate-150 shadow-md overflow-hidden">
+      <WorkSection
+        index="02"
+        title="Lọc và quản lý tài khoản hiện có"
+        description="Tìm theo nhân sự, địa bàn, vai trò hoặc trạng thái; mỗi thẻ tài khoản giữ riêng thông tin và hành động quản trị."
+        tone="evidence"
+        icon={<Users />}
+      >
+        <div className="bg-white rounded-2xl border border-slate-150 shadow-md overflow-hidden">
         
         {/* Table Filters Header */}
         <div className="p-5 border-b border-slate-150 bg-slate-25/50 space-y-4">
@@ -639,7 +663,8 @@ export default function ManageAccounts() {
           </div>
         )}
 
-      </div>
+        </div>
+      </WorkSection>
 
     </div>
   );

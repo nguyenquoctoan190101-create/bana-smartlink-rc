@@ -89,6 +89,12 @@ describe("ProgressDashboard", () => {
     await waitFor(() =>
       expect(screen.getByText("Thôn Hòa Ninh")).toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole("heading", { name: "Phạm vi và tổng quan tiến độ" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Tiến độ chi tiết theo thôn" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Đã nộp").parentElement).toHaveTextContent("2");
     expect(screen.getByText("Tỷ lệ nộp").parentElement).toHaveTextContent("67%");
     expect(screen.getAllByText("Đúng hạn").length).toBeGreaterThanOrEqual(2);

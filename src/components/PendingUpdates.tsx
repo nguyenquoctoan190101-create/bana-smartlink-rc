@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye, FileText, ArrowRight, Activity, Shield, CheckCircle2, XCircle } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
+import { WorkSection } from "./ui";
 
 interface PendingUpdatesProps {
   userRole: string;
@@ -292,10 +293,18 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
         </div>
       )}
 
-      {/* Grid Layout: Main Queue and Audit Logs */}
+      {/* Separate the decision queue from the immutable audit trail. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main proposals list */}
-        <div className="lg:col-span-2 space-y-4">
+        <WorkSection
+          index="01"
+          title="Hàng kiến nghị cần thẩm định"
+          description="Lọc riêng kiến nghị đang chờ và lịch sử đã xử lý; mỗi thẻ giữ đầy đủ số liệu cũ, số liệu đề xuất, căn cứ và hành động."
+          tone="tasks"
+          icon={<ClipboardCheck />}
+          className="lg:col-span-2"
+        >
+          <div className="space-y-4">
           {/* Filters Tab */}
           <div className="flex border-b border-slate-200 bg-white px-4 rounded-xl border border-slate-100 shadow-3xs">
             <button
@@ -447,10 +456,17 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
               ))}
             </div>
           )}
-        </div>
+          </div>
+        </WorkSection>
 
         {/* Right sidebar: Real-time Audit Logs Panel */}
-        <div className="space-y-4">
+        <WorkSection
+          index="02"
+          title="Nhật ký xử lý"
+          description="Tách bằng chứng kiểm toán khỏi hàng kiến nghị để không nhầm lịch sử hệ thống với việc đang chờ quyết định."
+          tone="evidence"
+          icon={<Shield />}
+        >
           <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-3xs space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
               <Shield className="w-4.5 h-4.5 text-emerald-800" />
@@ -519,7 +535,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
               </div>
             )}
           </div>
-        </div>
+        </WorkSection>
       </div>
     </div>
   );

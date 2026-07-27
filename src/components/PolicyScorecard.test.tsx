@@ -38,6 +38,12 @@ describe("PolicyScorecard", () => {
     render(<PolicyScorecard preferredPeriodId="future-empty" />);
 
     expect(
+      screen.getByRole("heading", { name: "Chọn phạm vi theo dõi" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Kết quả và ý nghĩa theo dõi" }),
+    ).toBeInTheDocument();
+    expect(
       await screen.findByText(/chưa có báo cáo đủ điều kiện để tính tỷ lệ báo cáo điện tử/i),
     ).toBeInTheDocument();
     expect(screen.getByText("Chưa có báo cáo để tính")).toBeInTheDocument();

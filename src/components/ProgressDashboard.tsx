@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, GitCompareArrows, TableProperties } from "lucide-react";
 import "./ProgressDashboard.css";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
+import { WorkSection } from "./ui";
 
 type DashboardColor = "green" | "yellow" | "red";
 type ReportStatus = "not_submitted" | "on_time" | "late";
@@ -182,57 +184,72 @@ export default function ProgressDashboard({
 
   return (
     <section className="progress-dashboard" aria-busy={isLoading}>
-      <div className="progress-dashboard__summary" aria-label="Tổng quan tiến độ">
-        <div className="progress-dashboard__heading">
-          <p className="progress-dashboard__eyebrow">Tiến độ nộp báo cáo</p>
-          <h1>Tiến độ báo cáo theo thôn</h1>
-          {availablePeriods.length > 0 ? (
-            <label className="progress-dashboard__period-picker">
-              <span>Kỳ theo dõi</span>
-              <select
-                value={activePeriodId}
-                onChange={(event) => setActivePeriodId(event.target.value)}
-              >
-                {availablePeriods.map((period) => (
-                  <option key={period.id} value={period.id}>
-                    {period.display_name || period.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+      <WorkSection
+        index="01"
+        title="Phạm vi và tổng quan tiến độ"
+        description="Chọn kỳ theo dõi, đọc tỷ lệ nộp và chú giải trạng thái trước khi đi vào danh sách từng thôn."
+        tone="focus"
+        icon={<CalendarDays />}
+      >
+        <div className="progress-dashboard__summary" aria-label="Tổng quan tiến độ">
+          <div className="progress-dashboard__heading">
+            <p className="progress-dashboard__eyebrow">Tiến độ nộp báo cáo</p>
+            <h1>Tiến độ báo cáo theo thôn</h1>
+            {availablePeriods.length > 0 ? (
+              <label className="progress-dashboard__period-picker">
+                <span>Kỳ theo dõi</span>
+                <select
+                  value={activePeriodId}
+                  onChange={(event) => setActivePeriodId(event.target.value)}
+                >
+                  {availablePeriods.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.display_name || period.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+          <dl className="progress-dashboard__metrics">
+            <div className="progress-dashboard__metric">
+              <dt>Tổng số thôn</dt>
+              <dd>{summary.totalVillages}</dd>
+            </div>
+            <div className="progress-dashboard__metric">
+              <dt>Đã nộp</dt>
+              <dd>{summary.submittedVillages}</dd>
+            </div>
+            <div className="progress-dashboard__metric">
+              <dt>Tỷ lệ nộp</dt>
+              <dd>{summary.submittedRate}%</dd>
+            </div>
+          </dl>
         </div>
-        <dl className="progress-dashboard__metrics">
-          <div className="progress-dashboard__metric">
-            <dt>Tổng số thôn</dt>
-            <dd>{summary.totalVillages}</dd>
-          </div>
-          <div className="progress-dashboard__metric">
-            <dt>Đã nộp</dt>
-            <dd>{summary.submittedVillages}</dd>
-          </div>
-          <div className="progress-dashboard__metric">
-            <dt>Tỷ lệ nộp</dt>
-            <dd>{summary.submittedRate}%</dd>
-          </div>
-        </dl>
-      </div>
 
-      {errorMessage ? (
-        <div className="progress-dashboard__notice" role="alert">
-          {errorMessage}
+        {errorMessage ? (
+          <div className="progress-dashboard__notice" role="alert">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        <div className="progress-dashboard__legend" aria-label="Chú giải trạng thái">
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--green" aria-hidden="true" /> Đúng hạn</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--yellow" aria-hidden="true" /> Trễ hạn</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--red" aria-hidden="true" /> Chưa nộp / quá hạn</span>
+          <span className="progress-dashboard__legend-note">Ngày nộp lấy từ máy chủ; “—” là chưa nộp.</span>
         </div>
-      ) : null}
+      </WorkSection>
 
-      <div className="progress-dashboard__legend" aria-label="Chú giải trạng thái">
-        <span><i className="progress-dashboard__dot progress-dashboard__dot--green" aria-hidden="true" /> Đúng hạn</span>
-        <span><i className="progress-dashboard__dot progress-dashboard__dot--yellow" aria-hidden="true" /> Trễ hạn</span>
-        <span><i className="progress-dashboard__dot progress-dashboard__dot--red" aria-hidden="true" /> Chưa nộp / quá hạn</span>
-        <span className="progress-dashboard__legend-note">Ngày nộp lấy từ máy chủ; “—” là chưa nộp.</span>
-      </div>
-
-      <div className="progress-dashboard__table-wrap">
-        <table className="progress-dashboard__table">
+      <WorkSection
+        index="02"
+        title="Tiến độ chi tiết theo thôn"
+        description="Mỗi dòng là một đơn vị báo cáo độc lập, thể hiện trạng thái nộp, thời điểm gửi và số ngày trễ."
+        tone="tasks"
+        icon={<TableProperties />}
+      >
+        <div className="progress-dashboard__table-wrap">
+          <table className="progress-dashboard__table">
           <thead>
             <tr>
               <th scope="col">STT</th>
@@ -280,15 +297,23 @@ export default function ProgressDashboard({
                 ))
               : null}
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+      </WorkSection>
 
       {/* Biến động đáng chú ý kỳ này */}
       {!isLoadingAlerts && alerts.length > 0 ? (
-        <div className="progress-dashboard__alerts-section">
-          <h3>Biến động đáng chú ý kỳ này (&gt; 20%)</h3>
-          <div className="progress-dashboard__table-wrap">
-            <table className="progress-dashboard__table progress-dashboard__table--alerts">
+        <WorkSection
+          index="03"
+          title="Biến động cần rà soát"
+          description="Tách riêng các chỉ tiêu thay đổi trên 20% so với kỳ trước để không trộn với tiến độ nộp báo cáo."
+          tone="evidence"
+          icon={<GitCompareArrows />}
+        >
+          <div className="progress-dashboard__alerts-section">
+            <h3>Biến động đáng chú ý kỳ này (&gt; 20%)</h3>
+            <div className="progress-dashboard__table-wrap">
+              <table className="progress-dashboard__table progress-dashboard__table--alerts">
               <thead>
                 <tr>
                   <th scope="col" style={{ width: "20%" }}>Thôn</th>
@@ -320,9 +345,10 @@ export default function ProgressDashboard({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
-        </div>
+        </WorkSection>
       ) : null}
 
     </section>
