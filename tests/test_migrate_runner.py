@@ -21,7 +21,7 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260727_0028_complete_demo_public_reports.sql"
+    assert names[-1] == "20260727_0029_seed_reconciled_sample_reports.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -49,6 +49,7 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260726_0026_business_workflow_integrity.sql",
         "20260726_0027_report_period_change_approval.sql",
         "20260727_0028_complete_demo_public_reports.sql",
+        "20260727_0029_seed_reconciled_sample_reports.sql",
     ]
 
 
@@ -65,3 +66,22 @@ def test_demo_public_backfill_is_guarded_and_complete() -> None:
     for code in ("CT01", "CT02", "CT09", "CT12", "CT13"):
         assert f"'{code}'" in migration
     assert "Thôn Đông Sơn" not in migration
+
+
+def test_reconciled_sample_reports_are_private_and_fail_closed() -> None:
+    migration = (
+        migrate.MIGRATIONS / "20260727_0029_seed_reconciled_sample_reports.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "template_name = 'demo-synthetic'" in migration
+    assert "template_name = 'sample-reconciled'" in migration
+    assert "'private'" in migration
+    assert "'draft'" in migration
+    assert "'published'" not in migration
+    assert "SAMPLE_SOURCE_RECONCILIATION" in migration
+    assert (
+        "caa9178f3c6975a553578e1c69558813dcb72f4e4ba20c65c4910b3b1fb033cb"
+        in migration
+    )
+    assert "Thôn Đông Sơn" in migration
+    assert "('CT14', source.ct14)" in migration
