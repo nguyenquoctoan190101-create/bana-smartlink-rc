@@ -112,15 +112,24 @@ export default function NotificationCenter({
   useEffect(() => {
     if (!isOpen) return undefined;
     const closeOnOutsidePointer = (event: PointerEvent) => {
+      const center = centerRef.current;
+      if (!center || center.offsetParent === null) return;
       if (
         event.target instanceof Node &&
-        !centerRef.current?.contains(event.target)
+        !center.contains(event.target)
       ) {
         onToggleOpen();
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onToggleOpen();
+      const center = centerRef.current;
+      if (
+        event.key === "Escape" &&
+        center &&
+        center.offsetParent !== null
+      ) {
+        onToggleOpen();
+      }
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
