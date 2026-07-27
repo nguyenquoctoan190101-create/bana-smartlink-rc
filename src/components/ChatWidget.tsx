@@ -51,6 +51,12 @@ type ChatCapabilities = {
 };
 type VoiceReadiness = "checking" | "ready" | "unavailable" | "unsupported";
 
+type CachedSpeech = {
+  token: string;
+  blob?: Blob;
+  promise?: Promise<Blob>;
+};
+
 type SpeechRecognitionInstance = {
   lang: string;
   interimResults: boolean;
@@ -121,6 +127,7 @@ export default function ChatWidget({
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const speechCacheRef = useRef<Map<string, CachedSpeech>>(new Map());
 
   const stopSpeaking = () => {
     window.speechSynthesis?.cancel();
@@ -141,6 +148,55 @@ export default function ChatWidget({
     setIsOpen(false);
     window.requestAnimationFrame(() => toggleRef.current?.focus());
   };
+
+  function prepareServerSpeech(
+    messageId: string,
+    speechToken: string,
+  ): Promise<Blob> {
+    const cached = speechCacheRef.current.get(messageId);
+    if (cached?.token === speechToken) {
+      if (cached.blob) return Promise.resolve(cached.blob);
+      if (cached.promise) return cached.promise;
+    }
+
+    while (speechCacheRef.current.size >= 4) {
+      const oldestMessageId = speechCacheRef.current.keys().next().value;
+      if (typeof oldestMessageId !== "string") break;
+      speechCacheRef.current.delete(oldestMessageId);
+    }
+
+    const request = apiFetch("/ai/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: speechToken }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("server speech unavailable");
+        const audioBlob = await response.blob();
+        if (!audioBlob.size) throw new Error("empty speech audio");
+        const current = speechCacheRef.current.get(messageId);
+        if (current?.token === speechToken) {
+          speechCacheRef.current.set(messageId, {
+            token: speechToken,
+            blob: audioBlob,
+          });
+        }
+        return audioBlob;
+      })
+      .catch((error: unknown) => {
+        const current = speechCacheRef.current.get(messageId);
+        if (current?.token === speechToken) {
+          speechCacheRef.current.delete(messageId);
+        }
+        throw error;
+      });
+
+    speechCacheRef.current.set(messageId, {
+      token: speechToken,
+      promise: request,
+    });
+    return request;
+  }
 
   /* Auto-scroll to bottom whenever messages change */
   useEffect(() => {
@@ -194,6 +250,7 @@ export default function ChatWidget({
       setServerTtsEnabled(false);
       setLocalVoiceAvailable(false);
       selectedVoiceRef.current = null;
+      speechCacheRef.current.clear();
       setVoiceReadiness("checking");
     };
   }, [isOpen]);
@@ -285,7 +342,7 @@ export default function ChatWidget({
     if (serverTtsEnabled) {
       setVoiceReadiness("ready");
       setVoiceProfileLabel(
-        "Giọng tiếng Việt từ máy chủ · hoạt động trên mọi thiết bị · không lưu tệp âm thanh",
+        "Giọng tiếng Việt từ máy chủ · chuẩn bị trước để phát nhanh · không lưu tệp âm thanh",
       );
       return;
     }
@@ -312,14 +369,7 @@ export default function ChatWidget({
     if (serverTtsEnabled && speechToken) {
       try {
         setSpeakingMessageId(messageId);
-        const response = await apiFetch("/ai/speech", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: speechToken }),
-        });
-        if (!response.ok) throw new Error("server speech unavailable");
-        const audioBlob = await response.blob();
-        if (!audioBlob.size) throw new Error("empty speech audio");
+        const audioBlob = await prepareServerSpeech(messageId, speechToken);
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
         audioRef.current = audio;
@@ -464,6 +514,11 @@ export default function ChatWidget({
             : m,
         ),
       );
+      if (data.speech_token) {
+        void prepareServerSpeech(loadingMsg.id, data.speech_token).catch(
+          () => undefined,
+        );
+      }
       if (speakResponse) {
         void speakAnswer(data.answer, loadingMsg.id, data.speech_token);
       }

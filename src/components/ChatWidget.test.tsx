@@ -248,11 +248,6 @@ describe("ChatWidget suggestions", () => {
       await screen.findByText(/Giọng tiếng Việt từ máy chủ/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }));
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Đọc câu trả lời bằng giọng nói",
-      }),
-    );
 
     await waitFor(() => {
       expect(mocks.apiFetch).toHaveBeenLastCalledWith("/ai/speech", {
@@ -260,6 +255,16 @@ describe("ChatWidget suggestions", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: "signed-speech-token" }),
       });
+    });
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Đọc câu trả lời bằng giọng nói",
+      }),
+    );
+
+    await waitFor(() => {
       expect(play).toHaveBeenCalledTimes(1);
     });
   });
