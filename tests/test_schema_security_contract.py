@@ -82,6 +82,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260726_0025_report_mutation_integrity.sql",
         "20260726_0026_business_workflow_integrity.sql",
         "20260726_0027_report_period_change_approval.sql",
+        "20260727_0028_complete_demo_public_reports.sql",
     ]
 
 

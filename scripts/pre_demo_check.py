@@ -24,6 +24,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL_MAP = ROOT / "DU_LIEU_CHINH_THUC" / "village_merge_map_CHINH_THUC.json"
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+PUBLIC_CODES = frozenset({"CT01", "CT02", "CT09", "CT12", "CT13"})
 
 
 def _print_result(name: str, passed: bool, detail: str) -> None:
@@ -63,6 +64,75 @@ def run_health_check(base_url: str, timeout_seconds: float = 10.0) -> bool:
             elapsed_ms = (time.perf_counter() - started) * 1000
             _print_result(path, False, f"unavailable after {elapsed_ms:.0f} ms ({type(exc).__name__})")
             passed = False
+    return passed
+
+
+def _fetch_json(base_url: str, path: str, timeout_seconds: float) -> Any:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        headers={"User-Agent": "BaNaSmartLink-PreDemo/1.0"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        if response.getcode() != 200:
+            raise ValueError(f"unexpected HTTP status for {path}")
+        return json.loads(response.read().decode("utf-8"))
+
+
+def run_public_coverage_check(
+    base_url: str,
+    timeout_seconds: float = 10.0,
+) -> bool:
+    """Require one complete public demo publication for every current village."""
+
+    try:
+        villages = _fetch_json(base_url, "/reports/villages", timeout_seconds)
+        reports = _fetch_json(base_url, "/reports/public", timeout_seconds)
+        if not isinstance(villages, list) or not isinstance(reports, list):
+            raise ValueError("public endpoints must return arrays")
+    except (json.JSONDecodeError, urllib.error.URLError, TimeoutError, ValueError) as exc:
+        _print_result(
+            "public coverage",
+            False,
+            f"endpoint check failed ({type(exc).__name__})",
+        )
+        return False
+
+    village_names = {
+        str(village.get("id")): str(village.get("name"))
+        for village in villages
+        if isinstance(village, dict)
+        and isinstance(village.get("id"), str)
+        and isinstance(village.get("name"), str)
+    }
+    complete_village_ids: set[str] = set()
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+        village_id = report.get("village_id")
+        values = report.get("values")
+        if not isinstance(village_id, str) or not isinstance(values, dict):
+            continue
+        if all(
+            code in values
+            and isinstance(values[code], (int, float))
+            and not isinstance(values[code], bool)
+            for code in PUBLIC_CODES
+        ):
+            complete_village_ids.add(village_id)
+
+    missing_names = sorted(
+        name
+        for village_id, name in village_names.items()
+        if village_id not in complete_village_ids
+    )
+    passed = len(village_names) == 10 and not missing_names
+    detail = (
+        f"{len(complete_village_ids & village_names.keys())}/"
+        f"{len(village_names)} villages have all 5 public indicators"
+    )
+    if missing_names:
+        detail += f"; missing: {', '.join(missing_names)}"
+    _print_result("public coverage", passed, detail)
     return passed
 
 
@@ -151,6 +221,11 @@ def check_reference_data(database_url: str, commune_id: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except (AttributeError, OSError):
+            pass
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--base-url",
@@ -158,17 +233,23 @@ def main(argv: list[str] | None = None) -> int:
         help="deployed FastAPI origin (default: BANA_API_BASE_URL or localhost)",
     )
     parser.add_argument("--skip-health", action="store_true")
+    parser.add_argument("--skip-public", action="store_true")
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--skip-db", action="store_true")
     args = parser.parse_args(argv)
 
     results: list[bool] = []
-    if not args.skip_health:
+    base_url: str | None = None
+    if not args.skip_health or not args.skip_public:
         try:
-            results.append(run_health_check(_safe_base_url(args.base_url)))
+            base_url = _safe_base_url(args.base_url)
         except ValueError as exc:
             _print_result("health configuration", False, str(exc))
             results.append(False)
+    if not args.skip_health and base_url is not None:
+        results.append(run_health_check(base_url))
+    if not args.skip_public and base_url is not None:
+        results.append(run_public_coverage_check(base_url))
     if not args.skip_tests:
         results.append(run_validation_tests())
     if not args.skip_db:

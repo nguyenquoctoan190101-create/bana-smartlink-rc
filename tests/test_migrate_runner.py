@@ -9,12 +9,19 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
     assert names
     assert all(
         name.startswith(
-            ("20260715_", "20260718_", "20260722_", "20260723_", "20260726_")
+            (
+                "20260715_",
+                "20260718_",
+                "20260722_",
+                "20260723_",
+                "20260726_",
+                "20260727_",
+            )
         )
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260726_0027_report_period_change_approval.sql"
+    assert names[-1] == "20260727_0028_complete_demo_public_reports.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -41,4 +48,20 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260726_0025_report_mutation_integrity.sql",
         "20260726_0026_business_workflow_integrity.sql",
         "20260726_0027_report_period_change_approval.sql",
+        "20260727_0028_complete_demo_public_reports.sql",
     ]
+
+
+def test_demo_public_backfill_is_guarded_and_complete() -> None:
+    migration = (
+        migrate.MIGRATIONS / "20260727_0028_complete_demo_public_reports.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "template_name = 'demo-synthetic'" in migration
+    assert "where not exists" in migration
+    assert "publication_status = 'published'" in migration
+    assert "Thôn An Sơn" in migration
+    assert "Thôn Hòa Ninh" in migration
+    for code in ("CT01", "CT02", "CT09", "CT12", "CT13"):
+        assert f"'{code}'" in migration
+    assert "Thôn Đông Sơn" not in migration
