@@ -47,6 +47,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/speech": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Synthesize Speech
+         * @description Read one signed chatbot answer; never accept arbitrary client text.
+         */
+        post: operations["synthesize_speech_ai_speech_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cases": {
         parameters: {
             query?: never;
@@ -1868,6 +1888,13 @@ export interface components {
         };
         /** ChatCapabilitiesResponse */
         ChatCapabilitiesResponse: {
+            /** Server Tts Enabled */
+            server_tts_enabled: boolean;
+            /**
+             * Tts Provider
+             * @enum {string}
+             */
+            tts_provider: "gemini" | "device_only";
             /** Voice Enabled */
             voice_enabled: boolean;
         };
@@ -1911,6 +1938,8 @@ export interface components {
             rows_retrieved: number;
             /** Sources */
             sources?: components["schemas"]["ChatSourceResponse"][];
+            /** Speech Token */
+            speech_token?: string | null;
         };
         /** ChatSourceResponse */
         ChatSourceResponse: {
@@ -2895,6 +2924,11 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** SpeechRequest */
+        SpeechRequest: {
+            /** Token */
+            token: string;
+        };
         /** SupportPointCreateRequest */
         SupportPointCreateRequest: {
             /** Address */
@@ -3101,6 +3135,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    synthesize_speech_ai_speech_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeechRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

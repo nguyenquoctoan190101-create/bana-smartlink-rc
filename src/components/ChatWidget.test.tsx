@@ -203,6 +203,67 @@ describe("ChatWidget suggestions", () => {
     expect(speak).not.toHaveBeenCalled();
   });
 
+  it("plays signed Vietnamese server audio when the device has no voice", async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    const pause = vi.fn();
+    class FakeAudio {
+      currentTime = 0;
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      play = play;
+      pause = pause;
+    }
+    vi.stubGlobal("Audio", FakeAudio);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:server-speech"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    mocks.apiFetch
+      .mockResolvedValueOnce(jsonResponse({
+        voice_enabled: true,
+        server_tts_enabled: true,
+        tts_provider: "gemini",
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        answer: "Toàn xã có 18.359 nhân khẩu.",
+        intent: "COMMUNE_INDICATOR",
+        rows_retrieved: 1,
+        sources: [],
+        data_scope: "public_published",
+        limitations: [],
+        speech_token: "signed-speech-token",
+      }))
+      .mockResolvedValueOnce(new Response(new Blob(["wave"]), {
+        status: 200,
+        headers: { "Content-Type": "audio/wav" },
+      }));
+
+    render(<ChatWidget userPhone={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
+    expect(
+      await screen.findByText(/Giọng tiếng Việt từ máy chủ/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Đọc câu trả lời bằng giọng nói",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.apiFetch).toHaveBeenLastCalledWith("/ai/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "signed-speech-token" }),
+      });
+      expect(play).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("renders the source, update time, scope and limitations returned by the API", async () => {
     mocks.apiFetch
       .mockResolvedValueOnce(jsonResponse({ voice_enabled: false }))

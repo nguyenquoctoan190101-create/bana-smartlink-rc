@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from routers.auth import get_optional_user
 from services.chatbot import ChatbotError, ask_question_async
 from services.rate_limit import limiter
 from services.settings import load_settings
+from services.speech_synthesis import (
+    SpeechSynthesisError,
+    synthesize_vietnamese_speech,
+)
+from services.speech_token import (
+    SpeechTokenError,
+    issue_speech_token,
+    verify_speech_token,
+)
 from services.supabase_admin import UserProfile
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -42,17 +51,73 @@ class ChatResponse(BaseModel):
     as_of: str | None = None
     data_scope: str = "unavailable"
     limitations: list[str] = Field(default_factory=list)
+    speech_token: str | None = None
 
 
 class ChatCapabilitiesResponse(BaseModel):
     voice_enabled: bool
+    server_tts_enabled: bool
+    tts_provider: Literal["gemini", "device_only"]
+
+
+class SpeechRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=4096)
 
 
 @router.get("/capabilities", response_model=ChatCapabilitiesResponse)
 async def chat_capabilities() -> ChatCapabilitiesResponse:
     """Expose only non-sensitive UI capabilities used by the public widget."""
 
-    return ChatCapabilitiesResponse(voice_enabled=bool(load_settings().feature_voice))
+    settings = load_settings()
+    server_tts_enabled = bool(
+        settings.feature_voice and settings.gemini_api_key.strip()
+    )
+    return ChatCapabilitiesResponse(
+        voice_enabled=bool(settings.feature_voice),
+        server_tts_enabled=server_tts_enabled,
+        tts_provider="gemini" if server_tts_enabled else "device_only",
+    )
+
+
+@router.post("/speech")
+@limiter.limit("12/minute")
+async def synthesize_speech(
+    request: Request,
+    payload: SpeechRequest,
+    current_user: Annotated[UserProfile | None, Depends(get_optional_user)],
+) -> Response:
+    """Read one signed chatbot answer; never accept arbitrary client text."""
+
+    _ = request
+    settings = load_settings()
+    if not settings.feature_voice or not settings.gemini_api_key.strip():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Giọng đọc từ máy chủ chưa được cấu hình",
+        )
+    subject = current_user.id if current_user else "public"
+    try:
+        text = verify_speech_token(payload.token, subject=subject)
+    except SpeechTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Yêu cầu đọc không hợp lệ hoặc đã hết hạn",
+        ) from exc
+    try:
+        audio = await synthesize_vietnamese_speech(text)
+    except SpeechSynthesisError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Dịch vụ giọng đọc đang tạm thời không sẵn sàng",
+        ) from exc
+    return Response(
+        content=audio,
+        media_type="audio/wav",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Content-Disposition": 'inline; filename="tro-ly-ba-na.wav"',
+        },
+    )
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -69,7 +134,8 @@ async def chat(
     """
     _ = request
     caller_role = current_user.role if current_user else "dan"
-    configured_commune_id = load_settings().bana_commune_id
+    settings = load_settings()
+    configured_commune_id = settings.bana_commune_id
     authorized_commune_id = (
         current_user.commune_id if current_user else configured_commune_id
     )
@@ -98,6 +164,18 @@ async def chat(
             detail="Dịch vụ trợ lý AI đang tạm thời không sẵn sàng",
         ) from exc
 
+    speech_token: str | None = None
+    if bool(getattr(settings, "feature_voice", False)) and str(
+        getattr(settings, "gemini_api_key", "")
+    ).strip():
+        try:
+            speech_token = issue_speech_token(
+                text=result.answer,
+                subject=current_user.id if current_user else "public",
+            )
+        except SpeechTokenError:
+            speech_token = None
+
     return ChatResponse(
         question=result.question,
         answer=result.answer,
@@ -116,6 +194,7 @@ async def chat(
         as_of=result.as_of,
         data_scope=result.data_scope,
         limitations=list(result.limitations),
+        speech_token=speech_token,
     )
 
 

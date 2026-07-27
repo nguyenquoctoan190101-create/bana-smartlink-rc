@@ -853,13 +853,27 @@
       },
       "ChatCapabilitiesResponse": {
         "properties": {
+          "server_tts_enabled": {
+            "title": "Server Tts Enabled",
+            "type": "boolean"
+          },
+          "tts_provider": {
+            "enum": [
+              "gemini",
+              "device_only"
+            ],
+            "title": "Tts Provider",
+            "type": "string"
+          },
           "voice_enabled": {
             "title": "Voice Enabled",
             "type": "boolean"
           }
         },
         "required": [
-          "voice_enabled"
+          "voice_enabled",
+          "server_tts_enabled",
+          "tts_provider"
         ],
         "title": "ChatCapabilitiesResponse",
         "type": "object"
@@ -970,6 +984,17 @@
             },
             "title": "Sources",
             "type": "array"
+          },
+          "speech_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speech Token"
           }
         },
         "required": [
@@ -3768,6 +3793,21 @@
         "title": "SensorObservationRequest",
         "type": "object"
       },
+      "SpeechRequest": {
+        "properties": {
+          "token": {
+            "maxLength": 4096,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SpeechRequest",
+        "type": "object"
+      },
       "SupportPointCreateRequest": {
         "properties": {
           "address": {
@@ -4361,6 +4401,64 @@
           }
         },
         "summary": "Chat",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/ai/speech": {
+      "post": {
+        "description": "Read one signed chatbot answer; never accept arbitrary client text.",
+        "operationId": "synthesize_speech_ai_speech_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Synthesize Speech",
         "tags": [
           "ai"
         ]

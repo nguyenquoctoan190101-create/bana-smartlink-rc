@@ -15,6 +15,7 @@ type Message = {
   asOf?: string | null;
   dataScope?: string;
   limitations?: string[];
+  speechToken?: string | null;
 };
 
 type ChatWidgetProps = {
@@ -40,9 +41,14 @@ type ApiResponse = {
   as_of?: string | null;
   data_scope?: string;
   limitations?: string[];
+  speech_token?: string | null;
 };
 
-type ChatCapabilities = { voice_enabled: boolean };
+type ChatCapabilities = {
+  voice_enabled: boolean;
+  server_tts_enabled?: boolean;
+  tts_provider?: "gemini" | "device_only";
+};
 type VoiceReadiness = "checking" | "ready" | "unavailable" | "unsupported";
 
 type SpeechRecognitionInstance = {
@@ -100,6 +106,8 @@ export default function ChatWidget({
   const [isSending, setIsSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [serverTtsEnabled, setServerTtsEnabled] = useState(false);
+  const [localVoiceAvailable, setLocalVoiceAvailable] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [voiceReadiness, setVoiceReadiness] = useState<VoiceReadiness>("checking");
   const [voiceProfileLabel, setVoiceProfileLabel] = useState(
@@ -111,10 +119,25 @@ export default function ChatWidget({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  const stopSpeaking = () => {
+    window.speechSynthesis?.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setSpeakingMessageId(null);
+  };
 
   const closeChat = () => {
-    window.speechSynthesis?.cancel();
-    setSpeakingMessageId(null);
+    stopSpeaking();
     setIsOpen(false);
     window.requestAnimationFrame(() => toggleRef.current?.focus());
   };
@@ -153,7 +176,10 @@ export default function ChatWidget({
       .then(async (response) => {
         if (!response.ok) return;
         const capabilities = (await response.json()) as ChatCapabilities;
-        if (active) setVoiceEnabled(capabilities.voice_enabled === true);
+        if (active) {
+          setVoiceEnabled(capabilities.voice_enabled === true);
+          setServerTtsEnabled(capabilities.server_tts_enabled === true);
+        }
       })
       .catch(() => {
         if (active) setVoiceEnabled(false);
@@ -162,10 +188,11 @@ export default function ChatWidget({
       active = false;
       recognitionRef.current?.stop();
       recognitionRef.current = null;
-      window.speechSynthesis?.cancel();
-      setSpeakingMessageId(null);
+      stopSpeaking();
       setIsListening(false);
       setVoiceEnabled(false);
+      setServerTtsEnabled(false);
+      setLocalVoiceAvailable(false);
       selectedVoiceRef.current = null;
       setVoiceReadiness("checking");
     };
@@ -227,12 +254,14 @@ export default function ChatWidget({
     }
     selectedVoiceRef.current = selected;
     if (!selected) {
+      setLocalVoiceAvailable(false);
       setVoiceReadiness("unavailable");
       setVoiceProfileLabel(
         "Thiết bị chưa có giọng tiếng Việt; hệ thống sẽ không dùng giọng tiếng Anh thay thế",
       );
       return null;
     }
+    setLocalVoiceAvailable(true);
     const regionalIdentity = `${selected.name} ${selected.voiceURI}`.toLowerCase();
     const isCentral = [
       "đà nẵng",
@@ -253,6 +282,13 @@ export default function ChatWidget({
 
   useEffect(() => {
     if (!isOpen || !voiceEnabled) return;
+    if (serverTtsEnabled) {
+      setVoiceReadiness("ready");
+      setVoiceProfileLabel(
+        "Giọng tiếng Việt từ máy chủ · hoạt động trên mọi thiết bị · không lưu tệp âm thanh",
+      );
+      return;
+    }
     if (!canUseSpeechSynthesis) {
       setVoiceReadiness("unsupported");
       setVoiceProfileLabel("Trình duyệt chưa hỗ trợ đọc câu trả lời");
@@ -260,17 +296,56 @@ export default function ChatWidget({
     }
     setVoiceReadiness("checking");
     void resolveVietnameseVoice();
-  }, [isOpen, voiceEnabled]);
+  }, [isOpen, voiceEnabled, serverTtsEnabled]);
 
-  const canSpeak = canUseSpeechSynthesis && voiceReadiness === "ready";
-
-  async function speakAnswer(text: string, messageId: string) {
-    if (!canUseSpeechSynthesis || !text.trim()) return;
+  async function speakAnswer(
+    text: string,
+    messageId: string,
+    speechToken?: string | null,
+  ) {
+    if (!voiceEnabled || !text.trim()) return;
     if (speakingMessageId === messageId) {
-      window.speechSynthesis.cancel();
-      setSpeakingMessageId(null);
+      stopSpeaking();
       return;
     }
+    stopSpeaking();
+    if (serverTtsEnabled && speechToken) {
+      try {
+        setSpeakingMessageId(messageId);
+        const response = await apiFetch("/ai/speech", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: speechToken }),
+        });
+        if (!response.ok) throw new Error("server speech unavailable");
+        const audioBlob = await response.blob();
+        if (!audioBlob.size) throw new Error("empty speech audio");
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audioRef.current = audio;
+        audioUrlRef.current = audioUrl;
+        const releaseAudio = () => {
+          if (audioRef.current === audio) audioRef.current = null;
+          if (audioUrlRef.current === audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            audioUrlRef.current = null;
+          }
+          setSpeakingMessageId((current) =>
+            current === messageId ? null : current,
+          );
+        };
+        audio.onended = releaseAudio;
+        audio.onerror = releaseAudio;
+        await audio.play();
+        return;
+      } catch {
+        stopSpeaking();
+        setVoiceProfileLabel(
+          "Giọng máy chủ tạm thời chưa sẵn sàng; đang kiểm tra giọng Việt trên thiết bị",
+        );
+      }
+    }
+    if (!canUseSpeechSynthesis) return;
     const selectedVoice =
       selectedVoiceRef.current ?? (await resolveVietnameseVoice());
     if (!selectedVoice) return;
@@ -384,11 +459,14 @@ export default function ChatWidget({
                 asOf: data.as_of ?? null,
                 dataScope: data.data_scope ?? "unavailable",
                 limitations: data.limitations ?? [],
+                speechToken: data.speech_token ?? null,
               }
             : m,
         ),
       );
-      if (speakResponse) void speakAnswer(data.answer, loadingMsg.id);
+      if (speakResponse) {
+        void speakAnswer(data.answer, loadingMsg.id, data.speech_token);
+      }
     } catch (err) {
       const errorText = toUserFacingError(err, "Đã xảy ra lỗi. Vui lòng thử lại.");
       setMessages((prev) =>
@@ -565,9 +643,16 @@ export default function ChatWidget({
                       <button
                         type="button"
                         className="chat-widget__speak-btn"
-                        disabled={!canSpeak}
+                        disabled={
+                          !(
+                            (serverTtsEnabled && Boolean(msg.speechToken)) ||
+                            localVoiceAvailable
+                          )
+                        }
                         aria-label={speakingMessageId === msg.id ? "Dừng đọc câu trả lời" : "Đọc câu trả lời bằng giọng nói"}
-                        onClick={() => void speakAnswer(msg.text, msg.id)}
+                        onClick={() =>
+                          void speakAnswer(msg.text, msg.id, msg.speechToken)
+                        }
                       >
                         {speakingMessageId === msg.id
                           ? <Square aria-hidden="true" />

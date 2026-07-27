@@ -147,13 +147,20 @@ def test_knowledge_answer_cites_only_the_approved_role_scoped_articles() -> None
     assert result.sources[0].reference == "Phiên bản 3"
 
 
-def test_capabilities_endpoint_exposes_only_voice_feature_flag() -> None:
+def test_capabilities_endpoint_exposes_server_voice_availability() -> None:
     client = TestClient(app)
     with patch(
         "routers.ai.load_settings",
-        return_value=SimpleNamespace(feature_voice=True),
+        return_value=SimpleNamespace(
+            feature_voice=True,
+            gemini_api_key="configured-key",
+        ),
     ):
         response = client.get("/ai/capabilities")
 
     assert response.status_code == 200
-    assert response.json() == {"voice_enabled": True}
+    assert response.json() == {
+        "voice_enabled": True,
+        "server_tts_enabled": True,
+        "tts_provider": "gemini",
+    }

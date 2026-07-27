@@ -177,6 +177,7 @@ def create_app() -> FastAPI:
             connect_sources.append(f"https://{parsed_supabase.netloc}")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; object-src 'none'; img-src 'self' data: blob:; "
+            "media-src 'self' blob:; "
             "style-src 'self' 'unsafe-inline'; script-src 'self'; "
             f"connect-src {' '.join(connect_sources)}; worker-src 'self'; "
             "manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

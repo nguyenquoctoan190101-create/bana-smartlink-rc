@@ -36,6 +36,7 @@
     {"method":"GET","path":"/api/pilots/alerts","authorization":"admin_or_leader","scope":"commune_internal_alerts","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/ai/capabilities","authorization":"public","scope":"non_sensitive_chat_feature_flags","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/ai/chat","authorization":"optional","scope":"public_published_or_role_scoped","mutates":false,"may_include_ct14":false},
+    {"method":"POST","path":"/ai/speech","authorization":"optional","scope":"signed_safe_chat_answer_only","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/api/cnscd-impact","authorization":"admin_or_leader","scope":"commune_internal","mutates":false,"may_include_ct14":false},
     {"method":"GET","path":"/api/notifications","authorization":"authenticated","scope":"own_notification","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/api/notifications/{notification_id}/read","authorization":"authenticated","scope":"own_notification","mutates":true,"may_include_ct14":false},
