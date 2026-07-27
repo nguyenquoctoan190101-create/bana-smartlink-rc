@@ -7,6 +7,7 @@ from uuid import uuid4
 import docx
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 
 
 @pytest.fixture()
@@ -223,6 +224,24 @@ def test_village_docx_export_contains_only_authorized_village(client: TestClient
     assert "318" in cell_text
     assert "Thôn Hòa Nhơn" not in cell_text
     assert "421" not in cell_text
+
+    pdf_response = client.get(
+        f"/reports/village/{selected_village_uuid}/export/pdf",
+        params={"period_id": period_uuid},
+    )
+    assert pdf_response.status_code == 200
+    assert pdf_response.headers["content-type"] == "application/pdf"
+    assert "Phieu_bao_cao_Th%C3%B4n_An_S%C6%A1n_Th%C3%A1ng_7%2F2026.pdf" in (
+        pdf_response.headers["content-disposition"]
+    )
+    pdf_text = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(BytesIO(pdf_response.content)).pages
+    )
+    assert "Thôn An Sơn" in pdf_text
+    assert "318" in pdf_text
+    assert "Thôn Hòa Nhơn" not in pdf_text
+    assert "421" not in pdf_text
 
 
 @pytest.mark.asyncio

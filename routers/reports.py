@@ -12,11 +12,6 @@ from typing import Any, Annotated, Literal
 from urllib.parse import quote
 from uuid import UUID
 
-import docx
-from docx.enum.section import WD_ORIENT
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
-from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
 from fastapi import (
     APIRouter,
     Depends,
@@ -31,9 +26,6 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
-from reportlab.lib import colors
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from routers.auth import (
     _extract_bearer_token,
@@ -53,6 +45,10 @@ from services.extraction_review import (
     extraction_values_digest,
     issue_extraction_review_token,
     verify_extraction_review_token,
+)
+from services.administrative_document_service import (
+    generate_docx_file as _generate_administrative_docx_file,
+    generate_pdf_file as _generate_administrative_pdf_file,
 )
 from services.export_service import (
     generate_summary_xlsx_file,
@@ -2318,14 +2314,6 @@ def _export_matrix(
     return matrix
 
 
-def _set_docx_run_font(run: Any, *, size: int = 8, bold: bool = False) -> None:
-    run.font.name = "Times New Roman"
-    run.font.size = Pt(size)
-    run.font.bold = bold
-    run_properties = run._element.get_or_add_rPr()
-    run_properties.get_or_add_rFonts().set(qn("w:eastAsia"), "Times New Roman")
-
-
 def _has_blocking_errors(errors: list[ValidationError]) -> bool:
     return any(error["error_type"] in BLOCKING_ERROR_TYPES for error in errors)
 
@@ -2458,175 +2446,26 @@ def generate_docx_file(
     villages_map: dict,
     scope_name: str | None = None,
 ) -> bytes:
-    doc = docx.Document()
-
-    section = doc.sections[0]
-    section.orientation = WD_ORIENT.LANDSCAPE
-    section.page_width, section.page_height = section.page_height, section.page_width
-    section.left_margin = section.right_margin = Inches(0.35)
-    normal_style = doc.styles["Normal"]
-    normal_style.font.name = "Times New Roman"
-    normal_style.font.size = Pt(8)
-    normal_fonts = normal_style.element.get_or_add_rPr().get_or_add_rFonts()
-    normal_fonts.set(qn("w:eastAsia"), "Times New Roman")
-    heading_style = doc.styles["Heading 1"]
-    heading_style.font.name = "Times New Roman"
-    heading_style.font.size = Pt(14)
-    heading_style.font.bold = True
-    heading_style.element.get_or_add_rPr().get_or_add_rFonts().set(
-        qn("w:eastAsia"), "Times New Roman"
+    return _generate_administrative_docx_file(
+        period_name,
+        reports_data,
+        villages_map,
+        scope_name=scope_name,
     )
-
-    doc.add_heading("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", level=1)
-    doc.add_paragraph(f"Kỳ báo cáo: {_safe_document_text(period_name)}")
-    if scope_name:
-        doc.add_paragraph(f"Phạm vi: {_safe_document_text(scope_name)}")
-
-    if not reports_data:
-        doc.add_paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.")
-    else:
-        matrix = _export_matrix(reports_data, villages_map)
-        table = doc.add_table(rows=0, cols=len(matrix[0]))
-        table.style = "Light Shading Accent 1"
-        table.autofit = False
-        column_widths = [Inches(1.8), *[Inches(0.60) for _ in _indicator_codes()]]
-        for row_index, matrix_row in enumerate(matrix):
-            row_cells = table.add_row().cells
-            for column_index, cell_text in enumerate(matrix_row):
-                cell = row_cells[column_index]
-                cell.width = column_widths[column_index]
-                cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-                cell.text = cell_text
-                for paragraph in cell.paragraphs:
-                    for run in paragraph.runs:
-                        _set_docx_run_font(run, bold=row_index == 0)
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
 
 
 def generate_pdf_file(
-    period_name: str, reports_data: list, villages_map: dict
+    period_name: str,
+    reports_data: list,
+    villages_map: dict,
+    scope_name: str | None = None,
 ) -> bytes:
-    from matplotlib import font_manager
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-
-    buffer = io.BytesIO()
-    regular_font = font_manager.findfont("DejaVu Sans")
-    bold_font = font_manager.findfont(
-        font_manager.FontProperties(family="DejaVu Sans", weight="bold")
+    return _generate_administrative_pdf_file(
+        period_name,
+        reports_data,
+        villages_map,
+        scope_name=scope_name,
     )
-    registered_fonts = set(pdfmetrics.getRegisteredFontNames())
-    if "BaNaUnicode" not in registered_fonts:
-        pdfmetrics.registerFont(TTFont("BaNaUnicode", regular_font))
-    if "BaNaUnicode-Bold" not in registered_fonts:
-        pdfmetrics.registerFont(TTFont("BaNaUnicode-Bold", bold_font))
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=landscape(A4),
-        rightMargin=20,
-        leftMargin=20,
-        topMargin=24,
-        bottomMargin=24,
-    )
-    story = []
-
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle(
-        "DocTitle",
-        parent=styles["Heading1"],
-        fontName="BaNaUnicode-Bold",
-        fontSize=18,
-        textColor=colors.HexColor("#1E293B"),
-        spaceAfter=15,
-        alignment=1,
-    )
-
-    body_style = ParagraphStyle(
-        "BodyTextCustom",
-        parent=styles["BodyText"],
-        fontName="BaNaUnicode",
-        fontSize=10,
-        textColor=colors.HexColor("#334155"),
-        spaceAfter=8,
-    )
-
-    story.append(Paragraph("BÁO CÁO VĂN HÓA - XÃ HỘI XÃ BÀ NÀ", title_style))
-    story.append(
-        Paragraph(
-            f"Kỳ báo cáo: {html.escape(_safe_document_text(period_name))}",
-            ParagraphStyle("Sub", parent=title_style, fontSize=12, spaceAfter=20),
-        )
-    )
-    story.append(Spacer(1, 10))
-
-    if not reports_data:
-        story.append(
-            Paragraph("Lưu ý: Chưa có dữ liệu báo cáo cho kỳ này.", body_style)
-        )
-    else:
-        matrix = _export_matrix(reports_data, villages_map)
-        header_cell_style = ParagraphStyle(
-            "ExportHeaderCell",
-            fontName="BaNaUnicode-Bold",
-            fontSize=6,
-            leading=7,
-            alignment=1,
-        )
-        body_cell_style = ParagraphStyle(
-            "ExportBodyCell",
-            fontName="BaNaUnicode",
-            fontSize=6,
-            leading=7,
-            alignment=1,
-        )
-        table_data = [
-            [
-                Paragraph(
-                    html.escape(cell),
-                    header_cell_style if row_index == 0 else body_cell_style,
-                )
-                for cell in row
-            ]
-            for row_index, row in enumerate(matrix)
-        ]
-        usable_width = landscape(A4)[0] - 40
-        village_width = 105
-        indicator_width = (usable_width - village_width) / len(_indicator_codes())
-        t = Table(
-            table_data,
-            colWidths=[village_width, *[indicator_width for _ in _indicator_codes()]],
-            repeatRows=1,
-            splitByRow=1,
-        )
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0F172A")),
-                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("FONTNAME", (0, 0), (-1, 0), "BaNaUnicode-Bold"),
-                    ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                    ("FONTNAME", (0, 1), (-1, -1), "BaNaUnicode"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 6),
-                    ("ALIGN", (0, 1), (0, -1), "LEFT"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-                ]
-            )
-        )
-        story.append(t)
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
 
 
 def generate_preview_html(
@@ -2895,10 +2734,10 @@ async def export_village_report(
 ):
     await _authorize_village_read(repository, current_user, village_id)
     supabase = repository._supabase
-    if file_format not in {"xlsx", "docx"}:
+    if file_format not in {"xlsx", "docx", "pdf"}:
         raise HTTPException(
             status_code=400,
-            detail="Báo cáo theo thôn chỉ hỗ trợ định dạng XLSX hoặc DOCX.",
+            detail="Báo cáo theo thôn chỉ hỗ trợ định dạng XLSX, DOCX hoặc PDF.",
         )
 
     period_uuid, period_name = await resolve_period(supabase, period_id)
@@ -2923,7 +2762,7 @@ async def export_village_report(
         )
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"Phieu_bao_cao_{village_name}_{period_name}.xlsx".replace(" ", "_")
-    else:
+    elif file_format == "docx":
         file_bytes = generate_docx_file(
             period_name,
             [village_report],
@@ -2934,6 +2773,15 @@ async def export_village_report(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
         filename = f"Phieu_bao_cao_{village_name}_{period_name}.docx".replace(" ", "_")
+    else:
+        file_bytes = generate_pdf_file(
+            period_name,
+            [village_report],
+            {village_id_text: village_name},
+            scope_name=village_name,
+        )
+        media_type = "application/pdf"
+        filename = f"Phieu_bao_cao_{village_name}_{period_name}.pdf".replace(" ", "_")
 
     return Response(
         content=file_bytes,

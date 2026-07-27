@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from io import BytesIO
+from zipfile import ZipFile
 
 import docx
 import openpyxl
+from docx.shared import Mm, Pt
+from pypdf import PdfReader
 
 from routers.reports import generate_docx_file, generate_pdf_file, generate_preview_html
 from services.export_service import generate_summary_xlsx_file, generate_village_xlsx_file
@@ -129,6 +132,11 @@ def test_xlsx_exports_define_single_page_print_layouts() -> None:
         assert sheet.page_setup.orientation == orientation
         assert print_area in str(sheet.print_area)
         assert sheet.print_options.horizontalCentered is True
+        assert "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" in sheet.oddHeader.center.text
+        assert sheet.oddFooter.center.text == "Trang &P/&N"
+        assert sheet.page_margins.left == 1.18
+        assert sheet.page_margins.right == 0.71
+        assert sheet.sheet_view.showGridLines is False
 
     village = openpyxl.load_workbook(
         BytesIO(
@@ -143,6 +151,58 @@ def test_xlsx_exports_define_single_page_print_layouts() -> None:
     assert village.page_setup.paperSize == 9
     assert village.page_setup.orientation == "portrait"
     assert "$A$1:$E$" in str(village.print_area)
+    assert village.oddHeader.center.text is None
+    assert village["A1"].value == "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
+    assert village["A1"].font.name == "Times New Roman"
+    assert village.oddFooter.center.text == "Trang &P/&N"
+
+
+def test_docx_and_pdf_exports_use_readable_administrative_layout() -> None:
+    reports, villages = _report()
+    period = "Tháng 7/2026"
+
+    document = docx.Document(
+        BytesIO(generate_docx_file(period, reports, villages))
+    )
+    normal = document.styles["Normal"]
+    assert normal.font.name == "Times New Roman"
+    assert normal.font.size == Pt(12)
+    assert normal.paragraph_format.line_spacing == 1.15
+    section = document.sections[0]
+    assert abs(section.left_margin - Mm(30)) < 2_000
+    assert abs(section.right_margin - Mm(18)) < 2_000
+    assert section.page_width > section.page_height  # Landscape summary appendix.
+    text = "\n".join(
+        [
+            *(paragraph.text for paragraph in document.paragraphs),
+            *(
+                cell.text
+                for table in document.tables
+                for row in table.rows
+                for cell in row.cells
+            ),
+        ]
+    )
+    assert "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" in text
+    assert "Độc lập - Tự do - Hạnh phúc" in text
+    assert "BÁO CÁO TỔNG HỢP SỐ LIỆU VĂN HÓA – XÃ HỘI" in text
+    assert all(len(table.columns) <= 6 for table in document.tables)
+    with ZipFile(BytesIO(generate_docx_file(period, reports, villages))) as archive:
+        footer_xml = b"".join(
+            archive.read(name)
+            for name in archive.namelist()
+            if name.startswith("word/footer")
+        )
+    assert b'w:instr="PAGE"' in footer_xml
+
+    pdf_bytes = generate_pdf_file(period, reports, villages)
+    reader = PdfReader(BytesIO(pdf_bytes))
+    pdf_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert len(reader.pages) >= 3
+    assert "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM" in pdf_text
+    assert "Độc lập - Tự do - Hạnh phúc" in pdf_text
+    assert "CT14" in pdf_text
+    assert "Trang 1" in pdf_text
 
 
 def test_internal_html_preview_escapes_untrusted_cells_and_shows_all_indicators() -> None:

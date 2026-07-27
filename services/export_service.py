@@ -8,14 +8,15 @@ from openpyxl.worksheet.page import PageMargins
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-# Standard styling constants
-BLUE_HEADER_FILL = PatternFill(start_color="3B74B4", end_color="3B74B4", fill_type="solid")
+# Administrative export styling. The restrained blue is reserved for table
+# headers; all other text remains black for legible screen and paper output.
+BLUE_HEADER_FILL = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
 WHITE_BOLD_FONT = Font(name="Times New Roman", size=11, bold=True, color="FFFFFF")
 BLACK_BOLD_FONT = Font(name="Times New Roman", size=11, bold=True, color="000000")
 NORMAL_FONT = Font(name="Times New Roman", size=11, color="000000")
-TITLE_FONT = Font(name="Times New Roman", size=13, bold=True, color="000000")
-NATION_HEADER_FONT = Font(name="Times New Roman", size=11, bold=True, color="000000")
-NATION_SUBHEADER_FONT = Font(name="Times New Roman", size=11, bold=True, italic=True, color="000000")
+TITLE_FONT = Font(name="Times New Roman", size=14, bold=True, color="000000")
+NATION_HEADER_FONT = Font(name="Times New Roman", size=12, bold=True, color="000000")
+NATION_SUBHEADER_FONT = Font(name="Times New Roman", size=12, bold=True, italic=True, color="000000")
 
 THIN_BORDER = Border(
     left=Side(style='thin'), 
@@ -99,8 +100,9 @@ def _configure_print_layout(
     landscape: bool,
     paper_size: int | str,
     title_rows: str | None = None,
+    include_page_header: bool = True,
 ) -> None:
-    """Keep every exported sheet on one readable printed page.
+    """Apply consistent administrative print settings to every sheet.
 
     The explicit print area prevents Excel from including stray formatted
     cells, while fit-to-page avoids splitting a logical table horizontally.
@@ -119,13 +121,30 @@ def _configure_print_layout(
     if title_rows:
         worksheet.print_title_rows = title_rows
     worksheet.print_options.horizontalCentered = True
+    worksheet.sheet_view.showGridLines = False
+    if include_page_header:
+        worksheet.oddHeader.left.text = "ỦY BAN NHÂN DÂN XÃ BÀ NÀ"
+        worksheet.oddHeader.left.size = 9
+        worksheet.oddHeader.left.font = "Times New Roman,Bold"
+        worksheet.oddHeader.center.text = (
+            "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM\n"
+            "Độc lập - Tự do - Hạnh phúc"
+        )
+        worksheet.oddHeader.center.size = 9
+        worksheet.oddHeader.center.font = "Times New Roman,Bold"
+    worksheet.oddFooter.center.text = "Trang &P/&N"
+    worksheet.oddFooter.center.size = 9
+    worksheet.oddFooter.center.font = "Times New Roman"
+    worksheet.oddFooter.right.text = "Ba Na SmartLink"
+    worksheet.oddFooter.right.size = 8
+    worksheet.oddFooter.right.font = "Times New Roman,Italic"
     worksheet.page_margins = PageMargins(
-        left=0.25,
-        right=0.25,
-        top=0.5,
-        bottom=0.5,
-        header=0.2,
-        footer=0.2,
+        left=1.18,
+        right=0.71,
+        top=0.79,
+        bottom=0.79,
+        header=0.30,
+        footer=0.30,
     )
 
 
@@ -208,6 +227,10 @@ def _submission_status_label(report: dict[str, Any]) -> str:
 def generate_village_xlsx_file(period_name: str, report_data: dict, village_name: str) -> bytes:
     """Generates the Single Village Report exactly matching Page 1 format."""
     wb = Workbook()
+    wb.properties.creator = "Ủy ban nhân dân xã Bà Nà"
+    wb.properties.title = "Phiếu báo cáo số liệu văn hóa – xã hội định kỳ"
+    wb.properties.subject = f"Kỳ báo cáo: {period_name}"
+    wb.properties.keywords = "báo cáo hành chính; Bà Nà; văn hóa xã hội"
     ws = wb.active
     ws.title = "Phiếu báo cáo"
 
@@ -216,16 +239,19 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
     ws['A1'] = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
     ws['A1'].font = NATION_HEADER_FONT
     ws['A1'].alignment = CENTER_ALIGN
+    ws.row_dimensions[1].height = 22
 
     ws.merge_cells('A2:E2')
     ws['A2'] = "Độc lập - Tự do - Hạnh phúc"
     ws['A2'].font = NATION_SUBHEADER_FONT
     ws['A2'].alignment = CENTER_ALIGN
+    ws.row_dimensions[2].height = 22
 
     ws.merge_cells('A4:E4')
     ws['A4'] = "PHIẾU BÁO CÁO SỐ LIỆU VĂN HÓA – XÃ HỘI ĐỊNH KỲ"
     ws['A4'].font = TITLE_FONT
     ws['A4'].alignment = CENTER_ALIGN
+    ws.row_dimensions[4].height = 28
 
     ws.merge_cells('A5:E5')
     ws['A5'] = _safe_excel_text(f"Kỳ báo cáo: {period_name}")
@@ -281,6 +307,7 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
             cell = ws.cell(row=current_row, column=col_num)
             cell.font = NORMAL_FONT
             cell.border = THIN_BORDER
+        ws.row_dimensions[current_row].height = 28
 
     # Set column widths
     ws.column_dimensions['A'].width = 10
@@ -295,6 +322,7 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
         landscape=False,
         paper_size=ws.PAPERSIZE_A4,
         title_rows="1:12",
+        include_page_header=False,
     )
 
     # Export to bytes
@@ -306,6 +334,10 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
 def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
     """Generates the All Villages Summary matching Pages 2,3,4."""
     wb = Workbook()
+    wb.properties.creator = "Ủy ban nhân dân xã Bà Nà"
+    wb.properties.title = "Báo cáo tổng hợp số liệu văn hóa – xã hội xã Bà Nà"
+    wb.properties.subject = f"Kỳ báo cáo: {period_name}"
+    wb.properties.keywords = "báo cáo hành chính; Bà Nà; văn hóa xã hội"
     
     # Sheet 1: BẢNG TỔNG HỢP SỐ LIỆU
     ws1 = wb.active
@@ -314,12 +346,12 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws1.merge_cells('A1:Q1')
     ws1['A1'] = "BẢNG TỔNG HỢP SỐ LIỆU VĂN HÓA – XÃ HỘI THEO THÔN"
     ws1['A1'].font = TITLE_FONT
-    ws1['A1'].alignment = LEFT_ALIGN
+    ws1['A1'].alignment = CENTER_ALIGN
     
     ws1.merge_cells('A2:Q2')
     ws1['A2'] = _safe_excel_text(f"Xã Bà Nà — Kỳ báo cáo: {period_name}")
     ws1['A2'].font = Font(name="Times New Roman", size=11, italic=True)
-    ws1['A2'].alignment = LEFT_ALIGN
+    ws1['A2'].alignment = CENTER_ALIGN
     
     # Headers
     headers = ["STT", "Thôn"]
@@ -402,6 +434,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
             cell.alignment = CENTER_ALIGN
             
     ws1.freeze_panes = 'C5'
+    ws1.auto_filter.ref = f"A4:Q{ws1.max_row - 1}"
     ws1.row_dimensions[4].height = 72
     _configure_print_layout(
         ws1,
@@ -416,12 +449,12 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws2.merge_cells('A1:G1')
     ws2['A1'] = "THEO DÕI TIẾN ĐỘ NỘP BÁO CÁO"
     ws2['A1'].font = TITLE_FONT
-    ws2['A1'].alignment = LEFT_ALIGN
+    ws2['A1'].alignment = CENTER_ALIGN
     
     ws2.merge_cells('A2:G2')
     ws2['A2'] = _safe_excel_text(f"Kỳ báo cáo: {period_name} — Thời điểm tổng hợp: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     ws2['A2'].font = Font(name="Times New Roman", size=11, italic=True)
-    ws2['A2'].alignment = LEFT_ALIGN
+    ws2['A2'].alignment = CENTER_ALIGN
     
     ws2.append([])
     headers_progress = ["STT", "Thôn", "Người lập", "SĐT", "Thời điểm nộp", "Trạng thái", "Số ngày trễ"]
@@ -484,6 +517,8 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     ws2.column_dimensions['E'].width = 20
     ws2.column_dimensions['F'].width = 20
     ws2.column_dimensions['G'].width = 15
+    ws2.freeze_panes = "A5"
+    ws2.auto_filter.ref = f"A4:G{ws2.max_row}"
     ws2.row_dimensions[4].height = 34
     _configure_print_layout(
         ws2,
@@ -501,6 +536,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     dashboard.merge_cells("A1:B1")
     dashboard["A1"] = "DASHBOARD TỔNG QUAN"
     dashboard["A1"].font = TITLE_FONT
+    dashboard["A1"].alignment = CENTER_ALIGN
     dashboard.append([])
     dashboard.append(["Chỉ số", "Giá trị"])
     on_time_count = sum(1 for report in reports_data if report.get("timeliness_status") == "on_time")
@@ -569,6 +605,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 10, "B": 58, "C": 16, "D": 16, "E": 62}.items():
         dictionary.column_dimensions[column].width = width
     dictionary.freeze_panes = "A4"
+    dictionary.auto_filter.ref = f"A3:E{dictionary.max_row}"
     dictionary.row_dimensions[3].height = 38
     _configure_print_layout(
         dictionary,
@@ -610,6 +647,8 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 25, "B": 38, "C": 12, "D": 20, "E": 62, "F": 16}.items():
         warnings.column_dimensions[column].width = width
     warnings.freeze_panes = "A2"
+    if warning_count:
+        warnings.auto_filter.ref = f"A1:F{warnings.max_row}"
     warnings.row_dimensions[1].height = 34
     _configure_print_layout(
         warnings,
@@ -658,6 +697,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     for column, width in {"A": 25, "B": 38, "C": 18, "D": 18, "E": 16, "F": 22, "G": 20, "H": 22}.items():
         sources.column_dimensions[column].width = width
     sources.freeze_panes = "A2"
+    sources.auto_filter.ref = f"A1:H{sources.max_row}"
     sources.row_dimensions[1].height = 42
     _configure_print_layout(
         sources,
