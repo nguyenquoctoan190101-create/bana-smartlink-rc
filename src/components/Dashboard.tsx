@@ -514,7 +514,7 @@ export default function Dashboard({
   return (
     <>
       <div
-        className={`space-y-6 ${userRole === "lanh_dao" ? "leadership-dashboard" : ""}`}
+        className={`dashboard-data-workspace space-y-6 ${userRole === "lanh_dao" ? "leadership-dashboard" : ""}`}
       >
         <PageHeader
           eyebrow={
