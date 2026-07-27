@@ -1,33 +1,61 @@
 # Ba Na SmartLink
 
-Nền tảng báo cáo chỉ tiêu thôn của xã Bà Nà. Kiến trúc được hỗ trợ là:
+Nền tảng báo cáo số liệu Văn hóa – Xã hội từ thôn lên xã dành cho xã Bà Nà,
+Đà Nẵng.
+
+> **Trạng thái hiện tại:** release candidate đang chạy trên môi trường staging
+> tại [bana-smartlink-rc-toan-2026.onrender.com](https://bana-smartlink-rc-toan-2026.onrender.com/).
+> Bản này dùng dữ liệu tổng hợp/thử nghiệm và chưa phải tuyên bố
+> production-ready.
+
+Kiến trúc chính:
 
 ```text
-React/Vite -> FastAPI -> Supabase Auth + PostgreSQL/RLS
-                         \-> Gemini (diễn giải tùy chọn, không quyết định)
+React 19 + Vite 6 + Service Worker
+              |
+              v
+FastAPI -> Supabase Auth + PostgreSQL/RLS
+              |
+              \-> Gemini (OCR/diễn giải tùy chọn, không quyết định nghiệp vụ)
 ```
 
 Không sử dụng Express, Firebase, tài khoản/OTP cho công dân hoặc kênh Zalo. Gemini
 không quyết định báo cáo hợp lệ; `services/validator.py` và
 `config/validation_rules.json` là nguồn quy tắc nghiệp vụ.
 
-Nhận dạng ảnh/PDF qua dịch vụ ngoài là tính năng thử nghiệm và bị khóa bắt buộc
-trên staging/production. Release candidate chỉ cho nhập trực tiếp hoặc xem trước
-XLSX; không gửi tài liệu hành chính sang dịch vụ OCR ngoài.
+## Chức năng hiện có
 
-> Trạng thái phát hành: release candidate dùng dữ liệu tổng hợp. Không đưa dữ
-> liệu thật lên hệ thống trước khi hoàn tất UAT, kiểm thử RLS trên staging mới và
-> rà soát bảo mật. Mọi credential từng xuất hiện trong gói cũ phải được thu hồi.
+- Lập, lưu nháp, đồng bộ ngoại tuyến, nộp, duyệt, khóa và công bố báo cáo
+  CT01–CT14 theo kỳ và phạm vi thôn.
+- Nhập trực tiếp; xem trước XLSX; nhận dạng bảng in hoặc viết tay từ JPG/JPEG,
+  PNG, WebP, BMP, TIFF/TIF nhiều trang và PDF quét.
+- OCR chỉ gửi vùng bảng CT01–CT14 đã cắt bỏ phần đầu biểu mẫu; ảnh được kiểm tra,
+  xóa metadata và tái mã hóa trước khi gọi nhà cung cấp. Kết quả luôn phải qua
+  màn hình rà soát, không tự ghi vào báo cáo.
+- Xuất XLSX, DOCX và PDF theo bố cục hành chính: A4, Times New Roman, quốc hiệu –
+  tiêu ngữ, bảng dễ đọc, số trang, phụ lục và phần ký xác nhận.
+- Dashboard tiến độ, chất lượng dữ liệu, công việc cần xử lý, trung tâm điều hành
+  và hồ sơ audit theo phạm vi quyền.
+- Trung tâm thông báo có số chưa đọc, phân loại ưu tiên, điều hướng xử lý, âm báo
+  bật/tắt và Web Push tùy chọn.
+- Cổng công dân chỉ công khai các chỉ tiêu được phép; hỗ trợ tra cứu trạng thái,
+  gửi đề xuất đối chiếu và phản ánh hiện trường mà không tạo tài khoản.
+- Gemini chỉ hỗ trợ OCR, diễn giải số liệu tổng hợp và trợ lý; quy tắc xác định
+  hợp lệ vẫn là mã nguồn tất định và chính sách RLS.
+
+> Không đưa dữ liệu thật lên hệ thống trước khi hoàn tất UAT, kiểm thử RLS trên
+> staging mới, privacy/legal review, backup–restore drill và rà soát bảo mật.
+> Mọi credential từng xuất hiện trong gói cũ phải được thu hồi.
 
 ## Quyền truy cập
 
-| Người dùng | Phạm vi |
-| --- | --- |
-| Công dân ẩn danh | Xem CT01, CT02, CT09, CT12, CT13 đã công bố; gửi đề xuất |
-| `can_bo_thon` | Tạo, sửa và nộp báo cáo đúng thôn được giao |
-| `to_cnscd` | Hỗ trợ các thôn được phân công; không duyệt |
-| `admin_xa` | Tạo kỳ, duyệt, khóa, công bố và quản trị trong xã |
-| `lanh_dao` | Chỉ đọc dữ liệu nội bộ và xuất báo cáo |
+| Người dùng | Mã nội bộ | Phạm vi |
+| --- | --- | --- |
+| Công dân ẩn danh | — | Xem CT01, CT02, CT09, CT12, CT13 đã công bố; gửi đề xuất |
+| Cán bộ thôn | `can_bo_thon` | Tạo, sửa và nộp báo cáo đúng thôn được giao |
+| Tổ công nghệ số cộng đồng | `to_cnscd` | Hỗ trợ các thôn được phân công; không duyệt |
+| Cán bộ xã | `admin_xa` | Tạo kỳ, phân công, duyệt, khóa, công bố và quản lý trong xã |
+| Lãnh đạo xã | `lanh_dao` | Chỉ đọc dữ liệu nội bộ, quyết định theo thẩm quyền và xuất báo cáo |
 
 CT14 và dữ liệu định danh không có trong projection công khai.
 
@@ -103,9 +131,9 @@ Các RPC nghiệp vụ chính:
 - `save_manual_report_submission(...)`: tạo/cập nhật report nhập trực tiếp,
   CT01-CT14, validation flags, optimistic version và idempotency receipt trong
   một transaction.
-- `save_report_submission_with_extraction(...)`: chỉ nhận dữ liệu XLSX đã có
-  bằng chứng rà soát ngắn hạn, gắn người dùng và tiêu thụ một lần. Preview không
-  được lưu; database chỉ giữ digest và provenance tối thiểu.
+- `save_report_submission_with_extraction(...)`: chỉ nhận dữ liệu XLSX/OCR đã
+  có bằng chứng rà soát ngắn hạn, gắn người dùng và tiêu thụ một lần. Preview
+  không được lưu; database chỉ giữ digest và provenance tối thiểu.
 - `transition_report_workflow(...)` và `delete_report_submission(...)`: duyệt,
   khóa, công bố hoặc xóa theo phạm vi/phiên bản và ghi audit. Người dùng đã xác
   thực không có quyền ghi trực tiếp vào `reports`/`report_values`.
@@ -123,15 +151,21 @@ npm run check
 python scripts/release_check.py
 ```
 
-Kiểm thử mô phỏng trong `tests/test_rls_policies.py` không thay thế kiểm thử RLS
-thật. Trước release phải chạy ma trận anonymous/admin/cán bộ/CNSCĐ/lãnh đạo trên
-PostgreSQL/Supabase staging.
+Lần xác nhận gần nhất trên nhánh `main`: **569 kiểm thử backend** và **105 kiểm
+thử frontend** đạt; TypeScript typecheck và production build đạt. Con số có thể
+tăng khi bổ sung test mới, vì vậy kết quả của pipeline hiện tại luôn là nguồn
+xác nhận cuối cùng.
 
-Tính năng OCR ngoài chỉ được xem xét mở lại sau privacy/legal review và benchmark
-trên bộ dữ liệu đã đăng ký, có tối thiểu
-100 tài liệu và holdout độc lập theo
-[docs/AI_BENCHMARK_PROTOCOL.md](docs/AI_BENCHMARK_PROTOCOL.md). Fixture CI không
-phải bằng chứng chất lượng thực địa.
+Kiểm thử mô phỏng trong `tests/test_rls_policies.py` không thay thế kiểm thử RLS
+thật. Trước release phải chạy ma trận công dân ẩn danh/Cán bộ xã/Cán bộ
+thôn/Tổ CNSCĐ/Lãnh đạo xã trên PostgreSQL/Supabase staging.
+
+OCR ngoài đang bật có điều kiện trên staging khi máy chủ có `GEMINI_API_KEY` và
+`FEATURE_EXTERNAL_OCR=true`; nếu thiếu cấu hình, giao diện tự tắt OCR và vẫn cho
+nhập trực tiếp/XLSX. Trước production vẫn phải hoàn tất privacy/legal review và
+benchmark trên bộ dữ liệu đã đăng ký, có tối thiểu 100 tài liệu cùng holdout độc
+lập theo [docs/AI_BENCHMARK_PROTOCOL.md](docs/AI_BENCHMARK_PROTOCOL.md). Fixture
+CI không phải bằng chứng chất lượng thực địa.
 
 ## Gate staging và production
 
@@ -224,9 +258,13 @@ cache, build cũ và archive lồng. Nó tạo đúng một ZIP, checksum `.sha2
 
 ## Vận hành an toàn
 
-- In-app notification là kênh mặc định; Web Push chỉ bật khi VAPID hợp lệ.
+- Trung tâm thông báo trong ứng dụng là kênh mặc định; âm báo có thể tắt và Web
+  Push chỉ bật khi cấu hình VAPID hợp lệ.
 - Reminder dùng `Asia/Ho_Chi_Minh`, advisory lock và khóa idempotency trong DB.
 - Không log tên, số điện thoại, access token, DSN, nội dung OCR gốc hoặc key.
+- OCR từ chối định dạng không hỗ trợ, tệp quá 5 MB, PDF/ảnh quá 5 trang, nội dung
+  chủ động và ảnh vượt giới hạn điểm ảnh; HEIC/HEIF chưa được mở vì runtime chưa
+  có bộ giải mã an toàn đã kiểm chứng.
 - Mục tiêu ban đầu: RPO 24 giờ, RTO 4 giờ; phải có restore smoke test.
 - Khi có sự cố: cô lập deployment, thu hồi secret/session, bảo toàn log, đánh giá
   phạm vi ảnh hưởng rồi mới phát hành lại.
