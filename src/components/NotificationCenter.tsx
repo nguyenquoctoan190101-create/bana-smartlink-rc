@@ -36,6 +36,7 @@ type NotificationCenterProps = {
   isOpen: boolean;
   variant: "desktop" | "mobile";
   soundEnabled: boolean;
+  error?: string | null;
   onToggleOpen: () => void;
   onToggleSound: () => void;
   onSelect: (notification: AppNotification) => void;
@@ -94,6 +95,7 @@ export default function NotificationCenter({
   isOpen,
   variant,
   soundEnabled,
+  error,
   onToggleOpen,
   onToggleSound,
   onSelect,
@@ -204,6 +206,14 @@ export default function NotificationCenter({
               )}
             </button>
           </header>
+          {error && (
+            <div
+              role="alert"
+              className="mx-4 mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-900"
+            >
+              {error}
+            </div>
+          )}
 
           <div className="notification-center__toolbar">
             <div

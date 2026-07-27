@@ -31,6 +31,8 @@ const PUBLIC_STATUS_LABELS: Record<string, string> = {
   accepted: "Đã chấp nhận",
   rejected: "Đã từ chối",
   not_found: "Không tìm thấy",
+  invalid_code: "Mã chưa hợp lệ",
+  unavailable: "Chưa thể tra cứu",
 };
 
 export function getPublicStatusLabel(status: string): string {

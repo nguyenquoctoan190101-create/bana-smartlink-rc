@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  ApiError,
+} from "../lib/apiClient";
+import {
   extractPublishedPeriods,
   formatPublicIndicatorValue,
   getDefaultPublicVillageId,
+  getEvacuationAvailability,
+  getPublicLookupFailure,
   getPublicReportTimestamp,
 } from "./PublicVillagePage";
 import {
@@ -77,11 +82,34 @@ describe("public portal default scope", () => {
   });
 });
 
+describe("public evacuation availability", () => {
+  it("never presents a failed request as an authoritative empty list", () => {
+    expect(getEvacuationAvailability(true, 0)).toBe("unavailable");
+    expect(getEvacuationAvailability(false, 0)).toBe("empty");
+    expect(getEvacuationAvailability(false, 2)).toBe("available");
+  });
+});
+
 describe("public lookup labels", () => {
   it("translates status and category values for citizens", () => {
     expect(getPublicStatusLabel("received")).toBe("Đã tiếp nhận");
     expect(getPublicCaseCategoryLabel("road")).toBe("Đường giao thông");
     expect(formatPublicLookupMessage({ status: "received", case: { category: "road" } }))
       .toBe("● Đã tiếp nhận · Loại sự cố: Đường giao thông");
+  });
+
+  it("distinguishes invalid input and an unavailable service from not found", () => {
+    expect(getPublicStatusLabel("invalid_code")).toBe("Mã chưa hợp lệ");
+    expect(getPublicStatusLabel("unavailable")).toBe("Chưa thể tra cứu");
+    expect(getPublicStatusLabel("not_found")).toBe("Không tìm thấy");
+  });
+
+  it("distinguishes a real missing record from a lookup service failure", () => {
+    expect(getPublicLookupFailure(new ApiError("missing", 404))).toMatchObject({
+      status: "not_found",
+    });
+    expect(getPublicLookupFailure(new TypeError("Failed to fetch"))).toMatchObject({
+      status: "unavailable",
+    });
   });
 });

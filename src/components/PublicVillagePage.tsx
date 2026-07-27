@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
+import { ApiError, apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import {
   formatPublicLookupMessage,
   getPublicCaseCategoryLabel,
@@ -156,6 +156,33 @@ export function getPublicReportTimestamp(report: unknown): string {
   return typeof candidate.updated_at === "string" ? candidate.updated_at : "";
 }
 
+export function getEvacuationAvailability(
+  failed: boolean,
+  pointCount: number,
+): "unavailable" | "empty" | "available" {
+  if (failed) return "unavailable";
+  return pointCount > 0 ? "available" : "empty";
+}
+
+export function getPublicLookupFailure(error: unknown): {
+  status: "not_found" | "unavailable";
+  message: string;
+} {
+  if (error instanceof ApiError && error.status === 404) {
+    return {
+      status: "not_found",
+      message: "Không tìm thấy hồ sơ tương ứng với mã tra cứu này.",
+    };
+  }
+  return {
+    status: "unavailable",
+    message: toUserFacingError(
+      error,
+      "Dịch vụ tra cứu tạm thời chưa sẵn sàng. Chưa thể kết luận hồ sơ không tồn tại; vui lòng thử lại.",
+    ),
+  };
+}
+
 interface PublicVillagePageProps {
   onGoToLogin?: () => void;
 }
@@ -176,6 +203,7 @@ export default function PublicVillagePage({
   const [reloadKey, setReloadKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [evacuationError, setEvacuationError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
@@ -201,15 +229,19 @@ export default function PublicVillagePage({
     async function fetchData() {
       setIsLoading(true);
       setDataError(null);
+      setEvacuationError(null);
       try {
-        const [villageData, reportData, evacuationData] = await Promise.all([
+        const [villageData, reportData, evacuationResult] = await Promise.all([
           loadVillages(),
           apiJson<unknown[]>("/reports/public"),
-          apiJson<unknown[]>("/api/pilots/evacuation-points").catch(() => []),
+          apiJson<unknown[]>("/api/pilots/evacuation-points")
+            .then((data) => ({ data, failed: false }))
+            .catch(() => ({ data: [] as unknown[], failed: true })),
         ]);
         if (!active) return;
         const safeVillages = Array.isArray(villageData) ? villageData : [];
         const safeReports = Array.isArray(reportData) ? reportData : [];
+        const evacuationData = evacuationResult.data;
         const safeEvacuationPoints = Array.isArray(evacuationData)
           ? evacuationData.filter((point): point is EvacuationPoint =>
               Boolean(
@@ -225,6 +257,11 @@ export default function PublicVillagePage({
         setVillages(safeVillages);
         setReports(safeReports);
         setEvacuationPoints(safeEvacuationPoints);
+        setEvacuationError(
+          evacuationResult.failed
+            ? "Chưa tải được danh sách điểm sơ tán đã công bố. Không thể kết luận hiện chưa có điểm sơ tán."
+            : null,
+        );
         setPeriods(extractPublishedPeriods(safeReports));
         setSelectedVillageId(
           (current) =>
@@ -354,13 +391,16 @@ export default function PublicVillagePage({
     event.preventDefault();
     setLookupResult(null);
     const code = lookupCode.trim().toUpperCase();
-    try {
-      const endpoint = getPublicLookupEndpoint(code);
-      if (!endpoint) {
-        throw new Error(
+    const endpoint = getPublicLookupEndpoint(code);
+    if (!endpoint) {
+      setLookupResult({
+        status: "invalid_code",
+        message:
           "Mã tra cứu phải có 16 ký tự (kiến nghị) hoặc 32 ký tự (phản ánh).",
-        );
-      }
+      });
+      return;
+    }
+    try {
       const result = await apiJson<{
         status: string;
         message?: string;
@@ -376,11 +416,8 @@ export default function PublicVillagePage({
         message: result.message,
         case: safeCase,
       });
-    } catch {
-      setLookupResult({
-        status: "not_found",
-        message: "Không tìm thấy mã tra cứu hoặc mã không hợp lệ.",
-      });
+    } catch (error) {
+      setLookupResult(getPublicLookupFailure(error));
     }
   };
 
@@ -407,6 +444,11 @@ export default function PublicVillagePage({
       );
     }
   };
+
+  const evacuationAvailability = getEvacuationAvailability(
+    Boolean(evacuationError),
+    evacuationPoints.length,
+  );
 
   return (
     <div
@@ -660,7 +702,21 @@ export default function PublicVillagePage({
                 </p>
                 </div>
               </div>
-            {evacuationPoints.length === 0 ? (
+            {evacuationAvailability === "unavailable" ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
+                <p className="font-bold">Thông tin điểm sơ tán tạm thời chưa sẵn sàng</p>
+                <p className="mt-1">{evacuationError}</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => setReloadKey((current) => current + 1)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Thử tải lại
+                </Button>
+              </div>
+            ) : evacuationAvailability === "empty" ? (
               <div className="mt-4">
                 <EmptyState
                   title="Chưa có điểm sơ tán công khai"

@@ -78,6 +78,7 @@ export default function ProgressDashboard({
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [alertsError, setAlertsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -96,6 +97,7 @@ export default function ProgressDashboard({
       setIsLoading(true);
       setIsLoadingAlerts(true);
       setErrorMessage(null);
+      setAlertsError(null);
 
       try {
         // 1. Fetch status of submissions
@@ -116,36 +118,46 @@ export default function ProgressDashboard({
         const statusPayload = (await statusResponse.json()) as ReportsStatusResponse;
         setVillages(statusPayload.villages);
 
-        // 2. Fetch periods to find the previous period
-        const periodsResponse = await apiFetch(`/reports/periods`, {
-          signal: abortController.signal,
-        });
-        if (!periodsResponse.ok) {
-          // Graceful warning rather than crashing completely
-          console.warn("Không tải được danh sách kỳ báo cáo.");
-          setIsLoadingAlerts(false);
-          return;
-        }
-        const periods = (await periodsResponse.json()) as PeriodItem[];
-
-        // Use backend resolved period_id UUID for correct index finding
-        const resolvedPeriodId = statusPayload.period_id;
-        const currentIndex = periods.findIndex((p) => p.id === resolvedPeriodId);
-        if (currentIndex !== -1 && currentIndex + 1 < periods.length) {
-          const prevPeriodId = periods[currentIndex + 1].id;
-
-          // 3. Fetch trend alerts
-          const alertParams = new URLSearchParams({
-            curr_period_id: resolvedPeriodId,
-            prev_period_id: prevPeriodId,
+        // Trend comparison is supplementary. Keep the primary progress table
+        // visible if this secondary chain fails, but tell the user that the
+        // absence of alerts is not an authoritative "no change" conclusion.
+        try {
+          const periodsResponse = await apiFetch(`/reports/periods`, {
+            signal: abortController.signal,
           });
-          const alertsResponse = await apiFetch(
-            `/reports/trend-alerts?${alertParams}`,
-            { signal: abortController.signal }
-          );
-          if (alertsResponse.ok) {
+          if (!periodsResponse.ok) {
+            throw new Error("Không tải được danh sách kỳ để đối chiếu.");
+          }
+          const periods = (await periodsResponse.json()) as PeriodItem[];
+
+          // Use backend resolved period_id UUID for correct index finding
+          const resolvedPeriodId = statusPayload.period_id;
+          const currentIndex = periods.findIndex((p) => p.id === resolvedPeriodId);
+          if (currentIndex !== -1 && currentIndex + 1 < periods.length) {
+            const prevPeriodId = periods[currentIndex + 1].id;
+            const alertParams = new URLSearchParams({
+              curr_period_id: resolvedPeriodId,
+              prev_period_id: prevPeriodId,
+            });
+            const alertsResponse = await apiFetch(
+              `/reports/trend-alerts?${alertParams}`,
+              { signal: abortController.signal },
+            );
+            if (!alertsResponse.ok) {
+              throw new Error("Không tải được dữ liệu biến động giữa hai kỳ.");
+            }
             const alertsPayload = (await alertsResponse.json()) as TrendAlert[];
             setAlerts(alertsPayload);
+          }
+        } catch (optionalError) {
+          if (!abortController.signal.aborted) {
+            setAlerts([]);
+            setAlertsError(
+              toUserFacingError(
+                optionalError,
+                "Đã tải tiến độ nộp báo cáo nhưng chưa đối chiếu được biến động với kỳ trước.",
+              ),
+            );
           }
         }
       } catch (error) {
@@ -230,6 +242,12 @@ export default function ProgressDashboard({
         {errorMessage ? (
           <div className="progress-dashboard__notice" role="alert">
             {errorMessage}
+          </div>
+        ) : null}
+
+        {alertsError ? (
+          <div className="progress-dashboard__notice" role="status">
+            {alertsError} Phần tiến độ bên dưới vẫn sử dụng được.
           </div>
         ) : null}
 

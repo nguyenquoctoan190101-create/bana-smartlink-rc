@@ -627,10 +627,14 @@ export default function Dashboard({
           <div className="filter-bar dashboard-filter-bar">
           <div className="dashboard-filter-bar__filters flex flex-wrap items-center gap-3 w-full md:w-auto">
             <div className="dashboard-filter-bar__field">
-              <label className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5">
+              <label
+                htmlFor="dashboard-period-filter"
+                className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5"
+              >
                 Kỳ dữ liệu
               </label>
               <select
+                id="dashboard-period-filter"
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="dashboard-filter-bar__select bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 font-semibold focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
@@ -644,10 +648,14 @@ export default function Dashboard({
             </div>
 
             <div className="dashboard-filter-bar__field">
-              <label className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5">
+              <label
+                htmlFor="dashboard-village-filter"
+                className="dashboard-filter-bar__label block text-xs font-bold text-slate-600 mb-1.5"
+              >
                 {userRole === "to_cnscd" ? "Thôn được hỗ trợ" : "Phạm vi thôn"}
               </label>
               <select
+                id="dashboard-village-filter"
                 value={effectiveVillageFilter}
                 onChange={(e) => setSelectedVillageFilter(e.target.value)}
                 disabled={

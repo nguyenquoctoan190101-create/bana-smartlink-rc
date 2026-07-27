@@ -80,7 +80,11 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
   const [evacuationPoints, setEvacuationPoints] = useState<EvacuationPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [dataWarning, setDataWarning] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const [articleTitle, setArticleTitle] = useState("");
   const [articleBody, setArticleBody] = useState("");
@@ -113,15 +117,22 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
   const refresh = async () => {
     setLoading(true);
     setError(null);
+    setDataWarning(null);
     const requests: Promise<unknown>[] = [apiJson<Article[]>("/api/knowledge/articles"), apiJson<Champion[]>("/api/knowledge/champions"), apiJson<SupportPoint[]>("/api/knowledge/support-points")];
+    const requestLabels = ["bài viết", "Đại sứ số", "điểm hỗ trợ"];
     const scenarioIndex = showScenarioSimulation ? requests.push(apiJson<Scenario[]>("/api/knowledge/scenarios")) - 1 : -1;
+    if (scenarioIndex >= 0) requestLabels.push("kịch bản mô phỏng");
     const officerIndex = canViewEvacuation ? requests.push(apiJson<Officer[]>("/auth/officers")) - 1 : -1;
+    if (officerIndex >= 0) requestLabels.push("danh sách cán bộ");
     const villageIndex = canViewEvacuation ? requests.push(loadVillages()) - 1 : -1;
+    if (villageIndex >= 0) requestLabels.push("danh mục thôn");
     const evacuationIndex = canViewEvacuation ? requests.push(apiJson<EvacuationPoint[]>("/api/pilots/evacuation-points/admin")) - 1 : -1;
+    if (evacuationIndex >= 0) requestLabels.push("điểm sơ tán");
     const results = await Promise.allSettled(requests);
     const assign = <T,>(index: number, setter: (value: T) => void) => {
       const result = results[index];
       if (result?.status === "fulfilled") setter(result.value as T);
+      else setter([] as T);
     };
     assign<Article[]>(0, setArticles);
     assign<Champion[]>(1, setChampions);
@@ -138,9 +149,19 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
             name,
           })),
         );
+      else setVillages([]);
       assign<EvacuationPoint[]>(evacuationIndex, setEvacuationPoints);
     }
-    if (results.slice(0, 3).every((result) => result.status === "rejected")) setError("Không tải được kho tri thức. Kiểm tra quyền truy cập hoặc kết nối rồi thử lại.");
+    const failedLabels = results.flatMap((result, index) =>
+      result.status === "rejected" ? [requestLabels[index]] : [],
+    );
+    if (results.slice(0, 3).every((result) => result.status === "rejected")) {
+      setError("Không tải được kho tri thức. Kiểm tra quyền truy cập hoặc kết nối rồi thử lại.");
+    } else if (failedLabels.length > 0) {
+      setDataWarning(
+        `Đã tải được một phần dữ liệu nhưng chưa tải được: ${failedLabels.join(", ")}. Danh sách trống ở các mục này chưa phải kết luận không có dữ liệu.`,
+      );
+    }
     setLoading(false);
   };
 
@@ -151,10 +172,13 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
   const submit = async (action: () => Promise<unknown>, success: string) => {
     try {
       await action();
-      setNotice(success);
+      setNotice({ kind: "success", message: success });
       await refresh();
     } catch (caught) {
-      setNotice(toUserFacingError(caught, "Không thể cập nhật. Vui lòng thử lại."));
+      setNotice({
+        kind: "error",
+        message: toUserFacingError(caught, "Không thể cập nhật. Vui lòng thử lại."),
+      });
     }
   };
 
@@ -234,7 +258,10 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
   const runScenario = async (id: string) => {
     const values = [baselinePopulation, baselineBudget, baselineDemand, populationChange, budgetChange, demandChange].map(Number);
     if (values.some((item) => !Number.isFinite(item) || item < 0)) {
-      setNotice("Giá trị mô phỏng phải là số không âm.");
+      setNotice({
+        kind: "error",
+        message: "Giá trị mô phỏng phải là số không âm.",
+      });
       return;
     }
     setRunningScenario(id);
@@ -254,9 +281,16 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
         }),
       });
       setScenarioResult(response.result?.projection || null);
-      setNotice("Đã chạy mô phỏng xác định từ các giả định đã nhập. Đây không phải dự báo AI.");
+      setNotice({
+        kind: "success",
+        message:
+          "Đã chạy mô phỏng xác định từ các giả định đã nhập. Đây không phải dự báo AI.",
+      });
     } catch (caught) {
-      setNotice(toUserFacingError(caught, "Không thể chạy mô phỏng."));
+      setNotice({
+        kind: "error",
+        message: toUserFacingError(caught, "Không thể chạy mô phỏng."),
+      });
     } finally {
       setRunningScenario(null);
     }
@@ -319,8 +353,24 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
         }
       />
       {notice && (
-        <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
-          {notice}
+        <div
+          role={notice.kind === "error" ? "alert" : "status"}
+          className={`rounded-lg border p-3 text-sm font-semibold ${
+            notice.kind === "error"
+              ? "border-rose-200 bg-rose-50 text-rose-900"
+              : "border-emerald-200 bg-emerald-50 text-emerald-900"
+          }`}
+        >
+          {notice.message}
+        </div>
+      )}
+      {dataWarning && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between" role="alert">
+          <span>{dataWarning}</span>
+          <Button type="button" variant="secondary" onClick={() => void refresh()}>
+            <RotateCw />
+            Thử tải lại
+          </Button>
         </div>
       )}
 

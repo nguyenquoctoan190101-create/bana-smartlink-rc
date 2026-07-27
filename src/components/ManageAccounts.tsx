@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
-import { WorkSection } from "./ui";
+import { ErrorState, WorkSection } from "./ui";
 
 interface Officer {
   id: string;
@@ -35,6 +35,7 @@ export default function ManageAccounts() {
   const { villages: new_villages } = useVillages();
   const [officers, setOfficers] = useState<Officer[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [resetPasswordResult, setResetPasswordResult] = useState<{name: string, tempPass: string} | null>(null);
@@ -62,12 +63,12 @@ export default function ManageAccounts() {
   // Fetch all accounts
   const fetchOfficers = async () => {
     setIsLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const resData = await apiJson<Officer[]>("/auth/officers");
       setOfficers(Array.isArray(resData) ? resData : []);
     } catch (err: any) {
-      setError(toUserFacingError(err, "Không thể tải danh sách tài khoản."));
+      setLoadError(toUserFacingError(err, "Không thể tải danh sách tài khoản."));
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +80,14 @@ export default function ManageAccounts() {
 
   // Toggle is_active status (Lock/Unlock)
   const handleToggleStatus = async (id: string, currentName: string, isCurrentlyActive: boolean) => {
+    const actionLabel = isCurrentlyActive ? "khóa" : "mở khóa";
+    if (
+      !window.confirm(
+        `Bạn xác nhận ${actionLabel} tài khoản của cán bộ ${currentName}? Thao tác sẽ được ghi vào nhật ký kiểm toán.`,
+      )
+    ) {
+      return;
+    }
     setError(null);
     setSuccess(null);
     try {
@@ -547,6 +556,13 @@ export default function ManageAccounts() {
           <div className="p-12 text-center text-slate-500 font-semibold text-2xs space-y-2">
             <RefreshCw className="w-8 h-8 animate-spin text-emerald-800 mx-auto" />
             <p>Đang đồng bộ danh sách tài khoản từ máy chủ...</p>
+          </div>
+        ) : loadError ? (
+          <div className="p-5">
+            <ErrorState
+              description={loadError}
+              onRetry={() => void fetchOfficers()}
+            />
           </div>
         ) : filteredOfficers.length === 0 ? (
           <div className="p-12 text-center text-slate-400 font-medium text-2xs space-y-1">

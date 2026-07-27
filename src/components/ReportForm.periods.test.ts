@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ReportPeriod } from "../types";
-import { getDraftSavedMessage, resolveRequestedReportPeriod } from "./ReportForm";
+import {
+  getDraftSavedMessage,
+  resolveRequestedReportPeriod,
+  shouldReturnAfterSubmission,
+} from "./ReportForm";
 
 const periods: ReportPeriod[] = [
   { id: "period-new", name: "Tháng 8/2026", due_date: "2026-08-25T17:00:00+07:00" },
@@ -38,5 +42,16 @@ describe("getDraftSavedMessage", () => {
     expect(message).toContain("chưa được gửi lên xã");
     expect(message).toContain("Thôn An Sơn");
     expect(message).toContain("Tháng 7/2026");
+  });
+});
+
+describe("shouldReturnAfterSubmission", () => {
+  it("returns after a server ACK or a safe offline queue", () => {
+    expect(shouldReturnAfterSubmission(true, true)).toBe(true);
+    expect(shouldReturnAfterSubmission(false, false)).toBe(true);
+  });
+
+  it("keeps the form open when an online submission is rejected or unacknowledged", () => {
+    expect(shouldReturnAfterSubmission(true, false)).toBe(false);
   });
 });

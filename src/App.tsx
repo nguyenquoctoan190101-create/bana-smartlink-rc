@@ -493,8 +493,11 @@ export default function App() {
     refreshMfaStatus,
     handleLogout,
   } = useAuth();
-  const { villages } = useVillages();
-  const { periods } = useReportPeriods();
+  const { villages, error: villagesError } = useVillages();
+  const { periods, error: periodsError } = useReportPeriods();
+  const referenceDataError = [villagesError, periodsError]
+    .filter(Boolean)
+    .join(" ");
 
   const [reports, setReports] = useState<ReportData[]>([]);
   const activePeriodId =
@@ -507,6 +510,7 @@ export default function App() {
     null,
   );
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [reportsLoadError, setReportsLoadError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [backendConfirmed, setBackendConfirmed] = useState<boolean>(false);
 
@@ -519,6 +523,9 @@ export default function App() {
   // --- NOTIFICATION HISTORY STATES ---
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
+  const [notificationError, setNotificationError] = useState<string | null>(
+    null,
+  );
   const [notificationSoundEnabled, setNotificationSoundEnabled] =
     useState<boolean>(
       () => window.localStorage.getItem("bn-notification-sound") !== "off",
@@ -566,9 +573,15 @@ export default function App() {
           data.map((notification) => notification.id),
         );
         setNotifications(data);
+        setNotificationError(null);
+      } else {
+        setNotificationError("Chưa tải được danh sách thông báo. Vui lòng thử lại sau.");
       }
     } catch (e) {
       console.error("Lỗi lấy lịch sử thông báo:", e);
+      setNotificationError(
+        toUserFacingError(e, "Chưa tải được danh sách thông báo."),
+      );
     }
   };
 
@@ -634,17 +647,20 @@ export default function App() {
   }, [isLoggedIn, userRole]);
 
   const handleMarkAsRead = async (id: string, url?: string) => {
+    setNotificationError(null);
     try {
       const res = await apiFetch(`/api/notifications/${id}/read`, {
         method: "POST",
       });
-      if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-        );
-      }
+      if (!res.ok) throw new Error("Không thể đánh dấu thông báo đã đọc.");
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+      );
     } catch (e) {
       console.error("Lỗi đánh dấu đã đọc:", e);
+      setNotificationError(
+        toUserFacingError(e, "Không thể đánh dấu thông báo đã đọc."),
+      );
     }
 
     if (url) {
@@ -671,21 +687,27 @@ export default function App() {
       .filter((notification) => !notification.is_read)
       .map((notification) => notification.id);
     if (unreadIds.length === 0) return;
+    setNotificationError(null);
     try {
       const res = await apiFetch("/api/notifications/read-all", {
         method: "POST",
       });
-      if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((notification) => ({
-            ...notification,
-            is_read: true,
-            read_at: notification.read_at ?? new Date().toISOString(),
-          })),
-        );
-      }
+      if (!res.ok) throw new Error("Không thể đánh dấu tất cả thông báo đã đọc.");
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          is_read: true,
+          read_at: notification.read_at ?? new Date().toISOString(),
+        })),
+      );
     } catch (e) {
       console.error("Lỗi đánh dấu tất cả thông báo đã đọc:", e);
+      setNotificationError(
+        toUserFacingError(
+          e,
+          "Không thể đánh dấu tất cả thông báo đã đọc.",
+        ),
+      );
     }
   };
 
@@ -864,6 +886,7 @@ export default function App() {
     if (isAuthLoading) return;
     if (!isLoggedIn || userRole === "dan") {
       setReports([]);
+      setReportsLoadError(null);
       setIsLoading(false);
       return;
     }
@@ -884,6 +907,7 @@ export default function App() {
   }, [isAuthLoading, isLoggedIn, userRole, userVillageId, userVillageIds]);
 
   const loadAllReports = async () => {
+    setReportsLoadError(null);
     try {
       const remote = await getAllReports(!isLoggedIn || userRole === "dan");
       const drafts =
@@ -899,6 +923,12 @@ export default function App() {
       setReports(all);
     } catch (e) {
       console.error("Lỗi tải báo cáo:", e);
+      setReportsLoadError(
+        toUserFacingError(
+          e,
+          "Không tải được danh sách báo cáo. Dữ liệu trên màn hình có thể chưa đầy đủ.",
+        ),
+      );
     }
   };
 
@@ -1750,6 +1780,7 @@ export default function App() {
                 isOpen={showNotifDropdown}
                 variant="mobile"
                 soundEnabled={notificationSoundEnabled}
+                error={notificationError}
                 onToggleOpen={() =>
                   setShowNotifDropdown((current) => !current)
                 }
@@ -1822,6 +1853,7 @@ export default function App() {
                 isOpen={showNotifDropdown}
                 variant="desktop"
                 soundEnabled={notificationSoundEnabled}
+                error={notificationError}
                 onToggleOpen={() =>
                   setShowNotifDropdown((current) => !current)
                 }
@@ -1849,6 +1881,52 @@ export default function App() {
           tabIndex={-1}
           className="gov-shell__content flex-1 space-y-6"
         >
+          {referenceDataError && (
+            <div
+              role="alert"
+              className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-bold">Chưa tải đủ dữ liệu tham chiếu</p>
+                <p className="mt-1">
+                  {referenceDataError} Một số bộ lọc hoặc biểu mẫu có thể chưa
+                  hiển thị đầy đủ.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Tải lại trang
+              </Button>
+            </div>
+          )}
+
+          {reportsLoadError && !isLoading && !isAuthLoading && (
+            <div
+              role="alert"
+              className="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-bold">Chưa tải đủ dữ liệu báo cáo</p>
+                <p className="mt-1">{reportsLoadError}</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setIsLoading(true);
+                  void loadAllReports().finally(() => setIsLoading(false));
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Thử tải lại
+              </Button>
+            </div>
+          )}
+
           {userRole === "lanh_dao" && activeLeaderSpace && (
             <nav
               aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}

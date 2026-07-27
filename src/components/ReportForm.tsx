@@ -72,6 +72,13 @@ export function getDraftSavedMessage(
   return `Đã lưu bản nháp cục bộ trên thiết bị này cho ${villageName} · kỳ ${reportPeriod}. Bản nháp chưa được gửi lên xã và sẽ tự nạp lại khi bạn mở đúng thôn/kỳ trên thiết bị này.`;
 }
 
+export function shouldReturnAfterSubmission(
+  online: boolean,
+  acceptedByServer: boolean,
+): boolean {
+  return !online || acceptedByServer;
+}
+
 export default function ReportForm({
   initialReport,
   initialPeriodId,
@@ -673,11 +680,14 @@ export default function ReportForm({
 
     setShowSubmitReview(false);
 
-    if (!navigator.onLine) {
+    const online = navigator.onLine;
+    let shouldReturn = false;
+    if (!online) {
       setSubmitMessage({
         type: "success",
         text: "Đã lưu an toàn trên thiết bị — báo cáo đang chờ gửi khi có kết nối.",
       });
+      shouldReturn = shouldReturnAfterSubmission(false, false);
     } else {
       try {
         const result = await syncQueuedReports();
@@ -692,6 +702,7 @@ export default function ReportForm({
             type: "success",
             text: "Nộp báo cáo thành công — máy chủ đã xác nhận tiếp nhận.",
           });
+          shouldReturn = shouldReturnAfterSubmission(true, true);
         } else if (rejected) {
           setSubmitMessage({
             type: "error",
@@ -712,10 +723,12 @@ export default function ReportForm({
     }
 
     setIsSubmittingReport(false);
-    setTimeout(() => {
-      setSubmitMessage(null);
-      onSaved();
-    }, 3000);
+    if (shouldReturn) {
+      setTimeout(() => {
+        setSubmitMessage(null);
+        onSaved();
+      }, 3000);
+    }
   };
 
   return (

@@ -343,5 +343,7 @@ describe("Dashboard device drafts", () => {
     expect(
       screen.getByLabelText("Các tín hiệu điều hành nổi bật"),
     ).toHaveTextContent("Tập trung an sinh");
+    expect(screen.getByLabelText("Kỳ dữ liệu")).toBeInTheDocument();
+    expect(screen.getByLabelText("Phạm vi thôn")).toBeInTheDocument();
   });
 });

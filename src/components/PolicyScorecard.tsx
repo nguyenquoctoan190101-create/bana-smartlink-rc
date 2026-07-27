@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
-import { WorkSection } from "./ui";
+import { Button, WorkSection } from "./ui";
 
 interface PolicyMetric {
   numerator: number;
@@ -34,7 +34,11 @@ export default function PolicyScorecard({
   onBackToDashboard?: () => void;
   preferredPeriodId?: string;
 }) {
-  const { periods: availablePeriods } = useReportPeriods();
+  const {
+    periods: availablePeriods,
+    isLoading: periodsLoading,
+    error: periodsError,
+  } = useReportPeriods();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("");
   const userSelectedPeriodRef = useRef(false);
   const [data, setData] = useState<ScorecardData | null>(null);
@@ -188,17 +192,42 @@ export default function PolicyScorecard({
         icon={<Award />}
       >
         {/* Loading state rendering */}
-        {loading ? (
+        {periodsLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
+            <p className="text-xs font-bold">Đang tải danh sách kỳ báo cáo...</p>
+          </div>
+        ) : periodsError ? (
+          <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3" role="alert">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-red-900">Chưa tải được kỳ báo cáo</h4>
+              <p className="text-4xs text-red-700 font-medium leading-relaxed">{periodsError}</p>
+            </div>
+          </div>
+        ) : availablePeriods.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
+            Chưa có kỳ báo cáo để tính chỉ số theo dõi.
+          </div>
+        ) : loading ? (
           <div className="h-64 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mb-2" />
             <p className="text-xs font-bold">Đang tổng hợp chỉ số từ dữ liệu báo cáo...</p>
           </div>
         ) : error ? (
-          <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3">
+          <div className="bg-red-50/50 border border-red-150 rounded-xl p-5 flex items-start gap-3" role="alert">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-red-900">Tính toán chỉ số thất bại</h4>
               <p className="text-4xs text-red-700 font-medium leading-relaxed">{error}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="mt-3"
+                onClick={() => selectedPeriod && void fetchScorecard(selectedPeriod)}
+              >
+                Thử tải lại
+              </Button>
             </div>
           </div>
         ) : data ? (

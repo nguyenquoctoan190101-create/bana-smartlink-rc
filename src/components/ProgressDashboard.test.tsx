@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProgressDashboard from "./ProgressDashboard";
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
@@ -13,8 +13,14 @@ const response = (payload: unknown) => ({
   ok: true,
   json: async () => payload,
 });
+const failedResponse = {
+  ok: false,
+  json: async () => ({}),
+};
 
 describe("ProgressDashboard", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.apiFetch.mockImplementation((path: string) => {
@@ -100,5 +106,50 @@ describe("ProgressDashboard", () => {
     expect(screen.getAllByText("Đúng hạn").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Trễ hạn").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Chưa nộp")).toBeInTheDocument();
+  });
+
+  it("keeps progress visible and warns when trend comparison is unavailable", async () => {
+    mocks.apiFetch.mockImplementation((path: string) => {
+      if (path.startsWith("/reports/status")) {
+        return Promise.resolve(
+          response({
+            period_id: "period-current",
+            villages: [
+              {
+                village_id: "village-1",
+                village_name: "Thôn An Sơn",
+                old_village_names: [],
+                report_id: "report-1",
+                submitted_at: "2026-07-20T08:00:00Z",
+                due_date: "2026-07-21",
+                days_late: 0,
+                status: "on_time",
+                dashboard_color: "green",
+              },
+            ],
+          }),
+        );
+      }
+      if (path === "/reports/periods") {
+        return Promise.resolve(failedResponse);
+      }
+      throw new Error(`Unexpected path ${path}`);
+    });
+
+    render(
+      <ProgressDashboard
+        periodId="period-current"
+        periods={[
+          { id: "period-current", name: "Tháng 7/2026", due_date: "2026-07-21" },
+          { id: "period-previous", name: "Tháng 6/2026", due_date: "2026-06-21" },
+        ]}
+      />,
+    );
+
+    expect(await screen.findByText("Thôn An Sơn")).toBeInTheDocument();
+    expect(
+      screen.getByText(/chưa đối chiếu được biến động với kỳ trước/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tỷ lệ nộp").parentElement).toHaveTextContent("100%");
   });
 });

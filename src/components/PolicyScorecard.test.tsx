@@ -2,7 +2,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PolicyScorecard from "./PolicyScorecard";
 
-const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  apiFetch: vi.fn(),
+  reportPeriods: {
+    periods: [
+      { id: "future-empty", name: "1/2027", due_date: "2027-01-31T17:00:00Z" },
+      { id: "approved-period", name: "Tháng 7/2026", due_date: "2026-07-31T17:00:00Z" },
+    ],
+    isLoading: false,
+    error: null as string | null,
+  },
+}));
 
 vi.mock("../lib/apiClient", () => ({
   apiFetch: mocks.apiFetch,
@@ -10,17 +20,18 @@ vi.mock("../lib/apiClient", () => ({
 }));
 
 vi.mock("../lib/useReportPeriods", () => ({
-  useReportPeriods: () => ({
-    periods: [
-      { id: "future-empty", name: "1/2027", due_date: "2027-01-31T17:00:00Z" },
-      { id: "approved-period", name: "Tháng 7/2026", due_date: "2026-07-31T17:00:00Z" },
-    ],
-  }),
+  useReportPeriods: () => mocks.reportPeriods,
 }));
 
 describe("PolicyScorecard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.reportPeriods.periods = [
+      { id: "future-empty", name: "1/2027", due_date: "2027-01-31T17:00:00Z" },
+      { id: "approved-period", name: "Tháng 7/2026", due_date: "2026-07-31T17:00:00Z" },
+    ];
+    mocks.reportPeriods.isLoading = false;
+    mocks.reportPeriods.error = null;
   });
 
   it("does not turn a zero denominator into a real zero percent", async () => {
@@ -71,5 +82,17 @@ describe("PolicyScorecard", () => {
       ),
     );
     expect(await screen.findByText(/100% báo cáo nộp điện tử/i)).toBeInTheDocument();
+  });
+
+  it("shows an empty state instead of loading forever when no period exists", () => {
+    mocks.reportPeriods.periods = [];
+
+    render(<PolicyScorecard />);
+
+    expect(
+      screen.getByText("Chưa có kỳ báo cáo để tính chỉ số theo dõi."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Đang tổng hợp chỉ số/i)).not.toBeInTheDocument();
+    expect(mocks.apiFetch).not.toHaveBeenCalled();
   });
 });

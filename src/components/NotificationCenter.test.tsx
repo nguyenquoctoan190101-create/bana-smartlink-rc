@@ -81,6 +81,26 @@ describe("NotificationCenter", () => {
     expect(screen.getByText("Âm báo đang tắt")).toBeInTheDocument();
   });
 
+  it("does not disguise a failed notification request as an empty inbox", () => {
+    render(
+      <NotificationCenter
+        notifications={[]}
+        isOpen
+        variant="desktop"
+        soundEnabled
+        error="Chưa tải được danh sách thông báo."
+        onToggleOpen={vi.fn()}
+        onToggleSound={vi.fn()}
+        onSelect={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Chưa tải được danh sách thông báo.",
+    );
+  });
+
   it("formats recent times in language that is quick to recognize", () => {
     const now = new Date("2026-07-27T08:30:00+07:00").getTime();
     expect(
