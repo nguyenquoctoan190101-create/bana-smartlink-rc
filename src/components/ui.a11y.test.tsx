@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
-import { DataScope, EmptyState, MetricCard, PageHeader, StatusBadge, Wordmark } from "./ui";
+import { DataScope, EmptyState, MetricCard, PageHeader, StatusBadge, Wordmark, WorkSection } from "./ui";
 
 describe("civic design system accessibility", () => {
   it("renders core components without serious or critical axe violations", async () => {
@@ -10,6 +10,9 @@ describe("civic design system accessibility", () => {
       <PageHeader eyebrow="Điều hành" title="Việc của tôi" description="Theo dõi việc cần xử lý." />
       <DataScope period="Tháng 7/2026" scope="Thôn mẫu" quality="Đạt" />
       <MetricCard label="Báo cáo cần xem" value="—" context="Chưa có dữ liệu" />
+      <WorkSection index="01" title="Ưu tiên điều hành" description="Tách riêng các điểm cần chú ý." tone="focus">
+        <p>Nội dung nhóm công việc</p>
+      </WorkSection>
       <StatusBadge status="needs_revision" />
       <StatusBadge status="accepted" />
       <StatusBadge status="ready" />

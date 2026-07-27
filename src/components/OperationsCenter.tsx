@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson } from "../lib/apiClient";
 import type { ReportPeriod, UserRole } from "../types";
-import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, SectionCard, StatusBadge } from "./ui";
+import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
 
 type Props = {
   periodId: string;
@@ -89,6 +89,25 @@ const roleCopy: Record<string, { eyebrow: string; title: string; description: st
   },
 };
 
+const roleOverviewCopy: Record<string, { title: string; description: string }> = {
+  admin_xa: {
+    title: "Ưu tiên điều hành",
+    description: "Xem phạm vi dữ liệu, kết luận cần chú ý và các chỉ số phải xử lý trước khi chuyển sang hàng việc chi tiết.",
+  },
+  lanh_dao: {
+    title: "Ưu tiên ra quyết định",
+    description: "Tập trung vào dữ liệu đã phê duyệt, điểm bất thường và các việc cần lãnh đạo xem trước.",
+  },
+  can_bo_thon: {
+    title: "Bức tranh công việc của thôn",
+    description: "Tách riêng phạm vi phụ trách và các chỉ số tổng quan trước khi đi vào từng việc được giao.",
+  },
+  to_cnscd: {
+    title: "Bức tranh công việc hỗ trợ",
+    description: "Tổng hợp phạm vi thôn được hỗ trợ và các chỉ số cần chú ý trước khi xử lý từng việc.",
+  },
+};
+
 export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIODS, maturityEnabled = false, onNavigate }: Props) {
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
@@ -110,6 +129,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const internal = role === "admin_xa" || role === "lanh_dao";
   const admin = role === "admin_xa";
   const copy = roleCopy[role] ?? roleCopy.can_bo_thon;
+  const overviewCopy = roleOverviewCopy[role] ?? roleOverviewCopy.can_bo_thon;
   const qualityScopeLabel =
     role === "to_cnscd"
       ? "phạm vi hỗ trợ"
@@ -263,7 +283,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     );
 
   return (
-    <div className="space-y-6">
+    <div className="operations-workspace space-y-6">
       <PageHeader
         eyebrow={copy.eyebrow}
         title={copy.title}
@@ -283,89 +303,101 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           </div>
         ))}
 
-      <DataScope period={quality?.period?.name || (periodId ? "Kỳ đang chọn" : "Chưa có kỳ")} scope={role === "can_bo_thon" ? "Thôn được phân công" : role === "to_cnscd" ? "Thôn được hỗ trợ" : "Toàn xã"} quality={quality?.rule_version ? `Bộ quy tắc ${quality.rule_version} · tổng hợp ${generatedAt}` : "Chưa có dữ liệu đánh giá"} qualityLabel="Đánh giá" />
+      <WorkSection
+        id="operations-overview"
+        index="01"
+        title={overviewCopy.title}
+        description={overviewCopy.description}
+        tone="focus"
+        icon={<Target />}
+      >
+        <DataScope period={quality?.period?.name || (periodId ? "Kỳ đang chọn" : "Chưa có kỳ")} scope={role === "can_bo_thon" ? "Thôn được phân công" : role === "to_cnscd" ? "Thôn được hỗ trợ" : "Toàn xã"} quality={quality?.rule_version ? `Bộ quy tắc ${quality.rule_version} · tổng hợp ${generatedAt}` : "Chưa có dữ liệu đánh giá"} qualityLabel="Đánh giá" />
 
-      {internal && (
-        <SectionCard className="executive-brief p-5 md:p-6" aria-labelledby="executive-summary-title">
-          <div className="executive-brief__heading">
-            <div>
-              <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
-              <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
-              <p>{executiveMessage}</p>
+        {internal && (
+          <SectionCard className="executive-brief p-5 md:p-6" aria-labelledby="executive-summary-title">
+            <div className="executive-brief__heading">
+              <div>
+                <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
+                <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
+                <p>{executiveMessage}</p>
+              </div>
+              <StatusBadge status={overdueActions.length ? "overdue" : flaggedReports.length ? "needs_review" : "ready"} label={overdueActions.length ? "Cần xử lý ngay" : flaggedReports.length ? "Cần rà soát" : "Trong kiểm soát"} />
             </div>
-            <StatusBadge status={overdueActions.length ? "overdue" : flaggedReports.length ? "needs_review" : "ready"} label={overdueActions.length ? "Cần xử lý ngay" : flaggedReports.length ? "Cần rà soát" : "Trong kiểm soát"} />
-          </div>
-          <dl className="executive-brief__facts">
-            <div>
-              <dt>
-                <CalendarDays aria-hidden="true" /> Kỳ dữ liệu
-              </dt>
-              <dd>{quality?.period?.name || "Chưa xác định"}</dd>
-            </div>
-            <div>
-              <dt>
-                <FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt
-              </dt>
-              <dd>{approvedReports.length} báo cáo</dd>
-            </div>
-            <div>
-              <dt>
-                <Clock3 aria-hidden="true" /> Độ mới
-              </dt>
-              <dd>{generatedAt}</dd>
-            </div>
-            <div>
-              <dt>
-                <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
-              </dt>
-              <dd>{available.alerts === false ? "—" : alerts.length}</dd>
-            </div>
-            <div>
-              <dt>
-                <AlertTriangle aria-hidden="true" /> Việc quá hạn
-              </dt>
-              <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
-            </div>
-            <div>
-              <dt>
-                <UserRoundCheck aria-hidden="true" /> Người phụ trách
-              </dt>
-              <dd>{overdueOwners}</dd>
-            </div>
-          </dl>
-          <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
-          {onNavigate && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => onNavigate("dashboard")}>
-                <Link2 />
-                Xem báo cáo và căn cứ
-              </Button>
-              <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}>
-                <Link2 />
-                Xem tiến độ các thôn
-              </Button>
-              <Button variant="secondary" onClick={() => onNavigate("cases")}>
-                <Link2 />
-                Xem công việc và cảnh báo
-              </Button>
-            </div>
-          )}
-        </SectionCard>
-      )}
+            <dl className="executive-brief__facts">
+              <div>
+                <dt>
+                  <CalendarDays aria-hidden="true" /> Kỳ dữ liệu
+                </dt>
+                <dd>{quality?.period?.name || "Chưa xác định"}</dd>
+              </div>
+              <div>
+                <dt>
+                  <FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt
+                </dt>
+                <dd>{approvedReports.length} báo cáo</dd>
+              </div>
+              <div>
+                <dt>
+                  <Clock3 aria-hidden="true" /> Độ mới
+                </dt>
+                <dd>{generatedAt}</dd>
+              </div>
+              <div>
+                <dt>
+                  <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
+                </dt>
+                <dd>{available.alerts === false ? "—" : alerts.length}</dd>
+              </div>
+              <div>
+                <dt>
+                  <AlertTriangle aria-hidden="true" /> Việc quá hạn
+                </dt>
+                <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
+              </div>
+              <div>
+                <dt>
+                  <UserRoundCheck aria-hidden="true" /> Người phụ trách
+                </dt>
+                <dd>{overdueOwners}</dd>
+              </div>
+            </dl>
+            <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
+            {onNavigate && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => onNavigate("dashboard")}>
+                  <Link2 />
+                  Xem báo cáo và căn cứ
+                </Button>
+                <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}>
+                  <Link2 />
+                  Xem tiến độ các thôn
+                </Button>
+                <Button variant="secondary" onClick={() => onNavigate("cases")}>
+                  <Link2 />
+                  Xem công việc và cảnh báo
+                </Button>
+              </div>
+            )}
+          </SectionCard>
+        )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
-        <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
-        <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
-        {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
-      </div>
-
-      <SectionCard className="p-5 md:p-6">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Việc cần xử lý</h2>
-          <p className="mt-1 text-sm text-slate-600">Sắp xếp theo hạn và mức ưu tiên; trạng thái được cập nhật ngay trên hệ thống.</p>
+        <div className="work-section__metrics grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
+          <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
+          <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
+          {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
         </div>
-        <div className="mt-5 space-y-3">
+      </WorkSection>
+
+      <WorkSection
+        id="operations-tasks"
+        index="02"
+        title="Hàng việc cần xử lý"
+        description="Mỗi thẻ là một việc độc lập, có người phụ trách, mức ưu tiên, thời hạn và hành động tương ứng."
+        tone="tasks"
+        icon={<ClipboardList />}
+      >
+        <div className="work-section__list space-y-3">
           {available.actions === false ? (
             <ErrorState title="Chưa tải được danh sách việc" description="Các chỉ số khác vẫn dùng được. Hãy thử tải lại danh sách việc." onRetry={() => void refresh()} />
           ) : (
@@ -419,65 +451,17 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
             </>
           )}
         </div>
-      </SectionCard>
+      </WorkSection>
 
-      {internal && (
-        <SectionCard className="p-5 md:p-6">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-                <BrainCircuit className="h-5 w-5 text-indigo-700" />
-                Nội dung điều hành gợi ý
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">Chỉ hiển thị nội dung thuộc kỳ đang xem. Trạng thái cho biết nội dung còn chờ hay đã được người có thẩm quyền xử lý; hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
-            </div>
-            {admin && (
-              <Button onClick={() => void createDraft()} disabled={!periodId}>
-                <Sparkles />
-                Tạo nội dung gợi ý
-              </Button>
-            )}
-          </div>
-          <div className="mt-5 space-y-3">
-            {available.drafts === false ? (
-              <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
-            ) : (
-              <>
-                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Cán bộ xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
-                {currentPeriodDrafts.slice(0, 5).map((draft) => (
-                  <article key={draft.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <StatusBadge status={draft.status} />
-                      <span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>
-                      {draft.created_at && (
-                        <span className="text-xs text-slate-500">
-                          Tạo lúc {new Date(draft.created_at).toLocaleString("vi-VN")}
-                        </span>
-                      )}
-                      {admin && draft.status === "pending_review" && (
-                        <div className="ml-auto flex gap-2">
-                          <Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button>
-                          <Button variant="secondary" onClick={() => void reviewDraft(draft.id, "rejected")}>
-                            Từ chối
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </>
-            )}
-          </div>
-        </SectionCard>
-      )}
-
-      <SectionCard className="overflow-hidden">
-        <div className="border-b border-slate-200 p-5 md:p-6">
-          <h2 className="text-lg font-bold text-slate-900">Chất lượng dữ liệu theo báo cáo</h2>
-          <p className="mt-1 text-sm text-slate-600">Mỗi dòng có nguồn nhập, phiên bản và số cảnh báo cần người có trách nhiệm xem lại.</p>
-        </div>
-        <div className="overflow-x-auto">
+      <WorkSection
+        id="operations-evidence"
+        index="03"
+        title="Dữ liệu cần rà soát"
+        description="Tách riêng bằng chứng dữ liệu khỏi hàng việc; mỗi dòng cho biết chất lượng, cảnh báo, nguồn nhập và phiên bản."
+        tone="evidence"
+        icon={<ShieldCheck />}
+      >
+        <div className="work-table-shell overflow-x-auto">
           {available.quality === false ? (
             <div className="p-5">
               <ErrorState title="Chưa tải được chất lượng dữ liệu" description="Không hiển thị số 0 thay cho dữ liệu chưa tải được." onRetry={() => void refresh()} />
@@ -516,13 +500,73 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
             </>
           )}
         </div>
-      </SectionCard>
+      </WorkSection>
+
+      {internal && (
+        <WorkSection
+          id="operations-support"
+          index="04"
+          title="Nội dung hỗ trợ quyết định"
+          description="Nội dung gợi ý được đặt trong vùng riêng, luôn có trạng thái và không trộn với việc đã giao hoặc dữ liệu đã phê duyệt."
+          tone="support"
+          icon={<BrainCircuit />}
+          actions={
+            admin ? (
+              <Button onClick={() => void createDraft()} disabled={!periodId}>
+                <Sparkles />
+                Tạo nội dung gợi ý
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="work-section__list space-y-3">
+            {available.drafts === false ? (
+              <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
+            ) : (
+              <>
+                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Cán bộ xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
+                {currentPeriodDrafts.slice(0, 5).map((draft) => (
+                  <article key={draft.id} className="work-support-card rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <StatusBadge status={draft.status} />
+                      <span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>
+                      {draft.created_at && (
+                        <span className="text-xs text-slate-500">
+                          Tạo lúc {new Date(draft.created_at).toLocaleString("vi-VN")}
+                        </span>
+                      )}
+                      {admin && draft.status === "pending_review" && (
+                        <div className="ml-auto flex gap-2">
+                          <Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button>
+                          <Button variant="secondary" onClick={() => void reviewDraft(draft.id, "rejected")}>
+                            Từ chối
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </>
+            )}
+          </div>
+        </WorkSection>
+      )}
 
       {admin && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {maturityEnabled && <MetricCard label="Đánh giá trưởng thành số — thử nghiệm" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} />}
-          <MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} />
-        </div>
+        <WorkSection
+          id="operations-innovation"
+          index="05"
+          title="Theo dõi đổi mới nội bộ"
+          description="Các chỉ số thử nghiệm và sáng kiến được tách khỏi hàng việc chính để không làm nhiễu ưu tiên vận hành."
+          tone="innovation"
+          icon={<Sparkles />}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {maturityEnabled && <MetricCard label="Đánh giá trưởng thành số — thử nghiệm" value={available.maturity === false ? "—" : maturity.length} context={available.maturity === false ? "Không tải được dữ liệu" : maturity.length ? "Kết quả nội bộ, không phải xếp hạng chính thức" : "Chưa có tự đánh giá quý"} tone="success" icon={<Target />} />}
+            <MetricCard label="Sáng kiến đổi mới" value={available.initiatives === false ? "—" : initiatives.length} context={available.initiatives === false ? "Không tải được dữ liệu" : initiatives.length ? "Có sáng kiến trong danh mục" : "Chưa có sáng kiến được đăng ký"} tone="warning" icon={<ClipboardList />} />
+          </div>
+        </WorkSection>
       )}
     </div>
   );

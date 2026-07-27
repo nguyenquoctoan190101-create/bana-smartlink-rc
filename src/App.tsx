@@ -1818,7 +1818,11 @@ export default function App() {
             </div>
           ) : (
             <React.Suspense fallback={<LoadingPanel />}>
-              <div className="role-screen space-y-6">
+              <div
+                className="role-screen space-y-6"
+                data-screen={activeTab}
+                data-role={userRole}
+              >
                 {activeTab === "dashboard" && (
                   <>
                     <Dashboard

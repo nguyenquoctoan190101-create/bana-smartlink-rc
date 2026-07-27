@@ -163,6 +163,56 @@ export function SectionCard({ children, className = "", ...props }: HTMLAttribut
   return <section className={`ui-card ${className}`} {...props}>{children}</section>;
 }
 
+type WorkSectionProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
+  index: string;
+  title: string;
+  description: string;
+  tone?: "focus" | "tasks" | "evidence" | "support" | "innovation";
+  icon?: ReactNode;
+  actions?: ReactNode;
+};
+
+export function WorkSection({
+  index,
+  title,
+  description,
+  tone = "focus",
+  icon,
+  actions,
+  children,
+  className = "",
+  ...props
+}: WorkSectionProps) {
+  const headingId = useId();
+
+  return (
+    <section
+      className={`work-section ${className}`}
+      data-tone={tone}
+      aria-labelledby={headingId}
+      {...props}
+    >
+      <header className="work-section__header">
+        <span className="work-section__index" aria-hidden="true">
+          {index}
+        </span>
+        {icon && (
+          <span className="work-section__icon" aria-hidden="true">
+            {icon}
+          </span>
+        )}
+        <div className="work-section__heading">
+          <p className="work-section__eyebrow">Nhóm công việc {index}</p>
+          <h2 id={headingId}>{title}</h2>
+          <p>{description}</p>
+        </div>
+        {actions && <div className="work-section__actions">{actions}</div>}
+      </header>
+      <div className="work-section__body">{children}</div>
+    </section>
+  );
+}
+
 export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: ReactNode }) {
   return (
     <header className="page-heading">

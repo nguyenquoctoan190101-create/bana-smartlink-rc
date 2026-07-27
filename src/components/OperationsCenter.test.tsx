@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OperationsCenter from "./OperationsCenter";
 
@@ -41,6 +41,10 @@ describe("OperationsCenter", () => {
     render(<OperationsCenter periodId="period-1" role="admin_xa" />);
 
     await waitFor(() => expect(screen.getAllByText("92%")).toHaveLength(2));
+    expect(screen.getByRole("heading", { name: "Ưu tiên điều hành" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Nội dung hỗ trợ quyết định" })).toBeInTheDocument();
     expect(screen.getByText("Thôn An Sơn")).toBeInTheDocument();
     expect(screen.getByText(/Không tải được nội dung điều hành chờ duyệt/)).toBeInTheDocument();
     expect(screen.getByText("Chưa tải được nội dung gợi ý")).toBeInTheDocument();
@@ -127,5 +131,26 @@ describe("OperationsCenter", () => {
     expect(
       screen.getAllByText("1 báo cáo trong phạm vi quyết định").length,
     ).toBeGreaterThan(0);
+  });
+
+  it.each([
+    ["can_bo_thon", "Bức tranh công việc của thôn"],
+    ["to_cnscd", "Bức tranh công việc hỗ trợ"],
+  ] as const)("labels the overview for the %s role without exposing internal support content", async (role, heading) => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({ reports: [] });
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    const { container } = render(<OperationsCenter periodId="period-1" role={role} />);
+    const view = within(container);
+
+    expect(await view.findByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
+    expect(view.queryByRole("heading", { name: "Nội dung hỗ trợ quyết định" })).not.toBeInTheDocument();
   });
 });
