@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ReportPeriodChangeRequests from "./ReportPeriodChangeRequests";
@@ -57,11 +57,10 @@ describe("ReportPeriodChangeRequests", () => {
     render(<ReportPeriodChangeRequests role="admin_xa" periods={periods} />);
 
     const nameInput = await screen.findByLabelText("Tên kỳ đề nghị");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Tháng 08/2026");
-    await user.type(
+    fireEvent.change(nameInput, { target: { value: "Tháng 08/2026" } });
+    fireEvent.change(
       screen.getByLabelText(/Lý do đề nghị/),
-      "Điều chỉnh theo văn bản rà soát đã ký.",
+      { target: { value: "Điều chỉnh theo văn bản rà soát đã ký." } },
     );
     await user.click(screen.getByRole("button", { name: "Gửi lãnh đạo phê duyệt" }));
 
@@ -120,7 +119,9 @@ describe("ReportPeriodChangeRequests", () => {
     expect(await screen.findByText("Thông tin đang lưu")).toBeInTheDocument();
     expect(screen.getByText("Thông tin đề nghị thay đổi")).toBeInTheDocument();
     expect(screen.getByText("Tháng 08/2026")).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Lý do quyết định/), "Đủ căn cứ để áp dụng.");
+    fireEvent.change(screen.getByLabelText(/Lý do quyết định/), {
+      target: { value: "Đủ căn cứ để áp dụng." },
+    });
     await user.click(screen.getByRole("button", { name: "Phê duyệt" }));
 
     await waitFor(() => expect(mocks.apiJson).toHaveBeenCalledWith(
