@@ -523,10 +523,12 @@ export default function PublicVillagePage({
         <div className="space-y-5">
           <WorkSection
             index="01"
+            eyebrow="Nội dung công khai 01"
             title="Chọn địa bàn và kỳ công bố"
             description="Chọn một thôn và thời điểm công bố trước khi đọc số liệu; phạm vi đang xem luôn được ghi rõ bên dưới."
             tone="focus"
             icon={<MapPin />}
+            className="public-section"
           >
             <FilterBar>
               <div className="grid flex-1 gap-3 sm:grid-cols-2">
@@ -576,10 +578,12 @@ export default function PublicVillagePage({
 
           <WorkSection
             index="02"
+            eyebrow="Nội dung công khai 02"
             title="Số liệu đã công bố"
             description="Chỉ hiển thị các chỉ tiêu được phép công khai; dữ liệu thiếu vẫn để trống và luôn ghi rõ nguồn công bố."
             tone="evidence"
             icon={<FileText />}
+            className="public-section"
           >
             <div className="space-y-4">
               {isLoading ? (
@@ -634,10 +638,12 @@ export default function PublicVillagePage({
 
           <WorkSection
             index="03"
+            eyebrow="Nội dung công khai 03"
             title="Điểm sơ tán công khai"
             description="Thông tin chuẩn bị ứng phó đã được cơ quan có thẩm quyền duyệt; đây không phải kênh phát cảnh báo khẩn cấp."
             tone="tasks"
             icon={<Navigation />}
+            className="public-section"
           >
             <SectionCard className="p-5">
               <div className="flex items-start gap-3">
@@ -705,10 +711,12 @@ export default function PublicVillagePage({
 
           <WorkSection
             index="04"
+            eyebrow="Nội dung công khai 04"
             title="Thông tin địa bàn và nguyên tắc công khai"
             description="Giải thích ngắn gọn phạm vi hành chính, đơn vị tổng hợp và điều kiện để dữ liệu được đưa lên cổng."
             tone="support"
             icon={<ShieldCheck />}
+            className="public-section"
           >
             <section
               className="public-place-story"

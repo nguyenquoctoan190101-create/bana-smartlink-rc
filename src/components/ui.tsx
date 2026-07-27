@@ -167,6 +167,7 @@ type WorkSectionProps = Omit<HTMLAttributes<HTMLElement>, "title"> & {
   index: string;
   title: string;
   description: string;
+  eyebrow?: string;
   tone?: "focus" | "tasks" | "evidence" | "support" | "innovation";
   icon?: ReactNode;
   actions?: ReactNode;
@@ -176,6 +177,7 @@ export function WorkSection({
   index,
   title,
   description,
+  eyebrow,
   tone = "focus",
   icon,
   actions,
@@ -202,7 +204,9 @@ export function WorkSection({
           </span>
         )}
         <div className="work-section__heading">
-          <p className="work-section__eyebrow">Nhóm công việc {index}</p>
+          <p className="work-section__eyebrow">
+            {eyebrow ?? `Nhóm công việc ${index}`}
+          </p>
           <h2 id={headingId}>{title}</h2>
           <p>{description}</p>
         </div>
