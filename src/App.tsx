@@ -7,6 +7,9 @@ import { ReportData, UserRole } from "./types";
 import SyncStatus from "./components/SyncStatus";
 import ChatWidget from "./components/ChatWidget";
 import PrivacyPolicy from "./components/PrivacyPolicy";
+import NotificationCenter, {
+  AppNotification,
+} from "./components/NotificationCenter";
 import { Button, Wordmark } from "./components/ui";
 import { useVillages } from "./lib/useVillages";
 import { useReportPeriods } from "./lib/useReportPeriods";
@@ -33,7 +36,6 @@ import {
   Wifi,
   WifiOff,
   Plus,
-  Bell,
   FileArchive,
   MapPinned,
   Radio,
@@ -77,6 +79,52 @@ const CaseManagement = React.lazy(() => import("./components/CaseManagement"));
 const PilotWorkbench = React.lazy(() => import("./components/PilotWorkbench"));
 const RecordLookup = React.lazy(() => import("./components/RecordLookup"));
 const MfaGate = React.lazy(() => import("./components/MfaGate"));
+
+function playNotificationChime() {
+  const AudioContextConstructor =
+    window.AudioContext ??
+    (
+      window as Window & {
+        webkitAudioContext?: typeof AudioContext;
+      }
+    ).webkitAudioContext;
+  if (!AudioContextConstructor) return;
+
+  try {
+    const context = new AudioContextConstructor();
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, context.currentTime);
+    master.gain.exponentialRampToValueAtTime(
+      0.12,
+      context.currentTime + 0.018,
+    );
+    master.gain.exponentialRampToValueAtTime(
+      0.0001,
+      context.currentTime + 0.42,
+    );
+    master.connect(context.destination);
+
+    [740, 988].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const startAt = context.currentTime + index * 0.11;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, startAt);
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.72, startAt + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.2);
+      oscillator.connect(gain);
+      gain.connect(master);
+      oscillator.start(startAt);
+      oscillator.stop(startAt + 0.22);
+    });
+
+    if (context.state === "suspended") void context.resume();
+    window.setTimeout(() => void context.close(), 650);
+  } catch {
+    // Some browsers block audio until the page receives a user gesture.
+  }
+}
 
 type AppTab =
   | "dashboard"
@@ -467,9 +515,14 @@ export default function App() {
   >(null);
 
   // --- NOTIFICATION HISTORY STATES ---
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState<boolean>(false);
+  const [notificationSoundEnabled, setNotificationSoundEnabled] =
+    useState<boolean>(
+      () => window.localStorage.getItem("bn-notification-sound") !== "off",
+    );
+  const knownNotificationIdsRef = useRef<Set<string> | null>(null);
+  const notificationSoundEnabledRef = useRef(notificationSoundEnabled);
   const [showRoleScope, setShowRoleScope] = useState<boolean>(false);
   const [showMobileMore, setShowMobileMore] = useState<boolean>(false);
   const mobileMoreDialogRef = useRef<HTMLDivElement>(null);
@@ -492,9 +545,22 @@ export default function App() {
     try {
       const res = await apiFetch("/api/notifications");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as AppNotification[];
+        const knownIds = knownNotificationIdsRef.current;
+        if (
+          knownIds &&
+          notificationSoundEnabledRef.current &&
+          data.some(
+            (notification) =>
+              !notification.is_read && !knownIds.has(notification.id),
+          )
+        ) {
+          playNotificationChime();
+        }
+        knownNotificationIdsRef.current = new Set(
+          data.map((notification) => notification.id),
+        );
         setNotifications(data);
-        setUnreadCount(data.filter((n: any) => !n.is_read).length);
       }
     } catch (e) {
       console.error("Lỗi lấy lịch sử thông báo:", e);
@@ -502,12 +568,20 @@ export default function App() {
   };
 
   useEffect(() => {
+    notificationSoundEnabledRef.current = notificationSoundEnabled;
+  }, [notificationSoundEnabled]);
+
+  useEffect(() => {
     if (isLoggedIn && userRole !== "dan") {
+      knownNotificationIdsRef.current = null;
       fetchNotifications();
       const interval = window.setInterval(() => {
         if (document.visibilityState === "visible") void fetchNotifications();
       }, 30000);
-      return () => window.clearInterval(interval);
+      return () => {
+        window.clearInterval(interval);
+        knownNotificationIdsRef.current = null;
+      };
     }
   }, [isLoggedIn, userRole]);
 
@@ -563,7 +637,6 @@ export default function App() {
         setNotifications((prev) =>
           prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
         );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
       }
     } catch (e) {
       console.error("Lỗi đánh dấu đã đọc:", e);
@@ -586,6 +659,42 @@ export default function App() {
         changeTab("dashboard");
       }
     }
+  };
+
+  const handleMarkAllNotificationsAsRead = async () => {
+    const unreadIds = notifications
+      .filter((notification) => !notification.is_read)
+      .map((notification) => notification.id);
+    if (unreadIds.length === 0) return;
+    try {
+      const res = await apiFetch("/api/notifications/read-all", {
+        method: "POST",
+      });
+      if (res.ok) {
+        setNotifications((prev) =>
+          prev.map((notification) => ({
+            ...notification,
+            is_read: true,
+            read_at: notification.read_at ?? new Date().toISOString(),
+          })),
+        );
+      }
+    } catch (e) {
+      console.error("Lỗi đánh dấu tất cả thông báo đã đọc:", e);
+    }
+  };
+
+  const handleToggleNotificationSound = () => {
+    setNotificationSoundEnabled((current) => {
+      const next = !current;
+      notificationSoundEnabledRef.current = next;
+      window.localStorage.setItem(
+        "bn-notification-sound",
+        next ? "on" : "off",
+      );
+      if (next) playNotificationChime();
+      return next;
+    });
   };
 
   // Network monitor
@@ -1574,66 +1683,22 @@ export default function App() {
 
             {/* Notification Bell for Mobile */}
             {isLoggedIn && userRole !== "dan" && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                  aria-label="Mở danh sách thông báo"
-                  aria-expanded={showNotifDropdown}
-                  aria-controls="mobile-notification-list"
-                  className="relative inline-flex min-h-11 min-w-11 items-center justify-center bg-emerald-900 hover:bg-emerald-850 rounded-lg text-white cursor-pointer"
-                  title="Thông báo"
-                >
-                  <Bell className="w-4 h-4" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-emerald-950">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                {showNotifDropdown && (
-                  <div
-                    id="mobile-notification-list"
-                    className="gov-mobile-notifications bg-white rounded-xl shadow-xl border border-slate-150 py-1.5 text-slate-800"
-                  >
-                    <div className="px-3.5 py-1.5 border-b border-slate-100 flex items-center justify-between">
-                      <span className="font-extrabold text-[10px] uppercase text-slate-900">
-                        Thông báo ({unreadCount})
-                      </span>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
-                      {notifications.length === 0 ? (
-                        <div className="px-3 py-4 text-center text-slate-400 text-4xs font-bold">
-                          Không có thông báo.
-                        </div>
-                      ) : (
-                        notifications.map((notif) => (
-                          <button
-                            type="button"
-                            key={notif.id}
-                            onClick={() =>
-                              handleMarkAsRead(notif.id, notif.url)
-                            }
-                            className={`block w-full px-3 py-2 text-left hover:bg-slate-50 cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-1">
-                              <span className="text-4xs font-bold text-slate-900">
-                                {notif.title}
-                              </span>
-                              {!notif.is_read && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0 mt-1"></span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-slate-500 font-semibold mt-0.5 leading-tight">
-                              {notif.body}
-                            </p>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <NotificationCenter
+                notifications={notifications}
+                isOpen={showNotifDropdown}
+                variant="mobile"
+                soundEnabled={notificationSoundEnabled}
+                onToggleOpen={() =>
+                  setShowNotifDropdown((current) => !current)
+                }
+                onToggleSound={handleToggleNotificationSound}
+                onSelect={(notification) =>
+                  void handleMarkAsRead(notification.id, notification.url ?? undefined)
+                }
+                onMarkAllRead={() =>
+                  void handleMarkAllNotificationsAsRead()
+                }
+              />
             )}
 
             {/* Logout trigger on mobile top header */}
@@ -1690,78 +1755,22 @@ export default function App() {
 
             {/* Notification Bell Dropdown Button */}
             {isLoggedIn && userRole !== "dan" && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                  aria-label="Mở danh sách thông báo"
-                  aria-expanded={showNotifDropdown}
-                  aria-controls="desktop-notification-list"
-                  className="relative h-11 w-11 text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 rounded-xl transition-all border border-slate-200 cursor-pointer focus:outline-none flex items-center justify-center"
-                  title="Thông báo hệ thống"
-                >
-                  <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full animate-bounce border-2 border-white shadow-xs">
-                      {unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                {showNotifDropdown && (
-                  <div
-                    id="desktop-notification-list"
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-150 py-2 z-50 animate-in fade-in slide-in-from-top-3 duration-200 text-slate-800"
-                  >
-                    <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
-                      <span className="font-extrabold text-xs text-slate-900 uppercase tracking-tight">
-                        Thông báo ({unreadCount})
-                      </span>
-                    </div>
-
-                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
-                      {notifications.length === 0 ? (
-                        <div className="px-4 py-6 text-center text-slate-400 text-xs font-semibold">
-                          Không có thông báo nào.
-                        </div>
-                      ) : (
-                        notifications.map((notif) => (
-                          <button
-                            type="button"
-                            key={notif.id}
-                            onClick={() =>
-                              handleMarkAsRead(notif.id, notif.url)
-                            }
-                            className={`block w-full px-4 py-3 text-left hover:bg-slate-25 transition-all cursor-pointer ${!notif.is_read ? "bg-slate-50/50" : ""}`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <span
-                                className={`text-xs font-bold text-slate-900 ${!notif.is_read ? "text-emerald-950 font-black" : "text-slate-600"}`}
-                              >
-                                {notif.title}
-                              </span>
-                              {!notif.is_read && (
-                                <span className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0"></span>
-                              )}
-                            </div>
-                            <p className="text-4xs text-slate-500 font-semibold mt-1 leading-normal">
-                              {notif.body}
-                            </p>
-                            <span className="text-xs text-slate-500 font-medium mt-1 block">
-                              {new Date(notif.created_at).toLocaleTimeString(
-                                "vi-VN",
-                              )}{" "}
-                              -{" "}
-                              {new Date(notif.created_at).toLocaleDateString(
-                                "vi-VN",
-                              )}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <NotificationCenter
+                notifications={notifications}
+                isOpen={showNotifDropdown}
+                variant="desktop"
+                soundEnabled={notificationSoundEnabled}
+                onToggleOpen={() =>
+                  setShowNotifDropdown((current) => !current)
+                }
+                onToggleSound={handleToggleNotificationSound}
+                onSelect={(notification) =>
+                  void handleMarkAsRead(notification.id, notification.url ?? undefined)
+                }
+                onMarkAllRead={() =>
+                  void handleMarkAllNotificationsAsRead()
+                }
+              />
             )}
           </div>
         </header>

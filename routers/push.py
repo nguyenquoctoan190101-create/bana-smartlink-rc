@@ -130,6 +130,26 @@ async def list_notifications(
     return [dict(row) for row in rows]
 
 
+@api_router.post("/notifications/read-all")
+async def mark_all_notifications_as_read(
+    current_user: Annotated[UserProfile, Depends(require_authenticated_user)],
+    conn: Annotated[asyncpg.Connection, Depends(get_db)],
+) -> dict[str, bool | int]:
+    result = await conn.execute(
+        """
+        UPDATE notifications
+        SET is_read = TRUE, read_at = COALESCE(read_at, now())
+        WHERE user_id = $1::uuid AND is_read = FALSE
+        """,
+        current_user.id,
+    )
+    try:
+        updated_count = int(result.rsplit(" ", 1)[-1])
+    except (TypeError, ValueError):
+        updated_count = 0
+    return {"success": True, "updated_count": updated_count}
+
+
 @api_router.post("/notifications/{notification_id}/read")
 async def mark_notification_as_read(
     notification_id: UUID,

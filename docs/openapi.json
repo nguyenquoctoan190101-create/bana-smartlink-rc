@@ -5607,6 +5607,66 @@
         ]
       }
     },
+    "/api/notifications/read-all": {
+      "post": {
+        "operationId": "mark_all_notifications_as_read_api_notifications_read_all_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ]
+                  },
+                  "title": "Response Mark All Notifications As Read Api Notifications Read All Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark All Notifications As Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/notifications/{notification_id}/read": {
       "post": {
         "operationId": "mark_notification_as_read_api_notifications__notification_id__read_post",

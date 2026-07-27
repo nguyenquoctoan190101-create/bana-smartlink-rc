@@ -162,8 +162,34 @@ def test_public_chatbot_sql_is_published_and_whitelisted() -> None:
 def test_notification_queries_are_owner_scoped() -> None:
     list_source = inspect.getsource(push.list_notifications)
     mark_source = inspect.getsource(push.mark_notification_as_read)
+    mark_all_source = inspect.getsource(push.mark_all_notifications_as_read)
     assert "WHERE user_id = $1::uuid" in list_source
     assert "WHERE id = $1 AND user_id = $2::uuid" in mark_source
+    assert "WHERE user_id = $1::uuid AND is_read = FALSE" in mark_all_source
+
+
+def test_mark_all_notifications_returns_owner_scoped_update_count() -> None:
+    class FakeConnection:
+        query = ""
+        user_id = ""
+
+        async def execute(self, query: str, user_id: str) -> str:
+            self.query = query
+            self.user_id = user_id
+            return "UPDATE 3"
+
+    connection = FakeConnection()
+    user = SimpleNamespace(id="00000000-0000-0000-0000-000000000123")
+    result = asyncio.run(
+        push.mark_all_notifications_as_read(
+            current_user=user,
+            conn=connection,
+        )
+    )
+
+    assert result == {"success": True, "updated_count": 3}
+    assert connection.user_id == user.id
+    assert "WHERE user_id = $1::uuid AND is_read = FALSE" in connection.query
 
 
 def test_direct_database_routes_fail_closed_to_role_and_assignment_scope() -> None:
