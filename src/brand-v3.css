@@ -1100,14 +1100,8 @@ textarea::placeholder {
 .gov-shell__sidebar-frame:not([data-pinned])
   .gov-shell__sidebar:not(:hover):not(:focus-within)
   .sidebar-pin-toggle {
-  position: absolute;
-  right: 0.35rem;
-  bottom: 0.35rem;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-color: rgb(245 214 111 / 0.52);
-  color: #fff6d6;
-  background: rgb(3 49 36 / 0.94);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .gov-shell__sidebar-frame:not([data-pinned])
