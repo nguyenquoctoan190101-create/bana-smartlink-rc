@@ -2620,14 +2620,11 @@ textarea::placeholder {
  * charts and metric cards. Keep the same semantic accents, but soften the
  * large background surfaces and shadows on this page only.
  */
-.dashboard-data-workspace {
+.dashboard-data-workspace .work-section {
   --work-focus-soft: #eef7f3;
   --work-tasks-soft: #eef6fb;
   --work-evidence-soft: #fff8e8;
   --work-support-soft: #f7f4fc;
-}
-
-.dashboard-data-workspace .work-section {
   border-color: color-mix(in srgb, var(--work-accent) 28%, white);
   box-shadow:
     0 1px 2px rgb(6 54 41 / 0.04),
