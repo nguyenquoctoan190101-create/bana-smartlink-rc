@@ -219,10 +219,10 @@ export default function ManageAccounts() {
       
       {/* Upper Information Banner */}
       <div className="bg-emerald-950 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
-        <div className="absolute -right-12 -bottom-12 opacity-10">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-12 -bottom-12 opacity-10">
           <Shield className="w-48 h-48" />
         </div>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-emerald-800 rounded-xl text-emerald-300">
               <Users className="w-6 h-6" />
@@ -236,13 +236,15 @@ export default function ManageAccounts() {
           </div>
           <button
             type="button"
+            aria-expanded={showCreateForm}
+            aria-controls="account-access-panel"
             onClick={() => {
               setShowCreateForm(!showCreateForm);
               setCreatedAccount(null);
             }}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-2xs uppercase rounded-xl shadow-xs hover:shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+            className="min-h-14 w-full shrink-0 px-6 py-3 bg-amber-300 hover:bg-amber-200 active:scale-98 text-emerald-950 font-black text-sm uppercase rounded-xl border-2 border-amber-100 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer sm:w-auto"
           >
-            {showCreateForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+            {showCreateForm ? <X className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
             <span>{showCreateForm ? "Đóng biểu mẫu" : "Cấp tài khoản mới"}</span>
           </button>
         </div>
@@ -269,7 +271,7 @@ export default function ManageAccounts() {
         tone="tasks"
         icon={<KeyRound />}
       >
-        <div className="space-y-4">
+        <div id="account-access-panel" className="space-y-4">
           {!showCreateForm && !resetPasswordResult && !createdAccount && (
             <div className="rounded-xl border border-dashed border-emerald-200 bg-white/75 p-5 text-sm text-slate-600">
               Chọn <strong>Cấp tài khoản mới</strong> ở đầu trang để mở biểu mẫu. Kết quả tạo tài khoản hoặc cấp lại mật khẩu sẽ chỉ xuất hiện trong khu vực này.

@@ -42,6 +42,11 @@ services:
       # request is checked for the verified Supabase aal2 claim.
       - key: MFA_REQUIRED_ROLES
         value: admin_xa,lanh_dao
+      # Temporary DUETech judging window: keep TOTP code and enrolled factors
+      # intact, but do not require the second step for shared demo accounts.
+      # Restore production behavior by changing this value back to "true".
+      - key: MFA_ENFORCEMENT_ENABLED
+        value: "false"
       # Configure INTERNAL_ALLOWED_IP_CIDRS in the Render Dashboard only after
       # the authority supplies approved office/VPN CIDRs. Keeping it unset
       # avoids locking out mobile staff and preserves the citizen portal.

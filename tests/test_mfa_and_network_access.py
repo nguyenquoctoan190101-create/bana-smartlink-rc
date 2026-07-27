@@ -44,6 +44,17 @@ def test_privileged_mfa_defaults_on_outside_development() -> None:
     assert settings.required_mfa_roles == frozenset({"admin_xa", "lanh_dao"})
 
 
+def test_mfa_enforcement_can_be_temporarily_disabled_for_a_controlled_demo() -> None:
+    settings = Settings(
+        _env_file=None,
+        app_env="staging",
+        mfa_required_roles="admin_xa,lanh_dao",
+        mfa_enforcement_enabled=False,
+    )
+    assert settings.required_mfa_roles == frozenset()
+    _enforce_mfa_access(_profile("admin_xa", "aal1"), settings)
+
+
 def test_internal_network_gate_keeps_public_requests_available() -> None:
     networks = (
         ipaddress.ip_network("203.0.113.0/24"),

@@ -40,6 +40,7 @@ import {
   WorkSection,
 } from "./ui";
 import CitizenCasePanel from "./CitizenCasePanel";
+import "./PublicVillagePage.css";
 
 const PUBLIC_INDICATORS = [
   {

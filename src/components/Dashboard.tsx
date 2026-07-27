@@ -27,6 +27,7 @@ import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
 import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
+import "./Dashboard.css";
 import DashboardInsightCharts from "./DashboardInsightCharts";
 
 interface DashboardProps {

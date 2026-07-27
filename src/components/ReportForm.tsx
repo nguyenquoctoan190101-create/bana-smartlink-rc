@@ -28,6 +28,7 @@ import {
   saveDraftForScope,
 } from "../lib/db";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
+import { syncQueuedReports } from "../lib/reportSync";
 import { validateReportIndicators } from "../lib/reportValidation";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
@@ -206,6 +207,8 @@ export default function ReportForm({
   const [isSubmitAttempted, setIsSubmitAttempted] = useState<boolean>(false);
   const [showSubmitReview, setShowSubmitReview] = useState<boolean>(false);
   const [isConfirmChecked, setIsConfirmChecked] = useState<boolean>(false);
+  const [isSubmittingReport, setIsSubmittingReport] =
+    useState<boolean>(false);
   const submitDialogRef = useRef<HTMLDivElement>(null);
   const submitCancelRef = useRef<HTMLButtonElement>(null);
 
@@ -617,7 +620,8 @@ export default function ReportForm({
 
   // Stage 2: Final Submit Report - records report with calculated timeliness status and queues for remote database sync
   const finalSubmitReport = async () => {
-    if (!isConfirmChecked) return;
+    if (!isConfirmChecked || isSubmittingReport) return;
+    setIsSubmittingReport(true);
 
     const report: ReportData = {
       id: draftId || initialReport?.id || crypto.randomUUID(),
@@ -658,33 +662,60 @@ export default function ReportForm({
     try {
       // Store the local copy and queue item together so they cannot diverge.
       await queueReportForSync(report);
-
-      const isOnline = navigator.onLine;
-
-      if (!isOnline) {
-        setSubmitMessage({
-          type: "success",
-          text: "Đã lưu trên thiết bị — báo cáo đang chờ đồng bộ khi có kết nối.",
-        });
-      } else {
-        setSubmitMessage({
-          type: "success",
-          text: "Báo cáo đã được đưa vào hàng đợi. Chọn “Đồng bộ ngay” để máy chủ xác nhận việc nộp.",
-        });
-      }
-
-      setShowSubmitReview(false);
-
-      setTimeout(() => {
-        setSubmitMessage(null);
-        onSaved();
-      }, 3000);
-    } catch (e) {
+    } catch {
       setSubmitMessage({
         type: "error",
-        text: "Không thể lưu báo cáo vào hàng đợi gửi. Vui lòng thử lại.",
+        text: "Không thể lưu báo cáo trên thiết bị. Hãy kiểm tra dung lượng trình duyệt và thử lại.",
       });
+      setIsSubmittingReport(false);
+      return;
     }
+
+    setShowSubmitReview(false);
+
+    if (!navigator.onLine) {
+      setSubmitMessage({
+        type: "success",
+        text: "Đã lưu an toàn trên thiết bị — báo cáo đang chờ gửi khi có kết nối.",
+      });
+    } else {
+      try {
+        const result = await syncQueuedReports();
+        const accepted = result.accepted.find(
+          (item) => item.client_id === report.id,
+        );
+        const rejected = result.rejected.find(
+          (item) => item.client_id === report.id,
+        );
+        if (accepted) {
+          setSubmitMessage({
+            type: "success",
+            text: "Nộp báo cáo thành công — máy chủ đã xác nhận tiếp nhận.",
+          });
+        } else if (rejected) {
+          setSubmitMessage({
+            type: "error",
+            text: `${rejected.message} Báo cáo vẫn được giữ an toàn trên thiết bị để bạn xử lý hoặc gửi lại.`,
+          });
+        } else {
+          setSubmitMessage({
+            type: "error",
+            text: "Máy chủ chưa xác nhận báo cáo. Dữ liệu vẫn được giữ an toàn trong hàng đợi gửi.",
+          });
+        }
+      } catch {
+        setSubmitMessage({
+          type: "error",
+          text: "Máy chủ chưa xác nhận việc nộp. Báo cáo vẫn được giữ an toàn trên thiết bị; hãy chọn “Đồng bộ ngay” để gửi lại.",
+        });
+      }
+    }
+
+    setIsSubmittingReport(false);
+    setTimeout(() => {
+      setSubmitMessage(null);
+      onSaved();
+    }, 3000);
   };
 
   return (
@@ -1379,7 +1410,7 @@ export default function ReportForm({
                     id="submit-review-title"
                     className="font-bold text-sm text-left"
                   >
-                    Kiểm tra và đưa báo cáo vào hàng đợi gửi
+                    Kiểm tra và nộp báo cáo
                   </h3>
                   <p className="text-4xs text-emerald-200 text-left mt-0.5">
                     Đơn vị: {getVillageName(villageId)} | Kỳ báo cáo:{" "}
@@ -1531,7 +1562,7 @@ export default function ReportForm({
                 ) : (
                   <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-700 font-semibold leading-relaxed">
                     Chưa yêu cầu nội dung gợi ý. Đây là bước tùy chọn và không
-                    ảnh hưởng đến việc lưu báo cáo vào hàng đợi gửi.
+                    ảnh hưởng đến việc nộp báo cáo.
                   </div>
                 )}
               </div>
@@ -1570,15 +1601,25 @@ export default function ReportForm({
               <button
                 type="button"
                 onClick={finalSubmitReport}
-                disabled={!isConfirmChecked}
+                disabled={!isConfirmChecked || isSubmittingReport}
                 className={`px-5 py-2.5 rounded-lg text-xs font-bold text-white shadow-md transition-all flex items-center gap-1.5 ${
-                  isConfirmChecked
+                  isConfirmChecked && !isSubmittingReport
                     ? "bg-emerald-800 hover:bg-emerald-950 active:scale-98 cursor-pointer"
                     : "bg-slate-300 cursor-not-allowed text-slate-500"
                 }`}
               >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Lưu vào hàng đợi gửi</span>
+                {isSubmittingReport ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>
+                  {isSubmittingReport
+                    ? "Đang gửi..."
+                    : navigator.onLine
+                      ? "Nộp báo cáo"
+                      : "Lưu chờ gửi"}
+                </span>
               </button>
             </div>
           </div>

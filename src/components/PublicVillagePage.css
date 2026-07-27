@@ -1,0 +1,52 @@
+/*
+ * Public information is intentionally calmer than the operational workspace.
+ * The accent still separates content, while the near-white surfaces preserve
+ * the polished, outward-facing character of the citizen portal.
+ */
+#public-village-portal .public-section {
+  --work-focus-soft: #f5faf7;
+  --work-tasks-soft: #f5f9fc;
+  --work-evidence-soft: #fffaf1;
+  --work-support-soft: #faf8ff;
+  border-color: color-mix(in srgb, var(--work-accent) 16%, white);
+  background:
+    linear-gradient(
+      150deg,
+      color-mix(in srgb, var(--work-soft) 64%, white),
+      white 72%
+    );
+  box-shadow:
+    0 1px 2px rgb(6 54 41 / 0.035),
+    0 12px 32px color-mix(in srgb, var(--work-accent) 5%, transparent);
+}
+
+#public-village-portal .public-section::before {
+  height: 2px;
+  opacity: 0.72;
+}
+
+#public-village-portal .public-section .work-section__header {
+  padding-block: 1.35rem 1.15rem;
+  border-bottom-color: color-mix(in srgb, var(--work-accent) 12%, white);
+  background:
+    radial-gradient(
+      circle at 94% -30%,
+      color-mix(in srgb, var(--work-accent) 7%, transparent),
+      transparent 15rem
+    ),
+    color-mix(in srgb, var(--work-soft) 42%, white);
+}
+
+#public-village-portal .public-section .work-section__index,
+#public-village-portal .public-section .work-section__icon {
+  border-color: color-mix(in srgb, var(--work-accent) 15%, white);
+  background: color-mix(in srgb, var(--work-accent) 5%, white);
+}
+
+#public-village-portal .public-section .work-section__eyebrow {
+  letter-spacing: 0.12em;
+}
+
+#public-village-portal .public-section .work-section__body {
+  padding-block: 1.35rem 1.5rem;
+}

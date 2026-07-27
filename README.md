@@ -7,6 +7,11 @@ Nền tảng báo cáo số liệu Văn hóa – Xã hội từ thôn lên xã d
 > tại [bana-smartlink-rc-toan-2026.onrender.com](https://bana-smartlink-rc-toan-2026.onrender.com/).
 > Bản này dùng dữ liệu tổng hợp/thử nghiệm và chưa phải tuyên bố
 > production-ready.
+>
+> **Cấu hình demo Ban Giám khảo:** `MFA_ENFORCEMENT_ENABLED=false` tạm bỏ bước
+> nhập mã TOTP cho tài khoản dùng chung. Mã MFA và các factor đã đăng ký không
+> bị xóa. Sau thời gian chấm, đổi lại thành `true` và triển khai lại để khôi
+> phục ngay yêu cầu `aal2` cho `admin_xa` và `lanh_dao`.
 
 Kiến trúc chính:
 
@@ -151,7 +156,7 @@ npm run check
 python scripts/release_check.py
 ```
 
-Lần xác nhận gần nhất trên nhánh `main`: **569 kiểm thử backend** và **105 kiểm
+Lần xác nhận gần nhất trên nhánh `main`: **574 kiểm thử backend** và **110 kiểm
 thử frontend** đạt; TypeScript typecheck và production build đạt. Con số có thể
 tăng khi bổ sung test mới, vì vậy kết quả của pipeline hiện tại luôn là nguồn
 xác nhận cuối cùng.

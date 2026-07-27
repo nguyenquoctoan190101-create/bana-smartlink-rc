@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Database, RefreshCw, Wifi, WifiOff, XCircle } from "lucide-react";
-import { deleteReport, getSyncQueue, removeFromSyncQueue, saveReport } from "../lib/db";
-import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
-import type { ReportData, SyncReportsResponse } from "../types";
+import { getSyncQueue } from "../lib/db";
+import { apiFetch, toUserFacingError } from "../lib/apiClient";
+import { syncQueuedReports } from "../lib/reportSync";
 
 interface SyncStatusProps {
   onSyncCompleted: () => void;
@@ -29,51 +29,21 @@ export default function SyncStatus({ onSyncCompleted }: SyncStatusProps) {
     setIsSyncing(true);
     setErrors([]);
     try {
-      const queue = await getSyncQueue();
-      if (queue.length === 0) {
+      if (queueSize === 0) {
         setMessage("Không có báo cáo nào đang chờ gửi.");
         return;
       }
-      setMessage(`Đang gửi ${queue.length} báo cáo...`);
-      const result = await apiJson<SyncReportsResponse>("/reports/sync", {
-        method: "POST",
-        body: JSON.stringify({ reports: queue }),
-      });
+      setMessage(`Đang gửi ${queueSize} báo cáo...`);
+      const result = await syncQueuedReports();
 
-      const byClientId = new Map(queue.map((report) => [report.id, report]));
-      for (const accepted of result.accepted || []) {
-        const queued = byClientId.get(accepted.client_id);
-        if (!queued) continue;
-        await removeFromSyncQueue(accepted.client_id);
-        await deleteReport(accepted.client_id);
-        const submitted: ReportData = {
-          ...queued,
-          id: accepted.report_id,
-          version: accepted.version,
-          workflow_status: accepted.workflow_status,
-          timeliness_status: accepted.timeliness_status,
-          publication_status: accepted.publication_status,
-          status: accepted.workflow_status === "submitted"
-            ? "Submitted"
-            : accepted.workflow_status === "approved"
-              ? "Approved"
-              : accepted.workflow_status === "locked"
-                ? "Locked"
-                : "Draft",
-          pending_sync: false,
-          updated_at: new Date().toISOString(),
-        };
-        await saveReport(submitted);
-      }
-
-      const rejectedMessages = (result.rejected || []).map((rejected) => {
+      const rejectedMessages = result.rejected.map((rejected) => {
         const retry = rejected.retryable ? "Hệ thống sẽ cho phép thử lại." : "Cần mở báo cáo để xử lý.";
         return `${rejected.client_id}: ${rejected.message} (${rejected.code}). ${retry}`;
       });
       setErrors(rejectedMessages);
       setMessage(rejectedMessages.length
-        ? `Đã gửi ${result.accepted?.length || 0} báo cáo; ${rejectedMessages.length} báo cáo vẫn được giữ trong hàng đợi.`
-        : `Đã gửi thành công ${result.accepted?.length || 0} báo cáo.`);
+        ? `Đã gửi ${result.accepted.length} báo cáo; ${rejectedMessages.length} báo cáo vẫn được giữ trong hàng đợi.`
+        : `Đã gửi thành công ${result.accepted.length} báo cáo.`);
       await refreshQueue();
       onSyncCompleted();
     } catch (cause) {

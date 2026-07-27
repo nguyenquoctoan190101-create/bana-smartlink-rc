@@ -56,6 +56,13 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("MFA_REQUIRED_ROLES", "REQUIRE_MFA_FOR_ROLES"),
     )
+    mfa_enforcement_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "MFA_ENFORCEMENT_ENABLED",
+            "ENABLE_MFA_ENFORCEMENT",
+        ),
+    )
     internal_allowed_ip_cidrs: str = Field(
         default="",
         validation_alias=AliasChoices(
@@ -115,6 +122,8 @@ class Settings(BaseSettings):
 
     @property
     def required_mfa_roles(self) -> frozenset[str]:
+        if not self.mfa_enforcement_enabled:
+            return frozenset()
         allowed = {"admin_xa", "lanh_dao", "can_bo_thon", "to_cnscd"}
         roles = {
             value.strip().lower()
