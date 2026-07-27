@@ -37,6 +37,7 @@ import {
   MetricCard,
   SectionCard,
   StatusBadge,
+  WorkSection,
 } from "./ui";
 import CitizenCasePanel from "./CitizenCasePanel";
 
@@ -520,103 +521,128 @@ export default function PublicVillagePage({
 
       {mode === "data" && (
         <div className="space-y-5">
-          <FilterBar>
-            <div className="grid flex-1 gap-3 sm:grid-cols-2">
-              <label className="text-sm font-semibold text-slate-700">
-                <span className="mb-1.5 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-emerald-800" />
-                  Địa bàn
-                </span>
-                <select
-                  value={selectedVillageId}
-                  onChange={(event) => setSelectedVillageId(event.target.value)}
-                  disabled={!villages.length}
+          <WorkSection
+            index="01"
+            title="Chọn địa bàn và kỳ công bố"
+            description="Chọn một thôn và thời điểm công bố trước khi đọc số liệu; phạm vi đang xem luôn được ghi rõ bên dưới."
+            tone="focus"
+            icon={<MapPin />}
+          >
+            <FilterBar>
+              <div className="grid flex-1 gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  <span className="mb-1.5 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-emerald-800" />
+                    Địa bàn
+                  </span>
+                  <select
+                    value={selectedVillageId}
+                    onChange={(event) => setSelectedVillageId(event.target.value)}
+                    disabled={!villages.length}
+                  >
+                    {!villages.length && (
+                      <option value="">Chưa có danh mục thôn</option>
+                    )}
+                    {villages.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-slate-700">
+                  <span className="mb-1.5 block">Kỳ công bố</span>
+                  <select
+                    value={selectedPeriod}
+                    onChange={(event) => setSelectedPeriod(event.target.value)}
+                  >
+                    <option value="all_time">Bản công bố mới nhất</option>
+                    {periods.map((period) => (
+                      <option key={period} value={period}>
+                        {period}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <DataScope
+                period={periodLabel}
+                scope={villageName}
+                quality={updatedLabel}
+                qualityLabel="Cập nhật"
+              />
+            </FilterBar>
+          </WorkSection>
+
+          <WorkSection
+            index="02"
+            title="Số liệu đã công bố"
+            description="Chỉ hiển thị các chỉ tiêu được phép công khai; dữ liệu thiếu vẫn để trống và luôn ghi rõ nguồn công bố."
+            tone="evidence"
+            icon={<FileText />}
+          >
+            <div className="space-y-4">
+              {isLoading ? (
+                <div
+                  role="status"
+                  className="flex min-h-48 items-center justify-center gap-2 text-slate-600"
                 >
-                  {!villages.length && (
-                    <option value="">Chưa có danh mục thôn</option>
-                  )}
-                  {villages.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-semibold text-slate-700">
-                <span className="mb-1.5 block">Kỳ công bố</span>
-                <select
-                  value={selectedPeriod}
-                  onChange={(event) => setSelectedPeriod(event.target.value)}
-                >
-                  <option value="all_time">Bản công bố mới nhất</option>
-                  {periods.map((period) => (
-                    <option key={period} value={period}>
-                      {period}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <DataScope
-              period={periodLabel}
-              scope={villageName}
-              quality={updatedLabel}
-              qualityLabel="Cập nhật"
-            />
-          </FilterBar>
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  Đang tải dữ liệu công khai…
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                  {PUBLIC_INDICATORS.map((indicator) => {
+                    const rawValue = values[indicator.code];
+                    const hasValue =
+                      typeof rawValue === "number" && Number.isFinite(rawValue);
+                    const Icon = indicator.icon;
+                    return (
+                      <MetricCard
+                        key={indicator.code}
+                        label={`${indicator.code} · ${indicator.name}`}
+                        value={formatPublicIndicatorValue(rawValue)}
+                        unit={hasValue ? indicator.unit : undefined}
+                        context={
+                          hasValue
+                            ? `Nguồn: ${periodLabel}`
+                            : "Chưa có dữ liệu được công bố"
+                        }
+                        tone={indicator.tone}
+                        icon={<Icon />}
+                      />
+                    );
+                  })}
+                </div>
+              )}
 
-          {isLoading ? (
-            <div
-              role="status"
-              className="flex min-h-48 items-center justify-center gap-2 text-slate-600"
-            >
-              <RefreshCw className="h-5 w-5 animate-spin" />
-              Đang tải dữ liệu công khai…
+              <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-start">
+                <ShieldCheck className="h-6 w-6 shrink-0 text-emerald-800" />
+                <div>
+                  <h2 className="font-bold text-slate-900">
+                    Phạm vi công khai và quyền riêng tư
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    Cổng chỉ hiển thị CT01, CT02, CT09, CT12 và CT13 sau khi được
+                    công bố. CT14 và dữ liệu nhận diện cá nhân không xuất hiện trong
+                    phản hồi công khai.
+                  </p>
+                </div>
+              </SectionCard>
             </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              {PUBLIC_INDICATORS.map((indicator) => {
-                const rawValue = values[indicator.code];
-                const hasValue =
-                  typeof rawValue === "number" && Number.isFinite(rawValue);
-                const Icon = indicator.icon;
-                return (
-                  <MetricCard
-                    key={indicator.code}
-                    label={`${indicator.code} · ${indicator.name}`}
-                    value={formatPublicIndicatorValue(rawValue)}
-                    unit={hasValue ? indicator.unit : undefined}
-                    context={
-                      hasValue
-                        ? `Nguồn: ${periodLabel}`
-                        : "Chưa có dữ liệu được công bố"
-                    }
-                    tone={indicator.tone}
-                    icon={<Icon />}
-                  />
-                );
-              })}
-            </div>
-          )}
+          </WorkSection>
 
-          <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-start">
-            <ShieldCheck className="h-6 w-6 shrink-0 text-emerald-800" />
-            <div>
-              <h2 className="font-bold text-slate-900">
-                Phạm vi công khai và quyền riêng tư
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                Cổng chỉ hiển thị CT01, CT02, CT09, CT12 và CT13 sau khi được
-                công bố. CT14 và dữ liệu nhận diện cá nhân không xuất hiện trong
-                phản hồi công khai.
-              </p>
-            </div>
-          </SectionCard>
-
-          <SectionCard className="p-5">
-            <div className="flex items-start gap-3">
-              <Navigation className="mt-0.5 h-6 w-6 shrink-0 text-emerald-800" />
-              <div>
+          <WorkSection
+            index="03"
+            title="Điểm sơ tán công khai"
+            description="Thông tin chuẩn bị ứng phó đã được cơ quan có thẩm quyền duyệt; đây không phải kênh phát cảnh báo khẩn cấp."
+            tone="tasks"
+            icon={<Navigation />}
+          >
+            <SectionCard className="p-5">
+              <div className="flex items-start gap-3">
+                <Navigation className="mt-0.5 h-6 w-6 shrink-0 text-emerald-800" />
+                <div>
                 <h2 className="font-bold text-slate-900">
                   Điểm sơ tán đã công bố
                 </h2>
@@ -625,8 +651,8 @@ export default function PublicVillagePage({
                   và công bố. Đây không phải kênh phát cảnh báo khẩn cấp; khi có
                   sự cố, hãy theo hướng dẫn chính thức.
                 </p>
+                </div>
               </div>
-            </div>
             {evacuationPoints.length === 0 ? (
               <div className="mt-4">
                 <EmptyState
@@ -673,26 +699,34 @@ export default function PublicVillagePage({
                   );
                 })}
               </div>
-            )}
-          </SectionCard>
+              )}
+            </SectionCard>
+          </WorkSection>
 
-          <section
-            className="public-place-story"
-            aria-labelledby="public-place-story-title"
+          <WorkSection
+            index="04"
+            title="Thông tin địa bàn và nguyên tắc công khai"
+            description="Giải thích ngắn gọn phạm vi hành chính, đơn vị tổng hợp và điều kiện để dữ liệu được đưa lên cổng."
+            tone="support"
+            icon={<ShieldCheck />}
           >
-            <header className="public-place-story__intro">
-              <p className="public-place-story__eyebrow">
-                PHẠM VI QUẢN LÝ DỮ LIỆU
-              </p>
-              <h2 id="public-place-story-title">Thông tin địa bàn xã Bà Nà</h2>
-              <p>
-                Hệ thống tổng hợp dữ liệu theo thôn, kỳ báo cáo, nguồn cung cấp
-                và trạng thái phê duyệt. Nội dung công khai được tách biệt với
-                dữ liệu nghiệp vụ nội bộ.
-              </p>
-            </header>
-            <div className="public-place-story__grid">
-              <figure className="public-place-story__card public-place-story__card--feature">
+            <section
+              className="public-place-story"
+              aria-labelledby="public-place-story-title"
+            >
+              <header className="public-place-story__intro">
+                <p className="public-place-story__eyebrow">
+                  PHẠM VI QUẢN LÝ DỮ LIỆU
+                </p>
+                <h2 id="public-place-story-title">Thông tin địa bàn xã Bà Nà</h2>
+                <p>
+                  Hệ thống tổng hợp dữ liệu theo thôn, kỳ báo cáo, nguồn cung cấp
+                  và trạng thái phê duyệt. Nội dung công khai được tách biệt với
+                  dữ liệu nghiệp vụ nội bộ.
+                </p>
+              </header>
+              <div className="public-place-story__grid">
+                <figure className="public-place-story__card public-place-story__card--feature">
                 <picture>
                   <source
                     type="image/webp"
@@ -715,8 +749,8 @@ export default function PublicVillagePage({
                     trong cùng phạm vi hành chính.
                   </strong>
                 </figcaption>
-              </figure>
-              <figure className="public-place-story__card">
+                </figure>
+                <figure className="public-place-story__card">
                 <picture>
                   <source
                     type="image/webp"
@@ -738,8 +772,8 @@ export default function PublicVillagePage({
                     Số liệu được quản lý theo từng thôn và kỳ báo cáo.
                   </strong>
                 </figcaption>
-              </figure>
-              <figure className="public-place-story__card">
+                </figure>
+                <figure className="public-place-story__card">
                 <picture>
                   <source
                     type="image/webp"
@@ -762,12 +796,13 @@ export default function PublicVillagePage({
                     cổng.
                   </strong>
                 </figcaption>
-              </figure>
-            </div>
-            <p className="public-place-story__credit">
-              Ảnh tư liệu Bà Nà: Bá Ước Phùng / Pexels.
-            </p>
-          </section>
+                </figure>
+              </div>
+              <p className="public-place-story__credit">
+                Ảnh tư liệu Bà Nà: Bá Ước Phùng / Pexels.
+              </p>
+            </section>
+          </WorkSection>
         </div>
       )}
 
