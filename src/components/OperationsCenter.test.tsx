@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import axe from "axe-core";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OperationsCenter from "./OperationsCenter";
@@ -48,7 +49,7 @@ describe("OperationsCenter", () => {
   });
 
   it("keeps successful operational data visible when an optional section fails", async () => {
-    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+    const { container } = render(<OperationsCenter periodId="period-1" role="admin_xa" />);
 
     await waitFor(() => expect(screen.getAllByText(/92\.9%/)).toHaveLength(2));
     expect(screen.getByText("13/14 trường · 1 báo cáo chưa đủ")).toBeInTheDocument();
@@ -72,6 +73,14 @@ describe("OperationsCenter", () => {
     expect(mocks.apiJson).not.toHaveBeenCalledWith(
       expect.stringContaining("/reports/trend-alerts"),
     );
+    const result = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(
+      result.violations.filter(
+        ({ impact }) => impact === "serious" || impact === "critical",
+      ),
+    ).toEqual([]);
   });
 
   it("shows Vietnamese status and source labels", async () => {

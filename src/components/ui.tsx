@@ -14,7 +14,7 @@ import {
 
 export function Wordmark({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
   return (
-    <div className="brand-wordmark" data-inverse={inverse || undefined} aria-label="Ba Na SmartLink">
+    <div className="brand-wordmark" data-inverse={inverse || undefined} role="img" aria-label="Ba Na SmartLink">
       <span className="brand-wordmark__mark" aria-hidden="true">
         <img
           src="/images/ba-na-brand-mark-96.png"

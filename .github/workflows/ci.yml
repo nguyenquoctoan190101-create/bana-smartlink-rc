@@ -48,6 +48,21 @@ jobs:
         run: npm run typecheck && npm test
       - name: Production build
         run: npm run build
+      - name: Install Chromium for accessibility gate
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Browser accessibility release gate
+        if: runner.os == 'Linux'
+        run: npm run test:a11y
+      - name: Upload browser accessibility evidence
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-accessibility-evidence-${{ matrix.os }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
       - name: Bundle budget
         run: npm run budget
       - name: Release hygiene

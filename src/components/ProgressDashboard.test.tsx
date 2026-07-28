@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProgressDashboard from "./ProgressDashboard";
 
@@ -82,7 +83,7 @@ describe("ProgressDashboard", () => {
   });
 
   it("separates four deadline states and exposes deadline evidence once", async () => {
-    render(
+    const { container } = render(
       <ProgressDashboard
         periodId="period-current"
         periods={[
@@ -123,6 +124,14 @@ describe("ProgressDashboard", () => {
       .getByText("Đã nộp đúng hạn")
       .closest("td");
     expect(accessibleStatus).toHaveAccessibleName("Đã nộp đúng hạn");
+    const result = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(
+      result.violations.filter(
+        ({ impact }) => impact === "serious" || impact === "critical",
+      ),
+    ).toEqual([]);
   });
 
   it("keeps progress visible and does not call ungoverned trend alerts", async () => {

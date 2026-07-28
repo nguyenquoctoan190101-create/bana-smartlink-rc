@@ -5,6 +5,7 @@
     "access_log_review": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
     "staging_rls_matrix": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
     "uat_five_principals": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
+    "accessibility_browser_review": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
     "backup_restore": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
     "security_review": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""},
     "privacy_legal_review": {"status": "pending", "owner": "", "evidence": "", "completed_at": ""}

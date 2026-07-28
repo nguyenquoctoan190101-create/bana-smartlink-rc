@@ -216,6 +216,9 @@ thật cho từng control và kiểm tra:
 
 Khi lập hồ sơ mới, đổi khóa tương thích cũ `uat_four_roles` thành
 `uat_five_principals` và đính kèm bằng chứng đủ năm nhóm người dùng.
+Control `accessibility_browser_review` phải trỏ tới CI/browser report của đúng
+full SHA: axe không có lỗi serious/critical, keyboard/focus hoạt động, không mất
+tác vụ ở 360/768/1280 px và khi phóng chữ 200%.
 
 ```powershell
 python scripts/production_gate.py --attestation-file .\production_attestation.json

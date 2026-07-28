@@ -53,7 +53,7 @@ nhận phê duyệt.
 | RLS staging | Ma trận anonymous và bốn role nội bộ đạt trên DB staging biệt lập | `<log đã che secret>` | `<chưa điền>` | Chờ |
 | Backup/restore | Backup đọc được và restore drill trên target biệt lập đạt RPO/RTO đã duyệt | `<log/hash>` | `<chưa điền>` | Chờ |
 | Bảo mật và quyền riêng tư | Credential/session đã rotate; access log và pháp lý/privacy đã review | `<biên bản>` | `<chưa điền>` | Chờ |
-| Accessibility/responsive | Keyboard, screen reader/axe; 390/768/1440 không có lỗi nghiêm trọng | `<ảnh/report>` | `<chưa điền>` | Chờ |
+| Accessibility/responsive | Keyboard, screen reader/axe có contrast; 360/768/1280 và phóng chữ 200% không mất tác vụ | `<ảnh/report>` | `<chưa điền>` | Chờ |
 | Hiệu năng | LCP p75 và API p95 đạt ngưỡng tại tải đã mô tả | `<measurement>` | `<chưa điền>` | Chờ |
 | UAT năm nhóm | Người dân, cán bộ thôn, CNSCĐ, quản trị, lãnh đạo xác nhận độc lập | `<ma trận/chữ ký>` | `<chưa điền>` | Chờ |
 | Benchmark AI | Chỉ bắt buộc để công bố chất lượng; ≥100 tài liệu, holdout khóa trước | `<report/hash>` | `<chưa điền>` | Chờ |

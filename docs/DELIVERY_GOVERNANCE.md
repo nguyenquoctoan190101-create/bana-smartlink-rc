@@ -136,7 +136,8 @@ Chỉ dùng “thời gian thực”, “đã xác minh”, “chính xác”, �
 9. **Tuần 12:** nghiệm thu, báo cáo, slide, video, ZIP, checksum và production.
 
 Mỗi nhóm có diff review, test liên quan, toàn bộ hồi quy, build tuần tự và QA
-1440px/390px. Bộ bàn giao cuối gồm báo cáo 33–36 trang và phụ lục, slide 10
+1280px/768px/360px cùng mức phóng đại chữ 200%. Bộ bàn giao cuối gồm báo cáo
+33–36 trang và phụ lục, slide 10
 phút, video không quá 5 phút có phụ đề, OpenAPI, data dictionary, phân quyền,
 traceability, threat model, SBOM/license, runbook, backup/restore, incident
 response, hướng dẫn năm nhóm người dùng, UAT và biên bản nghiệm thu.
