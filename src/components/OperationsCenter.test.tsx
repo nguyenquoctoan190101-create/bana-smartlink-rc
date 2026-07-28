@@ -54,10 +54,10 @@ describe("OperationsCenter", () => {
     await waitFor(() => expect(screen.getAllByText(/92\.9%/)).toHaveLength(2));
     expect(screen.getByText("13/14 trường · 1 báo cáo chưa đủ")).toBeInTheDocument();
     expect(screen.getByText("1/1 báo cáo · 0 có lỗi chặn")).toBeInTheDocument();
-    expect(screen.getByText("1/1 báo cáo · 0 không đúng hạn")).toBeInTheDocument();
+    expect(screen.getByText("1/1 báo cáo · 0 báo cáo chưa đúng hạn")).toBeInTheDocument();
     expect(screen.queryByText("Điểm chất lượng")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ưu tiên điều hành" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Danh sách việc cần xử lý" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Nội dung hỗ trợ quyết định" })).toBeInTheDocument();
     expect(screen.getByText("Thôn An Sơn")).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe("OperationsCenter", () => {
     render(<OperationsCenter periodId="period-1" role="admin_xa" />);
     await waitFor(() => expect(screen.getByText("Đã chấp nhận")).toBeInTheDocument());
     expect(screen.getByText("Đạt")).toBeInTheDocument();
-    expect(screen.getByText("API trực tiếp · phiên bản 2")).toBeInTheDocument();
+    expect(screen.getByText("Nhập trực tiếp trên hệ thống · phiên bản 2")).toBeInTheDocument();
     expect(screen.queryByText("accepted")).not.toBeInTheDocument();
     expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
@@ -150,7 +150,7 @@ describe("OperationsCenter", () => {
         name: "Dấu vết kiểm soát gần nhất",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Tệp Excel · phiên bản 4")).toBeInTheDocument();
+    expect(screen.getByText("Nhập từ tệp Excel · phiên bản 4")).toBeInTheDocument();
     expect(screen.getByText("2 lỗi · 1 bất thường")).toBeInTheDocument();
     expect(screen.getByText("Phê duyệt xóa kỳ báo cáo")).toBeInTheDocument();
     expect(screen.getByText("Quyết định thay đổi kỳ báo cáo")).toBeInTheDocument();
@@ -1029,7 +1029,7 @@ describe("OperationsCenter", () => {
       "Việc sắp đến hạn",
     ]);
     expect(queueView.getByText(/Phụ trách: Nguyễn Văn An/)).toHaveTextContent(
-      "Ưu tiên cao · Tuổi việc 4 ngày · quá hạn 27/7/2026 · Căn cứ: thiếu căn cứ liên kết · Nguồn: Đề xuất",
+      "Ưu tiên cao · Đã mở 4 ngày · quá hạn 27/7/2026 · Căn cứ: thiếu căn cứ liên kết · Nguồn: Đề xuất",
     );
     expect(queueView.getByText(/Phụ trách: Trần Thị Bình/)).toHaveTextContent(
       "đến hạn hôm nay 29/7/2026",
@@ -1066,7 +1066,7 @@ describe("OperationsCenter", () => {
       ),
     );
     expect(mocks.apiJson).not.toHaveBeenCalledWith("/auth/audit-logs");
-    expect(view.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "Danh sách việc cần xử lý" })).toBeInTheDocument();
     expect(view.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
     expect(view.queryByRole("heading", { name: "Nội dung hỗ trợ quyết định" })).not.toBeInTheDocument();
   });
