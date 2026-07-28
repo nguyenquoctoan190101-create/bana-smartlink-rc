@@ -1628,6 +1628,7 @@ async def generate_narrative_summary_async(period_id: str) -> str:
         f"{context_json}"
     )
 
+    provider_failed = False
     try:
         narrative = await get_gemini_client().generate_text(
             GEMINI_SYSTEM_PROMPT,
@@ -1635,8 +1636,10 @@ async def generate_narrative_summary_async(period_id: str) -> str:
             max_output_tokens=420,
             temperature=0.15,
         )
-    except GeminiError as exc:
-        raise ChatbotError("Không thể tạo tóm tắt tường thuật.") from exc
+    except GeminiError:
+        provider_failed = True
+    if provider_failed:
+        raise ChatbotError("Không thể tạo tóm tắt tường thuật.") from None
 
     return " ".join(narrative.strip().split())
 

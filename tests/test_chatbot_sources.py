@@ -6,16 +6,28 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-from services.chatbot import ask_question_async
+from services.chatbot import (
+    ChatbotError,
+    ask_question_async,
+    generate_narrative_summary_async,
+)
+from services.gemini import GeminiError
 
 
 class _TextGemini:
     async def generate_text(self, *args: Any, **kwargs: Any) -> str:
         _ = (args, kwargs)
         return "Câu trả lời dựa trên nguồn đã được phân quyền."
+
+
+class _FailingTextGemini:
+    async def generate_text(self, *args: Any, **kwargs: Any) -> str:
+        _ = (args, kwargs)
+        raise GeminiError("provider-secret-output")
 
 
 class _ReportConnection:
@@ -164,3 +176,37 @@ def test_capabilities_endpoint_exposes_server_voice_availability() -> None:
         "server_tts_enabled": True,
         "tts_provider": "gemini",
     }
+
+
+def test_narrative_provider_error_drops_exception_context() -> None:
+    connection = _ReportConnection([{
+        "village_name": "Thôn Phú Hòa",
+        "period_name": "Tháng 7/2026",
+        "ct_code": "CT01",
+        "value": 120,
+        "status": "approved",
+    }])
+    with (
+        patch(
+            "services.chatbot.load_settings",
+            return_value=SimpleNamespace(
+                database_url="postgresql://test",
+                bana_commune_id="ba-na",
+            ),
+        ),
+        patch(
+            "services.chatbot.asyncpg.connect",
+            new=AsyncMock(return_value=connection),
+        ),
+        patch(
+            "services.chatbot.get_gemini_client",
+            return_value=_FailingTextGemini(),
+        ),
+    ):
+        with pytest.raises(ChatbotError) as caught:
+            asyncio.run(generate_narrative_summary_async("period-id"))
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)

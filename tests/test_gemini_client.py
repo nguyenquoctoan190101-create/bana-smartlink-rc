@@ -97,12 +97,106 @@ async def test_generate_json_uses_schema_constrained_deterministic_output() -> N
 
 
 @pytest.mark.asyncio
+async def test_generate_json_can_retry_with_bounded_json_mode_fallback(caplog) -> None:
+    fake = FakeAsyncClient()
+    fake.post = AsyncMock(side_effect=[
+        httpx.Response(400, json={
+            "error": {
+                "status": "INVALID_ARGUMENT",
+                "message": "Request contains provider-secret-invalid-detail.",
+            }
+        }),
+        _response('{"intent":"HELP"}'),
+    ])
+    schema = {
+        "type": "object",
+        "properties": {"intent": {"type": "string", "enum": ["HELP"]}},
+        "required": ["intent"],
+        "additionalProperties": False,
+    }
+
+    with caplog.at_level("INFO", logger="services.gemini"):
+        with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+            result = await _client().generate_json(
+                "system",
+                "question",
+                schema,
+                allow_json_mode_fallback=True,
+            )
+
+    assert result == {"intent": "HELP"}
+    assert fake.post.await_count == 2
+    structured = fake.post.await_args_list[0].kwargs["json"]
+    fallback = fake.post.await_args_list[1].kwargs["json"]
+    assert structured["generationConfig"]["responseJsonSchema"] == schema
+    assert fallback["generationConfig"] == {
+        "maxOutputTokens": 256,
+        "responseMimeType": "application/json",
+    }
+    assert "responseJsonSchema" not in fallback["generationConfig"]
+    assert "responseSchema" not in fallback["generationConfig"]
+    assert "REQUIRED_OUTPUT_JSON_SCHEMA" in fallback["contents"][0]["parts"][0]["text"]
+    assert '"additionalProperties":false' in fallback["contents"][0]["parts"][0]["text"]
+    assert "provider-secret" not in caplog.text
+    assert all("provider-secret" not in repr(record.__dict__) for record in caplog.records)
+    assert [record.gemini_request_mode for record in caplog.records] == [
+        "json_schema",
+        "json_mime",
+        "json_mime",
+    ]
+    assert caplog.records[1].gemini_fallback_reason == "invalid_argument"
+    assert caplog.records[2].gemini_fallback_reason == "invalid_argument"
+
+
+@pytest.mark.parametrize(
+    ("status_code", "provider_status", "message", "expected_class"),
+    [
+        (400, "INVALID_ARGUMENT", "API key not valid.", "authentication"),
+        (429, "RESOURCE_EXHAUSTED", "Quota exhausted.", "quota"),
+        (403, "PERMISSION_DENIED", "Permission denied.", "permission"),
+        (404, "NOT_FOUND", "Model not found.", "model_unavailable"),
+        (500, "INTERNAL", "Provider failed.", "provider_error"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_generate_json_never_retries_non_schema_failure(
+    caplog,
+    status_code: int,
+    provider_status: str,
+    message: str,
+    expected_class: str,
+) -> None:
+    fake = FakeAsyncClient(httpx.Response(status_code, json={
+        "error": {
+            "status": provider_status,
+            "message": f"{message} provider-secret-key-detail",
+        }
+    }))
+
+    with caplog.at_level("WARNING", logger="services.gemini"):
+        with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+            with pytest.raises(GeminiError, match="request failed"):
+                await _client().generate_json(
+                    "system",
+                    "question",
+                    {"type": "object"},
+                    allow_json_mode_fallback=True,
+                )
+
+    assert fake.post.await_count == 1
+    assert caplog.records[-1].gemini_error_class == expected_class
+    assert "provider-secret" not in caplog.text
+    assert "provider-secret" not in repr(caplog.records[-1].__dict__)
+
+
+@pytest.mark.asyncio
 async def test_generate_json_rejects_invalid_json() -> None:
     fake = FakeAsyncClient(_response("not-json"))
     with patch("services.gemini.httpx.AsyncClient", return_value=fake):
         with pytest.raises(GeminiError, match="invalid JSON") as caught:
             await _client().generate_json("system", "question", {"type": "OBJECT"})
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
 
 
 @pytest.mark.asyncio
@@ -114,6 +208,7 @@ async def test_gemini_transport_and_http_errors_are_redacted(caplog) -> None:
             await _client().generate_text("system", "user")
     assert "secret network" not in str(caught.value)
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
 
     fake = FakeAsyncClient(httpx.Response(429, json={
         "error": {
@@ -149,6 +244,7 @@ async def test_malformed_success_response_is_redacted_and_fails_safely(caplog) -
                 await _client().generate_text("system", "user")
 
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
     assert "secret model output" not in str(caught.value)
     assert "secret model output" not in caplog.text
     assert "secret model output" not in repr(caplog.records[-1].__dict__)
