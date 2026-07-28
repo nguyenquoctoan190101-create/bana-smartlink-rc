@@ -1179,7 +1179,7 @@ export default function App() {
                   htmlFor="staff-phone"
                   className="block text-sm font-semibold text-slate-700"
                 >
-                  Số điện thoại
+                  Số điện thoại hoặc email
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 pointer-events-none">
@@ -1188,12 +1188,11 @@ export default function App() {
                   <input
                     id="staff-phone"
                     name="phone"
-                    type="tel"
+                    type="text"
                     autoComplete="username"
-                    inputMode="tel"
                     required
                     disabled={isLoginSubmitting}
-                    placeholder="Nhập số điện thoại đăng ký..."
+                    placeholder="Nhập số điện thoại hoặc email…"
                     value={loginPhone}
                     onChange={(e) => setLoginPhone(e.target.value)}
                     className="w-full pl-11!"
@@ -1220,7 +1219,7 @@ export default function App() {
                     autoComplete="current-password"
                     required
                     disabled={isLoginSubmitting}
-                    placeholder="Nhập mật khẩu truy cập..."
+                    placeholder="Nhập mật khẩu truy cập…"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     className="w-full pl-11!"
