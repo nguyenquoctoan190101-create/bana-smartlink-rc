@@ -73,8 +73,8 @@ python scripts/production_sha_smoke.py `
   --expected-commit $expected
 ```
 
-Chỉ sau khi gate này đạt mới chạy smoke test nghiệp vụ và responsive 1440px/
-390px. Không dùng tên release, thời gian triển khai hoặc short SHA làm bằng
+Chỉ sau khi gate này đạt mới chạy smoke test nghiệp vụ và responsive
+360/768/1280px cùng phóng chữ 200%. Không dùng tên release, thời gian triển khai hoặc short SHA làm bằng
 chứng phiên bản production.
 
 ## Retention và chuyển hạ tầng

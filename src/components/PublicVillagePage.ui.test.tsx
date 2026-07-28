@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PublicVillagePage from "./PublicVillagePage";
 
@@ -71,6 +72,14 @@ describe("PublicVillagePage navigation", () => {
         }),
       ).getAllByRole("button"),
     ).toHaveLength(4);
+    const result = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(
+      result.violations.filter(
+        ({ impact }) => impact === "serious" || impact === "critical",
+      ),
+    ).toEqual([]);
   });
 
   it("clearly marks example lookup codes and blocks them locally", async () => {

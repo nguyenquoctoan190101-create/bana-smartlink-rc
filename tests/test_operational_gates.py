@@ -138,6 +138,12 @@ def test_production_gate_requires_all_recent_owner_evidence() -> None:
         payload, now
     )
 
+    payload = _complete_attestation("2026-07-10T12:00:00Z")
+    payload["controls"].pop("accessibility_browser_review")  # type: ignore[index]
+    assert "accessibility_browser_review: missing" in (
+        production_gate.validate_attestations(payload, now)
+    )
+
 
 def test_production_gate_accepts_legacy_uat_key_during_transition() -> None:
     now = datetime(2026, 7, 14, tzinfo=UTC)

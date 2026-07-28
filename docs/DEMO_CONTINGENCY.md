@@ -80,7 +80,7 @@ production hay UAT.
 ### 6. Trình duyệt, máy chiếu hoặc responsive lỗi
 
 - Chuyển sang profile/trình duyệt sạch đã kiểm tra; không tắt kiểm soát bảo mật.
-- Nếu vẫn lỗi, dùng ảnh 1440px và 390px của đúng commit, có thời gian và browser
+- Nếu vẫn lỗi, dùng ảnh 1280px và 360px của đúng commit, có thời gian và browser
   trong metadata bằng chứng nhưng không chứa thông tin cá nhân.
 - Ghi lỗi để browser QA lại; ảnh dự phòng không thay thế accessibility UAT.
 
@@ -106,7 +106,7 @@ production hay UAT.
 |---|---|
 | Video demo ≤5 phút | Đúng commit, dữ liệu tổng hợp, không secret/thông tin cá nhân, có phụ đề |
 | Slide/PDF demo | Có full SHA và nhãn “bản ghi minh họa”; link căn cứ kỹ thuật |
-| Ảnh desktop/mobile | 1440px và 390px, đã rà soát quyền riêng tư |
+| Ảnh desktop/mobile | 1280px và 360px, đã rà soát quyền riêng tư |
 | Transcript | Mô tả đúng trạng thái RC và các gate còn chờ |
 | Hash manifest | SHA-256 từng hiện vật, ngày tạo, người kiểm tra |
 | Bản in kịch bản | Luồng chính, cây quyết định và thông tin liên hệ sự cố |

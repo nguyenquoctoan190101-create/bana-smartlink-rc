@@ -60,7 +60,7 @@ và ghi browser, viewport, thời gian, URL cùng commit.
 | Backup và restore drill của release | Chờ | Hash backup, `pg_restore --list`, số đếm hậu kiểm, RPO/RTO |
 | Credential/session rotation và access-log review | Chờ owner dịch vụ | Biên bản có owner/thời gian/kết luận |
 | Security và privacy/legal approval | Chờ | Biên bản độc lập |
-| Accessibility trên browser thật | Chờ | Keyboard/screen reader/axe, 390/768/1440, không serious/critical |
+| Accessibility trên browser thật | Chờ attestation đúng full SHA | CI chạy Chromium + axe có contrast, keyboard/focus, 360/768/1280 và phóng chữ 200%; không serious/critical |
 | LCP p75/API p95 tại tải mục tiêu | Chờ | Cấu hình tải, mẫu đo, p50/p75/p95 và log |
 | UAT năm nhóm người dùng | Chờ chữ ký | Ma trận người dân, cán bộ thôn, CNSCĐ, quản trị, lãnh đạo |
 | Đo thời gian 10 thôn × 3 lượt | Chờ | Dữ liệu thô, trung vị, độ biến thiên và chữ ký |

@@ -49,8 +49,9 @@ test nội bộ của đội phát triển không thay thế chữ ký UAT.
 ## Accessibility và responsive
 
 1. Keyboard-only: focus luôn thấy rõ, không bị modal/header che; Enter/Space kích hoạt nút.
-2. 390px, 768px, 1440px: không mất nút quan trọng; touch target tối thiểu 44px.
-3. Axe: không còn finding serious/critical; `lang="vi"`, heading/label/status message hoạt động.
+2. 360px, 768px, 1280px: không mất nút quan trọng; touch target tối thiểu 44px.
+3. Phóng chữ 200%: nội dung reflow, không mất tác vụ hoặc buộc cuộn ngang toàn trang.
+4. Axe trên Chromium thật: không còn finding serious/critical, gồm cả color contrast; `lang="vi"`, heading/label/status message hoạt động.
 
 ## Đo thời gian và tiêu chí công bố
 

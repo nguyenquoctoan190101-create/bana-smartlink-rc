@@ -20,6 +20,7 @@ REQUIRED_CONTROLS = (
     "access_log_review",
     "staging_rls_matrix",
     "uat_five_principals",
+    "accessibility_browser_review",
     "backup_restore",
     "security_review",
     "privacy_legal_review",
