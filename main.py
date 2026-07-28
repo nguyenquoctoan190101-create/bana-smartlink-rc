@@ -199,6 +199,17 @@ def create_app(*, static_root: Path | None = None) -> FastAPI:
         ):
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Pragma"] = "no-cache"
+        elif request.url.path.startswith("/assets/") and response.status_code == 200:
+            # Vite emits content-hashed filenames in this directory, so they
+            # are safe to cache across releases without serving stale bytes.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif (
+            response.headers.get("Content-Type", "").startswith("text/html")
+            or request.url.path == "/service-worker.js"
+        ):
+            # Revalidate the SPA shell and worker on every navigation so a new
+            # deployment cannot leave clients pointing at obsolete bundles.
+            response.headers["Cache-Control"] = "no-cache"
         if settings.app_env.lower() in {"staging", "production"}:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
