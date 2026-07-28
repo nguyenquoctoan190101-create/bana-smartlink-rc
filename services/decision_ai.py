@@ -7,6 +7,7 @@ advisory content that cannot write, approve, assign or publish anything.
 """
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -85,7 +86,7 @@ def _schema() -> dict[str, Any]:
     # adapted for Gemini without depending on provider-specific ref support.
     definitions = DecisionAnalysis.model_json_schema().get("$defs", {})
 
-    def inline(value: Any) -> Any:
+    def inline(value: Any, *, property_map: bool = False) -> Any:
         if isinstance(value, list):
             return [inline(item) for item in value]
         if not isinstance(value, dict):
@@ -95,9 +96,11 @@ def _schema() -> dict[str, Any]:
             name = ref.rsplit("/", 1)[-1]
             return inline(definitions[name])
         return {
-            key: inline(item)
+            key: inline(item, property_map=key == "properties")
             for key, item in value.items()
-            if key not in {"title", "default"}
+            # Keep a business field literally named ``title`` when walking a
+            # ``properties`` map. Only remove schema annotation keywords.
+            if property_map or key not in {"title", "default"}
         }
 
     return inline(schema)
@@ -250,6 +253,24 @@ def _allowed_evidence_ids(bundle: dict[str, Any]) -> set[str]:
     return allowed
 
 
+def _schema_for_bundle(
+    bundle: dict[str, Any],
+    *,
+    gemini: bool = False,
+) -> dict[str, Any]:
+    """Bind citation fields to the exact evidence IDs in this request."""
+    schema = copy.deepcopy(DECISION_ANALYSIS_SCHEMA)
+    allowed = sorted(_allowed_evidence_ids(bundle))
+    for collection in ("options", "risks"):
+        evidence_items = (
+            schema["properties"][collection]["items"]["properties"]["evidence_ids"][
+                "items"
+            ]
+        )
+        evidence_items["enum"] = allowed
+    return _gemini_schema(schema) if gemini else schema
+
+
 def _parse_analysis(raw: str | dict[str, Any], bundle: dict[str, Any]) -> DecisionAnalysis:
     try:
         if isinstance(raw, str):
@@ -313,7 +334,7 @@ async def _openai_enrichment(
                 "type": "json_schema",
                 "name": _OPENAI_SCHEMA_NAME,
                 "strict": True,
-                "schema": DECISION_ANALYSIS_SCHEMA,
+                "schema": _schema_for_bundle(bundle),
             },
         },
         "max_output_tokens": 1800,
@@ -355,7 +376,7 @@ async def _gemini_enrichment(
             _instructions(),
             "EVIDENCE_BUNDLE_JSON:\n"
             + json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
-            _gemini_schema(DECISION_ANALYSIS_SCHEMA),
+            _schema_for_bundle(bundle, gemini=True),
             max_output_tokens=1800,
         )
     except GeminiError as exc:
