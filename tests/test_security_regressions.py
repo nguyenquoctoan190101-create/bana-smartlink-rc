@@ -268,7 +268,7 @@ class TestPendingUpdates:
             submitter_address=None,
             submitter_relation=None,
             explanation=None,
-            consent_version="2026-07-13",
+            consent_version="1.0-2026-07-26",
         )
 
     def test__invalid_phone_rejected(self, client: TestClient):

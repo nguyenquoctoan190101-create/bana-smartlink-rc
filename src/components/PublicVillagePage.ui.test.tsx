@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,21 +216,25 @@ describe("PublicVillagePage navigation", () => {
       ).getByRole("button", { name: "Đề nghị đối chiếu số liệu" }),
     );
 
-    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "-1");
-    await user.type(
-      screen.getByLabelText("Lý do cần đối chiếu"),
-      "Đối chiếu nguồn công khai.",
-    );
-    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    fireEvent.change(screen.getByLabelText(/Giá trị đề xuất/), {
+      target: { value: "-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Lý do cần đối chiếu"), {
+      target: { value: "Đối chiếu nguồn công khai." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "số nguyên không âm",
     );
 
-    await user.clear(screen.getByLabelText(/Giá trị đề xuất/));
-    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "320");
-    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
-    await user.type(screen.getByLabelText(/Số điện thoại/), "123");
-    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    fireEvent.change(screen.getByLabelText(/Giá trị đề xuất/), {
+      target: { value: "320" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    fireEvent.change(screen.getByLabelText(/Số điện thoại/), {
+      target: { value: "123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Số điện thoại chưa đúng định dạng",
     );

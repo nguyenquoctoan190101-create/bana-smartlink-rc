@@ -1,5 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CitizenCasePanel from "./CitizenCasePanel";
 
@@ -37,7 +36,6 @@ describe("CitizenCasePanel", () => {
   });
 
   it("validates and normalizes optional contact information before submission", async () => {
-    const user = userEvent.setup();
     mocks.apiJson.mockResolvedValue({
       tracking_code: "A".repeat(32),
       case: { id: "case-1", status: "received" },
@@ -50,22 +48,24 @@ describe("CitizenCasePanel", () => {
       />,
     );
 
-    await user.type(
-      screen.getByLabelText(/Mô tả sự cố/),
-      "Đèn đường không sáng.",
-    );
-    await user.type(screen.getByLabelText(/Số điện thoại/), "123");
-    await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Gửi phản ánh" }));
+    fireEvent.change(screen.getByLabelText(/Mô tả sự cố/), {
+      target: { value: "Đèn đường không sáng." },
+    });
+    fireEvent.change(screen.getByLabelText(/Số điện thoại/), {
+      target: { value: "123" },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi phản ánh" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Số điện thoại chưa đúng định dạng",
     );
     expect(mocks.apiJson).not.toHaveBeenCalled();
 
-    await user.clear(screen.getByLabelText(/Số điện thoại/));
-    await user.type(screen.getByLabelText(/Số điện thoại/), "0901 234 567");
-    await user.click(screen.getByRole("button", { name: "Gửi phản ánh" }));
+    fireEvent.change(screen.getByLabelText(/Số điện thoại/), {
+      target: { value: "0901 234 567" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi phản ánh" }));
 
     await waitFor(() => expect(mocks.apiJson).toHaveBeenCalledOnce());
     expect(JSON.parse(mocks.apiJson.mock.calls[0][1].body)).toMatchObject({
