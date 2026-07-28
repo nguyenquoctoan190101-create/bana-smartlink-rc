@@ -4124,50 +4124,6 @@
         "title": "TourismPlaceStatusRequest",
         "type": "object"
       },
-      "TrendAlertResponse": {
-        "properties": {
-          "change_pct": {
-            "title": "Change Pct",
-            "type": "number"
-          },
-          "ct_code": {
-            "title": "Ct Code",
-            "type": "string"
-          },
-          "curr_value": {
-            "title": "Curr Value",
-            "type": "integer"
-          },
-          "indicator_name": {
-            "title": "Indicator Name",
-            "type": "string"
-          },
-          "prev_value": {
-            "title": "Prev Value",
-            "type": "integer"
-          },
-          "village_id": {
-            "format": "uuid",
-            "title": "Village Id",
-            "type": "string"
-          },
-          "village_name": {
-            "title": "Village Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "village_id",
-          "village_name",
-          "ct_code",
-          "indicator_name",
-          "prev_value",
-          "curr_value",
-          "change_pct"
-        ],
-        "title": "TrendAlertResponse",
-        "type": "object"
-      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -9821,7 +9777,8 @@
     },
     "/reports/trend-alerts": {
       "get": {
-        "description": "Compare reports from two periods and return indicators with >20% changes.",
+        "deprecated": true,
+        "description": "Fail closed until indicator-specific alert governance is approved.\n\nKeeping the authenticated compatibility route makes old clients fail with\nan explicit, machine-readable governance state instead of silently\nproducing severity from the former global 20 percent threshold.",
         "operationId": "get_trend_alerts_reports_trend_alerts_get",
         "parameters": [
           {
@@ -9860,19 +9817,13 @@
           }
         ],
         "responses": {
-          "200": {
+          "409": {
             "content": {
               "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TrendAlertResponse"
-                  },
-                  "title": "Response Get Trend Alerts Reports Trend Alerts Get",
-                  "type": "array"
-                }
+                "schema": {}
               }
             },
-            "description": "Successful Response"
+            "description": "Chưa có quy tắc cảnh báo theo chỉ tiêu được phê duyệt."
           },
           "422": {
             "content": {

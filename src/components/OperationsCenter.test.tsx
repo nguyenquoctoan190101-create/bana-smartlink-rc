@@ -66,6 +66,12 @@ describe("OperationsCenter", () => {
     expect(
       screen.getByRole("button", { name: "Tạo bản phân tích có căn cứ" }),
     ).toBeDisabled();
+    expect(
+      screen.getByText("Chưa bật — thiếu quy tắc đã phê duyệt"),
+    ).toBeInTheDocument();
+    expect(mocks.apiJson).not.toHaveBeenCalledWith(
+      expect.stringContaining("/reports/trend-alerts"),
+    );
   });
 
   it("shows Vietnamese status and source labels", async () => {

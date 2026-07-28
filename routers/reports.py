@@ -1885,55 +1885,47 @@ async def get_reports_status(
     )
 
 
-class TrendAlertResponse(BaseModel):
-    village_id: UUID
-    village_name: str
-    ct_code: str
-    indicator_name: str
-    prev_value: int
-    curr_value: int
-    change_pct: float
-
-
-@router.get("/trend-alerts", response_model=list[TrendAlertResponse])
+@router.get(
+    "/trend-alerts",
+    status_code=status.HTTP_409_CONFLICT,
+    response_model=None,
+    deprecated=True,
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "description": "Chưa có quy tắc cảnh báo theo chỉ tiêu được phê duyệt.",
+        }
+    },
+)
 async def get_trend_alerts(
     curr_period_id: str,
     prev_period_id: str,
-    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     _: Annotated[UserProfile, Depends(require_admin_or_leader)],
-    authorization: Annotated[str | None, Header()] = None,
-) -> list[TrendAlertResponse]:
-    """Compare reports from two periods and return indicators with >20% changes."""
-    from services.trend_alert import get_trend_alerts_async  # noqa: PLC0415
+) -> None:
+    """Fail closed until indicator-specific alert governance is approved.
 
-    caller = supabase.as_user(_extract_bearer_token(authorization))
-    curr_uuid, _ = await safe_resolve_period(caller, curr_period_id)
-    prev_uuid, _ = await safe_resolve_period(caller, prev_period_id)
-    try:
-        alerts = await get_trend_alerts_async(
-            supabase=caller,
-            prev_period_id=str(prev_uuid),
-            curr_period_id=str(curr_uuid),
-        )
-    except Exception as exc:
-        logger.exception("Trend analysis failed")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to analyze report trends",
-        ) from exc
-
-    return [
-        TrendAlertResponse(
-            village_id=UUID(a["village_id"]),
-            village_name=a["village_name"],
-            ct_code=a["ct_code"],
-            indicator_name=a["indicator_name"],
-            prev_value=a["prev_value"],
-            curr_value=a["curr_value"],
-            change_pct=a["change_pct"],
-        )
-        for a in alerts
-    ]
+    Keeping the authenticated compatibility route makes old clients fail with
+    an explicit, machine-readable governance state instead of silently
+    producing severity from the former global 20 percent threshold.
+    """
+    del curr_period_id, prev_period_id
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": "ALERT_RULE_NOT_GOVERNED",
+            "message": (
+                "Cảnh báo biến động chưa được bật vì registry chưa có "
+                "quy tắc đã phê duyệt cho từng chỉ tiêu."
+            ),
+            "required_metadata": [
+                "absolute_threshold",
+                "relative_threshold",
+                "baseline",
+                "direction",
+                "owner",
+                "effective_from",
+            ],
+        },
+    )
 
 
 async def _submit_report_values(

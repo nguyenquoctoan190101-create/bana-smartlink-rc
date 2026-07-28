@@ -35,44 +35,45 @@ def client():
         app.dependency_overrides.clear()
 
 
-def test_get_trend_alerts_success(client: TestClient) -> None:
-    # Set up route parameters
+def test_get_trend_alerts_fails_closed_without_governed_rules(
+    client: TestClient,
+) -> None:
     curr_id = uuid4()
     prev_id = uuid4()
     from routers.auth import get_supabase_admin
     fake_supabase = client.app.dependency_overrides[get_supabase_admin]()
+    fake_supabase._rest_request = AsyncMock(
+        side_effect=AssertionError("governance gate must not query data"),
+    )
 
-    async def resolve_period(_method, path, *args, **kwargs):
-        period_id = curr_id if str(curr_id) in path else prev_id
-        return [{"id": str(period_id), "name": f"Period {period_id}"}]
+    response = client.get(
+        f"/reports/trend-alerts?curr_period_id={curr_id}&prev_period_id={prev_id}",
+        headers={"Authorization": "Bearer caller-jwt"},
+    )
 
-    fake_supabase._rest_request = AsyncMock(side_effect=resolve_period)
-
-    mock_alerts = [
-        {
-            "village_id": str(uuid4()),
-            "village_name": "Thôn Phước Thái",
-            "ct_code": "CT03",
-            "indicator_name": "Số hộ nghèo",
-            "prev_value": 10,
-            "curr_value": 15,
-            "change_pct": 50.0,
-        }
-    ]
-
-    with patch("services.trend_alert.get_trend_alerts_async", new_callable=AsyncMock) as mock_service:
-        mock_service.return_value = mock_alerts
-
-        response = client.get(
-            f"/reports/trend-alerts?curr_period_id={curr_id}&prev_period_id={prev_id}",
-            headers={"Authorization": "Bearer caller-jwt"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["village_name"] == "Thôn Phước Thái"
-        assert data[0]["change_pct"] == 50.0
-        fake_supabase.as_user.assert_called_with("caller-jwt")
+    assert response.status_code == 409
+    payload = response.json()
+    message = (
+        "Cảnh báo biến động chưa được bật vì registry chưa có "
+        "quy tắc đã phê duyệt cho từng chỉ tiêu."
+    )
+    assert payload["code"] == "ALERT_RULE_NOT_GOVERNED"
+    assert payload["message"] == message
+    assert payload["details"] == {
+        "code": "ALERT_RULE_NOT_GOVERNED",
+        "message": message,
+        "required_metadata": [
+            "absolute_threshold",
+            "relative_threshold",
+            "baseline",
+            "direction",
+            "owner",
+            "effective_from",
+        ],
+    }
+    assert isinstance(payload["request_id"], str) and payload["request_id"]
+    fake_supabase.as_user.assert_not_called()
+    fake_supabase._rest_request.assert_not_awaited()
 
 
 def test_get_report_periods_success(client: TestClient) -> None:

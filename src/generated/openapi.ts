@@ -1483,7 +1483,12 @@ export interface paths {
         };
         /**
          * Get Trend Alerts
-         * @description Compare reports from two periods and return indicators with >20% changes.
+         * @deprecated
+         * @description Fail closed until indicator-specific alert governance is approved.
+         *
+         *     Keeping the authenticated compatibility route makes old clients fail with
+         *     an explicit, machine-readable governance state instead of silently
+         *     producing severity from the former global 20 percent threshold.
          */
         get: operations["get_trend_alerts_reports_trend_alerts_get"];
         put?: never;
@@ -3021,26 +3026,6 @@ export interface components {
              * @enum {string}
              */
             status: "draft" | "approved" | "archived";
-        };
-        /** TrendAlertResponse */
-        TrendAlertResponse: {
-            /** Change Pct */
-            change_pct: number;
-            /** Ct Code */
-            ct_code: string;
-            /** Curr Value */
-            curr_value: number;
-            /** Indicator Name */
-            indicator_name: string;
-            /** Prev Value */
-            prev_value: number;
-            /**
-             * Village Id
-             * Format: uuid
-             */
-            village_id: string;
-            /** Village Name */
-            village_name: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -6325,13 +6310,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Chưa có quy tắc cảnh báo theo chỉ tiêu được phê duyệt. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TrendAlertResponse"][];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

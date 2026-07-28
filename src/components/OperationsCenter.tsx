@@ -113,13 +113,6 @@ type Quality = {
   outlier_count: number;
   lineage: { report_source: string; report_version: number };
 };
-type TrendAlert = {
-  village_id: string;
-  village_name: string;
-  ct_code: string;
-  indicator_name: string;
-  change_pct: number;
-};
 type QualityResponse = {
   period?: { id: string; name?: string | null };
   generated_at?: string;
@@ -127,7 +120,7 @@ type QualityResponse = {
   rule_version?: string;
 };
 type LoadResult = {
-  key: "quality" | "actions" | "alerts" | "drafts" | "maturity" | "initiatives";
+  key: "quality" | "actions" | "drafts" | "maturity" | "initiatives";
   label: string;
   value: unknown;
   error?: unknown;
@@ -549,7 +542,6 @@ const roleOverviewCopy: Record<string, { title: string; description: string }> =
 export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIODS, maturityEnabled = false, onNavigate }: Props) {
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
-  const [alerts, setAlerts] = useState<TrendAlert[]>([]);
   const [drafts, setDrafts] = useState<DecisionDraft[]>([]);
   const [maturity, setMaturity] = useState<any[]>([]);
   const [initiatives, setInitiatives] = useState<any[]>([]);
@@ -562,7 +554,6 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const [available, setAvailable] = useState<Availability>({
     quality: null,
     actions: null,
-    alerts: null,
     drafts: null,
     maturity: null,
     initiatives: null,
@@ -592,15 +583,6 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         return { key, label, value: null, error };
       }
     };
-    const currentPeriodIndex = periods.findIndex((period) => period.id === periodId);
-    const previousPeriod =
-      currentPeriodIndex >= 0 ? periods[currentPeriodIndex + 1] : undefined;
-    const trendRequest =
-      internal && periodId && previousPeriod
-        ? apiJson(
-            `/reports/trend-alerts?curr_period_id=${encodeURIComponent(periodId)}&prev_period_id=${encodeURIComponent(previousPeriod.id)}`,
-          )
-        : Promise.resolve([]);
     const requests: Promise<LoadResult>[] = [
       load(
         "quality",
@@ -612,7 +594,6 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           : Promise.resolve(null),
       ),
       load("actions", "danh sách việc", apiJson("/api/operations/actions")),
-      load("alerts", "biến động theo kỳ", trendRequest),
     ];
     if (internal) {
       requests.push(load("drafts", "bản tóm tắt hỗ trợ quyết định", apiJson("/api/operations/ai-drafts")));
@@ -634,7 +615,6 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       if (result.error) {
         if (result.key === "quality") setQuality(null);
         if (result.key === "actions") setActions([]);
-        if (result.key === "alerts") setAlerts([]);
         if (result.key === "drafts") setDrafts([]);
         if (result.key === "maturity") setMaturity([]);
         if (result.key === "initiatives") setInitiatives([]);
@@ -642,7 +622,6 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       }
       if (result.key === "quality") setQuality(result.value as typeof quality);
       if (result.key === "actions") setActions(Array.isArray(result.value) ? (result.value as Action[]) : []);
-      if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? (result.value as TrendAlert[]) : []);
       if (result.key === "drafts") {
         setDrafts(
           Array.isArray(result.value)
@@ -733,7 +712,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const decisionHistory = latestDecisionDraft
     ? decisionHistorySource.filter((item) => item.id !== latestDecisionDraft.id)
     : decisionHistorySource;
-  const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : alerts.length ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
+  const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
   const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
   const currentPeriodName =
     (available.quality === true && quality?.period?.id === periodId
@@ -1049,9 +1028,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                 </div>
                 <div>
                   <dt>
-                    <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
+                    <GitCompareArrows aria-hidden="true" /> So sánh qua kỳ
                   </dt>
-                  <dd>{available.alerts === false ? "—" : alerts.length}</dd>
+                  <dd>Chưa bật — thiếu quy tắc đã phê duyệt</dd>
                 </div>
                 <div>
                   <dt>

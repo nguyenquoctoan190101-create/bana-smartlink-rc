@@ -1,6 +1,5 @@
 {
   "version": "2026-07",
-  "trend_alert_threshold_pct": 20,
   "indicators": [
     {
       "code": "CT01",
