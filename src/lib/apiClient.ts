@@ -48,6 +48,11 @@ function toUrl(path: string): string {
   return `${API_BASE_URL}${cleanPath}`;
 }
 
+/** Build a direct API URL for browser-native downloads without bypassing VITE_API_BASE_URL. */
+export function apiUrl(path: string): string {
+  return toUrl(path);
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const { data, error } = await supabase.auth.getSession();
   if (error) {

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import html
 import hashlib
+import io
 import json
 import logging
 import re
@@ -18,6 +20,7 @@ from fastapi import (
     Form,
     Header,
     HTTPException,
+    Query,
     Request,
     Response,
     UploadFile,
@@ -58,7 +61,7 @@ from services.form_normalizer import (
     normalize_excel,
     normalize_field_name,
 )
-from services.metric_registry import PUBLIC_RAW_METRIC_IDS
+from services.metric_registry import PUBLIC_RAW_METRIC_IDS, load_metric_registry
 from services.gemini import GeminiError, get_gemini_client
 from services.ocr_report import (
     OcrError,
@@ -94,6 +97,17 @@ REPORT_SOURCE_MAP = {
     "photo_ocr": "photo_ocr",
     "direct_api": "direct_api",
 }
+PUBLIC_DATASET_SOURCE_LABEL = (
+    "Báo cáo thôn có trạng thái đã công bố trên Ba Na SmartLink"
+)
+PUBLIC_CSV_COLUMNS = (
+    "village_id",
+    "report_period",
+    "published_at",
+    "source",
+    "registry_version",
+    *PUBLIC_RAW_METRIC_IDS,
+)
 REPORT_PERIOD_CALENDAR_RE = re.compile(
     r"^(?:th[aá]ng\s*)?(\d{1,2})\s*/\s*(\d{4})$",
     re.IGNORECASE,
@@ -305,6 +319,21 @@ class PublicReportResponse(BaseModel):
     report_period: str
     published_at: str | None
     values: dict[PublicMetricCode, int | None]
+
+
+class PublicMetricDefinitionResponse(BaseModel):
+    code: PublicMetricCode
+    label: str
+    definition: str
+    unit: str
+    interpretation_limit: str
+
+
+class PublicDatasetMetadataResponse(BaseModel):
+    schema_version: Literal["public-report-v1"]
+    registry_version: str
+    source_label: str
+    indicators: list[PublicMetricDefinitionResponse]
 
 
 class CreateReportPeriodRequest(BaseModel):
@@ -1861,6 +1890,122 @@ async def get_public_reports(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Không lấy được dữ liệu công khai.",
         ) from exc
+
+
+@router.get(
+    "/public/metadata",
+    response_model=PublicDatasetMetadataResponse,
+)
+async def get_public_report_metadata() -> PublicDatasetMetadataResponse:
+    """Describe the exact public dataset without exposing internal lineage."""
+
+    registry = load_metric_registry()
+    definitions = []
+    for code in PUBLIC_RAW_METRIC_IDS:
+        metric = registry.get(code)
+        if metric is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Thiếu định nghĩa chỉ tiêu công khai.",
+            )
+        definitions.append(
+            PublicMetricDefinitionResponse(
+                code=code,
+                label=metric.label_vi,
+                definition=metric.description_vi,
+                unit=metric.display_unit_vi,
+                interpretation_limit=metric.interpretation_limit_vi,
+            )
+        )
+    return PublicDatasetMetadataResponse(
+        schema_version="public-report-v1",
+        registry_version=registry.registry_version,
+        source_label=PUBLIC_DATASET_SOURCE_LABEL,
+        indicators=definitions,
+    )
+
+
+def _public_csv_cell(value: Any) -> str:
+    """Neutralize spreadsheet formulas while preserving public text."""
+
+    if value is None:
+        return ""
+    text = str(value)
+    if text.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return f"'{text}"
+    return text
+
+
+@router.get(
+    "/public/export.csv",
+    response_class=Response,
+    responses={
+        status.HTTP_200_OK: {
+            "content": {"text/csv": {}},
+            "description": "CSV chỉ chứa các trường và chỉ tiêu công khai.",
+        }
+    },
+)
+async def export_public_reports_csv(
+    supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    village_id: Annotated[UUID | None, Query()] = None,
+    report_period: Annotated[
+        str | None,
+        Query(min_length=1, max_length=120),
+    ] = None,
+) -> Response:
+    """Download a formula-safe CSV derived only from the public allowlist."""
+
+    reports = await get_public_reports(supabase, settings)
+    registry = load_metric_registry()
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        output,
+        fieldnames=PUBLIC_CSV_COLUMNS,
+        extrasaction="ignore",
+        lineterminator="\r\n",
+    )
+    writer.writeheader()
+    for report in reports:
+        if (
+            village_id is not None
+            and str(report.get("village_id")) != str(village_id)
+        ):
+            continue
+        if (
+            report_period is not None
+            and report.get("report_period") != report_period
+        ):
+            continue
+        values = report.get("values")
+        public_values = values if isinstance(values, dict) else {}
+        writer.writerow(
+            {
+                "village_id": _public_csv_cell(report.get("village_id")),
+                "report_period": _public_csv_cell(
+                    report.get("report_period")
+                ),
+                "published_at": _public_csv_cell(report.get("published_at")),
+                "source": PUBLIC_DATASET_SOURCE_LABEL,
+                "registry_version": registry.registry_version,
+                **{
+                    code: public_values.get(code)
+                    for code in PUBLIC_RAW_METRIC_IDS
+                },
+            }
+        )
+    return Response(
+        content=output.getvalue().encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "Content-Disposition": (
+                'attachment; filename="ba-na-public-reports.csv"'
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/status", response_model=ReportsStatusResponse)

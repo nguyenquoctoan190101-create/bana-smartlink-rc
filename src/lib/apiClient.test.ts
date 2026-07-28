@@ -6,7 +6,13 @@ vi.mock("./supabase", () => ({
   supabase: { auth: { getSession: mocks.getSession } },
 }));
 
-import { ApiError, apiFetch, apiJson, toUserFacingError } from "./apiClient";
+import {
+  ApiError,
+  apiFetch,
+  apiJson,
+  apiUrl,
+  toUserFacingError,
+} from "./apiClient";
 
 describe("apiClient", () => {
   beforeEach(() => {
@@ -23,6 +29,12 @@ describe("apiClient", () => {
     const [, init] = vi.mocked(fetch).mock.calls[0];
     expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-access-token");
     expect(localStorage.getItem("supabase_access_token")).toBeNull();
+  });
+
+  it("builds direct download URLs through the configured API boundary", () => {
+    expect(apiUrl("reports/public/export.csv")).toBe(
+      "/reports/public/export.csv",
+    );
   });
 
   it("uses the structured backend error and request id", async () => {

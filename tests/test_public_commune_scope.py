@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 from types import SimpleNamespace
 from typing import Any
 
@@ -122,6 +124,111 @@ def test_public_reports_require_matching_period_and_village_commune() -> None:
     assert "villages!inner(commune_id)" in path
     assert "report_periods.commune_id=eq.ba_na" in path
     assert "villages.commune_id=eq.ba_na" in path
+
+
+def test_public_metadata_uses_only_approved_registry_definitions() -> None:
+    result = asyncio.run(reports.get_public_report_metadata())
+    payload = result.model_dump()
+
+    assert set(payload) == {
+        "schema_version",
+        "registry_version",
+        "source_label",
+        "indicators",
+    }
+    assert payload["schema_version"] == "public-report-v1"
+    assert payload["registry_version"]
+    assert [item["code"] for item in payload["indicators"]] == [
+        "CT01",
+        "CT02",
+        "CT09",
+        "CT12",
+        "CT13",
+    ]
+    assert all(
+        set(item)
+        == {"code", "label", "definition", "unit", "interpretation_limit"}
+        for item in payload["indicators"]
+    )
+    assert "report_values" not in str(payload)
+    assert "CT14" not in str(payload)
+
+
+def test_public_csv_is_formula_safe_and_never_exposes_internal_fields() -> None:
+    village_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    client = FakeSupabase(
+        [
+            {
+                "id": "11111111-1111-4111-8111-111111111111",
+                "village_id": village_id,
+                "published_at": "2026-07-26T00:00:00Z",
+                "report_periods": {
+                    "name": "=2+2",
+                    "commune_id": "ba_na",
+                },
+                "villages": {"commune_id": "ba_na"},
+                "workflow_status": "locked",
+                "submitted_by_name": "Không được công khai",
+                "ai_narrative": "Không được công khai",
+                "report_values": [
+                    {"ct_code": "CT01", "value": 10},
+                    {"ct_code": "CT02", "value": 20},
+                    {"ct_code": "CT09", "value": 8},
+                    {"ct_code": "CT12", "value": 2},
+                    {"ct_code": "CT13", "value": 5},
+                    {"ct_code": "CT14", "value": 99},
+                ],
+            }
+        ]
+    )
+
+    response = asyncio.run(
+        reports.export_public_reports_csv(
+            client,
+            _settings(),
+            village_id=None,
+            report_period=None,
+        )
+    )
+    text = response.body.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+
+    assert response.media_type == "text/csv"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="ba-na-public-reports.csv"'
+    )
+    assert reader.fieldnames == [
+        "village_id",
+        "report_period",
+        "published_at",
+        "source",
+        "registry_version",
+        "CT01",
+        "CT02",
+        "CT09",
+        "CT12",
+        "CT13",
+    ]
+    assert rows == [
+        {
+            "village_id": village_id,
+            "report_period": "'=2+2",
+            "published_at": "2026-07-26T00:00:00Z",
+            "source": reports.PUBLIC_DATASET_SOURCE_LABEL,
+            "registry_version": reports.load_metric_registry().registry_version,
+            "CT01": "10",
+            "CT02": "20",
+            "CT09": "8",
+            "CT12": "2",
+            "CT13": "5",
+        }
+    ]
+    assert "CT14" not in text
+    assert "submitted_by" not in text
+    assert "workflow" not in text
+    assert "ai_narrative" not in text
+    assert "11111111-1111-4111-8111-111111111111" not in text
 
 
 def test_public_evacuation_points_are_queried_and_filtered_to_ba_na() -> None:

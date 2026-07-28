@@ -2815,6 +2815,78 @@
         "title": "ProposalResponse",
         "type": "object"
       },
+      "PublicDatasetMetadataResponse": {
+        "properties": {
+          "indicators": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMetricDefinitionResponse"
+            },
+            "title": "Indicators",
+            "type": "array"
+          },
+          "registry_version": {
+            "title": "Registry Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "public-report-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "registry_version",
+          "source_label",
+          "indicators"
+        ],
+        "title": "PublicDatasetMetadataResponse",
+        "type": "object"
+      },
+      "PublicMetricDefinitionResponse": {
+        "properties": {
+          "code": {
+            "enum": [
+              "CT01",
+              "CT02",
+              "CT09",
+              "CT12",
+              "CT13"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "definition": {
+            "title": "Definition",
+            "type": "string"
+          },
+          "interpretation_limit": {
+            "title": "Interpretation Limit",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "definition",
+          "unit",
+          "interpretation_limit"
+        ],
+        "title": "PublicMetricDefinitionResponse",
+        "type": "object"
+      },
       "PublicReportResponse": {
         "description": "Minimal published evidence contract; no report/workflow/lineage IDs.",
         "properties": {
@@ -9651,6 +9723,93 @@
           }
         },
         "summary": "Get Public Reports",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/public/export.csv": {
+      "get": {
+        "description": "Download a formula-safe CSV derived only from the public allowlist.",
+        "operationId": "export_public_reports_csv_reports_public_export_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "village_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Village Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "report_period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Report Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "CSV chỉ chứa các trường và chỉ tiêu công khai."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Public Reports Csv",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/reports/public/metadata": {
+      "get": {
+        "description": "Describe the exact public dataset without exposing internal lineage.",
+        "operationId": "get_public_report_metadata_reports_public_metadata_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicDatasetMetadataResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Report Metadata",
         "tags": [
           "reports"
         ]

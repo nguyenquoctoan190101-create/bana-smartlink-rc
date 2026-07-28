@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Copy,
+  Download,
   FileSearch,
   FileText,
   Home,
@@ -19,7 +20,17 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
-import { ApiError, apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
+import {
+  ApiError,
+  apiFetch,
+  apiJson,
+  apiUrl,
+  toUserFacingError,
+} from "../lib/apiClient";
+import {
+  getMetricDefinition,
+  metricRegistry,
+} from "../lib/metricRegistry";
 import {
   formatPublicLookupMessage,
   getPublicCaseCategoryLabel,
@@ -42,43 +53,27 @@ import {
 import CitizenCasePanel from "./CitizenCasePanel";
 import "./PublicVillagePage.css";
 
-const PUBLIC_INDICATORS = [
-  {
-    code: "CT01",
-    name: "Tổng số hộ dân",
-    unit: "hộ",
-    icon: Home,
-    tone: "info" as const,
-  },
-  {
-    code: "CT02",
-    name: "Tổng số nhân khẩu",
-    unit: "người",
-    icon: Users,
-    tone: "success" as const,
-  },
-  {
-    code: "CT09",
-    name: "Gia đình văn hóa",
-    unit: "hộ",
-    icon: Award,
-    tone: "warning" as const,
-  },
-  {
-    code: "CT12",
-    name: "Thành viên Tổ công nghệ số cộng đồng",
-    unit: "người",
-    icon: Users,
-    tone: "success" as const,
-  },
-  {
-    code: "CT13",
-    name: "Người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ",
-    unit: "người",
-    icon: FileText,
-    tone: "info" as const,
-  },
-];
+const PUBLIC_INDICATOR_PRESENTATION = {
+  CT01: { icon: Home, tone: "info" as const },
+  CT02: { icon: Users, tone: "success" as const },
+  CT09: { icon: Award, tone: "warning" as const },
+  CT12: { icon: Users, tone: "success" as const },
+  CT13: { icon: FileText, tone: "info" as const },
+};
+
+const PUBLIC_INDICATORS = metricRegistry.public_raw_metric_ids.map((code) => {
+  const definition = getMetricDefinition(code);
+  return {
+    code,
+    name: definition.label_vi,
+    description: definition.description_vi,
+    unit: definition.display_unit_vi,
+    interpretationLimit: definition.interpretation_limit_vi,
+    ...PUBLIC_INDICATOR_PRESENTATION[
+      code as keyof typeof PUBLIC_INDICATOR_PRESENTATION
+    ],
+  };
+});
 
 type PublicMode = "data" | "lookup" | "proposal" | "case";
 type ProposalStep = 1 | 2 | 3 | 4;
@@ -117,6 +112,48 @@ type EvacuationPoint = {
   capacity_households: number;
   is_verified: boolean;
 };
+
+type PublicDatasetMetadata = {
+  schema_version: "public-report-v1";
+  registry_version: string;
+  source_label: string;
+  indicators: Array<{
+    code: string;
+    label: string;
+    definition: string;
+    unit: string;
+    interpretation_limit: string;
+  }>;
+};
+
+export function isPublicDatasetMetadata(
+  value: unknown,
+): value is PublicDatasetMetadata {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<PublicDatasetMetadata>;
+  if (
+    candidate.schema_version !== "public-report-v1" ||
+    typeof candidate.registry_version !== "string" ||
+    !candidate.registry_version.trim() ||
+    typeof candidate.source_label !== "string" ||
+    !candidate.source_label.trim() ||
+    !Array.isArray(candidate.indicators) ||
+    candidate.indicators.length !==
+      metricRegistry.public_raw_metric_ids.length
+  ) {
+    return false;
+  }
+  return metricRegistry.public_raw_metric_ids.every((code, index) => {
+    const indicator = candidate.indicators?.[index];
+    return (
+      indicator?.code === code &&
+      typeof indicator.label === "string" &&
+      typeof indicator.definition === "string" &&
+      typeof indicator.unit === "string" &&
+      typeof indicator.interpretation_limit === "string"
+    );
+  });
+}
 
 export function formatPublicIndicatorValue(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value)
@@ -217,6 +254,8 @@ export default function PublicVillagePage({
 }: PublicVillagePageProps) {
   const [villages, setVillages] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
+  const [datasetMetadata, setDatasetMetadata] =
+    useState<PublicDatasetMetadata | null>(null);
   const [periods, setPeriods] = useState<string[]>([]);
   const [evacuationPoints, setEvacuationPoints] = useState<EvacuationPoint[]>(
     [],
@@ -258,9 +297,15 @@ export default function PublicVillagePage({
       setDataError(null);
       setEvacuationError(null);
       try {
-        const [villageData, reportData, evacuationResult] = await Promise.all([
+        const [
+          villageData,
+          reportData,
+          metadataData,
+          evacuationResult,
+        ] = await Promise.all([
           loadVillages(),
           apiJson<unknown[]>("/reports/public"),
+          apiJson<unknown>("/reports/public/metadata"),
           apiJson<unknown[]>("/api/pilots/evacuation-points")
             .then((data) => ({ data, failed: false }))
             .catch(() => ({ data: [] as unknown[], failed: true })),
@@ -268,6 +313,9 @@ export default function PublicVillagePage({
         if (!active) return;
         const safeVillages = Array.isArray(villageData) ? villageData : [];
         const safeReports = Array.isArray(reportData) ? reportData : [];
+        if (!isPublicDatasetMetadata(metadataData)) {
+          throw new Error("Invalid public dataset metadata");
+        }
         const evacuationData = evacuationResult.data;
         const safeEvacuationPoints = Array.isArray(evacuationData)
           ? evacuationData.filter((point): point is EvacuationPoint =>
@@ -283,6 +331,7 @@ export default function PublicVillagePage({
           : [];
         setVillages(safeVillages);
         setReports(safeReports);
+        setDatasetMetadata(metadataData);
         setEvacuationPoints(safeEvacuationPoints);
         setEvacuationError(
           evacuationResult.failed
@@ -344,6 +393,14 @@ export default function PublicVillagePage({
   const updatedLabel = reportTimestamp
     ? new Date(reportTimestamp).toLocaleDateString("vi-VN")
     : "Chưa có bản công bố";
+  const publicDownloadUrl =
+    selectedReport && datasetMetadata
+      ? apiUrl(
+          `/reports/public/export.csv?village_id=${encodeURIComponent(
+            selectedVillageId,
+          )}&report_period=${encodeURIComponent(selectedReport.report_period)}`,
+        )
+      : null;
   const selectedIndicatorMeta =
     PUBLIC_INDICATORS.find(
       (indicator) => indicator.code === selectedIndicator,
@@ -692,6 +749,82 @@ export default function PublicVillagePage({
                     );
                   })}
                 </div>
+              )}
+
+              <SectionCard
+                className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between"
+                aria-labelledby="public-dataset-source-title"
+              >
+                <div className="max-w-3xl">
+                  <h2
+                    id="public-dataset-source-title"
+                    className="font-bold text-slate-900"
+                  >
+                    Nguồn và phiên bản dữ liệu
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                    {datasetMetadata?.source_label ??
+                      "Đang xác minh nguồn dữ liệu công khai."}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Phiên bản định nghĩa:{" "}
+                    {datasetMetadata?.registry_version ?? "Chưa xác định"} ·
+                    Lược đồ:{" "}
+                    {datasetMetadata?.schema_version ?? "Chưa xác định"}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    Tệp CSV chỉ gồm mã thôn, kỳ, ngày công bố, nguồn, phiên bản
+                    và CT01/CT02/CT09/CT12/CT13; không gồm CT14, thông tin cá
+                    nhân, trạng thái xử lý, nội dung AI hay dấu vết nội bộ.
+                  </p>
+                </div>
+                {publicDownloadUrl ? (
+                  <a
+                    className="button button--secondary shrink-0"
+                    href={publicDownloadUrl}
+                    download
+                    aria-label={`Tải CSV công khai cho ${villageName}, ${periodLabel}`}
+                  >
+                    <Download aria-hidden="true" />
+                    Tải CSV đang xem
+                  </a>
+                ) : (
+                  <span className="text-sm font-semibold text-slate-500">
+                    Chưa có bản công bố để tải
+                  </span>
+                )}
+              </SectionCard>
+
+              {datasetMetadata && (
+                <SectionCard
+                  className="p-5"
+                  aria-labelledby="public-indicator-definitions-title"
+                >
+                  <h2
+                    id="public-indicator-definitions-title"
+                    className="font-bold text-slate-900"
+                  >
+                    Định nghĩa 5 chỉ tiêu công khai
+                  </h2>
+                  <dl className="mt-4 grid gap-4 md:grid-cols-2">
+                    {datasetMetadata.indicators.map((indicator) => (
+                      <div
+                        key={indicator.code}
+                        className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <dt className="font-bold text-slate-900">
+                          {indicator.code} · {indicator.label}
+                        </dt>
+                        <dd className="mt-1 text-sm leading-relaxed text-slate-600">
+                          {indicator.definition} Đơn vị: {indicator.unit}.
+                        </dd>
+                        <dd className="mt-2 text-xs leading-relaxed text-slate-500">
+                          {indicator.interpretation_limit}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </SectionCard>
               )}
 
               <SectionCard className="flex flex-col gap-4 p-5 md:flex-row md:items-start">
