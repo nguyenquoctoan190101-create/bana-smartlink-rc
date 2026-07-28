@@ -43,8 +43,10 @@ không quyết định báo cáo hợp lệ; `services/validator.py` và
   và hồ sơ audit theo phạm vi quyền.
 - Trung tâm thông báo có số chưa đọc, phân loại ưu tiên, điều hướng xử lý, âm báo
   bật/tắt và Web Push tùy chọn.
-- Cổng công dân chỉ công khai các chỉ tiêu được phép; hỗ trợ tra cứu trạng thái,
-  gửi đề xuất đối chiếu và phản ánh hiện trường mà không tạo tài khoản.
+- Cổng công dân chỉ công khai các chỉ tiêu được phép; hiển thị nguồn, phiên bản
+  registry và định nghĩa; cho tải CSV công khai chống formula injection; hỗ trợ
+  tra cứu trạng thái, gửi đề xuất đối chiếu và phản ánh hiện trường mà không
+  tạo tài khoản.
 - Gemini chỉ hỗ trợ OCR, diễn giải số liệu tổng hợp và trợ lý; quy tắc xác định
   hợp lệ vẫn là mã nguồn tất định và chính sách RLS.
 
@@ -63,6 +65,10 @@ không quyết định báo cáo hợp lệ; `services/validator.py` và
 | Lãnh đạo xã | `lanh_dao` | Chỉ đọc dữ liệu nội bộ, quyết định theo thẩm quyền và xuất báo cáo |
 
 CT14 và dữ liệu định danh không có trong projection công khai.
+`GET /reports/public/metadata` là contract định nghĩa/nguồn/phiên bản;
+`GET /reports/public/export.csv` chỉ có mã thôn, kỳ, ngày công bố, nguồn,
+phiên bản và CT01/CT02/CT09/CT12/CT13. Hai endpoint không trả report ID,
+workflow, PII, nội dung AI hoặc lineage nội bộ.
 
 ## Điều hành, chất lượng và đổi mới
 

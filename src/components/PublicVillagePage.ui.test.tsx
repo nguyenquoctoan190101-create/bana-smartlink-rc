@@ -26,6 +26,26 @@ vi.mock("../lib/useVillages", () => ({
   loadVillages: mocks.loadVillages,
 }));
 
+const publicMetadata = {
+  schema_version: "public-report-v1",
+  registry_version: "2026-07-28.1",
+  source_label:
+    "Báo cáo thôn có trạng thái đã công bố trên Ba Na SmartLink",
+  indicators: [
+    ["CT01", "Tổng số hộ dân", "Số hộ dân.", "hộ", "Không phải điểm."],
+    ["CT02", "Tổng số nhân khẩu", "Số người.", "người", "Không phải điểm."],
+    ["CT09", "Gia đình văn hóa", "Số hộ đạt.", "hộ", "Không xếp hạng."],
+    ["CT12", "Tổ công nghệ số", "Số thành viên.", "người", "Số đếm."],
+    ["CT13", "Người được hướng dẫn", "Số người trong kỳ.", "người/kỳ", "Số đếm."],
+  ].map(([code, label, definition, unit, interpretation_limit]) => ({
+    code,
+    label,
+    definition,
+    unit,
+    interpretation_limit,
+  })),
+};
+
 describe("PublicVillagePage navigation", () => {
   afterEach(() => cleanup());
 
@@ -34,7 +54,11 @@ describe("PublicVillagePage navigation", () => {
     mocks.loadVillages.mockResolvedValue([
       { id: "village-1", name: "Thôn An Sơn" },
     ]);
-    mocks.apiJson.mockResolvedValue([]);
+    mocks.apiJson.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/reports/public/metadata" ? publicMetadata : [],
+      ),
+    );
   });
 
   it("shows four citizen tasks in the hero and switches to a compact subpage header", async () => {
@@ -113,5 +137,53 @@ describe("PublicVillagePage navigation", () => {
       "Đây là mã ví dụ để minh họa định dạng, không phải mã hồ sơ thật.",
     );
     expect(mocks.apiJson).toHaveBeenCalledTimes(callsBeforeLookup);
+  });
+
+  it("shows governed definitions and a safe download for the selected publication", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path === "/reports/public/metadata") {
+        return Promise.resolve(publicMetadata);
+      }
+      if (path === "/reports/public") {
+        return Promise.resolve([
+          {
+            village_id: "village-1",
+            report_period: "Tháng 7/2026",
+            published_at: "2026-07-28T08:00:00+07:00",
+            values: { CT01: 318 },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<PublicVillagePage onGoToLogin={vi.fn()} />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Nguồn và phiên bản dữ liệu",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/2026-07-28\.1/)).toBeInTheDocument();
+    const definitions = screen.getByRole("region", {
+      name: "Định nghĩa 5 chỉ tiêu công khai",
+    });
+    expect(
+      within(definitions).getByRole("heading", {
+        level: 2,
+        name: "Định nghĩa 5 chỉ tiêu công khai",
+      }),
+    ).toBeInTheDocument();
+    expect(within(definitions).getAllByRole("term")).toHaveLength(5);
+
+    const download = screen.getByRole("link", {
+      name: "Tải CSV công khai cho Thôn An Sơn, Tháng 7/2026",
+    });
+    expect(download).toHaveAttribute(
+      "href",
+      "/reports/public/export.csv?village_id=village-1&report_period=Th%C3%A1ng%207%2F2026",
+    );
+    expect(download).toHaveAttribute("download");
   });
 });

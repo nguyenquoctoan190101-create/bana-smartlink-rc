@@ -7,6 +7,7 @@ import {
   formatPublicIndicatorValue,
   getDefaultPublicVillageId,
   getEvacuationAvailability,
+  isPublicDatasetMetadata,
   PUBLIC_NAVIGATION_LABELS,
   getPublicLookupFailure,
   getPublicReportTimestamp,
@@ -43,6 +44,39 @@ describe("public indicator rendering", () => {
 
   it("still renders a real zero as zero", () => {
     expect(formatPublicIndicatorValue(0)).toBe("0");
+  });
+
+  it("accepts only the exact five-definition public metadata contract", () => {
+    const metadata = {
+      schema_version: "public-report-v1",
+      registry_version: "2026-07-28.1",
+      source_label: "Báo cáo thôn đã công bố",
+      indicators: ["CT01", "CT02", "CT09", "CT12", "CT13"].map(
+        (code) => ({
+          code,
+          label: code,
+          definition: "Định nghĩa",
+          unit: "người",
+          interpretation_limit: "Giới hạn diễn giải",
+        }),
+      ),
+    };
+    expect(isPublicDatasetMetadata(metadata)).toBe(true);
+    expect(
+      isPublicDatasetMetadata({
+        ...metadata,
+        indicators: [
+          ...metadata.indicators,
+          {
+            code: "CT14",
+            label: "Không công khai",
+            definition: "Không công khai",
+            unit: "vụ",
+            interpretation_limit: "Không công khai",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });
 

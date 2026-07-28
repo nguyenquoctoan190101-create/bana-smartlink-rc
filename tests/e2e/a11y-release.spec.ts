@@ -28,6 +28,30 @@ async function mockPublicApi(page: Page): Promise<void> {
   await page.route("**/reports/public", (route) =>
     route.fulfill({ status: 200, ...json(publicReports) }),
   );
+  await page.route("**/reports/public/metadata", (route) =>
+    route.fulfill({
+      status: 200,
+      ...json({
+        schema_version: "public-report-v1",
+        registry_version: "2026-07-28.1",
+        source_label:
+          "Báo cáo thôn có trạng thái đã công bố trên Ba Na SmartLink",
+        indicators: [
+          ["CT01", "Tổng số hộ dân", "Số hộ dân.", "hộ", "Không phải điểm."],
+          ["CT02", "Tổng số nhân khẩu", "Số người.", "người", "Không phải điểm."],
+          ["CT09", "Gia đình văn hóa", "Số hộ đạt.", "hộ", "Không xếp hạng."],
+          ["CT12", "Tổ công nghệ số", "Số thành viên.", "người", "Số đếm."],
+          ["CT13", "Người được hướng dẫn", "Số người.", "người/kỳ", "Số đếm."],
+        ].map(([code, label, definition, unit, interpretation_limit]) => ({
+          code,
+          label,
+          definition,
+          unit,
+          interpretation_limit,
+        })),
+      }),
+    }),
+  );
   await page.route("**/api/pilots/evacuation-points", (route) =>
     route.fulfill({
       status: 200,
@@ -52,7 +76,11 @@ async function openPublicPortal(page: Page): Promise<void> {
   await expect(
     page.getByRole("navigation", { name: "Điều hướng cổng công khai" }),
   ).toBeVisible();
-  await expect(page.getByText("CT01 · Tổng số hộ dân")).toBeVisible();
+  await expect(
+    page
+      .locator(".metric-card")
+      .filter({ hasText: "CT01 · Tổng số hộ dân" }),
+  ).toBeVisible();
 }
 
 async function expectNoBlockingAxeViolations(page: Page): Promise<void> {

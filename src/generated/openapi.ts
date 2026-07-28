@@ -1434,6 +1434,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/public/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Public Reports Csv
+         * @description Download a formula-safe CSV derived only from the public allowlist.
+         */
+        get: operations["export_public_reports_csv_reports_public_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/public/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Report Metadata
+         * @description Describe the exact public dataset without exposing internal lineage.
+         */
+        get: operations["get_public_report_metadata_reports_public_metadata_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/status": {
         parameters: {
             query?: never;
@@ -2561,6 +2601,36 @@ export interface components {
             status: string;
             /** Village Id */
             village_id: string;
+        };
+        /** PublicDatasetMetadataResponse */
+        PublicDatasetMetadataResponse: {
+            /** Indicators */
+            indicators: components["schemas"]["PublicMetricDefinitionResponse"][];
+            /** Registry Version */
+            registry_version: string;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "public-report-v1";
+            /** Source Label */
+            source_label: string;
+        };
+        /** PublicMetricDefinitionResponse */
+        PublicMetricDefinitionResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "CT01" | "CT02" | "CT09" | "CT12" | "CT13";
+            /** Definition */
+            definition: string;
+            /** Interpretation Limit */
+            interpretation_limit: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
         };
         /**
          * PublicReportResponse
@@ -6224,6 +6294,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicReportResponse"][];
+                };
+            };
+        };
+    };
+    export_public_reports_csv_reports_public_export_csv_get: {
+        parameters: {
+            query?: {
+                village_id?: string | null;
+                report_period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV chỉ chứa các trường và chỉ tiêu công khai. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_report_metadata_reports_public_metadata_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDatasetMetadataResponse"];
                 };
             };
         };
