@@ -13,8 +13,6 @@ interface VillageImpact {
   report_id: string | null;
   assisted_report_count: number;
   ct13_value: number | null;
-  difference: number | null;
-  absolute_difference: number | null;
 }
 
 interface CnscdImpactData {
@@ -24,8 +22,6 @@ interface CnscdImpactData {
   submitted_report_count: number;
   assisted_report_count: number;
   ct13_total: number | null;
-  difference: number | null;
-  absolute_difference: number | null;
   missing_ct13_report_count: number;
   villages: VillageImpact[];
   interpretation: string;
@@ -173,16 +169,19 @@ export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }:
           <h2 className="font-semibold text-slate-950">Tổng hợp theo thôn</h2>
           <p className="mt-1 text-sm text-slate-600">Dấu “—” nghĩa là chưa có dữ liệu, không phải số 0.</p>
         </div>
-        <div className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng kết quả hỗ trợ theo thôn; có thể cuộn ngang trên màn hình nhỏ">
+        <div className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700" role="region" tabIndex={0} aria-label="Bảng kết quả hỗ trợ theo thôn; có thể cuộn ngang trên màn hình nhỏ">
           <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
             Vuốt ngang để xem thêm →
           </span>
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-700"><tr><th className="px-5 py-3">Thôn</th><th className="px-5 py-3">Trạng thái báo cáo</th><th className="px-5 py-3 text-right">Báo cáo có hỗ trợ</th><th className="px-5 py-3 text-right">Số người được hướng dẫn (CT13)</th></tr></thead>
+            <caption className="sr-only">
+              Kết quả hỗ trợ lập báo cáo và CT13 theo từng thôn
+            </caption>
+            <thead className="bg-slate-50 text-slate-700"><tr><th scope="col" className="px-5 py-3">Thôn</th><th scope="col" className="px-5 py-3">Trạng thái báo cáo</th><th scope="col" className="px-5 py-3 text-right">Báo cáo có hỗ trợ</th><th scope="col" className="px-5 py-3 text-right">Số người được hướng dẫn (CT13)</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {data.villages.map((item) => (
                 <tr key={item.village_id}>
-                  <td className="px-5 py-3 font-semibold text-slate-900">{item.village_name}</td>
+                  <th scope="row" className="px-5 py-3 text-left font-semibold text-slate-900">{item.village_name}</th>
                   <td className="px-5 py-3">{item.report_id ? <span className="inline-flex items-center gap-1 text-emerald-800"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Đã nộp</span> : <span className="text-slate-500">Chưa nộp</span>}</td>
                   <td className="px-5 py-3 text-right">{item.report_id ? item.assisted_report_count : "—"}</td>
                   <td className="px-5 py-3 text-right">{showNumber(item.ct13_value)}</td>

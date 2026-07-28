@@ -183,6 +183,7 @@ class SupabaseAdminClient:
         headers = self._headers()
         headers["Content-Type"] = content_type
         headers["x-upsert"] = "false"
+        transport_failed = False
         try:
             response = await self._send_http_request(
                 "POST",
@@ -191,8 +192,12 @@ class SupabaseAdminClient:
                 headers=headers,
                 content=content,
             )
-        except httpx.HTTPError as exc:
-            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        except httpx.HTTPError:
+            transport_failed = True
+        if transport_failed:
+            # Raise outside the handler so the provider exception, including
+            # request credentials and response body, is not kept as context.
+            raise SupabaseAdminError("Supabase Storage request failed") from None
         if response.status_code >= 400:
             raise SupabaseAdminError(
                 "Supabase Storage request failed",
@@ -218,6 +223,7 @@ class SupabaseAdminClient:
         headers = self._headers()
         headers["Content-Type"] = content_type
         headers["x-upsert"] = "false"
+        transport_failed = False
         try:
             response = await self._send_http_request(
                 "POST",
@@ -226,8 +232,10 @@ class SupabaseAdminClient:
                 headers=headers,
                 content=content,
             )
-        except httpx.HTTPError as exc:
-            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        except httpx.HTTPError:
+            transport_failed = True
+        if transport_failed:
+            raise SupabaseAdminError("Supabase Storage request failed") from None
         if response.status_code >= 400:
             raise SupabaseAdminError("Supabase Storage request failed", status_code=response.status_code)
 
@@ -235,6 +243,7 @@ class SupabaseAdminClient:
         """Remove an orphaned object after a failed metadata insert."""
         safe_bucket = quote(bucket, safe="")
         safe_path = "/".join(quote(part, safe="") for part in object_path.split("/"))
+        transport_failed = False
         try:
             response = await self._send_http_request(
                 "DELETE",
@@ -242,8 +251,10 @@ class SupabaseAdminClient:
                 timeout=10.0,
                 headers=self._headers(),
             )
-        except httpx.HTTPError as exc:
-            raise SupabaseAdminError("Supabase Storage request failed") from exc
+        except httpx.HTTPError:
+            transport_failed = True
+        if transport_failed:
+            raise SupabaseAdminError("Supabase Storage request failed") from None
         if response.status_code >= 400:
             raise SupabaseAdminError("Supabase Storage request failed", status_code=response.status_code)
 
@@ -389,6 +400,7 @@ class SupabaseAdminClient:
         path: str,
         payload: dict[str, Any] | list[dict[str, Any]] | None,
     ) -> dict[str, Any]:
+        transport_failed = False
         try:
             response = await self._send_http_request(
                 method,
@@ -397,8 +409,10 @@ class SupabaseAdminClient:
                 headers=self._headers(),
                 json=payload,
             )
-        except httpx.HTTPError as exc:
-            raise SupabaseAdminError("Supabase Auth Admin request failed") from exc
+        except httpx.HTTPError:
+            transport_failed = True
+        if transport_failed:
+            raise SupabaseAdminError("Supabase Auth Admin request failed") from None
 
         if response.status_code >= 400:
             raise SupabaseAdminError(
@@ -409,7 +423,13 @@ class SupabaseAdminClient:
         if response.status_code == 204:
             return {}
 
-        data = response.json()
+        invalid_response_json = False
+        try:
+            data = response.json()
+        except ValueError:
+            invalid_response_json = True
+        if invalid_response_json:
+            raise SupabaseAdminError("Unexpected Supabase Auth response") from None
         if not isinstance(data, dict):
             raise SupabaseAdminError("Unexpected Supabase Auth response")
 
@@ -426,6 +446,7 @@ class SupabaseAdminClient:
         if prefer is not None:
             headers["Prefer"] = prefer
 
+        transport_failed = False
         try:
             response = await self._send_http_request(
                 method,
@@ -434,8 +455,10 @@ class SupabaseAdminClient:
                 headers=headers,
                 json=payload,
             )
-        except httpx.HTTPError as exc:
-            raise SupabaseAdminError("Supabase REST request failed") from exc
+        except httpx.HTTPError:
+            transport_failed = True
+        if transport_failed:
+            raise SupabaseAdminError("Supabase REST request failed") from None
 
         if response.status_code >= 400:
             error_code = None
@@ -454,7 +477,13 @@ class SupabaseAdminClient:
         if not response.content:
             return []
 
-        data = response.json()
+        invalid_response_json = False
+        try:
+            data = response.json()
+        except ValueError:
+            invalid_response_json = True
+        if invalid_response_json:
+            raise SupabaseAdminError("Unexpected Supabase REST response") from None
         if not isinstance(data, list):
             raise SupabaseAdminError("Unexpected Supabase REST response")
 

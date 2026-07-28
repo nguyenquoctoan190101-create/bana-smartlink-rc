@@ -53,4 +53,4 @@ EXPOSE 10000
 # Fail closed when the current release schema cannot be applied. The runner
 # uses an advisory lock and a checksum table, so repeat deploys safely skip
 # migrations that were already committed.
-CMD ["sh", "-c", "python migrate.py --release-overlays && exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\""]
+CMD ["sh", "-c", "python migrate.py --release-overlays && exec python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-127.0.0.1}\" --no-access-log"]

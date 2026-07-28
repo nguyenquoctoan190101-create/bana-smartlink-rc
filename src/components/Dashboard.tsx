@@ -1277,7 +1277,7 @@ export default function Dashboard({
         <WorkSection
           index="04"
           title="Báo cáo nguồn và hành động nghiệp vụ"
-          description="Danh sách báo cáo gốc được đặt trong vùng riêng để cán bộ đối chiếu trạng thái, người lập và các thao tác duyệt, khóa hoặc công bố."
+          description="Danh sách báo cáo gốc được đặt trong vùng riêng để cán bộ đối chiếu trạng thái và các thao tác duyệt, khóa hoặc công bố."
           tone="tasks"
           icon={<FileText />}
         >
@@ -1324,18 +1324,20 @@ export default function Dashboard({
                 Vuốt ngang để xem thêm →
               </span>
               <table className="w-full text-left text-xs text-slate-600">
+                <caption className="sr-only">
+                  Danh sách báo cáo thuộc phạm vi và bộ lọc hiện tại
+                </caption>
                 <thead className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider text-4xs border-b border-slate-100">
                   <tr>
-                    <th className="py-3 px-4">Thôn báo cáo</th>
-                    <th className="py-3 px-3">Kỳ báo cáo</th>
-                    <th className="py-3 px-3">Hộ dân (CT01)</th>
-                    <th className="py-3 px-3">Nhân khẩu (CT02)</th>
-                    <th className="py-3 px-3">Hộ nghèo (CT03)</th>
-                    <th className="py-3 px-3">BHYT (CT11)</th>
-                    <th className="py-3 px-3">Trạng thái</th>
-                    <th className="py-3 px-3">Người lập</th>
+                    <th scope="col" className="py-3 px-4">Thôn báo cáo</th>
+                    <th scope="col" className="py-3 px-3">Kỳ báo cáo</th>
+                    <th scope="col" className="py-3 px-3">Hộ dân (CT01)</th>
+                    <th scope="col" className="py-3 px-3">Nhân khẩu (CT02)</th>
+                    <th scope="col" className="py-3 px-3">Hộ nghèo (CT03)</th>
+                    <th scope="col" className="py-3 px-3">BHYT (CT11)</th>
+                    <th scope="col" className="py-3 px-3">Trạng thái</th>
                     {userRole !== "dan" && userRole !== "lanh_dao" && (
-                      <th className="py-3 px-4 text-right">Thao tác</th>
+                      <th scope="col" className="py-3 px-4 text-right">Thao tác</th>
                     )}
                   </tr>
                 </thead>
@@ -1345,9 +1347,9 @@ export default function Dashboard({
                       key={report.id}
                       className="hover:bg-slate-25/50 transition-colors"
                     >
-                      <td className="py-3.5 px-4 font-bold text-slate-800">
+                      <th scope="row" className="py-3.5 px-4 font-bold text-slate-800">
                         {getVillageName(report.village_id)}
-                      </td>
+                      </th>
                       <td className="py-3.5 px-3 font-semibold text-slate-600">
                         {report.report_period}
                       </td>
@@ -1385,11 +1387,6 @@ export default function Dashboard({
                                   ? "Đã khóa"
                                   : "Nháp"}
                         </span>
-                      </td>
-                      <td className="py-3.5 px-3 text-slate-500">
-                        <div className="font-medium text-slate-700">
-                          {report.reporter_name?.trim() || "Chưa ghi nhận"}
-                        </div>
                       </td>
                       {(userRole === "admin_xa" ||
                         userRole === "can_bo_thon" ||

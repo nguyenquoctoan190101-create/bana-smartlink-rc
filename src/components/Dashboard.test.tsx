@@ -333,6 +333,42 @@ describe("Dashboard device drafts", () => {
     expect(screen.queryByText("Xuất PDF")).not.toBeInTheDocument();
   });
 
+  it("omits the reporter column because report listings exclude identity fields", () => {
+    render(
+      <Dashboard
+        reports={[report({ reporter_name: "", reporter_phone: "" })]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    expect(screen.queryByRole("columnheader", { name: "Người lập" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Chưa ghi nhận")).not.toBeInTheDocument();
+  });
+
+  it("associates source-report table headers with their rows and columns", () => {
+    render(
+      <Dashboard
+        reports={[report()]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    const table = screen.getByRole("table", {
+      name: "Danh sách báo cáo thuộc phạm vi và bộ lọc hiện tại",
+    });
+    expect(table.querySelector("caption")).toHaveTextContent(
+      "Danh sách báo cáo thuộc phạm vi và bộ lọc hiện tại",
+    );
+    expect(table.querySelectorAll('thead th[scope="col"]')).toHaveLength(8);
+    expect(table.querySelectorAll('tbody th[scope="row"]')).toHaveLength(1);
+  });
+
   it("offers CNSCĐ only the villages in the authenticated assignment ledger", () => {
     authScope.userVillageIds = ["village-1", "village-3"];
     render(

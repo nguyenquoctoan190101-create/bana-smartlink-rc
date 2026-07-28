@@ -97,9 +97,7 @@ async def test_cnscd_impact_preserves_missing_ct13_instead_of_zero() -> None:
     assert result.assisted_report_count == 1
     assert result.missing_ct13_report_count == 1
     assert result.ct13_total is None
-    assert result.difference is None
     assert result.villages[0].ct13_value == 5
-    assert result.villages[0].difference == 4
     assert result.villages[1].ct13_value is None
     assert "thiếu dữ liệu" in result.interpretation
     assert "timeliness_status=in.(on_time,late)" in supabase._rest_request.await_args_list[2].args[1]
@@ -117,9 +115,11 @@ async def test_cnscd_impact_complete_data_calculates_total_and_includes_unsubmit
     result = await CnscdImpactService(supabase).calculate("p1")
     assert result.has_report_data is True
     assert result.ct13_total == 7
-    assert result.difference == 6
-    assert result.absolute_difference == 6
     assert result.missing_ct13_report_count == 0
+    assert result.assisted_report_count == 1
+    assert "1 báo cáo" in result.interpretation
+    assert "7 người" in result.interpretation
+    assert "chênh lệch" not in result.interpretation
     assert result.villages[1].report_id is None
     assert result.villages[1].ct13_value is None
 
@@ -136,8 +136,6 @@ async def test_cnscd_impact_no_reports_skips_value_request() -> None:
     assert result.has_report_data is False
     assert result.submitted_report_count == 0
     assert result.ct13_total is None
-    assert result.difference is None
-    assert result.absolute_difference is None
     assert "chưa có báo cáo" in result.interpretation
     assert result.villages[0].ct13_value is None
     assert supabase._rest_request.await_count == 3

@@ -200,7 +200,7 @@ export interface paths {
         };
         /**
          * Get Cnscd Impact
-         * @description Compare assisted submissions with self-declared CT13 for a period.
+         * @description Summarize assisted reports and CT13 independently for a period.
          */
         get: operations["get_cnscd_impact_api_cnscd_impact_get"];
         put?: never;
@@ -2044,14 +2044,10 @@ export interface components {
         };
         /** CnscdImpactResponse */
         CnscdImpactResponse: {
-            /** Absolute Difference */
-            absolute_difference: number | null;
             /** Assisted Report Count */
             assisted_report_count: number;
             /** Ct13 Total */
             ct13_total: number | null;
-            /** Difference */
-            difference: number | null;
             /** Has Report Data */
             has_report_data: boolean;
             /** Interpretation */
@@ -3064,14 +3060,10 @@ export interface components {
         };
         /** VillageCnscdImpactResponse */
         VillageCnscdImpactResponse: {
-            /** Absolute Difference */
-            absolute_difference: number | null;
             /** Assisted Report Count */
             assisted_report_count: number;
             /** Ct13 Value */
             ct13_value: number | null;
-            /** Difference */
-            difference: number | null;
             /** Report Id */
             report_id: string | null;
             /**

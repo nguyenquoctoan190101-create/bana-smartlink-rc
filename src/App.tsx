@@ -3,7 +3,7 @@ import { getAllReports, getLocalDrafts, deleteReport } from "./lib/db";
 import { apiFetch, apiJson, toUserFacingError } from "./lib/apiClient";
 import { useAuth } from "./lib/AuthContext";
 
-import { ReportData, UserRole } from "./types";
+import { isPubliclyVisibleReport, ReportData, UserRole } from "./types";
 import SyncStatus from "./components/SyncStatus";
 import ChatWidget from "./components/ChatWidget";
 import PrivacyPolicy from "./components/PrivacyPolicy";
@@ -2012,11 +2012,7 @@ export default function App() {
                         if (userRole === "dan") {
                           const matchesVillage =
                             !userVillageId || r.village_id === userVillageId;
-                          return (
-                            matchesVillage &&
-                            (r.status === "Submitted" ||
-                              r.status === "Approved")
-                          );
+                          return matchesVillage && isPubliclyVisibleReport(r);
                         }
                         return true;
                       })}

@@ -40,8 +40,6 @@ def test_cnscd_impact_uses_the_callers_rls_client() -> None:
             submitted_report_count=1,
             assisted_report_count=1,
             ct13_total=2,
-            difference=1,
-            absolute_difference=1,
             missing_ct13_report_count=0,
             villages=[
                 VillageCnscdImpact(
@@ -50,8 +48,6 @@ def test_cnscd_impact_uses_the_callers_rls_client() -> None:
                     report_id=None,
                     assisted_report_count=1,
                     ct13_value=2,
-                    difference=1,
-                    absolute_difference=1,
                 )
             ],
             interpretation="Dữ liệu kiểm thử.",
@@ -78,6 +74,11 @@ def test_cnscd_impact_uses_the_callers_rls_client() -> None:
     assert response.status_code == 200, response.text
     admin.as_user.assert_called_once_with("caller-jwt")
     service.calculate.assert_awaited_once_with(PERIOD_ID)
+    payload = response.json()
+    assert "difference" not in payload
+    assert "absolute_difference" not in payload
+    assert "difference" not in payload["villages"][0]
+    assert "absolute_difference" not in payload["villages"][0]
 
 
 def test_policy_scorecard_uses_the_callers_rls_client() -> None:

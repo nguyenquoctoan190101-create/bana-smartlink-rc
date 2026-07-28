@@ -266,3 +266,40 @@ def test_summary_export_uses_official_ten_village_order() -> None:
         "Thôn Hòa Ninh",
         "Thôn An Sơn",
     ]
+
+
+def test_summary_export_indexes_reports_once_and_keeps_first_duplicate() -> None:
+    class CountingReport(dict):
+        village_id_reads = 0
+
+        def __getitem__(self, key: object) -> object:
+            if key == "village_id":
+                type(self).village_id_reads += 1
+            return super().__getitem__(key)
+
+    report_count = 40
+    reports = [
+        CountingReport(
+            village_id=f"village-{index}",
+            values={"CT01": index},
+        )
+        for index in range(report_count)
+    ]
+    reports.append(
+        CountingReport(
+            village_id="village-0",
+            values={"CT01": 999},
+        )
+    )
+    villages = {
+        f"village-{index}": f"Thôn hiệu năng {index:02d}"
+        for index in range(report_count)
+    }
+
+    workbook = openpyxl.load_workbook(
+        BytesIO(generate_summary_xlsx_file("Tháng 7/2026", reports, villages))
+    )
+    summary = workbook["Bảng tổng hợp"]
+
+    assert CountingReport.village_id_reads == len(reports)
+    assert summary["C5"].value == 0

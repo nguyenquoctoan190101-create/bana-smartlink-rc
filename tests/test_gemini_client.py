@@ -85,10 +85,19 @@ async def test_generate_json_uses_schema_constrained_deterministic_output() -> N
         "properties": {"intent": {"type": "STRING"}},
         "required": ["intent"],
     }
-    with patch("services.gemini.httpx.AsyncClient", return_value=fake):
-        result = await _client().generate_json("system", "question", schema)
+    with patch(
+        "services.gemini.httpx.AsyncClient",
+        return_value=fake,
+    ) as async_client:
+        result = await _client().generate_json(
+            "system",
+            "question",
+            schema,
+            timeout_seconds=45.0,
+        )
 
     assert result == {"intent": "HELP"}
+    async_client.assert_called_once_with(timeout=45.0)
     config = fake.post.await_args.kwargs["json"]["generationConfig"]
     assert config["responseMimeType"] == "application/json"
     assert config["responseJsonSchema"] == schema
@@ -203,12 +212,17 @@ async def test_generate_json_rejects_invalid_json() -> None:
 async def test_gemini_transport_and_http_errors_are_redacted(caplog) -> None:
     request = httpx.Request("POST", "https://gemini.example")
     fake = FakeAsyncClient(error=httpx.ConnectError("secret network detail", request=request))
-    with patch("services.gemini.httpx.AsyncClient", return_value=fake):
-        with pytest.raises(GeminiError, match="request failed") as caught:
-            await _client().generate_text("system", "user")
+    with caplog.at_level("WARNING", logger="services.gemini"):
+        with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+            with pytest.raises(GeminiError, match="request failed") as caught:
+                await _client().generate_text("system", "user")
     assert "secret network" not in str(caught.value)
     assert caught.value.__cause__ is None
     assert caught.value.__context__ is None
+    assert caplog.records[-1].gemini_error_class == "transport"
+    assert caplog.records[-1].gemini_transport_error_type == "ConnectError"
+    assert "secret network" not in caplog.text
+    assert "secret network" not in repr(caplog.records[-1].__dict__)
 
     fake = FakeAsyncClient(httpx.Response(429, json={
         "error": {
