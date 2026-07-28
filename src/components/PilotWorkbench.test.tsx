@@ -77,4 +77,47 @@ describe("PilotWorkbench", () => {
       "Không thể tạo thiết bị thử nghiệm. Vui lòng thử lại.",
     );
   });
+
+  it("keeps the leadership pilot workspace strictly read-only", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path === "/api/pilots/status") {
+        return Promise.resolve({ iot_enabled: true, tourism_enabled: true });
+      }
+      if (path === "/api/pilots/sensors/devices") {
+        return Promise.resolve([
+          {
+            id: "device-1",
+            name: "Cảm biến mưa",
+            device_type: "rain_gauge",
+            unit: "mm",
+          },
+        ]);
+      }
+      if (path === "/api/pilots/tourism/places/internal") {
+        return Promise.resolve([
+          {
+            id: "place-1",
+            name: "Điểm tham quan mẫu",
+            category: "nature",
+            summary: "Nội dung nội bộ đã kiểm chứng.",
+            status: "draft",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    render(<PilotWorkbench role="lanh_dao" />);
+
+    expect(await screen.findByText("Cảm biến mưa")).toBeInTheDocument();
+    expect(screen.getByText("Điểm tham quan mẫu")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Tên thiết bị")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tên điểm đến")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Duyệt công bố" }),
+    ).not.toBeInTheDocument();
+    expect(
+      mocks.apiJson.mock.calls.some(([, options]) => options?.method),
+    ).toBe(false);
+  });
 });

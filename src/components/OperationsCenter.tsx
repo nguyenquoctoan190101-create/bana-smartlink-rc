@@ -1379,8 +1379,16 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         id="operations-tasks"
         tabIndex={-1}
         index="02"
-        title="Danh sách việc cần xử lý"
-        description="Xếp việc quá hạn lên trước; mỗi thẻ nêu người phụ trách, mức ưu tiên, thời gian đã mở, hạn xử lý, căn cứ và hành động được phép."
+        title={
+          role === "lanh_dao"
+            ? "Danh sách việc cần theo dõi"
+            : "Danh sách việc cần xử lý"
+        }
+        description={
+          role === "lanh_dao"
+            ? "Xếp việc quá hạn lên trước để lãnh đạo theo dõi người phụ trách, mức ưu tiên, thời gian đã mở, hạn xử lý và căn cứ; không thao tác thay người thực hiện."
+            : "Xếp việc quá hạn lên trước; mỗi thẻ nêu người phụ trách, mức ưu tiên, thời gian đã mở, hạn xử lý, căn cứ và hành động được phép."
+        }
         tone="tasks"
         icon={<ClipboardList />}
       >
@@ -1420,12 +1428,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                       />
                     }
                   >
-                    {item.next_action === "start" && (
+                    {item.can_update && item.next_action === "start" && (
                       <Button variant="secondary" onClick={() => void updateAction(item.id, "in_progress")}>
                         Nhận việc
                       </Button>
                     )}
-                    {item.next_action === "complete" && (
+                    {item.can_update && item.next_action === "complete" && (
                       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end">
                         <label className="flex-1 text-sm font-semibold text-slate-700">
                           Kết quả hoàn thành

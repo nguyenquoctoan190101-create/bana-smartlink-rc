@@ -26,7 +26,7 @@ import {
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
 import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
-import { evaluateMetric } from "../lib/metricRegistry";
+import { evaluateMetric, evaluateMetrics } from "../lib/metricRegistry";
 import { reportToMetricEvaluationReport } from "../lib/reportMetrics";
 import { formatViNumber, formatViPercent } from "../lib/formatters";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
@@ -46,6 +46,26 @@ interface DashboardProps {
 }
 
 const ALL_PERIODS = "__all_periods__";
+const DASHBOARD_METRIC_IDS = [
+  "CT01",
+  "CT02",
+  "CT03",
+  "CT04",
+  "CT05",
+  "CT06",
+  "CT07",
+  "CT08",
+  "CT09",
+  "CT10",
+  "CT11",
+  "CT12",
+  "CT13",
+  "CT14",
+  "poverty_household_rate",
+  "near_poverty_household_rate",
+  "health_insurance_rate",
+  "cultural_family_rate",
+] as const;
 
 export function buildDashboardChartScale(reports: ReportData[]) {
   const observedMax = reports.reduce((maximum, report) => {
@@ -354,31 +374,52 @@ export default function Dashboard({
 
   // "Tất cả kỳ" is a snapshot view: keep only the latest report per village,
   // otherwise population/household snapshots would be counted repeatedly.
-  const periodReports = filterDashboardReportsByPeriod(
-    serverReports,
-    reportPeriods,
-    selectedPeriodOption,
+  const decisionReadyReports = useMemo(
+    () => reportsForDecisionMetrics(serverReports),
+    [serverReports],
   );
-
-  const decisionPeriodReports = filterDashboardReportsByPeriod(
-    reportsForDecisionMetrics(serverReports),
-    reportPeriods,
-    selectedPeriodOption,
+  const periodReports = useMemo(
+    () =>
+      filterDashboardReportsByPeriod(
+        serverReports,
+        reportPeriods,
+        selectedPeriodOption,
+      ),
+    [reportPeriods, selectedPeriodOption, serverReports],
   );
-
-  const filteredReports = periodReports.filter((r) => {
-    const matchesVillage =
-      effectiveVillageFilter === "all" ||
-      r.village_id === effectiveVillageFilter;
-    return matchesVillage;
-  });
-  const analyticsReports = decisionPeriodReports.filter(
-    (report) =>
-      effectiveVillageFilter === "all" ||
-      report.village_id === effectiveVillageFilter,
+  const decisionPeriodReports = useMemo(
+    () =>
+      filterDashboardReportsByPeriod(
+        decisionReadyReports,
+        reportPeriods,
+        selectedPeriodOption,
+      ),
+    [decisionReadyReports, reportPeriods, selectedPeriodOption],
   );
-  const analyticsVillageIds = Array.from(
-    new Set(analyticsReports.map((report) => report.village_id)),
+  const filteredReports = useMemo(
+    () =>
+      periodReports.filter(
+        (report) =>
+          effectiveVillageFilter === "all" ||
+          report.village_id === effectiveVillageFilter,
+      ),
+    [effectiveVillageFilter, periodReports],
+  );
+  const analyticsReports = useMemo(
+    () =>
+      decisionPeriodReports.filter(
+        (report) =>
+          effectiveVillageFilter === "all" ||
+          report.village_id === effectiveVillageFilter,
+      ),
+    [decisionPeriodReports, effectiveVillageFilter],
+  );
+  const analyticsVillageIds = useMemo(
+    () =>
+      Array.from(
+        new Set(analyticsReports.map((report) => report.village_id)),
+      ),
+    [analyticsReports],
   );
   const insightVillageId =
     effectiveVillageFilter && effectiveVillageFilter !== "all"
@@ -387,11 +428,15 @@ export default function Dashboard({
         ? analyticsVillageIds[0]
         : "";
   const usesSingleVillageInsights = Boolean(insightVillageId);
-  const insightHistoryReports = insightVillageId
-    ? reportsForDecisionMetrics(serverReports).filter(
-        (report) => report.village_id === insightVillageId,
-      )
-    : [];
+  const insightHistoryReports = useMemo(
+    () =>
+      insightVillageId
+        ? decisionReadyReports.filter(
+            (report) => report.village_id === insightVillageId,
+          )
+        : [],
+    [decisionReadyReports, insightVillageId],
+  );
   const detailReports =
     userRole === "lanh_dao" ? analyticsReports : filteredReports;
   const chartScale = useMemo(
@@ -408,12 +453,17 @@ export default function Dashboard({
       )
     : undefined;
   const assignedVillageIds = selectedPeriodDefinition?.village_ids;
-  const expectedScopeVillageIds = selectableVillages
-    .map((village) => village.id)
-    .filter(
-      (villageId) =>
-        assignedVillageIds === undefined || assignedVillageIds.includes(villageId),
-    );
+  const expectedScopeVillageIds = useMemo(() => {
+    const assignedVillageSet = assignedVillageIds
+      ? new Set(assignedVillageIds)
+      : null;
+    return selectableVillages
+      .map((village) => village.id)
+      .filter(
+        (villageId) =>
+          assignedVillageSet === null || assignedVillageSet.has(villageId),
+      );
+  }, [assignedVillageIds, selectableVillages]);
   const expectedVillageCount =
     !effectiveVillageFilter
       ? 0
@@ -439,29 +489,50 @@ export default function Dashboard({
   // that their display name maps to this one period.
   const metricPeriodId =
     selectedPeriodOption.periodId || selectedPeriodOption.value;
-  const expectedMetricVillageIds =
-    effectiveVillageFilter === "all"
-      ? expectedScopeVillageIds.length
-        ? expectedScopeVillageIds
-        : analyticsVillageIds
-      : effectiveVillageFilter
-        ? [effectiveVillageFilter]
-        : [];
-  const metricReports = analyticsReports.map((report) =>
-    reportToMetricEvaluationReport(report, metricPeriodId),
-  );
-  const metricContext = {
-    period_id: metricPeriodId,
-    scope:
+  const expectedMetricVillageIds = useMemo(
+    () =>
       effectiveVillageFilter === "all"
-        ? "commune:ba-na"
-        : `village:${effectiveVillageFilter}`,
-    expected_village_ids: expectedMetricVillageIds,
-  };
-  const aggregateMetric = (metricId: string) =>
-    canAggregateCurrentSlice
-      ? evaluateMetric(metricId, metricReports, metricContext)
-      : null;
+        ? expectedScopeVillageIds.length
+          ? expectedScopeVillageIds
+          : analyticsVillageIds
+        : effectiveVillageFilter
+          ? [effectiveVillageFilter]
+          : [],
+    [
+      analyticsVillageIds,
+      effectiveVillageFilter,
+      expectedScopeVillageIds,
+    ],
+  );
+  const metricReports = useMemo(
+    () =>
+      analyticsReports.map((report) =>
+        reportToMetricEvaluationReport(report, metricPeriodId),
+      ),
+    [analyticsReports, metricPeriodId],
+  );
+  const aggregateMetrics = useMemo(
+    () =>
+      canAggregateCurrentSlice
+        ? evaluateMetrics(DASHBOARD_METRIC_IDS, metricReports, {
+            period_id: metricPeriodId,
+            scope:
+              effectiveVillageFilter === "all"
+                ? "commune:ba-na"
+                : `village:${effectiveVillageFilter}`,
+            expected_village_ids: expectedMetricVillageIds,
+          })
+        : null,
+    [
+      canAggregateCurrentSlice,
+      effectiveVillageFilter,
+      expectedMetricVillageIds,
+      metricPeriodId,
+      metricReports,
+    ],
+  );
+  const aggregateMetric = (metricId: (typeof DASHBOARD_METRIC_IDS)[number]) =>
+    aggregateMetrics?.get(metricId) ?? null;
 
   const householdsMetric = aggregateMetric("CT01");
   const populationMetric = aggregateMetric("CT02");

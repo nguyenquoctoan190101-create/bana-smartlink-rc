@@ -294,6 +294,51 @@ describe("OperationsCenter", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps leadership action cards read-only even if a stale response contains a next action", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({ reports: [] });
+      }
+      if (path === "/api/operations/actions") {
+        return Promise.resolve([
+          {
+            id: "action-read-only",
+            source_type: "manual",
+            title: "Theo dõi việc khắc phục",
+            priority: "high",
+            status: "pending",
+            owner_id: "staff-1",
+            owner_label: "Cán bộ phụ trách",
+            due_date: "2099-07-30",
+            due_state: "upcoming",
+            created_at: "2026-07-29T00:00:00Z",
+            age_days: 0,
+            evidence_status: "manual",
+            can_update: false,
+            next_action: "start",
+          },
+        ]);
+      }
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="lanh_dao" />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Danh sách việc cần theo dõi",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Theo dõi việc khắc phục")).toBeInTheDocument();
+    expect(
+      screen.getByText(/không thao tác thay người thực hiện/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nhận việc" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps a legacy accepted draft without review evidence out of the official brief", async () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) {

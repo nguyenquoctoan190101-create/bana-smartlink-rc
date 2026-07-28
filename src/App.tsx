@@ -16,6 +16,12 @@ import { useReportPeriods } from "./lib/useReportPeriods";
 import { preferredLeadershipPeriodId } from "./lib/reportPeriods";
 import { getRoleLabel, getRoleScope } from "./lib/rolePresentation";
 import {
+  APP_TAB_TITLES,
+  DEFAULT_TAB_BY_ROLE,
+  isTabAllowedForRole,
+  type AppTab,
+} from "./lib/roleNavigation";
+import {
   deleteServerReport,
   publishServerReport,
   transitionServerReport,
@@ -128,101 +134,7 @@ function playNotificationChime() {
   }
 }
 
-type AppTab =
-  | "dashboard"
-  | "progress-dashboard"
-  | "report-form"
-  | "citizen-proposal"
-  | "admin-panel"
-  | "policy-scorecard"
-  | "cnscd-impact"
-  | "create-period"
-  | "period-change-requests"
-  | "pending-updates"
-  | "operations"
-  | "legacy-import"
-  | "knowledge"
-  | "cases"
-  | "pilots"
-  | "record-lookup";
-
 const CNSCD_IMPACT_LABEL = "Kết quả hỗ trợ chuyển đổi số";
-
-const APP_TAB_TITLES: Record<AppTab, string> = {
-  dashboard: "Báo cáo tổng hợp",
-  "progress-dashboard": "Tiến độ báo cáo",
-  "report-form": "Lập báo cáo định kỳ",
-  "citizen-proposal": "Đề nghị đối chiếu số liệu",
-  "admin-panel": "Quản lý tài khoản",
-  "policy-scorecard": "Chỉ số báo cáo điện tử",
-  "cnscd-impact": CNSCD_IMPACT_LABEL,
-  "create-period": "Kỳ và biểu mẫu báo cáo",
-  "period-change-requests": "Phê duyệt thay đổi kỳ báo cáo",
-  "pending-updates": "Xử lý đề nghị đối chiếu",
-  operations: "Công việc điều hành",
-  "legacy-import": "Nhập dữ liệu lịch sử",
-  knowledge: "Tài liệu và hỗ trợ nghiệp vụ",
-  cases: "Phản ánh hiện trường",
-  pilots: "Mô hình thử nghiệm",
-  "record-lookup": "Tra cứu hồ sơ",
-};
-
-const ROLE_TABS: Record<UserRole, Set<AppTab>> = {
-  admin_xa: new Set([
-    "dashboard",
-    "progress-dashboard",
-    "policy-scorecard",
-    "cnscd-impact",
-    "create-period",
-    "admin-panel",
-    "pending-updates",
-    "operations",
-    "legacy-import",
-    "knowledge",
-    "cases",
-    "pilots",
-    "record-lookup",
-  ]),
-  can_bo_thon: new Set([
-    "dashboard",
-    "report-form",
-    "citizen-proposal",
-    "operations",
-    "knowledge",
-    "cases",
-    "record-lookup",
-  ]),
-  to_cnscd: new Set([
-    "dashboard",
-    "report-form",
-    "cnscd-impact",
-    "citizen-proposal",
-    "operations",
-    "knowledge",
-    "cases",
-    "record-lookup",
-  ]),
-  lanh_dao: new Set([
-    "dashboard",
-    "progress-dashboard",
-    "policy-scorecard",
-    "cnscd-impact",
-    "operations",
-    "knowledge",
-    "cases",
-    "record-lookup",
-    "period-change-requests",
-  ]),
-  dan: new Set(["dashboard", "citizen-proposal", "record-lookup"]),
-};
-
-const DEFAULT_TAB_BY_ROLE: Record<UserRole, AppTab> = {
-  admin_xa: "operations",
-  can_bo_thon: "operations",
-  to_cnscd: "operations",
-  lanh_dao: "operations",
-  dan: "dashboard",
-};
 
 const requestedAppTab = (): AppTab | null => {
   const pathTab = window.location.pathname.match(/^\/app\/([^/]+)$/)?.[1];
@@ -554,6 +466,9 @@ export default function App() {
     maturity_enabled: false,
     scenario_enabled: false,
   });
+  const [pilotStatusReady, setPilotStatusReady] = useState(false);
+  const pilotsEnabled =
+    pilotStatus.iot_enabled || pilotStatus.tourism_enabled;
 
   const fetchNotifications = async () => {
     if (!isLoggedIn || userRole === "dan") return;
@@ -614,8 +529,10 @@ export default function App() {
         maturity_enabled: false,
         scenario_enabled: false,
       });
+      setPilotStatusReady(true);
       return;
     }
+    setPilotStatusReady(false);
     let cancelled = false;
     const loadPilotStatus = async () => {
       try {
@@ -641,6 +558,8 @@ export default function App() {
             maturity_enabled: false,
             scenario_enabled: false,
           });
+      } finally {
+        if (!cancelled) setPilotStatusReady(true);
       }
     };
     void loadPilotStatus();
@@ -825,7 +744,9 @@ export default function App() {
 
   // Synchronize tab state with URL path
   const changeTab = (tab: AppTab, search = new URLSearchParams()) => {
-    if (!ROLE_TABS[userRole].has(tab)) tab = DEFAULT_TAB_BY_ROLE[userRole];
+    if (!isTabAllowedForRole(userRole, tab, pilotsEnabled)) {
+      tab = DEFAULT_TAB_BY_ROLE[userRole];
+    }
     if (tab === "report-form") {
       setRequestedPeriodId(search.get("period_id") || search.get("period"));
     }
@@ -837,9 +758,15 @@ export default function App() {
   // Restore deep links and browser back/forward navigation.
   useEffect(() => {
     if (!isLoggedIn) return undefined;
+    if (
+      ["admin_xa", "lanh_dao"].includes(userRole) &&
+      !pilotStatusReady
+    ) {
+      return undefined;
+    }
     const restore = () => {
       const target = requestedAppTab();
-      if (target && ROLE_TABS[userRole].has(target)) {
+      if (target && isTabAllowedForRole(userRole, target, pilotsEnabled)) {
         setActiveTab(target);
         setRequestedPeriodId(
           target === "report-form"
@@ -857,7 +784,7 @@ export default function App() {
     restore();
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [isLoggedIn, userRole]);
+  }, [isLoggedIn, pilotStatusReady, pilotsEnabled, userRole]);
 
   useEffect(() => {
     if (!isLoggedIn) return undefined;
@@ -1386,8 +1313,6 @@ export default function App() {
     group?: string;
     primary?: boolean;
   }[] => {
-    const pilotsEnabled =
-      pilotStatus.iot_enabled || pilotStatus.tourism_enabled;
     switch (userRole) {
       case "admin_xa":
         return [
@@ -1545,6 +1470,14 @@ export default function App() {
       items: [
         { id: "operations" as const, label: "Tóm tắt điều hành" },
         { id: "record-lookup" as const, label: "Tra cứu hồ sơ" },
+        ...(pilotsEnabled
+          ? [
+              {
+                id: "pilots" as const,
+                label: "Mô hình thử nghiệm",
+              },
+            ]
+          : []),
       ],
     },
     {

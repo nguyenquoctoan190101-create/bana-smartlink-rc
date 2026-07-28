@@ -64,8 +64,8 @@ const roleLabel = (role: string) =>
     admin_xa: "Cán bộ xã",
     to_cnscd: "Tổ công nghệ số cộng đồng",
     can_bo_thon: "Cán bộ thôn",
-    lanh_dao: "Lãnh đạo",
-  })[role] || role;
+    lanh_dao: "Lãnh đạo xã",
+  })[role] || "Vai trò chưa xác định";
 
 export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props) {
   const admin = role === "admin_xa";

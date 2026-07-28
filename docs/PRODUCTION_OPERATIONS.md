@@ -9,7 +9,11 @@
 - `innovation_initiatives`: vấn đề, giả thuyết giá trị, owner, effort, rủi ro dữ liệu, KPI trước/sau và quyết định portfolio.
 - `ai_action_drafts`: bản nháp điều hành có citations, confidence, model provider và trạng thái `pending_review`/`accepted`/`rejected`.
 
-Mọi bản ghi mang `commune_id`; bản ghi theo thôn/kỳ có `village_id`/`period_id`. `admin_xa` tạo và duyệt; `lanh_dao` chỉ đọc nội bộ; cán bộ chỉ xem việc thuộc owner hoặc thôn được RLS cho phép. Không có policy `anon` cho các bảng này.
+Mọi bản ghi mang `commune_id`; bản ghi theo thôn/kỳ có `village_id`/`period_id`.
+Trong bốn miền dữ liệu vận hành này, `admin_xa` tạo và duyệt, còn `lanh_dao`
+chỉ đọc nội bộ; mutation duy nhất của `lanh_dao` trong toàn hệ thống là quyết
+định yêu cầu thay đổi kỳ qua RPC chuyên biệt. Cán bộ chỉ xem việc thuộc owner
+hoặc thôn được RLS cho phép. Không có policy `anon` cho các bảng này.
 
 ## Trung tâm chất lượng dữ liệu
 

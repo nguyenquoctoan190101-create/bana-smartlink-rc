@@ -47,7 +47,9 @@ Browser (React/Vite)
 - `can_bo_thon`: ghi/xem báo cáo đúng thôn của mình.
 - `to_cnscd`: xem/hỗ trợ các thôn được giao, không duyệt.
 - `admin_xa`: quản trị kỳ/tài khoản, duyệt, khóa, publish, export.
-- `lanh_dao`: chỉ đọc nội bộ và export.
+- `lanh_dao`: đọc nội bộ và export; không sửa báo cáo. Mutation duy nhất là
+  quyết định chấp thuận/từ chối yêu cầu thay đổi kỳ qua endpoint chuyên biệt,
+  có kiểm quyền và nhật ký.
 
 ## Dữ liệu địa giới
 

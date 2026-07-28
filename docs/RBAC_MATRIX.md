@@ -30,7 +30,7 @@ FastAPI và Row Level Security trong PostgreSQL.
 | Cán bộ hoặc trưởng thôn | `can_bo_thon` | Báo cáo, công việc và dữ liệu đúng thôn được gán |
 | Tổ công nghệ số cộng đồng/điều phối hỗ trợ | `to_cnscd` | Hỗ trợ các thôn được phân công; không duyệt, khóa hoặc công bố |
 | Cán bộ xã | `admin_xa` | Quản trị trong đúng xã: kỳ, tài khoản, phân công, duyệt, khóa, công bố, nhập cũ và audit |
-| Lãnh đạo | `lanh_dao` | Chỉ đọc dữ liệu nội bộ và xuất báo cáo được phép; không mutation |
+| Lãnh đạo | `lanh_dao` | Đọc dữ liệu nội bộ và xuất báo cáo được phép; chỉ ghi quyết định chấp thuận/từ chối yêu cầu thay đổi kỳ |
 
 “Cán bộ xã”, “trưởng thôn” và “điều phối” là chức danh/ngữ cảnh nghiệp vụ, không
 phải role mới. Chủ hệ thống phải ánh xạ mỗi người vào một trong bốn role nội bộ
@@ -50,6 +50,7 @@ Ký hiệu: `Xem` là đọc; `Ghi` là tạo/sửa trong phạm vi; `—` là b
 | OCR ảnh/PDF qua dịch vụ ngoài | — | Khóa | Khóa | Khóa | — |
 | Duyệt, yêu cầu sửa, khóa, công bố | — | — | — | Ghi | — |
 | Tạo kỳ, biểu mẫu và quản trị tài khoản | — | — | — | Ghi | — |
+| Quyết định yêu cầu thay đổi/lưu trữ kỳ | — | — | — | Gửi yêu cầu | Phê duyệt/Từ chối |
 | Nhập dữ liệu cũ theo lô | — | — | — | Ghi | — |
 | Xem trung tâm chất lượng/công việc | — | Đúng thôn/việc | Thôn/việc được giao | Trong xã | Trong xã |
 | Giao việc và cấu hình quản trị | — | — | — | Ghi | — |
@@ -71,7 +72,9 @@ ma trận trên không mở rộng quyền so với inventory đó.
    công bố hoặc quản trị tài khoản.
 4. `admin_xa` quản trị kỳ và vòng đời báo cáo nhưng không nhập thay dữ liệu
    nghiệp vụ theo luồng chuẩn của thôn.
-5. `lanh_dao` đọc được phạm vi được cấp nhưng mọi mutation trả 403.
+5. `lanh_dao` đọc được phạm vi được cấp; mọi mutation trả 403, ngoại trừ
+   quyết định chấp thuận/từ chối yêu cầu thay đổi kỳ qua endpoint dành riêng
+   cho lãnh đạo và có nhật ký kiểm toán.
 6. `admin_xa` của xã A không truy cập dữ liệu xã B.
 7. Tài khoản bị khóa hoặc hồ sơ không hoạt động không tiếp tục dùng JWT cũ để
    truy cập nghiệp vụ.
