@@ -276,8 +276,9 @@ def _parse_analysis(raw: str | dict[str, Any], bundle: dict[str, Any]) -> Decisi
             analysis = DecisionAnalysis.model_validate_json(raw)
         else:
             analysis = DecisionAnalysis.model_validate(raw)
-    except Exception as exc:
-        raise DecisionAiError("AI returned an invalid decision schema") from exc
+    except Exception:
+        # Pydantic validation errors can retain the provider's complete output.
+        raise DecisionAiError("AI returned an invalid decision schema") from None
     validate_grounding(
         analysis,
         allowed_evidence_ids=_allowed_evidence_ids(bundle),

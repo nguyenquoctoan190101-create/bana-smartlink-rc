@@ -9,6 +9,7 @@ import pytest
 from services.decision_ai import (
     DecisionAiError,
     DecisionAnalysis,
+    _parse_analysis,
     build_evidence_bundle,
     enrich_decision_brief,
     validate_grounding,
@@ -273,6 +274,20 @@ def test_grounding_rejects_unknown_references_even_with_valid_schema() -> None:
             analysis,
             allowed_evidence_ids={"report-1", "period:Tháng bảy"},
         )
+
+
+def test_invalid_decision_schema_does_not_retain_provider_output() -> None:
+    secret_output = '{"private_model_output":"do-not-retain"}'
+    bundle = {
+        "report_quality_evidence": [{"evidence_id": "report-1"}],
+        "aggregate_metrics": {},
+    }
+
+    with pytest.raises(DecisionAiError, match="invalid decision schema") as caught:
+        _parse_analysis(secret_output, bundle)
+
+    assert "do-not-retain" not in str(caught.value)
+    assert caught.value.__cause__ is None
 
 
 @pytest.mark.asyncio
