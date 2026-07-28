@@ -745,6 +745,7 @@ describe("OperationsCenter", () => {
             content: "Bản bị từ chối vẫn cần truy vết.",
             created_at: "2026-07-28T12:00:00+07:00",
             review_notes: "Cần bổ sung tài liệu nguồn trước khi tạo lại.",
+            reviewed_at: "2026-07-28T13:00:00+07:00",
             citations: [
               {
                 kind: "quality_snapshot",
@@ -781,6 +782,57 @@ describe("OperationsCenter", () => {
     expect(
       screen.getByRole("button", { name: "Tạo bản phân tích có căn cứ" }),
     ).toBeEnabled();
+  });
+
+  it("flags the latest rejected legacy draft when review evidence is incomplete", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          reports: [
+            {
+              report_id: "report-1",
+              village_name: "Thôn An Sơn",
+              workflow_status: "approved",
+              quality_score: 90,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "legacy-rejected-without-review-note",
+            period_id: "period-1",
+            status: "rejected",
+            content: "Bản từ chối di sản thiếu căn cứ duyệt.",
+            created_at: "2026-07-28T12:00:00+07:00",
+            reviewed_at: "2026-07-28T13:00:00+07:00",
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+
+    expect(
+      await screen.findByText("Bản từ chối di sản thiếu căn cứ duyệt."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Thiếu căn cứ duyệt")).toBeInTheDocument();
+    expect(screen.queryByText("Đã từ chối")).not.toBeInTheDocument();
+    expect(screen.getByText("Cảnh báo kiểm toán")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Hồ sơ lịch sử thiếu căn cứ duyệt; không dùng làm căn cứ chính thức",
+      ),
+    ).toHaveAttribute("role", "note");
   });
 
   it.each([

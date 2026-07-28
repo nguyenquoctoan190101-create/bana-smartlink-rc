@@ -318,7 +318,6 @@ describe("Dashboard device drafts", () => {
   });
 
   it("keeps the latest report per village but suppresses mixed-period KPIs and comparisons", async () => {
-    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
     const periods: ReportPeriod[] = [
       {
         id: "period-may",
@@ -377,8 +376,21 @@ describe("Dashboard device drafts", () => {
     await waitFor(() =>
       expect(periodFilter).toHaveValue("period:period-july"),
     );
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng XLSX" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng DOCX" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng PDF" }),
+    ).toBeInTheDocument();
+
     fireEvent.change(periodFilter, { target: { value: "__all_periods__" } });
 
+    expect(periodFilter).toHaveDisplayValue(
+      "Bản mới nhất của từng thôn (theo dõi)",
+    );
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Không tổng hợp: các thôn có thể thuộc kỳ khác nhau",
@@ -407,13 +419,28 @@ describe("Dashboard device drafts", () => {
     expect(within(table).getByText("202")).toBeInTheDocument();
     expect(within(table).queryByText("101")).not.toBeInTheDocument();
 
-    vi.mocked(apiFetch).mockClear();
-    fireEvent.click(screen.getByRole("button", { name: "Tải báo cáo định dạng XLSX" }));
-    expect(alertSpy).toHaveBeenCalledWith(
-      "Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu.",
-    );
-    expect(apiFetch).not.toHaveBeenCalled();
-    alertSpy.mockRestore();
+    expect(
+      screen.queryByRole("button", { name: "Tải báo cáo định dạng XLSX" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tải báo cáo định dạng DOCX" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tải báo cáo định dạng PDF" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(periodFilter, {
+      target: { value: "period:period-july" },
+    });
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng XLSX" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng DOCX" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tải báo cáo định dạng PDF" }),
+    ).toBeInTheDocument();
   });
 
   it("restores KPIs and comparisons when a concrete period is selected", async () => {

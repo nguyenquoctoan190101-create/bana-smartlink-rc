@@ -735,37 +735,41 @@ export default function Dashboard({
               </button>
             )}
 
-            {canExportSelectedScope && (
+            {!isCrossPeriodSnapshot && (
               <>
-                <button
-                  onClick={() => handleExport("xlsx")}
-                  className="dashboard-export-button flex-1 md:flex-none"
-                  aria-label="Tải báo cáo định dạng XLSX"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>Xuất XLSX</span>
-                </button>
-                <button
-                  onClick={() => handleExport("docx")}
-                  className="dashboard-export-button flex-1 md:flex-none"
-                  aria-label="Tải báo cáo định dạng DOCX"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Xuất DOCX</span>
-                </button>
+                {canExportSelectedScope && (
+                  <>
+                    <button
+                      onClick={() => handleExport("xlsx")}
+                      className="dashboard-export-button flex-1 md:flex-none"
+                      aria-label="Tải báo cáo định dạng XLSX"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Xuất XLSX</span>
+                    </button>
+                    <button
+                      onClick={() => handleExport("docx")}
+                      className="dashboard-export-button flex-1 md:flex-none"
+                      aria-label="Tải báo cáo định dạng DOCX"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Xuất DOCX</span>
+                    </button>
+                  </>
+                )}
+                {(userRole === "admin_xa" || userRole === "lanh_dao") &&
+                  effectiveVillageFilter === "all" && (
+                    <button
+                      onClick={() => handleExport("pdf")}
+                      className="dashboard-export-button flex-1 md:flex-none"
+                      aria-label="Tải báo cáo định dạng PDF"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Xuất PDF</span>
+                    </button>
+                  )}
               </>
             )}
-            {(userRole === "admin_xa" || userRole === "lanh_dao") &&
-              effectiveVillageFilter === "all" && (
-                <button
-                  onClick={() => handleExport("pdf")}
-                  className="dashboard-export-button flex-1 md:flex-none"
-                  aria-label="Tải báo cáo định dạng PDF"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Xuất PDF</span>
-                </button>
-              )}
           </div>
           </div>
 
