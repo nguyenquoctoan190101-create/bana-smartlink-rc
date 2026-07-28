@@ -724,7 +724,7 @@ describe("Dashboard device drafts", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows five message-led decision views instead of repeated bars", () => {
+  it("shows five message-led decision views without ungoverned targets", () => {
     render(
       <Dashboard
         reports={[
@@ -740,9 +740,17 @@ describe("Dashboard device drafts", () => {
     );
 
     expect(screen.getByText("Năm góc nhìn để xác định ưu tiên và phân bổ nguồn lực")).toBeInTheDocument();
-    expect(screen.getByText(/Bản đồ ưu tiên/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ma trận mô tả/i)).toBeInTheDocument();
     expect(screen.getByText(/thôn đầu chiếm khoảng/i)).toBeInTheDocument();
-    expect(screen.getByText(/mức tham gia BHYT 95%/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tỷ lệ tham gia BHYT của 3 thôn có dữ liệu/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/mức tham gia BHYT 95%|mức tham chiếu 95%/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Mức (Cao|Trung bình|Thấp)/i),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/cường độ hướng dẫn cao nhất/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Chưa đủ dữ liệu về trẻ em có hoàn cảnh đặc biệt/i),

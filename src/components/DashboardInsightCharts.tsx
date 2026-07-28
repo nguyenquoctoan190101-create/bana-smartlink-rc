@@ -23,8 +23,6 @@ type DecisionVillage = {
   specialChildrenRate: number | null;
 };
 
-type RiskBand = "low" | "medium" | "high" | "missing";
-
 export type SingleVillageTrendPoint = {
   id: string;
   periodKey: string;
@@ -60,19 +58,13 @@ const reportMetricValue = (
 
 const percent = (value: number | null, digits = 1) => (finite(value) ? `${value.toFixed(digits)}%` : "—");
 
-const riskClass: Record<RiskBand, string> = {
-  low: "bg-emerald-50 text-emerald-900",
-  medium: "bg-amber-100 text-amber-950",
-  high: "bg-rose-100 text-rose-950",
-  missing: "bg-slate-100 text-slate-700",
-};
+const descriptiveCellClass = (value: number | null) =>
+  finite(value)
+    ? "bg-slate-50 text-slate-900"
+    : "bg-slate-100 text-slate-700";
 
-const riskLabel: Record<RiskBand, string> = {
-  low: "Thấp",
-  medium: "Trung bình",
-  high: "Cao",
-  missing: "Thiếu dữ liệu",
-};
+const descriptiveCellLabel = (value: number | null) =>
+  finite(value) ? "Giá trị mô tả" : "Thiếu dữ liệu";
 
 export function buildDecisionVillages(reports: ReportData[], villageName: (id: string) => string): DecisionVillage[] {
   return reports.map((report) => {
@@ -166,15 +158,6 @@ export function buildSingleVillageTrend(
     .slice(-6);
 }
 
-function heatRisk(metric: "bhyt" | "welfare" | "culture" | "digital", value: number | null, digitalMax: number): RiskBand {
-  if (!finite(value)) return "missing";
-  if (metric === "bhyt") return value < 90 ? "high" : value < 95 ? "medium" : "low";
-  if (metric === "welfare") return value > 10 ? "high" : value >= 5 ? "medium" : "low";
-  if (metric === "culture") return value < 80 ? "high" : value < 90 ? "medium" : "low";
-  if (digitalMax <= 0) return "missing";
-  return value < digitalMax * 0.5 ? "high" : value < digitalMax * 0.8 ? "medium" : "low";
-}
-
 function EmptyChart() {
   return <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">Chưa đủ dữ liệu đã duyệt để lập biểu đồ. Hệ thống không thay dữ liệu thiếu bằng số 0.</div>;
 }
@@ -239,7 +222,7 @@ function SingleVillageInsights({
         {
           label: "Tham gia BHYT",
           value: percent(current.bhytRate),
-          note: "Tham chiếu nghiệp vụ: 95%",
+          note: "Tỷ lệ trên tổng nhân khẩu",
         },
         {
           label: "Hộ nghèo và cận nghèo",
@@ -486,23 +469,11 @@ export default function DashboardInsightCharts({
   }
 
   const villages = buildDecisionVillages(reports, villageName);
-  const digitalMax = Math.max(0, ...villages.map((item) => item.guidedPerThousand ?? 0));
-  const heatRows = [...villages].sort((left, right) => {
-    const attention = (item: DecisionVillage) =>
-      [heatRisk("bhyt", item.bhytRate, digitalMax), heatRisk("welfare", item.welfareRate, digitalMax), heatRisk("culture", item.cultureRate, digitalMax), heatRisk("digital", item.guidedPerThousand, digitalMax)].filter(
-        (band) => band === "high",
-      ).length;
-    return attention(right) - attention(left) || left.label.localeCompare(right.label, "vi");
-  });
-  const highAttentionVillages = heatRows.filter(
-    (item) =>
-      [heatRisk("bhyt", item.bhytRate, digitalMax), heatRisk("welfare", item.welfareRate, digitalMax), heatRisk("culture", item.cultureRate, digitalMax), heatRisk("digital", item.guidedPerThousand, digitalMax)].filter(
-        (band) => band === "high",
-      ).length >= 2,
-  ).length;
+  const heatRows = [...villages].sort((left, right) =>
+    left.label.localeCompare(right.label, "vi"),
+  );
 
   const bhytRows = villages.filter((item) => finite(item.bhytRate)).sort((left, right) => (left.bhytRate ?? 0) - (right.bhytRate ?? 0));
-  const belowBhytTarget = bhytRows.filter((item) => (item.bhytRate ?? 0) < 95).length;
 
   const welfareRows = villages
     .filter((item) => finite(item.poor) && finite(item.nearPoor))
@@ -562,10 +533,10 @@ export default function DashboardInsightCharts({
           </dd>
         </div>
         <div>
-          <dt>Khoảng trống BHYT</dt>
-          <dd>{bhytRows.length ? `${belowBhytTarget} thôn` : "—"}</dd>
+          <dt>Dữ liệu BHYT</dt>
+          <dd>{bhytRows.length ? `${bhytRows.length} thôn` : "—"}</dd>
           <dd className="decision-summary-note">
-            Đối chiếu mức tham chiếu 95%
+            Chưa có mục tiêu được phê duyệt
           </dd>
         </div>
         <div>
@@ -581,23 +552,23 @@ export default function DashboardInsightCharts({
         <article className={`${chartCard} xl:col-span-7`}>
           <ChartHeader
             icon={LayoutGrid}
-            eyebrow="Bản đồ ưu tiên"
-            title={heatRows.length ? (highAttentionVillages ? `${highAttentionVillages} thôn cùng có từ hai nội dung cần chú ý cao` : "Chưa có thôn đồng thời nổi lên ở nhiều nội dung") : "Chưa đủ dữ liệu để lập bản đồ ưu tiên"}
-            description="Mỗi ô giữ nguyên giá trị nghiệp vụ; màu chỉ giúp quét nhanh mức cần chú ý, không phải điểm xếp hạng tổng hợp."
+            eyebrow="Ma trận mô tả"
+            title={heatRows.length ? "Giá trị theo thôn, chưa gắn mức tốt hoặc xấu" : "Chưa đủ dữ liệu để lập ma trận mô tả"}
+            description="Mỗi ô giữ nguyên giá trị nghiệp vụ và dùng màu trung tính; hệ thống không sinh severity khi registry chưa có mục tiêu được phê duyệt."
           />
           {heatRows.length ? (
             <div
               className="table-scroll-region mt-4 overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
               role="region"
               tabIndex={0}
-              aria-label="Bản đồ nhiệt mức cần chú ý; có thể cuộn ngang trên màn hình nhỏ"
+              aria-label="Ma trận giá trị theo thôn; có thể cuộn ngang trên màn hình nhỏ"
             >
               <p className="mb-2 text-2xs font-semibold text-slate-500 sm:hidden">
                 Vuốt ngang để xem đủ bốn nội dung.
               </p>
-              <table className="w-full min-w-[42rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
+              <table className="w-full min-w-[42rem] table-fixed text-xs" aria-label="Ma trận giá trị mô tả theo thôn">
                 <caption className="sr-only">
-                  Mức cần chú ý theo từng chỉ tiêu và từng thôn
+                  Giá trị mô tả theo từng chỉ tiêu và từng thôn
                 </caption>
                 <thead>
                   <tr className="text-left text-slate-500">
@@ -615,25 +586,21 @@ export default function DashboardInsightCharts({
                         key: "bhyt",
                         value: item.bhytRate,
                         label: percent(item.bhytRate),
-                        metric: "bhyt" as const,
                       },
                       {
                         key: "welfare",
                         value: item.welfareRate,
                         label: percent(item.welfareRate),
-                        metric: "welfare" as const,
                       },
                       {
                         key: "culture",
                         value: item.cultureRate,
                         label: percent(item.cultureRate),
-                        metric: "culture" as const,
                       },
                       {
                         key: "digital",
                         value: item.guidedPerThousand,
                         label: finite(item.guidedPerThousand) ? `${item.guidedPerThousand.toFixed(0)}/1.000` : "—",
-                        metric: "digital" as const,
                       },
                     ];
                     return (
@@ -642,13 +609,12 @@ export default function DashboardInsightCharts({
                           {item.label}
                         </th>
                         {cells.map((cell) => {
-                          const band = heatRisk(cell.metric, cell.value, digitalMax);
                           return (
                             <td key={cell.key} className="p-1">
-                              <span className={`block rounded-md px-2 py-2 text-center font-bold ${riskClass[band]}`}>
+                              <span className={`block rounded-md px-2 py-2 text-center font-bold ${descriptiveCellClass(cell.value)}`}>
                                 <span className="block">{cell.label}</span>
                                 <span className="mt-0.5 block text-3xs font-semibold">
-                                  Mức {riskLabel[band]}
+                                  {descriptiveCellLabel(cell.value)}
                                 </span>
                               </span>
                             </td>
@@ -659,7 +625,7 @@ export default function DashboardInsightCharts({
                   })}
                 </tbody>
               </table>
-              <p className="mt-3 text-2xs leading-relaxed text-slate-500">Ngưỡng tham chiếu: BHYT 95%; hộ nghèo + cận nghèo 5%/10%; gia đình văn hóa 90%/80%. Dịch vụ công được so sánh tương đối trong kỳ vì chưa có ngưỡng chính thức.</p>
+              <p className="mt-3 text-2xs leading-relaxed text-slate-500">Registry hiện chưa có mục tiêu, dung sai, hiệu lực và chủ sở hữu được phê duyệt cho các chỉ tiêu này; vì vậy bảng chỉ trình bày giá trị mô tả.</p>
             </div>
           ) : (
             <EmptyChart />
@@ -768,20 +734,19 @@ export default function DashboardInsightCharts({
           <ChartHeader
             icon={HeartPulse}
             eyebrow="Y tế"
-            title={bhytRows.length ? (belowBhytTarget ? `${belowBhytTarget} thôn chưa đạt mức tham gia BHYT 95%` : "Tất cả thôn có dữ liệu đều đạt mức BHYT 95%") : "Chưa đủ dữ liệu để đối chiếu BHYT"}
-            description="Bullet graph đối chiếu từng thôn với mức tham chiếu 95%; ưu tiên thôn có khoảng cách lớn nhất."
+            title={bhytRows.length ? `Tỷ lệ tham gia BHYT của ${bhytRows.length} thôn có dữ liệu` : "Chưa đủ dữ liệu để mô tả tỷ lệ BHYT"}
+            description="Biểu đồ chỉ so sánh giá trị đã duyệt giữa các thôn; chưa hiển thị mục tiêu hoặc trạng thái đạt/chưa đạt khi registry chưa có chính sách được phê duyệt."
           />
           {bhytRows.length ? (
             <div className="mt-4">
-              <div className="space-y-2.5" role="img" aria-label="Biểu đồ bullet tỷ lệ BHYT theo thôn, mức tham chiếu 95 phần trăm">
+              <div className="space-y-2.5" role="img" aria-label="Biểu đồ mô tả tỷ lệ BHYT theo thôn">
                 {bhytRows.map((item) => (
                   <div key={item.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
                     <span className="truncate font-semibold text-slate-700" title={item.label}>
                       {item.label}
                     </span>
                     <span className="relative h-3 rounded-sm bg-slate-100">
-                      <span className={`absolute inset-y-0 left-0 rounded-sm ${(item.bhytRate ?? 0) < 95 ? "bg-amber-500" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, item.bhytRate ?? 0)}%` }} />
-                      <span className="absolute -inset-y-1 w-0.5 bg-slate-900" style={{ left: "95%" }} />
+                      <span className="absolute inset-y-0 left-0 rounded-sm bg-teal-700" style={{ width: `${Math.min(100, item.bhytRate ?? 0)}%` }} />
                     </span>
                     <strong className="text-right text-slate-700">{percent(item.bhytRate, 2)}</strong>
                   </div>
@@ -794,7 +759,7 @@ export default function DashboardInsightCharts({
                   </li>
                 ))}
               </ul>
-              <p className="pt-1 text-2xs text-slate-500">Vạch đen: mức tham chiếu 95%.</p>
+              <p className="pt-1 text-2xs text-slate-500">Chưa có mục tiêu BHYT được phê duyệt trong registry; không hiển thị vạch mục tiêu hoặc trạng thái đạt/chưa đạt.</p>
             </div>
           ) : (
             <EmptyChart />

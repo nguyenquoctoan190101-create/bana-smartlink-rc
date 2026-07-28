@@ -39,7 +39,7 @@ const villageNames: Record<string, string> = {
 };
 
 describe("DashboardInsightCharts accessibility", () => {
-  it("keeps chart data alternatives semantic and labels heatmap risk without relying on color", async () => {
+  it("keeps chart data alternatives semantic and stays neutral without governed targets", async () => {
     const { container } = render(
       <DashboardInsightCharts
         reports={[
@@ -97,29 +97,35 @@ describe("DashboardInsightCharts accessibility", () => {
     ).toEqual([]);
 
     const heatmap = screen.getByRole("table", {
-      name: "Bản đồ nhiệt mức cần chú ý theo thôn",
+      name: "Ma trận giá trị mô tả theo thôn",
     });
     expect(heatmap.querySelector("caption")).toHaveTextContent(
-      "Mức cần chú ý theo từng chỉ tiêu và từng thôn",
+      "Giá trị mô tả theo từng chỉ tiêu và từng thôn",
     );
     expect(heatmap.querySelectorAll('thead th[scope="col"]')).toHaveLength(5);
     expect(heatmap.querySelectorAll('tbody th[scope="row"]')).toHaveLength(4);
-    expect(within(heatmap).getAllByText("Mức Cao").length).toBeGreaterThan(0);
+    expect(within(heatmap).getAllByText("Giá trị mô tả").length).toBeGreaterThan(0);
     expect(
-      within(heatmap).getAllByText("Mức Trung bình").length,
+      within(heatmap).getAllByText("Thiếu dữ liệu").length,
     ).toBeGreaterThan(0);
-    expect(within(heatmap).getAllByText("Mức Thấp").length).toBeGreaterThan(0);
-    expect(
-      within(heatmap).getAllByText("Mức Thiếu dữ liệu").length,
-    ).toBeGreaterThan(0);
-    expect(
-      within(heatmap).getAllByText("Mức Thiếu dữ liệu")[0].parentElement,
-    ).toHaveClass("text-slate-700");
+    const missingCellValue = heatmap.querySelector(
+      "td > span.text-slate-700",
+    );
+    expect(missingCellValue).toHaveTextContent("Thiếu dữ liệu");
+    expect(within(heatmap).queryByText(/Mức (Cao|Trung bình|Thấp)/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("region", {
-        name: "Bản đồ nhiệt mức cần chú ý; có thể cuộn ngang trên màn hình nhỏ",
+        name: "Ma trận giá trị theo thôn; có thể cuộn ngang trên màn hình nhỏ",
       }),
     ).toHaveAttribute("tabindex", "0");
+    expect(
+      screen.queryByText(/mức tham chiếu 95%/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "Biểu đồ mô tả tỷ lệ BHYT theo thôn",
+      }),
+    ).toBeInTheDocument();
 
     for (const graphic of screen.getAllByRole("img")) {
       expect(graphic.querySelector("ol, ul, table")).toBeNull();
