@@ -875,6 +875,108 @@ describe("OperationsCenter", () => {
     ).toHaveAttribute("role", "note");
   });
 
+  it("orders the action queue and renders its accountability contract", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({ reports: [] });
+      }
+      if (path === "/api/operations/actions") {
+        return Promise.resolve([
+          {
+            id: "action-upcoming",
+            source_type: "trend_alert",
+            title: "Việc sắp đến hạn",
+            priority: "critical",
+            status: "pending",
+            owner_id: null,
+            owner_name: null,
+            owner_label: "Chưa phân công",
+            due_date: "2026-07-31",
+            due_state: "upcoming",
+            created_at: "2026-07-28T09:00:00+07:00",
+            age_days: 1,
+            evidence_status: "linked",
+            can_update: false,
+            next_action: null,
+          },
+          {
+            id: "action-overdue",
+            source_type: "proposal",
+            title: "Việc quá hạn",
+            priority: "high",
+            status: "pending",
+            owner_id: "owner-1",
+            owner_name: "Nguyễn Văn An",
+            owner_label: "Nguyễn Văn An",
+            due_date: "2026-07-27",
+            due_state: "overdue",
+            created_at: "2026-07-24T20:00:00Z",
+            age_days: 4,
+            evidence_status: "missing",
+            can_update: true,
+            next_action: "start",
+          },
+          {
+            id: "action-today",
+            source_type: "manual",
+            title: "Việc đến hạn hôm nay",
+            priority: "normal",
+            status: "in_progress",
+            owner_id: "owner-2",
+            owner_name: "Trần Thị Bình",
+            owner_label: "Trần Thị Bình",
+            due_date: "2026-07-29",
+            due_state: "due_today",
+            created_at: "2026-07-25T23:30:00+07:00",
+            age_days: 3,
+            evidence_status: "manual",
+            can_update: false,
+            next_action: null,
+          },
+          {
+            id: "malformed-action",
+            title: "Không được hiển thị",
+            priority: "urgent",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const { container } = render(
+      <OperationsCenter periodId="period-1" role="can_bo_thon" />,
+    );
+    await screen.findByRole("heading", { name: "Việc quá hạn" });
+    const queue = container.querySelector("#operations-tasks");
+    expect(queue).not.toBeNull();
+    const queueView = within(queue as HTMLElement);
+
+    expect(
+      await queueView.findByRole("heading", { name: "Việc quá hạn" }),
+    ).toBeInTheDocument();
+    expect(
+      queueView.getAllByRole("heading", { level: 3 }).map((item) => item.textContent),
+    ).toEqual([
+      "Việc quá hạn",
+      "Việc đến hạn hôm nay",
+      "Việc sắp đến hạn",
+    ]);
+    expect(queueView.getByText(/Phụ trách: Nguyễn Văn An/)).toHaveTextContent(
+      "Ưu tiên cao · Tuổi việc 4 ngày · quá hạn 27/7/2026 · Căn cứ: thiếu căn cứ liên kết · Nguồn: Đề xuất",
+    );
+    expect(queueView.getByText(/Phụ trách: Trần Thị Bình/)).toHaveTextContent(
+      "đến hạn hôm nay 29/7/2026",
+    );
+    expect(queueView.getByText(/Phụ trách: Chưa phân công/)).toHaveTextContent(
+      "Căn cứ: có căn cứ liên kết · Nguồn: Cảnh báo xu hướng",
+    );
+    expect(
+      queueView.getByRole("button", { name: "Nhận việc" }),
+    ).toBeInTheDocument();
+    expect(queueView.queryByRole("button", { name: "Hoàn tất" })).not.toBeInTheDocument();
+    expect(queueView.queryByText("Không được hiển thị")).not.toBeInTheDocument();
+  });
+
   it.each([
     ["can_bo_thon", "Bức tranh công việc của thôn"],
     ["to_cnscd", "Bức tranh công việc hỗ trợ"],

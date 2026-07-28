@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
@@ -18,7 +18,9 @@ from routers.operations import (
     create_ai_draft,
     get_quality_center,
     list_ai_drafts,
+    list_actions,
     review_ai_draft,
+    _present_action_queue,
 )
 from services.decision_ai import DecisionAiAttempt
 from services.operations import build_safe_period_brief, quality_snapshot, validate_maturity_scores
@@ -32,6 +34,130 @@ def test_terminal_action_requires_a_recorded_outcome() -> None:
     with pytest.raises(ValidationError, match="completion result or cancellation reason"):
         ActionUpdateRequest(status="cancelled", outcome="  ")
     assert ActionUpdateRequest(status="completed", outcome="Đã kiểm tra hồ sơ").outcome == "Đã kiểm tra hồ sơ"
+
+
+def test_action_queue_contract_orders_work_and_exposes_accountability() -> None:
+    owner_id = "11111111-1111-4111-8111-111111111111"
+    profile = UserProfile(
+        owner_id,
+        "can_bo_thon",
+        "village-1",
+        False,
+        display_name="Nguyễn Văn An",
+    )
+    rows = [
+        {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "source_type": "trend_alert",
+            "source_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "title": "Việc sắp đến hạn",
+            "priority": "critical",
+            "status": "pending",
+            "owner_id": None,
+            "due_date": "2026-07-30",
+            "created_at": "2026-07-28T10:00:00+07:00",
+        },
+        {
+            "id": "22222222-2222-4222-8222-222222222222",
+            "source_type": "manual",
+            "source_id": None,
+            "title": "Việc đến hạn hôm nay",
+            "priority": "normal",
+            "status": "in_progress",
+            "owner_id": owner_id,
+            "owner": {"display_name": "Nguyễn Văn An"},
+            "due_date": "2026-07-29",
+            "created_at": "2026-07-25T23:30:00+07:00",
+        },
+        {
+            "id": "11111111-2222-4111-8111-111111111111",
+            "source_type": "proposal",
+            "source_id": None,
+            "title": "Việc quá hạn",
+            "priority": "high",
+            "status": "pending",
+            "owner_id": owner_id,
+            "due_date": "2026-07-27",
+            "created_at": "2026-07-24T20:00:00Z",
+        },
+    ]
+
+    result = _present_action_queue(
+        rows,
+        profile,
+        now=datetime(2026, 7, 29, 1, tzinfo=timezone.utc),
+    )
+
+    assert [item.title for item in result] == [
+        "Việc quá hạn",
+        "Việc đến hạn hôm nay",
+        "Việc sắp đến hạn",
+    ]
+    assert result[0].due_state == "overdue"
+    assert result[0].owner_label == "Nguyễn Văn An"
+    assert result[0].age_days == 4
+    assert result[0].evidence_status == "missing"
+    assert result[0].can_update is True
+    assert result[0].next_action == "start"
+    assert result[1].due_state == "due_today"
+    assert result[1].evidence_status == "manual"
+    assert result[1].next_action == "complete"
+    assert result[2].owner_label == "Chưa phân công"
+    assert result[2].evidence_status == "linked"
+    assert result[2].can_update is False
+    assert result[2].next_action is None
+    leader_result = _present_action_queue(
+        rows,
+        UserProfile(owner_id, "lanh_dao", None, False),
+        now=datetime(2026, 7, 29, 1, tzinfo=timezone.utc),
+    )
+    assert all(item.can_update is False for item in leader_result)
+    assert all(item.next_action is None for item in leader_result)
+
+
+class _FakeActionQueueClient:
+    def __init__(self) -> None:
+        self.path = ""
+
+    def as_user(self, access_token: str) -> "_FakeActionQueueClient":
+        assert access_token == "caller-token"
+        return self
+
+    async def _rest_request(self, method: str, path: str) -> list[dict]:
+        assert method == "GET"
+        self.path = path
+        return [
+            {
+                "id": "11111111-2222-4111-8111-111111111111",
+                "source_type": "manual",
+                "source_id": None,
+                "title": "Đối chiếu hồ sơ",
+                "priority": "normal",
+                "status": "pending",
+                "owner_id": None,
+                "due_date": None,
+                "created_at": "2026-07-29T00:00:00Z",
+            }
+        ]
+
+
+@pytest.mark.asyncio
+async def test_action_queue_endpoint_uses_minimized_explicit_selection() -> None:
+    client = _FakeActionQueueClient()
+    profile = UserProfile(str(uuid4()), "lanh_dao", None, False)
+    period_id = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+
+    result = await list_actions(
+        period_id,
+        profile,
+        client,  # type: ignore[arg-type]
+        "Bearer caller-token",
+    )
+
+    assert len(result) == 1
+    assert "select=*" not in client.path
+    assert "owner:user_profiles!action_items_owner_id_fkey(display_name)" in client.path
+    assert f"period_id=eq.{period_id}" in client.path
 
 
 def test_quality_snapshot_preserves_missing_values_and_blocks_deterministic_errors() -> None:

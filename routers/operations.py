@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
 from uuid import UUID
@@ -22,6 +22,20 @@ from services.settings import Settings
 from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
 
 router = APIRouter(prefix="/operations", tags=["operations"])
+BANA_TIMEZONE = timezone(timedelta(hours=7))
+ACTION_PRIORITY_ORDER = {
+    "critical": 0,
+    "high": 1,
+    "normal": 2,
+    "low": 3,
+}
+ACTION_DUE_ORDER = {
+    "overdue": 0,
+    "due_today": 1,
+    "upcoming": 2,
+    "unset": 3,
+    "closed": 4,
+}
 
 
 class ActionCreateRequest(BaseModel):
@@ -47,6 +61,40 @@ class ActionUpdateRequest(BaseModel):
         if self.status in {"completed", "cancelled"} and not self.outcome:
             raise ValueError("A completion result or cancellation reason is required")
         return self
+
+
+class ActionQueueItemResponse(BaseModel):
+    id: UUID
+    period_id: UUID | None = None
+    village_id: UUID | None = None
+    source_type: Literal[
+        "manual",
+        "trend_alert",
+        "ai_draft",
+        "maturity",
+        "initiative",
+        "proposal",
+    ]
+    title: str
+    description: str | None = None
+    priority: Literal["low", "normal", "high", "critical"]
+    status: Literal["pending", "in_progress", "completed", "cancelled"]
+    owner_id: UUID | None = None
+    owner_name: str | None = None
+    owner_label: str
+    due_date: date | None = None
+    due_state: Literal[
+        "overdue",
+        "due_today",
+        "upcoming",
+        "unset",
+        "closed",
+    ]
+    created_at: datetime
+    age_days: int = Field(ge=0)
+    evidence_status: Literal["linked", "manual", "missing"]
+    can_update: bool
+    next_action: Literal["start", "complete"] | None = None
 
 
 class MaturityCreateRequest(BaseModel):
@@ -163,19 +211,149 @@ async def get_quality_center(
     }
 
 
-@router.get("/actions")
+def _action_datetime(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str):
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise ValueError("Action created_at is missing")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _action_due_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        return date.fromisoformat(value)
+    raise ValueError("Action due_date is invalid")
+
+
+def _present_action_queue(
+    rows: list[dict[str, Any]],
+    profile: UserProfile,
+    *,
+    now: datetime | None = None,
+) -> list[ActionQueueItemResponse]:
+    current = (now or datetime.now(timezone.utc)).astimezone(BANA_TIMEZONE)
+    result: list[ActionQueueItemResponse] = []
+    for row in rows:
+        created_at = _action_datetime(row.get("created_at"))
+        due_date = _action_due_date(row.get("due_date"))
+        status_value = str(row.get("status") or "")
+        terminal = status_value in {"completed", "cancelled"}
+        if terminal:
+            due_state = "closed"
+        elif due_date is None:
+            due_state = "unset"
+        elif due_date < current.date():
+            due_state = "overdue"
+        elif due_date == current.date():
+            due_state = "due_today"
+        else:
+            due_state = "upcoming"
+
+        owner_id = str(row["owner_id"]) if row.get("owner_id") else None
+        owner = row.get("owner")
+        owner_name = (
+            str(owner.get("display_name"))
+            if isinstance(owner, dict) and owner.get("display_name")
+            else None
+        )
+        if owner_id == profile.id and not owner_name:
+            owner_name = profile.display_name or "Bạn"
+        owner_label = (
+            owner_name
+            or ("Đã phân công" if owner_id else "Chưa phân công")
+        )
+        can_update = profile.role == "admin_xa" or (
+            owner_id == profile.id
+            and profile.role in {"can_bo_thon", "to_cnscd"}
+        )
+        next_action = (
+            "start"
+            if can_update and status_value == "pending"
+            else "complete"
+            if can_update and status_value == "in_progress"
+            else None
+        )
+        source_type = str(row.get("source_type") or "")
+        evidence_status = (
+            "manual"
+            if source_type == "manual"
+            else "linked"
+            if row.get("source_id")
+            else "missing"
+        )
+        age_days = max(
+            0,
+            (
+                current.date()
+                - created_at.astimezone(BANA_TIMEZONE).date()
+            ).days,
+        )
+        result.append(
+            ActionQueueItemResponse(
+                id=row.get("id"),
+                period_id=row.get("period_id"),
+                village_id=row.get("village_id"),
+                source_type=source_type,
+                title=row.get("title"),
+                description=row.get("description"),
+                priority=row.get("priority"),
+                status=status_value,
+                owner_id=owner_id,
+                owner_name=owner_name,
+                owner_label=owner_label,
+                due_date=due_date,
+                due_state=due_state,
+                created_at=created_at,
+                age_days=age_days,
+                evidence_status=evidence_status,
+                can_update=can_update,
+                next_action=next_action,
+            )
+        )
+    return sorted(
+        result,
+        key=lambda item: (
+            ACTION_DUE_ORDER[item.due_state],
+            ACTION_PRIORITY_ORDER[item.priority],
+            item.due_date or date.max,
+            item.created_at,
+            str(item.id),
+        ),
+    )
+
+
+@router.get("/actions", response_model=list[ActionQueueItemResponse])
 async def list_actions(
     period_id: UUID | None = None,
-    _: Annotated[UserProfile, Depends(require_authenticated_user)] = None,  # type: ignore[assignment]
+    profile: Annotated[UserProfile, Depends(require_authenticated_user)] = None,  # type: ignore[assignment]
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)] = None,  # type: ignore[assignment]
     authorization: Annotated[str | None, Header()] = None,
-) -> list[dict[str, Any]]:
-    query = "/rest/v1/action_items?select=*&order=due_date.asc.nullslast,created_at.desc"
+) -> list[ActionQueueItemResponse]:
+    query = (
+        "/rest/v1/action_items?"
+        "select=id,period_id,village_id,source_type,source_id,title,"
+        "description,priority,status,owner_id,due_date,created_at,"
+        "owner:user_profiles!action_items_owner_id_fkey(display_name)"
+        "&order=created_at.asc"
+    )
     if period_id:
         query += f"&period_id=eq.{quote(str(period_id), safe='')}"
     try:
-        return await _caller_client(supabase, authorization)._rest_request("GET", query)
-    except SupabaseAdminError as exc:
+        rows = await _caller_client(supabase, authorization)._rest_request(
+            "GET", query
+        )
+        return _present_action_queue(rows, profile)
+    except (SupabaseAdminError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Unable to retrieve actions") from exc
 
 

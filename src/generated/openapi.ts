@@ -1707,6 +1707,66 @@ export interface components {
             /** Village Id */
             village_id?: string | null;
         };
+        /** ActionQueueItemResponse */
+        ActionQueueItemResponse: {
+            /** Age Days */
+            age_days: number;
+            /** Can Update */
+            can_update: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Due State
+             * @enum {string}
+             */
+            due_state: "overdue" | "due_today" | "upcoming" | "unset" | "closed";
+            /**
+             * Evidence Status
+             * @enum {string}
+             */
+            evidence_status: "linked" | "manual" | "missing";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Next Action */
+            next_action?: ("start" | "complete") | null;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Label */
+            owner_label: string;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Period Id */
+            period_id?: string | null;
+            /**
+             * Priority
+             * @enum {string}
+             */
+            priority: "low" | "normal" | "high" | "critical";
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "manual" | "trend_alert" | "ai_draft" | "maturity" | "initiative" | "proposal";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "in_progress" | "completed" | "cancelled";
+            /** Title */
+            title: string;
+            /** Village Id */
+            village_id?: string | null;
+        };
         /** ActionUpdateRequest */
         ActionUpdateRequest: {
             /** Outcome */
@@ -4028,9 +4088,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["ActionQueueItemResponse"][];
                 };
             };
             /** @description Validation Error */
