@@ -66,7 +66,12 @@ def test_public_reports_require_matching_period_and_village_commune() -> None:
                     "commune_id": "ba_na",
                 },
                 "villages": {"commune_id": "ba_na"},
-                "report_values": [{"ct_code": "CT01", "value": 10}],
+                "workflow_status": "locked",
+                "submitted_by_name": "Không được công khai",
+                "report_values": [
+                    {"ct_code": "CT01", "value": 10},
+                    {"ct_code": "CT14", "value": 1},
+                ],
             },
             {
                 "id": "22222222-2222-4222-8222-222222222222",
@@ -95,10 +100,24 @@ def test_public_reports_require_matching_period_and_village_commune() -> None:
 
     result = asyncio.run(reports.get_public_reports(client, _settings()))
 
-    assert [row["id"] for row in result] == [
-        "11111111-1111-4111-8111-111111111111"
+    assert result == [
+        {
+            "village_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "report_period": "Tháng 7/2026",
+            "published_at": "2026-07-26T00:00:00Z",
+            "values": {"CT01": 10},
+        }
     ]
+    assert set(result[0]) == {
+        "village_id",
+        "report_period",
+        "published_at",
+        "values",
+    }
+    assert "id" not in result[0]
+    assert "CT14" not in result[0]["values"]
     path = client.calls[0][1]
+    assert "select=id" not in path
     assert "report_periods!inner(name,commune_id)" in path
     assert "villages!inner(commune_id)" in path
     assert "report_periods.commune_id=eq.ba_na" in path

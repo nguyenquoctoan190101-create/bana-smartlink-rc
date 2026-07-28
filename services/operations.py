@@ -13,7 +13,6 @@ import json
 from typing import Any
 
 ALL_CT_CODES = {f"CT{number:02d}" for number in range(1, 15)}
-PUBLIC_CT_CODES = {"CT01", "CT02", "CT09", "CT12", "CT13"}
 RULE_VERSION = "2026-07-14"
 QUALITY_RULE_VERSION = "2026-07-29"
 MATURITY_DIMENSIONS = (

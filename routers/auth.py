@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.passwords import generate_temporary_password
+from services.metric_registry import PUBLIC_RAW_METRIC_IDS
 from services.rate_limit import limiter
 from services.security import (
     AuthError,
@@ -91,7 +92,7 @@ class CurrentUserResponse(BaseModel):
 
 class CitizenPendingUpdateRequest(BaseModel):
     village_id: UUID
-    report_id: UUID
+    report_period: str = Field(min_length=1, max_length=120)
     ct_code: str = Field(min_length=1, max_length=8)
     proposed_value: int
     proposed_by_phone: str
@@ -102,10 +103,16 @@ class CitizenPendingUpdateRequest(BaseModel):
     explanation: str | None = Field(default=None, max_length=1000)
     privacy_consent: Literal[True]
 
+    @field_validator("report_period")
+    @classmethod
+    def normalize_report_period(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("report_period must not be blank")
+        return normalized
+
 
 class CitizenPendingUpdateResponse(BaseModel):
-    id: UUID
-    report_id: UUID
     ct_code: str
     proposed_value: int
     status: str
@@ -668,7 +675,7 @@ async def submit_citizen_pending_update(
         )
 
     ct_code = payload.ct_code.strip().upper()
-    if ct_code not in {"CT01", "CT02", "CT09", "CT12", "CT13"}:
+    if ct_code not in PUBLIC_RAW_METRIC_IDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Citizens may propose updates only for public indicators",
@@ -689,22 +696,32 @@ async def submit_citizen_pending_update(
             _string_setting(settings, "bana_commune_id") or "ba_na",
             safe="",
         )
+        village_id = quote(str(payload.village_id), safe="")
+        period_name = quote(payload.report_period, safe="")
         reports = await supabase._rest_request(
             "GET",
             (
-                f"/rest/v1/reports?id=eq.{payload.report_id}"
+                f"/rest/v1/reports?village_id=eq.{village_id}"
                 "&publication_status=eq.published"
                 "&workflow_status=in.(approved,locked)"
                 "&select=id,village_id,villages!inner(commune_id),"
-                "report_periods!inner(commune_id)"
+                "report_periods!inner(name,commune_id)"
                 f"&villages.commune_id=eq.{commune_id}"
                 f"&report_periods.commune_id=eq.{commune_id}"
+                f"&report_periods.name=eq.{period_name}"
             ),
         )
-        if not reports or str(reports[0].get("village_id")) != str(payload.village_id):
+        if (
+            not reports
+            or str(reports[0].get("village_id")) != str(payload.village_id)
+            or not isinstance(reports[0].get("report_periods"), dict)
+            or reports[0]["report_periods"].get("name")
+            != payload.report_period
+        ):
             raise HTTPException(status_code=404, detail="Published report not found")
+        report_id = str(reports[0]["id"])
         row = await supabase.insert_pending_update(
-            report_id=str(payload.report_id),
+            report_id=report_id,
             ct_code=ct_code,
             proposed_value=payload.proposed_value,
             submitter_name=payload.submitter_name,
@@ -724,8 +741,6 @@ async def submit_citizen_pending_update(
         ) from exc
 
     return CitizenPendingUpdateResponse(
-        id=UUID(str(row["id"])),
-        report_id=UUID(str(row["report_id"])),
         ct_code=str(row["ct_code"]),
         proposed_value=int(row["proposed_value"]),
         status=str(row["status"]),

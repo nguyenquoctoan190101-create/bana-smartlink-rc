@@ -390,8 +390,8 @@ export default function PublicVillagePage({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          report_id: selectedReport.id,
           village_id: selectedVillageId,
+          report_period: selectedReport.report_period,
           ct_code: selectedIndicator,
           proposed_value: Number(suggestedValue),
           proposed_by_phone: phone.trim(),

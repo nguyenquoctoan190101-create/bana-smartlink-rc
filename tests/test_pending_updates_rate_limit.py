@@ -25,6 +25,7 @@ def client():
     fake_settings.gemini_api_key = "fake-gemini-key"
     fake_settings.gemini_api_url = "https://generativelanguage.googleapis.com"
     fake_settings.gemini_model = "gemini-2.5-flash"
+    fake_settings.bana_commune_id = "ba_na"
 
     with patch("services.settings.load_settings", side_effect=lambda: fake_settings):
         from main import create_app
@@ -46,23 +47,28 @@ def test_rate_limit_pending_updates(client: TestClient):
     """
     payload = {
         "village_id": str(uuid4()),
-        "report_id": str(uuid4()),
+        "report_period": "Tháng 7/2026",
         "ct_code": "CT01",
             "proposed_value": 15,
             "proposed_by_phone": "0935311350",
             "privacy_consent": True,
         }
 
+    resolved_report_id = str(uuid4())
     with patch(
         "services.supabase_admin.SupabaseAdminClient._rest_request",
         new_callable=AsyncMock,
-        return_value=[{"id": payload["report_id"], "village_id": payload["village_id"]}],
+        return_value=[{
+            "id": resolved_report_id,
+            "village_id": payload["village_id"],
+            "report_periods": {"name": payload["report_period"]},
+        }],
     ), patch(
         "services.supabase_admin.SupabaseAdminClient.insert_pending_update",
         new_callable=AsyncMock,
         return_value={
             "id": str(uuid4()),
-            "report_id": payload["report_id"],
+            "report_id": resolved_report_id,
             "ct_code": "CT01",
             "proposed_value": 15,
             "status": "pending",
