@@ -79,6 +79,12 @@ vi, dừng làm việc và báo quản trị.
    đoán trường hợp Đông Sơn còn chờ quyết định.
 7. Kiểm tra audit log, tài khoản bất thường, lỗi đồng bộ và cảnh báo vận hành.
 
+Màn “Công việc điều hành” là control view mặc định của quản trị xã. Khi kiểm tra
+một kỳ, đọc lần lượt ba chiều **đầy đủ, hợp lệ, đúng hạn**, số lỗi/cờ cần xem,
+nguồn nhập và phiên bản báo cáo, rồi đối chiếu “Dấu vết kiểm soát gần nhất”.
+Danh sách tổng quan chỉ hiện mã tham chiếu tối thiểu; mở hồ sơ nghiệp vụ có quyền
+phù hợp nếu cần xem căn cứ chi tiết.
+
 ## Cán bộ xã và lãnh đạo
 
 Hệ thống không có role kỹ thuật riêng tên `can_bo_xa`. Mỗi cán bộ xã được cấp
