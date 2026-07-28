@@ -555,6 +555,36 @@ insert into public.ai_action_drafts (
     0.80, 'rls-test', '00000000-0000-4000-8000-00000000a006'
   );
 
+insert into public.ai_action_drafts (
+  id, commune_id, period_id, kind, content, citations,
+  confidence, model_provider, created_by
+) values (
+  '60000000-0000-4000-8000-00000000a028',
+  'ba_na', '00000000-0000-4000-8000-00000000d001',
+  'trend_alert', 'Accepted leadership evidence.', '[]'::jsonb,
+  0.80, 'rls-test', '00000000-0000-4000-8000-00000000a001'
+);
+update public.ai_action_drafts
+set status = 'accepted',
+    reviewed_by = '00000000-0000-4000-8000-00000000a001',
+    review_notes = 'Accepted fixture for leadership read-scope verification.'
+where id = '60000000-0000-4000-8000-00000000a028';
+
+insert into public.ai_action_drafts (
+  id, commune_id, period_id, kind, content, citations,
+  confidence, model_provider, created_by
+) values (
+  '60000000-0000-4000-8000-00000000a029',
+  'ba_na', '00000000-0000-4000-8000-00000000d001',
+  'proposal_triage', 'Rejected leadership evidence.', '[]'::jsonb,
+  0.80, 'rls-test', '00000000-0000-4000-8000-00000000a001'
+);
+update public.ai_action_drafts
+set status = 'rejected',
+    reviewed_by = '00000000-0000-4000-8000-00000000a001',
+    review_notes = 'Rejected fixture must remain hidden from leadership.'
+where id = '60000000-0000-4000-8000-00000000a029';
+
 do $$
 begin
   if has_table_privilege('anon', 'public.reports', 'select') then
@@ -647,9 +677,27 @@ begin
   if (select count(*) from public.action_items) <> 1
      or (select count(*) from public.digital_maturity_assessments) <> 1
      or (select count(*) from public.innovation_initiatives) <> 1
-     or (select count(*) from public.ai_action_drafts) <> 1 then
+     or (select count(*) from public.ai_action_drafts) <> 1
+     or exists (
+       select 1 from public.ai_action_drafts
+       where status <> 'accepted'
+     ) then
     raise exception 'lanh_dao operations commune scope is incorrect';
   end if;
+  begin
+    insert into public.ai_action_drafts (
+      id, commune_id, period_id, kind, content, citations,
+      confidence, model_provider, created_by
+    ) values (
+      '60000000-0000-4000-8000-00000000a023',
+      'ba_na', '00000000-0000-4000-8000-00000000d001',
+      'period_brief', 'Leadership must not create this draft.', '[]'::jsonb,
+      0.75, 'rls-test', '00000000-0000-4000-8000-00000000a004'
+    );
+    raise exception 'lanh_dao unexpectedly created a decision-support draft';
+  exception
+    when insufficient_privilege then null;
+  end;
   begin
     update public.reports set report_source = 'direct_api'
     where id = '00000000-0000-4000-8000-00000000b001';
@@ -737,11 +785,131 @@ begin
   end if;
   if (select count(*) from public.digital_maturity_assessments) <> 1
      or (select count(*) from public.innovation_initiatives) <> 1
-     or (select count(*) from public.ai_action_drafts) <> 1 then
+     or (select count(*) from public.ai_action_drafts) <> 3 then
     raise exception 'admin_xa operations commune scope is incorrect';
   end if;
 end
 $$;
+do $$
+begin
+  begin
+    insert into public.ai_action_drafts (
+      id, commune_id, period_id, kind, content, citations,
+      confidence, model_provider, created_by
+    ) values (
+      '60000000-0000-4000-8000-00000000a025',
+      'ba_na', '00000000-0000-4000-8000-00000000d001',
+      'period_brief', 'Duplicate pending draft.', '[]'::jsonb,
+      0.75, 'rls-test', '00000000-0000-4000-8000-00000000a001'
+    );
+    raise exception 'pending decision-draft uniqueness was not enforced';
+  exception
+    when unique_violation then null;
+  end;
+
+  begin
+    insert into public.ai_action_drafts (
+      id, commune_id, period_id, kind, content, citations,
+      confidence, model_provider, status, created_by,
+      reviewed_by, reviewed_at, review_notes
+    ) values (
+      '60000000-0000-4000-8000-00000000a026',
+      'ba_na', '00000000-0000-4000-8000-00000000d001',
+      'trend_alert', 'Direct accepted draft.', '[]'::jsonb,
+      0.75, 'rls-test', 'accepted',
+      '00000000-0000-4000-8000-00000000a001',
+      '00000000-0000-4000-8000-00000000a001', now(),
+      'This row must start pending review.'
+    );
+    raise exception 'decision draft unexpectedly started as accepted';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    insert into public.ai_action_drafts (
+      id, commune_id, period_id, kind, content, citations,
+      confidence, model_provider, created_by
+    ) values (
+      '60000000-0000-4000-8000-00000000a027',
+      'ba_na', '00000000-0000-4000-8000-00000000d001',
+      'trend_alert', 'Spoofed creator draft.', '[]'::jsonb,
+      0.75, 'rls-test', '00000000-0000-4000-8000-00000000a006'
+    );
+    raise exception 'decision draft unexpectedly accepted a spoofed creator';
+  exception
+    when insufficient_privilege then null;
+  end;
+
+  insert into public.ai_action_drafts (
+    id, commune_id, period_id, kind, content, citations,
+    confidence, model_provider, created_by
+  ) values (
+    '60000000-0000-4000-8000-00000000a024',
+    'ba_na', '00000000-0000-4000-8000-00000000d001',
+    'trend_alert', 'Immutable grounded draft.', '[]'::jsonb,
+    0.75, 'rls-test', '00000000-0000-4000-8000-00000000a001'
+  );
+
+  begin
+    update public.ai_action_drafts
+    set status = 'accepted', review_notes = 'short'
+    where id = '60000000-0000-4000-8000-00000000a024';
+    raise exception 'decision draft unexpectedly accepted short review notes';
+  exception
+    when check_violation then null;
+  end;
+
+  begin
+    update public.ai_action_drafts
+    set status = 'accepted',
+        content = 'Tampered evidence.',
+        review_notes = 'This review note is long enough but evidence changed.'
+    where id = '60000000-0000-4000-8000-00000000a024';
+    raise exception 'decision draft evidence unexpectedly changed during review';
+  exception
+    when check_violation then null;
+  end;
+
+  update public.ai_action_drafts
+  set status = 'accepted',
+      review_notes = '  Evidence checked and accepted for reference.  ',
+      reviewed_by = '00000000-0000-4000-8000-00000000a006',
+      reviewed_at = '2000-01-01T00:00:00Z'
+  where id = '60000000-0000-4000-8000-00000000a024';
+
+  if not exists (
+    select 1
+    from public.ai_action_drafts
+    where id = '60000000-0000-4000-8000-00000000a024'
+      and status = 'accepted'
+      and content = 'Immutable grounded draft.'
+      and review_notes = 'Evidence checked and accepted for reference.'
+      and reviewed_by = '00000000-0000-4000-8000-00000000a001'
+      and reviewed_at >= statement_timestamp() - interval '1 minute'
+  ) then
+    raise exception 'database did not own decision reviewer identity and timestamp';
+  end if;
+
+end
+$$;
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+do $$
+begin
+  begin
+    update public.ai_action_drafts
+    set status = 'rejected',
+        review_notes = 'A second decision must never be accepted.'
+    where id = '60000000-0000-4000-8000-00000000a024';
+    raise exception 'owner bypass unexpectedly accepted a second transition';
+  exception
+    when sqlstate '23514' then null;
+  end;
+end
+$$;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000a001', false);
 do $$
 begin
   begin

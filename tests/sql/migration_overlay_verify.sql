@@ -352,6 +352,102 @@ $$;
 
 do $$
 declare
+  select_qual text;
+  insert_check text;
+  update_using text;
+  update_check text;
+begin
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'public.ai_action_drafts'::regclass
+      and tgname = 'ai_drafts_integrity'
+      and not tgisinternal
+  ) then
+    raise exception 'decision draft integrity trigger is missing';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_index
+    where indexrelid = 'public.ai_action_drafts_one_pending_idx'::regclass
+      and indisunique
+      and indnullsnotdistinct
+      and indpred is not null
+  ) then
+    raise exception 'pending decision draft uniqueness guard is incomplete';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.ai_action_drafts'::regclass
+      and conname = 'ai_drafts_review_metadata'
+      and convalidated
+  ) then
+    raise exception 'decision draft review metadata constraint is not validated';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc
+    where oid = 'public.enforce_ai_action_draft_integrity()'::regprocedure
+      and not prosecdef
+      and proconfig @> array['search_path=pg_catalog, public']
+  )
+     or has_function_privilege(
+       'authenticated',
+       'public.enforce_ai_action_draft_integrity()',
+       'execute'
+     )
+     or has_function_privilege(
+       'service_role',
+       'public.enforce_ai_action_draft_integrity()',
+       'execute'
+     ) then
+    raise exception 'decision draft trigger function privileges are unsafe';
+  end if;
+
+  select qual into select_qual
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'ai_action_drafts'
+    and policyname = 'ai_drafts_select_internal';
+  select with_check into insert_check
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'ai_action_drafts'
+    and policyname = 'ai_drafts_insert_admin';
+  select qual, with_check into update_using, update_check
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'ai_action_drafts'
+    and policyname = 'ai_drafts_update_admin';
+
+  if select_qual is null
+     or position('admin_xa' in select_qual) = 0
+     or position('lanh_dao' in select_qual) = 0
+     or position('accepted' in select_qual) = 0
+     or position('profile_commune_id' in select_qual) = 0
+     or insert_check is null
+     or position('admin_xa' in insert_check) = 0
+     or position('created_by' in insert_check) = 0
+     or position('auth.uid()' in insert_check) = 0
+     or position('pending_review' in insert_check) = 0
+     or update_using is null
+     or position('pending_review' in update_using) = 0
+     or update_check is null
+     or position('accepted' in update_check) = 0
+     or position('rejected' in update_check) = 0
+     or position('reviewed_by' in update_check) = 0
+     or position('auth.uid()' in update_check) = 0 then
+    raise exception 'decision draft write policies are incomplete';
+  end if;
+end
+$$;
+
+do $$
+declare
   function_definition text;
   foreign_village_id constant uuid := '90000000-0000-4000-8000-000000000024';
 begin

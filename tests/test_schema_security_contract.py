@@ -47,6 +47,8 @@ def test_operations_tables_are_rls_protected_and_audited() -> None:
         "alter table public.innovation_initiatives enable row level security",
         "alter table public.ai_action_drafts enable row level security",
         "create function public.audit_operations_change",
+        "create function public.enforce_ai_action_draft_integrity",
+        "create trigger ai_drafts_integrity",
         "create trigger ai_drafts_audit",
     ):
         assert marker in SCHEMA
@@ -84,7 +86,67 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260726_0027_report_period_change_approval.sql",
         "20260727_0028_complete_demo_public_reports.sql",
         "20260727_0029_seed_reconciled_sample_reports.sql",
+        "20260728_0030_ai_draft_admin_mutation.sql",
     ]
+
+
+def test_decision_draft_mutation_is_admin_only_at_the_database_boundary() -> None:
+    schema_select_policy = SCHEMA.split(
+        "create policy ai_drafts_select_internal", 1
+    )[1].split(");", 1)[0]
+    assert "public.profile_role() = 'admin_xa'" in schema_select_policy
+    assert "public.profile_role() = 'lanh_dao'" in schema_select_policy
+    assert "status = 'accepted'" in schema_select_policy
+
+    schema_policy = SCHEMA.split(
+        "create policy ai_drafts_insert_admin", 1
+    )[1].split(");", 1)[0]
+    assert "public.profile_role() = 'admin_xa'" in schema_policy
+    assert "'lanh_dao'" not in schema_policy
+
+    migration = (
+        ROOT / "migrations" / "20260728_0030_ai_draft_admin_mutation.sql"
+    ).read_text(encoding="utf-8")
+    migration_select_policy = migration.split(
+        "create policy ai_drafts_select_internal", 1
+    )[1].split(");", 1)[0]
+    assert "public.profile_role() = 'admin_xa'" in migration_select_policy
+    assert "public.profile_role() = 'lanh_dao'" in migration_select_policy
+    assert "status = 'accepted'" in migration_select_policy
+    assert "drop policy if exists ai_drafts_insert_internal" in migration
+    migration_policy = migration.split(
+        "create policy ai_drafts_insert_admin", 1
+    )[1].split(");", 1)[0]
+    assert "public.profile_role() = 'admin_xa'" in migration_policy
+    assert "'lanh_dao'" not in migration_policy
+
+    for source in (SCHEMA, migration):
+        for marker in (
+            "create unique index ai_action_drafts_one_pending_idx",
+            "nulls not distinct",
+            "where status = 'pending_review'",
+            "enforce_ai_action_draft_integrity",
+            "security invoker",
+            "new.content is distinct from old.content",
+            "new.citations is distinct from old.citations",
+            "new.confidence is distinct from old.confidence",
+            "new.created_by is distinct from old.created_by",
+            "new.commune_id is distinct from old.commune_id",
+            "new.period_id is distinct from old.period_id",
+            "new.kind is distinct from old.kind",
+            "old.status <> 'pending_review'",
+            "new.status not in ('accepted', 'rejected')",
+            "new.reviewed_by := actor",
+            "new.reviewed_at := clock_timestamp()",
+            "char_length(btrim(coalesce(new.review_notes, ''))) not between 10 and 2000",
+            "created_by = auth.uid()",
+        ):
+            assert marker in source
+
+    assert "group by commune_id, period_id, kind" in migration
+    assert "having count(*) > 1" in migration
+    assert "using errcode = '23505'" in migration
+    assert "delete from public.ai_action_drafts" not in migration
 
 
 def test_report_period_changes_require_immutable_leadership_approval() -> None:
@@ -330,6 +392,7 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
         "migrations/20260715_*.sql migrations/20260718_*.sql "
         "migrations/20260722_*.sql migrations/20260723_*.sql"
     ) in workflow
+    assert "migrations/20260728_*.sql" in workflow
     assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")

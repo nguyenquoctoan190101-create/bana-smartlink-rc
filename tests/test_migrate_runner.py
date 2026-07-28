@@ -16,12 +16,13 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
                 "20260723_",
                 "20260726_",
                 "20260727_",
+                "20260728_",
             )
         )
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260727_0029_seed_reconciled_sample_reports.sql"
+    assert names[-1] == "20260728_0030_ai_draft_admin_mutation.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -50,6 +51,7 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260726_0027_report_period_change_approval.sql",
         "20260727_0028_complete_demo_public_reports.sql",
         "20260727_0029_seed_reconciled_sample_reports.sql",
+        "20260728_0030_ai_draft_admin_mutation.sql",
     ]
 
 

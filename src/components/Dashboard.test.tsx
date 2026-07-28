@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReportData, ReportPeriod } from "../types";
+import { apiFetch } from "../lib/apiClient";
 import Dashboard, {
   buildDashboardPeriodOptions,
   filterDashboardReportsByPeriod,
@@ -314,6 +315,146 @@ describe("Dashboard device drafts", () => {
         "period:approved-period",
       ),
     );
+  });
+
+  it("keeps the latest report per village but suppresses mixed-period KPIs and comparisons", async () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+    const periods: ReportPeriod[] = [
+      {
+        id: "period-may",
+        name: "Tháng 5/2026",
+        due_date: "2026-05-31T17:00:00+07:00",
+      },
+      {
+        id: "period-june",
+        name: "Tháng 6/2026",
+        due_date: "2026-06-30T17:00:00+07:00",
+      },
+      {
+        id: "period-july",
+        name: "Tháng 7/2026",
+        due_date: "2026-07-31T17:00:00+07:00",
+      },
+    ];
+
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "village-1-old",
+            village_id: "village-1",
+            period_id: "period-may",
+            report_period: "Tháng 5/2026",
+            updated_at: "2026-05-20T00:00:00Z",
+            CT01: 101,
+          }),
+          report({
+            id: "village-1-latest",
+            village_id: "village-1",
+            period_id: "period-july",
+            report_period: "Tháng 7/2026",
+            updated_at: "2026-07-20T00:00:00Z",
+            CT01: 303,
+          }),
+          report({
+            id: "village-2-latest",
+            village_id: "village-2",
+            period_id: "period-june",
+            report_period: "Tháng 6/2026",
+            updated_at: "2026-06-20T00:00:00Z",
+            CT01: 202,
+          }),
+        ]}
+        reportPeriods={periods}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    const periodFilter = screen.getByLabelText("Kỳ dữ liệu");
+    await waitFor(() =>
+      expect(periodFilter).toHaveValue("period:period-july"),
+    );
+    fireEvent.change(periodFilter, { target: { value: "__all_periods__" } });
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Không tổng hợp: các thôn có thể thuộc kỳ khác nhau",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Hãy chọn một kỳ dữ liệu cụ thể để xem KPI, biểu đồ và so sánh trên cùng một kỳ.",
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Số liệu tổng quan" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Phân tích ưu tiên theo thôn" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Bộ biểu đồ phân tích chi tiết"),
+    ).not.toBeInTheDocument();
+
+    const table = screen.getByRole("table", {
+      name: "Danh sách báo cáo thuộc phạm vi và bộ lọc hiện tại",
+    });
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByText("Tháng 7/2026")).toBeInTheDocument();
+    expect(within(table).getByText("Tháng 6/2026")).toBeInTheDocument();
+    expect(within(table).queryByText("Tháng 5/2026")).not.toBeInTheDocument();
+    expect(within(table).getByText("303")).toBeInTheDocument();
+    expect(within(table).getByText("202")).toBeInTheDocument();
+    expect(within(table).queryByText("101")).not.toBeInTheDocument();
+
+    vi.mocked(apiFetch).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Tải báo cáo định dạng XLSX" }));
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Vui lòng chọn một kỳ báo cáo cụ thể để xuất dữ liệu.",
+    );
+    expect(apiFetch).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  it("restores KPIs and comparisons when a concrete period is selected", async () => {
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "july-report",
+            period_id: "period-july",
+            report_period: "Tháng 7/2026",
+          }),
+        ]}
+        reportPeriods={[
+          {
+            id: "period-july",
+            name: "Tháng 7/2026",
+            due_date: "2026-07-31T17:00:00+07:00",
+          },
+        ]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Kỳ dữ liệu")).toHaveValue(
+        "period:period-july",
+      ),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Số liệu tổng quan" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Theo dõi biến động của thôn" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Xu hướng qua các kỳ")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Không tổng hợp: các thôn có thể thuộc kỳ khác nhau"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows where the draft is stored and deletes only the local copy", () => {

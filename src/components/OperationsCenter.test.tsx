@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import OperationsCenter from "./OperationsCenter";
@@ -19,6 +19,7 @@ describe("OperationsCenter", () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) {
         return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
           average_quality_score: 92,
           rule_version: "2026-07-14",
           reports: [{
@@ -53,16 +54,20 @@ describe("OperationsCenter", () => {
     expect(screen.getByText(/Không tải được bản tóm tắt hỗ trợ quyết định/)).toBeInTheDocument();
     expect(screen.getByText("Chưa tải được bản tóm tắt")).toBeInTheDocument();
     expect(screen.queryByText(/Không tải được dữ liệu điều hành/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tạo bản phân tích có căn cứ" }),
+    ).toBeDisabled();
   });
 
   it("shows Vietnamese status and source labels", async () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) return Promise.resolve({
+        period: { id: "period-1", name: "Tháng 7/2026" },
         average_quality_score: 100,
         rule_version: "2026-07-14",
         reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", quality_score: 100, quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
       });
-      if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", status: "accepted", content: "Brief mẫu", confidence: 0.9 }]);
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", period_id: "period-1", status: "accepted", content: "Brief mẫu", confidence: 0.9 }]);
       if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
       return Promise.resolve([]);
     });
@@ -79,6 +84,7 @@ describe("OperationsCenter", () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) {
         return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
           rule_version: "2026-07-14",
           reports: [
             {
@@ -112,12 +118,36 @@ describe("OperationsCenter", () => {
             status: "accepted",
             content: "Nội dung đúng kỳ",
             confidence: 0.9,
+            created_at: "2026-07-26T12:00:00+07:00",
+          },
+          {
+            id: "pending-current-draft",
+            period_id: "period-1",
+            status: "pending_review",
+            content: "Nội dung chờ duyệt không dành cho lãnh đạo",
+            confidence: 0.95,
+            created_at: "2026-07-28T12:00:00+07:00",
+          },
+          {
+            id: "rejected-current-draft",
+            period_id: "period-1",
+            status: "rejected",
+            content: "Nội dung đã từ chối không dành cho lãnh đạo",
+            confidence: 0.7,
+            created_at: "2026-07-27T12:00:00+07:00",
           },
           {
             id: "other-draft",
             period_id: "period-2",
             status: "accepted",
             content: "Nội dung kỳ khác",
+            confidence: 0.8,
+          },
+          {
+            id: "orphan-draft",
+            period_id: null,
+            status: "accepted",
+            content: "Nội dung không gắn kỳ",
             confidence: 0.8,
           },
         ]);
@@ -131,13 +161,34 @@ describe("OperationsCenter", () => {
     expect(await screen.findByText("Thôn đã duyệt")).toBeInTheDocument();
     expect(screen.queryByText("Thôn đang bổ sung")).not.toBeInTheDocument();
     expect(screen.getByText("Nội dung đúng kỳ")).toBeInTheDocument();
+    const acceptedDraftMetric = screen
+      .getByText("Bản tóm tắt đã duyệt")
+      .closest("article");
+    expect(acceptedDraftMetric).not.toBeNull();
+    expect(within(acceptedDraftMetric as HTMLElement).getByText("1")).toBeInTheDocument();
+    expect(
+      screen.getByText("Chỉ tính hồ sơ đã được quản trị xã chấp nhận"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/bản mới đang chờ quản trị xã thẩm định/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Nội dung chờ duyệt không dành cho lãnh đạo"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Nội dung đã từ chối không dành cho lãnh đạo"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Nội dung kỳ khác")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nội dung không gắn kỳ")).not.toBeInTheDocument();
     expect(
       screen.getAllByText("1 báo cáo trong phạm vi quyết định").length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Tạo phân tích AI có căn cứ" }),
-    ).toBeEnabled();
+      screen.queryByRole("button", { name: /Tạo bản phân tích có căn cứ/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/Căn cứ nhận xét/),
+    ).not.toBeInTheDocument();
   });
 
   it("turns the latest draft into an evidence-backed review brief and records reviewer notes", async () => {
@@ -192,6 +243,14 @@ describe("OperationsCenter", () => {
                 kind: "decision_metrics",
                 id: "period:Tháng 7/2026",
                 label: "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+                report_count: 1,
+                ready_report_count: 0,
+                average_quality_score: 88,
+                blocked_report_count: 0,
+                review_report_count: 1,
+                late_report_count: 0,
+                open_action_count: 0,
+                overdue_action_count: 0,
               },
               {
                 kind: "ai_enrichment",
@@ -256,7 +315,15 @@ describe("OperationsCenter", () => {
         path === "/api/operations/ai-drafts/draft-pending/review" &&
         options?.method === "POST"
       ) {
-        return Promise.resolve({ status: "accepted" });
+        return Promise.resolve({
+          id: "draft-pending",
+          period_id: "period-1",
+          status: "accepted",
+          content,
+          confidence: 0.82,
+          review_notes: "Đã đối chiếu đủ tài liệu nguồn.",
+          reviewed_at: "2026-07-28T13:00:00+07:00",
+        });
       }
       if (path === "/api/operations/actions") return Promise.resolve([]);
       if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
@@ -265,12 +332,11 @@ describe("OperationsCenter", () => {
 
     render(<OperationsCenter periodId="period-1" role="admin_xa" />);
 
-    expect(await screen.findByText("Kết luận đề xuất")).toBeInTheDocument();
+    expect(await screen.findByText("Kết luận cần xem xét")).toBeInTheDocument();
     expect(screen.getByText("Cần rà soát 1 báo cáo trước khi sử dụng.")).toBeInTheDocument();
     expect(screen.getByText("Đối chiếu cảnh báo với tài liệu nguồn.")).toBeInTheDocument();
-    expect(screen.getByText("Độ sẵn sàng căn cứ 82%")).toBeInTheDocument();
-    expect(screen.getByText("AI tăng cường · đã kiểm tra dẫn chứng")).toBeInTheDocument();
-    expect(screen.getByText("Nhận định điều hành")).toBeInTheDocument();
+    expect(screen.getByText("AI phân tích trên gói căn cứ đã giới hạn")).toBeInTheDocument();
+    expect(screen.getByText("Nhận định để tham khảo")).toBeInTheDocument();
     expect(screen.getByText("Rà soát theo nhóm cảnh báo")).toBeInTheDocument();
     expect(
       screen.getAllByText("Đánh đổi cần chấp nhận").length,
@@ -278,16 +344,42 @@ describe("OperationsCenter", () => {
     expect(screen.getByText("Rủi ro và cách giảm thiểu")).toBeInTheDocument();
     expect(screen.getByText("Câu hỏi phản biện trước khi duyệt")).toBeInTheDocument();
     expect(screen.getAllByText("Thôn An Sơn").length).toBeGreaterThan(0);
-    expect(screen.getByText("Xem 1 căn cứ báo cáo")).toBeInTheDocument();
-    expect(screen.getByText("Lịch sử bản tóm tắt (1)")).toBeInTheDocument();
+    expect(screen.getByText("Căn cứ có thể truy ngược")).toBeInTheDocument();
+    expect(
+      screen.getByText("Lịch sử hồ sơ hỗ trợ quyết định (1)"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đang chờ duyệt" })).toBeDisabled();
 
+    const aiDisclosure = screen
+      .getByText("Phân tích AI tham khảo")
+      .closest("details");
+    expect(aiDisclosure).toBeInstanceOf(HTMLDetailsElement);
+    expect(aiDisclosure).not.toHaveAttribute("open");
+    await user.click(screen.getByText("Phân tích AI tham khảo"));
+    expect(aiDisclosure).toHaveAttribute("open");
+
+    const evidenceDisclosure = document.getElementById(
+      "decision-evidence-list-draft-pending",
+    );
+    expect(evidenceDisclosure).toBeInstanceOf(HTMLDetailsElement);
+    expect(evidenceDisclosure).not.toHaveAttribute("open");
+    const riskSection = screen
+      .getByText("Rủi ro và cách giảm thiểu")
+      .closest("section");
+    if (!riskSection) throw new Error("Không tìm thấy vùng rủi ro AI");
+    await user.click(
+      within(riskSection).getByRole("button", {
+        name: /Mở căn cứ Thôn An Sơn \(report-1\)/,
+      }),
+    );
+    expect(evidenceDisclosure).toHaveAttribute("open");
+
     const acceptButton = screen.getByRole("button", {
-      name: "Chấp nhận và lưu căn cứ",
+      name: "Chấp nhận làm tài liệu tham khảo",
     });
     expect(acceptButton).toBeDisabled();
     await user.type(
-      screen.getByLabelText("Căn cứ nhận xét của người duyệt"),
+      screen.getByLabelText("Căn cứ nhận xét"),
       "Đã đối chiếu đủ tài liệu nguồn.",
     );
     expect(acceptButton).toBeEnabled();
@@ -305,6 +397,315 @@ describe("OperationsCenter", () => {
         },
       ),
     );
+    expect(
+      await screen.findByText("Đã chấp nhận"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nhận xét đã lưu")).toBeInTheDocument();
+    expect(
+      screen.getByText("Đã đối chiếu đủ tài liệu nguồn."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Căn cứ nhận xét"),
+    ).not.toBeInTheDocument();
+  }, 10_000);
+
+  it("does not fabricate a review result when the server response violates the draft contract", async () => {
+    const user = userEvent.setup();
+    const content = [
+      "Kết luận: Cần tiếp tục đối chiếu dữ liệu nguồn.",
+      "Mức ưu tiên: Cao",
+      "Hành động đề xuất: Kiểm tra lại báo cáo trước khi quyết định.",
+      "Căn cứ: 1 báo cáo đã duyệt.",
+      "Giới hạn: Không tự động phê duyệt.",
+    ].join("\n");
+    let draftListCalls = 0;
+    mocks.apiJson.mockImplementation((path: string, options?: RequestInit) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          reports: [
+            {
+              report_id: "report-1",
+              village_name: "Thôn An Sơn",
+              workflow_status: "approved",
+              quality_score: 90,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts" && !options?.method) {
+        draftListCalls += 1;
+        return Promise.resolve([
+          {
+            id: "draft-pending",
+            period_id: "period-1",
+            status: "pending_review",
+            content,
+            created_at: "2026-07-28T12:00:00+07:00",
+          },
+        ]);
+      }
+      if (
+        path === "/api/operations/ai-drafts/draft-pending/review" &&
+        options?.method === "POST"
+      ) {
+        return Promise.resolve({
+          id: "draft-pending",
+          period_id: "period-1",
+          status: "accepted",
+          content,
+          review_notes: "Nhận xét khác với nội dung vừa gửi.",
+          reviewed_at: "2026-07-28T13:00:00+07:00",
+        });
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      if (path === "/api/operations/initiatives") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+    await user.type(
+      await screen.findByLabelText("Căn cứ nhận xét"),
+      "Đã kiểm tra đúng tài liệu nguồn.",
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Chấp nhận làm tài liệu tham khảo",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Phản hồi duyệt không hợp lệ nên hệ thống đã tải lại dữ liệu nguồn. Hãy kiểm tra trạng thái trước khi thao tác tiếp.",
+      ),
+    ).toBeInTheDocument();
+    expect(draftListCalls).toBe(2);
+    expect(screen.getByText("Chờ duyệt")).toBeInTheDocument();
+    expect(screen.queryByText("Đã chấp nhận")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Căn cứ nhận xét")).toHaveValue(
+      "Đã kiểm tra đúng tài liệu nguồn.",
+    );
+  }, 10_000);
+
+  it("ignores an older refresh after the selected period and role change", async () => {
+    let resolveOldQuality: (value: unknown) => void = () => undefined;
+    const oldQuality = new Promise<unknown>((resolve) => {
+      resolveOldQuality = resolve;
+    });
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.includes("/api/operations/quality?period_id=period-1")) {
+        return oldQuality;
+      }
+      if (path.includes("/api/operations/quality?period_id=period-2")) {
+        return Promise.resolve({
+          period: { id: "period-2", name: "Tháng 8/2026" },
+          reports: [
+            {
+              report_id: "new-report",
+              village_name: "Thôn kỳ mới",
+              workflow_status: "approved",
+              quality_score: 96,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 2 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      if (path === "/api/operations/initiatives") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    const view = render(
+      <OperationsCenter periodId="period-1" role="admin_xa" />,
+    );
+    view.rerender(
+      <OperationsCenter periodId="period-2" role="lanh_dao" />,
+    );
+
+    expect(await screen.findByText("Thôn kỳ mới")).toBeInTheDocument();
+    await act(async () => {
+      resolveOldQuality({
+        period: { id: "period-1", name: "Tháng 7/2026" },
+        reports: [
+          {
+            report_id: "old-report",
+            village_name: "Thôn kỳ cũ",
+            workflow_status: "approved",
+            quality_score: 71,
+            quality_status: "needs_review",
+            unresolved_flag_count: 1,
+            outlier_count: 0,
+            lineage: { report_source: "manual", report_version: 1 },
+          },
+        ],
+      });
+      await oldQuality;
+    });
+
+    expect(screen.getByText("Thôn kỳ mới")).toBeInTheDocument();
+    expect(screen.queryByText("Thôn kỳ cũ")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Tháng 8/2026").length).toBeGreaterThan(0);
+  });
+
+  it("hides malformed AI analysis and keeps the deterministic brief usable", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          reports: [
+            {
+              report_id: "report-1",
+              village_name: "Thôn An Sơn",
+              workflow_status: "approved",
+              quality_score: 91,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "malformed-ai-draft",
+            period_id: "period-1",
+            status: "accepted",
+            content: [
+              "Kết luận: Kết luận xác định vẫn phải hiển thị.",
+              "Mức ưu tiên: Thông thường",
+              "Hành động đề xuất: Đối chiếu căn cứ trước khi quyết định.",
+              "Căn cứ: 1 báo cáo đã duyệt.",
+              "Giới hạn: Không tự động phê duyệt.",
+            ].join("\n"),
+            created_at: "2026-07-28T12:00:00+07:00",
+            citations: [
+              {
+                kind: "quality_snapshot",
+                id: { unsafe: "report-1" },
+                village_name: ["Thôn An Sơn"],
+                quality_score: Number.NaN,
+              },
+              {
+                kind: "ai_generation",
+                label: { unsafe: "Không được render object" },
+              },
+              {
+                kind: "ai_enrichment",
+                id: "decision-ai-analysis",
+                analysis: {
+                  executive_assessment:
+                    "Nội dung AI sai cấu trúc tuyệt đối không được hiển thị.",
+                  recommended_option_id: "A",
+                  options: null,
+                  risks: [],
+                  reviewer_questions: [],
+                  assumptions: [],
+                },
+              },
+            ],
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+
+    expect(
+      await screen.findByText("Kết luận xác định vẫn phải hiển thị."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bản an toàn bằng luật xác định")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Phần AI có cấu trúc không hợp lệ nên đã được ẩn. Kết luận và căn cứ xác định vẫn giữ nguyên để người có thẩm quyền rà soát.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Nội dung AI sai cấu trúc tuyệt đối không được hiển thị.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Phân tích AI tham khảo")).not.toBeInTheDocument();
+  });
+
+  it("keeps the latest rejected admin draft visible without inventing legacy metrics", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          reports: [
+            {
+              report_id: "report-1",
+              village_name: "Thôn An Sơn",
+              workflow_status: "approved",
+              quality_score: 90,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "rejected-only",
+            period_id: "period-1",
+            status: "rejected",
+            content: "Bản bị từ chối vẫn cần truy vết.",
+            created_at: "2026-07-28T12:00:00+07:00",
+            review_notes: "Cần bổ sung tài liệu nguồn trước khi tạo lại.",
+            citations: [
+              {
+                kind: "quality_snapshot",
+                id: "legacy-report",
+                village_name: "Thôn An Sơn",
+              },
+            ],
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    const { container } = render(
+      <OperationsCenter periodId="period-1" role="admin_xa" />,
+    );
+
+    expect(
+      await screen.findByText("Bản bị từ chối vẫn cần truy vết."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Hồ sơ đã bị từ chối gần nhất")).toBeInTheDocument();
+    expect(screen.getByText("Đã từ chối")).toBeInTheDocument();
+    const evidenceSummary = container.querySelector(
+      ".decision-evidence-summary",
+    );
+    expect(evidenceSummary).not.toBeNull();
+    expect(
+      Array.from(evidenceSummary?.querySelectorAll("dd") || []).map(
+        (item) => item.textContent,
+      ),
+    ).toEqual(["—", "—", "—", "—"]);
+    expect(
+      screen.getByRole("button", { name: "Tạo bản phân tích có căn cứ" }),
+    ).toBeEnabled();
   });
 
   it.each([

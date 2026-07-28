@@ -68,7 +68,7 @@
     {"method":"GET","path":"/api/operations/initiatives","authorization":"admin_or_leader","scope":"commune_internal","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/api/operations/initiatives","authorization":"admin","scope":"commune_admin","mutates":true,"may_include_ct14":false},
     {"method":"GET","path":"/api/operations/ai-drafts","authorization":"admin_or_leader","scope":"commune_internal_no_pii","mutates":false,"may_include_ct14":false},
-    {"method":"POST","path":"/api/operations/ai-drafts","authorization":"admin_or_leader","scope":"commune_internal_no_pii","mutates":true,"may_include_ct14":false},
+    {"method":"POST","path":"/api/operations/ai-drafts","authorization":"admin","scope":"commune_admin_no_pii","mutates":true,"may_include_ct14":false},
     {"method":"POST","path":"/api/operations/ai-drafts/{draft_id}/review","authorization":"admin","scope":"commune_admin_human_review","mutates":true,"may_include_ct14":false},
     {"method":"GET","path":"/report-periods","authorization":"authenticated","scope":"commune_internal","mutates":false,"may_include_ct14":false},
     {"method":"POST","path":"/report-periods","authorization":"admin","scope":"commune_admin","mutates":true,"may_include_ct14":false},
