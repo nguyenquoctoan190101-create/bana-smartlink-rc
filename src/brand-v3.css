@@ -408,12 +408,11 @@ textarea::placeholder {
   padding: 0.42rem 0.72rem;
   border: 1px solid rgb(255 255 255 / 0.42);
   border-radius: 999px;
-  background: rgb(2 37 27 / 0.48);
+  background: rgb(2 37 27 / 0.72);
   font-size: 0.75rem !important;
   font-weight: 800;
   letter-spacing: 0.09em;
   line-height: 1.15 !important;
-  backdrop-filter: blur(8px);
 }
 
 .public-hero h1 {
@@ -447,9 +446,8 @@ textarea::placeholder {
   border: 1px solid rgb(255 255 255 / 0.38) !important;
   border-radius: 0.8rem !important;
   color: #fff !important;
-  background: rgb(3 55 40 / 0.52) !important;
+  background: rgb(3 55 40 / 0.72) !important;
   box-shadow: none !important;
-  backdrop-filter: blur(7px);
 }
 
 .public-hero .public-hero-nav > *[aria-pressed="true"] {
