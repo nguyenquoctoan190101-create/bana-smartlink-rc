@@ -12,6 +12,7 @@ from routers.auth import _extract_bearer_token, get_settings, get_supabase_admin
 from services.decision_ai import enrich_decision_brief
 from services.operations import (
     MATURITY_DIMENSIONS,
+    QUALITY_RULE_VERSION,
     build_safe_period_brief,
     evidence_fingerprint_from_citations,
     quality_snapshot,
@@ -153,13 +154,11 @@ async def get_quality_center(
         period, snapshots = await _period_and_snapshots(_caller_client(supabase, authorization), period_id)
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Unable to retrieve quality evidence") from exc
-    average = round(sum(item["quality_score"] for item in snapshots) / len(snapshots), 1) if snapshots else None
     return {
         "period": period,
         "scope_role": profile.role,
-        "rule_version": "2026-07-14",
+        "rule_version": QUALITY_RULE_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "average_quality_score": average,
         "reports": snapshots,
     }
 

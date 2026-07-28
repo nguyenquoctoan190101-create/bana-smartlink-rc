@@ -20,12 +20,17 @@ describe("OperationsCenter", () => {
       if (path.startsWith("/api/operations/quality")) {
         return Promise.resolve({
           period: { id: "period-1", name: "Tháng 7/2026" },
-          average_quality_score: 92,
           rule_version: "2026-07-14",
           reports: [{
             report_id: "report-1",
             village_name: "Thôn An Sơn",
-            quality_score: 92,
+            completeness_percent: 92.9,
+            completeness_numerator: 13,
+            completeness_denominator: 14,
+            validity_percent: 100,
+            blocking_flag_count: 0,
+            timeliness_percent: 100,
+            timeliness_status: "on_time",
             quality_status: "needs_review",
             unresolved_flag_count: 1,
             outlier_count: 0,
@@ -45,7 +50,11 @@ describe("OperationsCenter", () => {
   it("keeps successful operational data visible when an optional section fails", async () => {
     render(<OperationsCenter periodId="period-1" role="admin_xa" />);
 
-    await waitFor(() => expect(screen.getAllByText("92%")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(/92\.9%/)).toHaveLength(2));
+    expect(screen.getByText("13/14 trường · 1 báo cáo chưa đủ")).toBeInTheDocument();
+    expect(screen.getByText("1/1 báo cáo · 0 có lỗi chặn")).toBeInTheDocument();
+    expect(screen.getByText("1/1 báo cáo · 0 không đúng hạn")).toBeInTheDocument();
+    expect(screen.queryByText("Điểm chất lượng")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ưu tiên điều hành" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
@@ -63,9 +72,8 @@ describe("OperationsCenter", () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) return Promise.resolve({
         period: { id: "period-1", name: "Tháng 7/2026" },
-        average_quality_score: 100,
         rule_version: "2026-07-14",
-        reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", quality_score: 100, quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
+        reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", completeness_percent: 100, completeness_numerator: 14, completeness_denominator: 14, validity_percent: 100, blocking_flag_count: 0, timeliness_percent: 100, timeliness_status: "on_time", quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
       });
       if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", period_id: "period-1", status: "accepted", content: "Brief mẫu", confidence: 0.9, review_notes: "Đã đối chiếu đầy đủ tài liệu nguồn.", reviewed_at: "2026-07-28T12:00:00+07:00" }]);
       if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
@@ -270,7 +278,7 @@ describe("OperationsCenter", () => {
       "Kết luận: Cần rà soát 1 báo cáo trước khi sử dụng.",
       "Mức ưu tiên: Cao",
       "Hành động đề xuất: Đối chiếu cảnh báo với tài liệu nguồn.",
-      "Căn cứ: 2 báo cáo đã duyệt; điểm trung bình 88%.",
+      "Căn cứ: 1 báo cáo đã duyệt; đầy đủ 13/14 trường; hợp lệ 1/1; đúng hạn 1/1.",
       "Giới hạn: Không tự phê duyệt, giao việc hoặc công bố.",
     ].join("\n");
     mocks.apiJson.mockImplementation((path: string, options?: RequestInit) => {
@@ -282,7 +290,13 @@ describe("OperationsCenter", () => {
               report_id: "report-1",
               village_name: "Thôn An Sơn",
               workflow_status: "approved",
-              quality_score: 88,
+              completeness_percent: 92.9,
+              completeness_numerator: 13,
+              completeness_denominator: 14,
+              validity_percent: 100,
+              blocking_flag_count: 0,
+              timeliness_percent: 100,
+              timeliness_status: "on_time",
               quality_status: "needs_review",
               unresolved_flag_count: 1,
               outlier_count: 0,
@@ -306,7 +320,13 @@ describe("OperationsCenter", () => {
                 kind: "quality_snapshot",
                 id: "report-1",
                 village_name: "Thôn An Sơn",
-                quality_score: 88,
+                completeness_percent: 92.9,
+                completeness_numerator: 13,
+                completeness_denominator: 14,
+                validity_percent: 100,
+                blocking_flag_count: 0,
+                timeliness_percent: 100,
+                timeliness_status: "on_time",
                 unresolved_flag_count: 1,
                 report_source: "excel",
                 report_version: 3,
@@ -315,15 +335,20 @@ describe("OperationsCenter", () => {
               {
                 kind: "decision_metrics",
                 id: "period:Tháng 7/2026",
-                label: "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+                label: "Bằng chứng chất lượng dùng để tạo bản tóm tắt",
                 report_count: 1,
                 ready_report_count: 0,
-                average_quality_score: 88,
+                complete_field_count: 13,
+                expected_field_count: 14,
+                completeness_percent: 92.9,
+                valid_report_count: 1,
+                timely_report_count: 1,
                 blocked_report_count: 0,
                 review_report_count: 1,
                 late_report_count: 0,
                 open_action_count: 0,
                 overdue_action_count: 0,
+                generator_version: "deterministic-evidence-v3",
               },
               {
                 kind: "ai_enrichment",

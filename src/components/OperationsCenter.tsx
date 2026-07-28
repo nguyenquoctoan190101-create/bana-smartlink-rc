@@ -53,7 +53,12 @@ type DraftCitation = {
   analysis?: unknown;
   village_name?: string;
   quality_status?: string;
-  quality_score?: number;
+  completeness_percent?: number;
+  completeness_numerator?: number;
+  completeness_denominator?: number;
+  validity_percent?: number;
+  blocking_flag_count?: number;
+  timeliness_percent?: number;
   unresolved_flag_count?: number;
   outlier_count?: number;
   timeliness_status?: string;
@@ -63,7 +68,10 @@ type DraftCitation = {
   generator_version?: string;
   report_count?: number;
   ready_report_count?: number;
-  average_quality_score?: number;
+  complete_field_count?: number;
+  expected_field_count?: number;
+  valid_report_count?: number;
+  timely_report_count?: number;
   blocked_report_count?: number;
   review_report_count?: number;
   late_report_count?: number;
@@ -93,7 +101,13 @@ type Quality = {
   report_id: string;
   village_name: string;
   workflow_status?: string;
-  quality_score: number;
+  completeness_percent?: number;
+  completeness_numerator?: number;
+  completeness_denominator?: number;
+  validity_percent?: number;
+  blocking_flag_count?: number;
+  timeliness_percent?: number;
+  timeliness_status?: string;
   quality_status: string;
   unresolved_flag_count: number;
   outlier_count: number;
@@ -109,7 +123,6 @@ type TrendAlert = {
 type QualityResponse = {
   period?: { id: string; name?: string | null };
   generated_at?: string;
-  average_quality_score?: number | null;
   reports?: Quality[];
   rule_version?: string;
 };
@@ -171,6 +184,95 @@ function asOptionalFiniteNumber(value: unknown): number | undefined {
     : undefined;
 }
 
+type DimensionEvidence = {
+  numerator: number;
+  denominator: number;
+  percent: number | null;
+  reportsWithEvidence: number;
+  reportsNeedingReview: number;
+};
+
+type QualityDimensions = {
+  completeness: DimensionEvidence;
+  validity: DimensionEvidence;
+  timeliness: DimensionEvidence;
+};
+
+function dimensionPercent(numerator: number, denominator: number): number | null {
+  return denominator > 0
+    ? Math.round((numerator * 1000) / denominator) / 10
+    : null;
+}
+
+function summarizeQualityDimensions(reports: Quality[]): QualityDimensions {
+  const completenessEvidence = reports.filter(
+    (item) =>
+      typeof item.completeness_numerator === "number" &&
+      Number.isFinite(item.completeness_numerator) &&
+      typeof item.completeness_denominator === "number" &&
+      Number.isFinite(item.completeness_denominator) &&
+      item.completeness_denominator > 0,
+  );
+  const completeFieldCount = completenessEvidence.reduce(
+    (total, item) => total + (item.completeness_numerator || 0),
+    0,
+  );
+  const expectedFieldCount = completenessEvidence.reduce(
+    (total, item) => total + (item.completeness_denominator || 0),
+    0,
+  );
+  const validityEvidence = reports.filter(
+    (item) =>
+      typeof item.validity_percent === "number" &&
+      Number.isFinite(item.validity_percent),
+  );
+  const validReportCount = validityEvidence.filter(
+    (item) => item.validity_percent === 100,
+  ).length;
+  const timelinessEvidence = reports.filter((item) =>
+    ["on_time", "late", "not_submitted"].includes(
+      item.timeliness_status || "",
+    ),
+  );
+  const timelyReportCount = timelinessEvidence.filter(
+    (item) => item.timeliness_status === "on_time",
+  ).length;
+
+  return {
+    completeness: {
+      numerator: completeFieldCount,
+      denominator: expectedFieldCount,
+      percent: dimensionPercent(completeFieldCount, expectedFieldCount),
+      reportsWithEvidence: completenessEvidence.length,
+      reportsNeedingReview: completenessEvidence.filter(
+        (item) =>
+          (item.completeness_numerator || 0) <
+          (item.completeness_denominator || 0),
+      ).length,
+    },
+    validity: {
+      numerator: validReportCount,
+      denominator: validityEvidence.length,
+      percent: dimensionPercent(validReportCount, validityEvidence.length),
+      reportsWithEvidence: validityEvidence.length,
+      reportsNeedingReview: validityEvidence.length - validReportCount,
+    },
+    timeliness: {
+      numerator: timelyReportCount,
+      denominator: timelinessEvidence.length,
+      percent: dimensionPercent(timelyReportCount, timelinessEvidence.length),
+      reportsWithEvidence: timelinessEvidence.length,
+      reportsNeedingReview: timelinessEvidence.length - timelyReportCount,
+    },
+  };
+}
+
+function formatDimensionPercent(value: number | null | undefined): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? `${value}%`
+    : "—";
+}
+
 function isDecisionDraft(value: unknown): value is DecisionDraft {
   return (
     isRecord(value) &&
@@ -226,7 +328,20 @@ function asDraftCitations(value: unknown): DraftCitation[] {
     analysis: citation.analysis,
     village_name: asOptionalString(citation.village_name),
     quality_status: asOptionalString(citation.quality_status),
-    quality_score: asOptionalFiniteNumber(citation.quality_score),
+    completeness_percent: asOptionalFiniteNumber(
+      citation.completeness_percent,
+    ),
+    completeness_numerator: asOptionalFiniteNumber(
+      citation.completeness_numerator,
+    ),
+    completeness_denominator: asOptionalFiniteNumber(
+      citation.completeness_denominator,
+    ),
+    validity_percent: asOptionalFiniteNumber(citation.validity_percent),
+    blocking_flag_count: asOptionalFiniteNumber(
+      citation.blocking_flag_count,
+    ),
+    timeliness_percent: asOptionalFiniteNumber(citation.timeliness_percent),
     unresolved_flag_count: asOptionalFiniteNumber(
       citation.unresolved_flag_count,
     ),
@@ -238,8 +353,17 @@ function asDraftCitations(value: unknown): DraftCitation[] {
     generator_version: asOptionalString(citation.generator_version),
     report_count: asOptionalFiniteNumber(citation.report_count),
     ready_report_count: asOptionalFiniteNumber(citation.ready_report_count),
-    average_quality_score: asOptionalFiniteNumber(
-      citation.average_quality_score,
+    complete_field_count: asOptionalFiniteNumber(
+      citation.complete_field_count,
+    ),
+    expected_field_count: asOptionalFiniteNumber(
+      citation.expected_field_count,
+    ),
+    valid_report_count: asOptionalFiniteNumber(
+      citation.valid_report_count,
+    ),
+    timely_report_count: asOptionalFiniteNumber(
+      citation.timely_report_count,
     ),
     blocked_report_count: asOptionalFiniteNumber(
       citation.blocked_report_count,
@@ -365,6 +489,12 @@ const reportSourceLabels: Record<string, string> = {
   excel: "Tệp Excel",
   photo_ocr: "Ảnh OCR",
   direct_api: "API trực tiếp",
+};
+
+const timelinessLabels: Record<string, string> = {
+  on_time: "Đúng hạn",
+  late: "Nộp muộn",
+  not_submitted: "Chưa nộp",
 };
 
 const priorityLabels: Record<string, string> = {
@@ -545,22 +675,21 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     () => (role === "lanh_dao" ? approvedReports : quality?.reports ?? []),
     [approvedReports, quality, role],
   );
-  const visibleAverageQuality = useMemo(
-    () =>
-      visibleQualityReports.length
-        ? Math.round(
-            (visibleQualityReports.reduce(
-              (total, item) => total + item.quality_score,
-              0,
-            ) /
-              visibleQualityReports.length) *
-              10,
-          ) / 10
-        : null,
+  const visibleQualityDimensions = useMemo(
+    () => summarizeQualityDimensions(visibleQualityReports),
     [visibleQualityReports],
   );
-  const flaggedReports = useMemo(() => visibleQualityReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [visibleQualityReports]);
-  const flaggedApprovedReports = useMemo(() => approvedReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [approvedReports]);
+  const flaggedReports = useMemo(
+    () =>
+      visibleQualityReports.filter(
+        (item) => item.quality_status !== "ready",
+      ),
+    [visibleQualityReports],
+  );
+  const flaggedApprovedReports = useMemo(
+    () => approvedReports.filter((item) => item.quality_status !== "ready"),
+    [approvedReports],
+  );
   const currentPeriodDrafts = useMemo(
     () =>
       drafts
@@ -799,6 +928,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     latestDecisionDraft?.id || "draft"
   }`;
   const evidenceReadiness =
+    latestDecisionMetrics?.generator_version === "deterministic-evidence-v3" &&
     typeof latestDecisionDraft?.confidence === "number"
       ? Math.round(latestDecisionDraft.confidence * 100)
       : null;
@@ -959,7 +1089,63 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
 
         <div className="work-section__metrics grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
-          <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
+          <MetricCard
+            label="Đầy đủ"
+            value={
+              available.quality === false
+                ? "—"
+                : formatDimensionPercent(
+                    visibleQualityDimensions.completeness.percent,
+                  )
+            }
+            context={
+              available.quality === false
+                ? "Không tải được bằng chứng đầy đủ"
+                : visibleQualityDimensions.completeness.percent == null
+                  ? "Chưa có bằng chứng; không quy đổi thành 0"
+                  : `${visibleQualityDimensions.completeness.numerator}/${visibleQualityDimensions.completeness.denominator} trường · ${visibleQualityDimensions.completeness.reportsNeedingReview} báo cáo chưa đủ`
+            }
+            tone="info"
+            icon={<DatabaseZap />}
+          />
+          <MetricCard
+            label="Hợp lệ"
+            value={
+              available.quality === false
+                ? "—"
+                : formatDimensionPercent(
+                    visibleQualityDimensions.validity.percent,
+                  )
+            }
+            context={
+              available.quality === false
+                ? "Không tải được bằng chứng hợp lệ"
+                : visibleQualityDimensions.validity.percent == null
+                  ? "Chưa có bằng chứng; không quy đổi thành 0"
+                  : `${visibleQualityDimensions.validity.numerator}/${visibleQualityDimensions.validity.denominator} báo cáo · ${visibleQualityDimensions.validity.reportsNeedingReview} có lỗi chặn`
+            }
+            tone={visibleQualityDimensions.validity.reportsNeedingReview ? "warning" : "success"}
+            icon={<ShieldCheck />}
+          />
+          <MetricCard
+            label="Đúng hạn"
+            value={
+              available.quality === false
+                ? "—"
+                : formatDimensionPercent(
+                    visibleQualityDimensions.timeliness.percent,
+                  )
+            }
+            context={
+              available.quality === false
+                ? "Không tải được bằng chứng đúng hạn"
+                : visibleQualityDimensions.timeliness.percent == null
+                  ? "Chưa có bằng chứng; không quy đổi thành 0"
+                  : `${visibleQualityDimensions.timeliness.numerator}/${visibleQualityDimensions.timeliness.denominator} báo cáo · ${visibleQualityDimensions.timeliness.reportsNeedingReview} không đúng hạn`
+            }
+            tone={visibleQualityDimensions.timeliness.reportsNeedingReview ? "warning" : "success"}
+            icon={<Clock3 />}
+          />
           <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
           {admin ? (
             <MetricCard
@@ -1087,20 +1273,42 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           ) : (
             <>
               <table className="operations-quality-table">
+                <caption className="sr-only">
+                  Bằng chứng chất lượng theo báo cáo: đầy đủ, hợp lệ, đúng hạn,
+                  cảnh báo, nguồn và phiên bản
+                </caption>
                 <thead>
                   <tr>
-                    <th>Thôn</th>
-                    <th>Điểm</th>
-                    <th>Trạng thái</th>
-                    <th>Cần xem</th>
-                    <th>Nguồn và phiên bản</th>
+                    <th scope="col">Thôn</th>
+                    <th scope="col">Đầy đủ</th>
+                    <th scope="col">Hợp lệ</th>
+                    <th scope="col">Đúng hạn</th>
+                    <th scope="col">Trạng thái</th>
+                    <th scope="col">Cần xem</th>
+                    <th scope="col">Nguồn và phiên bản</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleQualityReports.map((item) => (
                     <tr key={item.report_id}>
-                      <td className="font-semibold">{item.village_name}</td>
-                      <td>{item.quality_score}%</td>
+                      <th scope="row" className="font-semibold">
+                        {item.village_name}
+                      </th>
+                      <td>
+                        {typeof item.completeness_numerator === "number" &&
+                        typeof item.completeness_denominator === "number"
+                          ? `${item.completeness_numerator}/${item.completeness_denominator} trường · ${formatDimensionPercent(item.completeness_percent)}`
+                          : "— · chưa có bằng chứng"}
+                      </td>
+                      <td>
+                        {typeof item.validity_percent === "number"
+                          ? `${formatDimensionPercent(item.validity_percent)} · ${item.blocking_flag_count ?? "—"} lỗi chặn`
+                          : "— · chưa có bằng chứng"}
+                      </td>
+                      <td>
+                        {timelinessLabels[item.timeliness_status || ""] ||
+                          "— · chưa có bằng chứng"}
+                      </td>
                       <td>
                         <StatusBadge status={item.quality_status} />
                       </td>
@@ -1448,9 +1656,21 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                                   {typeof citation.report_count === "number"
                                     ? `${citation.report_count} báo cáo`
                                     : "Số báo cáo chưa ghi nhận"}
-                                  {typeof citation.average_quality_score ===
-                                  "number"
-                                    ? ` · điểm chất lượng trung bình ${citation.average_quality_score}%`
+                                  {typeof citation.complete_field_count ===
+                                    "number" &&
+                                  typeof citation.expected_field_count ===
+                                    "number"
+                                    ? ` · đầy đủ ${citation.complete_field_count}/${citation.expected_field_count} trường`
+                                    : ""}
+                                  {typeof citation.valid_report_count ===
+                                    "number" &&
+                                  typeof citation.report_count === "number"
+                                    ? ` · hợp lệ ${citation.valid_report_count}/${citation.report_count}`
+                                    : ""}
+                                  {typeof citation.timely_report_count ===
+                                    "number" &&
+                                  typeof citation.report_count === "number"
+                                    ? ` · đúng hạn ${citation.timely_report_count}/${citation.report_count}`
                                     : ""}
                                   {typeof citation.late_report_count === "number"
                                     ? ` · ${citation.late_report_count} báo cáo nộp muộn`
@@ -1458,9 +1678,22 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                                 </p>
                               ) : (
                                 <p>
-                                  {typeof citation.quality_score === "number"
-                                    ? `Điểm ${citation.quality_score}%`
-                                    : "Chưa có điểm chất lượng"}
+                                  {typeof citation.completeness_numerator ===
+                                    "number" &&
+                                  typeof citation.completeness_denominator ===
+                                    "number"
+                                    ? `Đầy đủ ${citation.completeness_numerator}/${citation.completeness_denominator} trường (${formatDimensionPercent(citation.completeness_percent)})`
+                                    : "Chưa có bằng chứng đầy đủ"}
+                                  {typeof citation.validity_percent === "number"
+                                    ? ` · hợp lệ ${formatDimensionPercent(citation.validity_percent)}`
+                                    : ""}
+                                  {typeof citation.blocking_flag_count ===
+                                  "number"
+                                    ? ` · ${citation.blocking_flag_count} lỗi chặn`
+                                    : ""}
+                                  {citation.timeliness_status
+                                    ? ` · ${timelinessLabels[citation.timeliness_status] || citation.timeliness_status}`
+                                    : ""}
                                   {typeof citation.unresolved_flag_count ===
                                   "number"
                                     ? ` · ${citation.unresolved_flag_count} cảnh báo`
@@ -1730,9 +1963,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                               {evidenceReadiness !== null && (
                                 <p>
                                   Chỉ số kỹ thuật sẵn sàng dữ liệu{" "}
-                                  {evidenceReadiness}% = 70% điểm chất lượng +
-                                  30% tỷ lệ báo cáo đạt. Đây không phải xác suất
-                                  AI đúng.
+                                  {evidenceReadiness}% = tỷ lệ báo cáo đạt đồng
+                                  thời đủ trường, không có lỗi chặn và đúng hạn.
+                                  Đây không phải xác suất AI đúng.
                                 </p>
                               )}
                             </div>

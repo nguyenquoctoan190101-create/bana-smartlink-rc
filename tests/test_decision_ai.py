@@ -68,9 +68,14 @@ def _citations() -> list[dict]:
             "id": "report-1",
             "village_name": "Thôn An Sơn",
             "quality_status": "needs_review",
-            "quality_score": 88,
+            "completeness_percent": 92.9,
+            "completeness_numerator": 13,
+            "completeness_denominator": 14,
+            "validity_percent": 100,
+            "blocking_flag_count": 0,
             "unresolved_flag_count": 1,
             "outlier_count": 0,
+            "timeliness_percent": 100,
             "timeliness_status": "on_time",
             "report_source": "excel",
             "report_version": 3,
@@ -83,13 +88,18 @@ def _citations() -> list[dict]:
             "id": "period:Tháng bảy",
             "report_count": 1,
             "ready_report_count": 0,
-            "average_quality_score": 88,
+            "complete_field_count": 13,
+            "expected_field_count": 14,
+            "completeness_percent": 92.9,
+            "valid_report_count": 1,
+            "timely_report_count": 1,
+            "blocking_flag_count": 0,
             "blocked_report_count": 0,
             "review_report_count": 1,
             "late_report_count": 0,
             "open_action_count": 1,
             "overdue_action_count": 0,
-            "generator_version": "deterministic-evidence-v2",
+            "generator_version": "deterministic-evidence-v3",
             "evidence_fingerprint": "fingerprint",
         },
     ]
@@ -136,6 +146,9 @@ def test_evidence_bundle_strips_unallowlisted_values_and_pii() -> None:
     assert "999" not in serialized
     assert "owner_phone" not in serialized
     assert '"value"' not in serialized
+    assert "quality_score" not in serialized
+    assert bundle["report_quality_evidence"][0]["completeness_numerator"] == 13
+    assert bundle["aggregate_metrics"]["valid_report_count"] == 1
     assert bundle["rules"]["personal_data_included"] is False
     assert bundle["rules"]["indicator_values_included"] is False
 
@@ -205,7 +218,7 @@ async def test_unknown_citation_or_unverified_number_fails_closed_to_determinist
         )
 
     assert attempt.status == "fallback"
-    assert attempt.model_provider == "deterministic-evidence-v2"
+    assert attempt.model_provider == "deterministic-evidence-v3"
     assert attempt.citation is not None
     assert attempt.citation["kind"] == "ai_generation"
 
@@ -364,7 +377,7 @@ async def test_gemini_json_fallback_remains_inside_strict_local_boundary() -> No
         )
 
     assert attempt.status == "fallback"
-    assert attempt.model_provider == "deterministic-evidence-v2"
+    assert attempt.model_provider == "deterministic-evidence-v3"
     assert generate_json.await_args.kwargs["allow_json_mode_fallback"] is True
     assert generate_json.await_args.kwargs["timeout_seconds"] == 45.0
 

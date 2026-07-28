@@ -16,6 +16,7 @@ from routers.operations import (
     AiDraftCreateRequest,
     AiDraftReviewRequest,
     create_ai_draft,
+    get_quality_center,
     list_ai_drafts,
     review_ai_draft,
 )
@@ -40,8 +41,12 @@ def test_quality_snapshot_preserves_missing_values_and_blocks_deterministic_erro
         [{"ct_code": "CT04", "error_type": "BLANK", "resolved": False}],
     )
     assert result["completeness_percent"] == round(100 / 14, 1)
+    assert result["completeness_numerator"] == 1
+    assert result["completeness_denominator"] == 14
+    assert result["blocking_flag_count"] == 1
+    assert "quality_score" not in result
     assert result["quality_status"] == "blocked"
-    assert result["lineage"] == {"report_source": "excel", "report_version": 3, "rule_version": "2026-07-14"}
+    assert result["lineage"] == {"report_source": "excel", "report_version": 3, "rule_version": "2026-07-29"}
 
 
 def test_safe_period_brief_contains_only_summary_evidence_not_indicator_values_or_pii() -> None:
@@ -72,12 +77,19 @@ def test_safe_period_brief_contains_only_summary_evidence_not_indicator_values_o
     assert "Hành động đề xuất:" in content
     assert "Căn cứ:" in content
     assert "Giới hạn:" in content
+    assert "đầy đủ 1/14 trường" in content
+    assert "điểm chất lượng" not in content
     assert citations[0]["id"] == "r1"
-    assert citations[0]["quality_score"] == snapshot["quality_score"]
-    assert citations[-1]["generator_version"] == "deterministic-evidence-v2"
+    assert citations[0]["completeness_numerator"] == 1
+    assert citations[0]["completeness_denominator"] == 14
+    assert "quality_score" not in citations[0]
+    assert citations[-1]["generator_version"] == "deterministic-evidence-v3"
+    assert citations[-1]["complete_field_count"] == 1
+    assert citations[-1]["expected_field_count"] == 14
+    assert citations[-1]["blocking_flag_count"] == 0
     assert citations[-1]["overdue_action_count"] == 1
     assert all("owner_phone" not in citation for citation in citations)
-    assert confidence > 0
+    assert confidence == 0
 
 
 def test_reviewing_decision_brief_requires_meaningful_notes() -> None:
@@ -169,6 +181,30 @@ class _FakeOperationsClient:
             ]
             return [row]
         raise AssertionError(f"Unexpected request: {method} {path}")
+
+
+@pytest.mark.asyncio
+async def test_quality_endpoint_exposes_three_dimensions_without_composite_score() -> None:
+    client = _FakeOperationsClient()
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+
+    result = await get_quality_center(
+        UUID("11111111-1111-4111-8111-111111111111"),
+        profile,
+        client,  # type: ignore[arg-type]
+        "Bearer caller-token",
+    )
+
+    assert result["rule_version"] == "2026-07-29"
+    assert "average_quality_score" not in result
+    assert len(result["reports"]) == 1
+    report = result["reports"][0]
+    assert report["completeness_numerator"] == 14
+    assert report["completeness_denominator"] == 14
+    assert report["validity_percent"] == 100
+    assert report["blocking_flag_count"] == 0
+    assert report["timeliness_percent"] == 100
+    assert "quality_score" not in report
 
 
 def test_leader_can_list_but_cannot_create_decision_drafts() -> None:
@@ -309,7 +345,7 @@ async def test_admin_lists_decision_drafts_without_status_filter() -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_decision_brief_persists_structured_v2_evidence() -> None:
+async def test_create_decision_brief_persists_structured_v3_evidence() -> None:
     client = _FakeOperationsClient()
     profile = UserProfile(str(uuid4()), "admin_xa", None, False)
 
@@ -320,11 +356,11 @@ async def test_create_decision_brief_persists_structured_v2_evidence() -> None:
         "Bearer caller-token",
     )
 
-    assert result["model_provider"] == "deterministic-evidence-v2"
+    assert result["model_provider"] == "deterministic-evidence-v3"
     assert "Kết luận:" in result["content"]
     assert "Hành động đề xuất:" in result["content"]
     assert result["citations"][0]["village_name"] == "Thôn An Sơn"
-    assert result["citations"][-1]["generator_version"] == "deterministic-evidence-v2"
+    assert result["citations"][-1]["generator_version"] == "deterministic-evidence-v3"
     assert all("value" not in citation for citation in result["citations"])
 
 

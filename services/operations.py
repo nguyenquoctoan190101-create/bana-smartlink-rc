@@ -15,6 +15,7 @@ from typing import Any
 ALL_CT_CODES = {f"CT{number:02d}" for number in range(1, 15)}
 PUBLIC_CT_CODES = {"CT01", "CT02", "CT09", "CT12", "CT13"}
 RULE_VERSION = "2026-07-14"
+QUALITY_RULE_VERSION = "2026-07-29"
 MATURITY_DIMENSIONS = (
     "strategy",
     "process",
@@ -32,11 +33,17 @@ def quality_snapshot(report: dict[str, Any], values: Iterable[dict[str, Any]], f
     unresolved = [row for row in flags if not bool(row.get("resolved", False))]
     blocking = [row for row in unresolved if str(row.get("error_type")) in {"BLANK", "TEXT", "SEP", "LOGIC", "BADPHONE"}]
     outliers = [row for row in unresolved if str(row.get("error_type")) == "OUTLIER"]
-    completeness = round(present * 100 / len(ALL_CT_CODES), 1)
+    expected = len(ALL_CT_CODES)
+    completeness = round(present * 100 / expected, 1)
     validity = 0.0 if blocking else 100.0
     timeliness = 100.0 if report.get("timeliness_status") == "on_time" else 0.0
-    score = round((completeness * 0.5) + (validity * 0.35) + (timeliness * 0.15), 1)
-    quality_status = "blocked" if blocking else "needs_review" if unresolved else "ready"
+    quality_status = (
+        "blocked"
+        if blocking
+        else "needs_review"
+        if unresolved or present < expected or timeliness < 100
+        else "ready"
+    )
     return {
         "report_id": str(report["id"]),
         "village_id": str(report["village_id"]),
@@ -44,16 +51,18 @@ def quality_snapshot(report: dict[str, Any], values: Iterable[dict[str, Any]], f
         "workflow_status": str(report.get("workflow_status", "draft")),
         "timeliness_status": str(report.get("timeliness_status", "not_submitted")),
         "quality_status": quality_status,
-        "quality_score": score,
         "completeness_percent": completeness,
+        "completeness_numerator": present,
+        "completeness_denominator": expected,
         "validity_percent": validity,
+        "blocking_flag_count": len(blocking),
         "timeliness_percent": timeliness,
         "unresolved_flag_count": len(unresolved),
         "outlier_count": len(outliers),
         "lineage": {
             "report_source": str(report.get("report_source", "manual")),
             "report_version": int(report.get("version", 1)),
-            "rule_version": RULE_VERSION,
+            "rule_version": QUALITY_RULE_VERSION,
         },
     }
 
@@ -127,7 +136,27 @@ def build_safe_period_brief(
         except ValueError:
             continue
 
-    average = round(sum(float(item["quality_score"]) for item in entries) / len(entries), 1)
+    complete_field_count = sum(
+        int(item.get("completeness_numerator", 0)) for item in entries
+    )
+    expected_field_count = sum(
+        int(item.get("completeness_denominator", len(ALL_CT_CODES)))
+        for item in entries
+    )
+    completeness_percent = (
+        round(complete_field_count * 100 / expected_field_count, 1)
+        if expected_field_count
+        else None
+    )
+    valid_report_count = sum(
+        1 for item in entries if float(item.get("validity_percent", 0)) == 100
+    )
+    timely_report_count = sum(
+        1 for item in entries if item.get("timeliness_status") == "on_time"
+    )
+    blocking_flag_count = sum(
+        int(item.get("blocking_flag_count", 0)) for item in entries
+    )
 
     if blocked:
         priority = "Khẩn"
@@ -153,7 +182,7 @@ def build_safe_period_brief(
         priority = "Cao"
         conclusion = (
             f"Dữ liệu kỳ {period_name} cần rà soát có trọng tâm trước khi sử dụng: "
-            f"{len(needs_review)} báo cáo còn cảnh báo và {len(late)} báo cáo nộp muộn."
+            f"{len(needs_review)} báo cáo cần xem lại và {len(late)} báo cáo nộp muộn."
         )
         recommended_action = (
             "Mở danh sách báo cáo cần xem, đối chiếu cảnh báo và nguồn nhập; "
@@ -171,8 +200,12 @@ def build_safe_period_brief(
         )
 
     basis = (
-        f"{len(entries)} báo cáo đã duyệt/khóa; điểm chất lượng trung bình {average}%; "
-        f"{len(blocked)} lỗi chặn; {len(needs_review)} báo cáo còn cảnh báo; "
+        f"{len(entries)} báo cáo đã duyệt/khóa; đầy đủ "
+        f"{complete_field_count}/{expected_field_count} trường"
+        f"{f' ({completeness_percent}%)' if completeness_percent is not None else ''}; "
+        f"hợp lệ {valid_report_count}/{len(entries)} báo cáo; "
+        f"đúng hạn {timely_report_count}/{len(entries)} báo cáo; "
+        f"{blocking_flag_count} lỗi chặn; {len(needs_review)} báo cáo cần xem lại; "
         f"{len(late)} báo cáo nộp muộn; {len(open_actions)} việc đang mở, "
         f"trong đó {len(overdue_actions)} việc quá hạn."
     )
@@ -200,7 +233,12 @@ def build_safe_period_brief(
             "village_name": item["village_name"],
             "workflow_status": item["workflow_status"],
             "quality_status": item["quality_status"],
-            "quality_score": item["quality_score"],
+            "completeness_percent": item["completeness_percent"],
+            "completeness_numerator": item["completeness_numerator"],
+            "completeness_denominator": item["completeness_denominator"],
+            "validity_percent": item["validity_percent"],
+            "blocking_flag_count": item["blocking_flag_count"],
+            "timeliness_percent": item["timeliness_percent"],
             "unresolved_flag_count": item["unresolved_flag_count"],
             "outlier_count": item["outlier_count"],
             "timeliness_status": item["timeliness_status"],
@@ -213,16 +251,21 @@ def build_safe_period_brief(
     metrics = {
         "kind": "decision_metrics",
         "id": f"period:{period_name}",
-        "label": "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+        "label": "Bằng chứng chất lượng dùng để tạo bản tóm tắt",
         "report_count": len(entries),
         "ready_report_count": len(ready),
-        "average_quality_score": average,
+        "complete_field_count": complete_field_count,
+        "expected_field_count": expected_field_count,
+        "completeness_percent": completeness_percent,
+        "valid_report_count": valid_report_count,
+        "timely_report_count": timely_report_count,
+        "blocking_flag_count": blocking_flag_count,
         "blocked_report_count": len(blocked),
         "review_report_count": len(needs_review),
         "late_report_count": len(late),
         "open_action_count": len(open_actions),
         "overdue_action_count": len(overdue_actions),
-        "generator_version": "deterministic-evidence-v2",
+        "generator_version": "deterministic-evidence-v3",
     }
     fingerprint_payload = {
         "reports": citations,
@@ -237,16 +280,15 @@ def build_safe_period_brief(
         ).encode("utf-8")
     ).hexdigest()
     citations.append(metrics)
-    ready_ratio = len(ready) / len(entries)
-    confidence = round(
-        min(1.0, max(0.0, (average / 100 * 0.7) + (ready_ratio * 0.3))),
-        2,
-    )
+    # Readiness is intentionally not a weighted composite.  It is the plain
+    # share of reports that pass all three independently visible dimensions.
+    confidence = round(len(ready) / len(entries), 2)
     return content, citations, confidence
 
 
 __all__ = [
     "MATURITY_DIMENSIONS",
+    "QUALITY_RULE_VERSION",
     "RULE_VERSION",
     "build_safe_period_brief",
     "evidence_fingerprint_from_citations",
