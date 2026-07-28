@@ -21,8 +21,6 @@ class VillageCnscdImpactResponse(BaseModel):
     report_id: UUID | None
     assisted_report_count: int
     ct13_value: int | None
-    difference: int | None
-    absolute_difference: int | None
 
 
 class CnscdImpactResponse(BaseModel):
@@ -32,8 +30,6 @@ class CnscdImpactResponse(BaseModel):
     submitted_report_count: int
     assisted_report_count: int
     ct13_total: int | None
-    difference: int | None
-    absolute_difference: int | None
     missing_ct13_report_count: int
     villages: list[VillageCnscdImpactResponse]
     interpretation: str
@@ -52,7 +48,7 @@ async def get_cnscd_impact(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> CnscdImpactResponse:
-    """Compare assisted submissions with self-declared CT13 for a period."""
+    """Summarize assisted reports and CT13 independently for a period."""
     service = CnscdImpactService(
         supabase.as_user(_extract_bearer_token(authorization))
     )
@@ -77,8 +73,6 @@ async def get_cnscd_impact(
         submitted_report_count=impact.submitted_report_count,
         assisted_report_count=impact.assisted_report_count,
         ct13_total=impact.ct13_total,
-        difference=impact.difference,
-        absolute_difference=impact.absolute_difference,
         missing_ct13_report_count=impact.missing_ct13_report_count,
         villages=[
             VillageCnscdImpactResponse(
@@ -87,8 +81,6 @@ async def get_cnscd_impact(
                 report_id=UUID(item.report_id) if item.report_id is not None else None,
                 assisted_report_count=item.assisted_report_count,
                 ct13_value=item.ct13_value,
-                difference=item.difference,
-                absolute_difference=item.absolute_difference,
             )
             for item in impact.villages
         ],

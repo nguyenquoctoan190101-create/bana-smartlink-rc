@@ -477,14 +477,134 @@ async def test_ocr_selects_models_available_to_the_configured_api_key() -> None:
 
 @pytest.mark.asyncio
 async def test_gemini_ocr_reports_provider_timeout_without_secret_detail(monkeypatch) -> None:
-    request = httpx.Request("POST", "https://gemini.example")
+    request = httpx.Request(
+        "POST",
+        "https://gemini.example",
+        headers={"x-goog-api-key": "provider-secret-key"},
+    )
     fake = _FakeOcrHttpClient(
         error=httpx.ReadTimeout("private timeout detail", request=request)
     )
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", AsyncMock())
 
     with pytest.raises(ocr_report.OcrError, match="request timed out") as caught:
         await _call_ocr_with_fake_transport(monkeypatch, fake)
     assert "private timeout detail" not in str(caught.value)
+    assert "provider-secret" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_drops_transport_response_and_request_secrets(
+    monkeypatch,
+) -> None:
+    request = httpx.Request(
+        "POST",
+        "https://gemini.example",
+        headers={"x-goog-api-key": "provider-secret-key"},
+    )
+    response = httpx.Response(
+        502,
+        content=b"provider-secret-response-body",
+        request=request,
+    )
+    fake = _FakeOcrHttpClient(
+        error=httpx.HTTPStatusError(
+            "provider-secret-transport-detail",
+            request=request,
+            response=response,
+        )
+    )
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(ocr_report.OcrError, match="network error") as caught:
+        await _call_ocr_with_fake_transport(monkeypatch, fake)
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_drops_malformed_provider_response(monkeypatch) -> None:
+    fake = _FakeOcrHttpClient(
+        response=httpx.Response(
+            200,
+            content=b"provider-secret-malformed-response",
+        )
+    )
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(
+        ocr_report.OcrError,
+        match="Could not parse Gemini OCR response",
+    ) as caught:
+        await _call_ocr_with_fake_transport(monkeypatch, fake)
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_gemini_ocr_allowlists_provider_metadata_in_logs(
+    monkeypatch,
+    caplog,
+) -> None:
+    fake = _FakeOcrHttpClient(
+        response=httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "finishReason": "provider-secret-finish-reason",
+                        "content": {
+                            "parts": [
+                                {
+                                    "provider-secret-key": (
+                                        "provider-secret-metadata-value"
+                                    )
+                                }
+                            ]
+                        },
+                    }
+                ],
+                "promptFeedback": {
+                    "blockReason": "provider-secret-block-reason",
+                },
+            },
+        )
+    )
+    monkeypatch.setattr(ocr_report.asyncio, "sleep", AsyncMock())
+
+    with caplog.at_level("WARNING", logger="services.ocr_report"):
+        with pytest.raises(ocr_report.OcrError):
+            await _call_ocr_with_fake_transport(monkeypatch, fake)
+
+    assert caplog.records
+    assert all(
+        getattr(record, "gemini_finish_reason", None) == "UNKNOWN"
+        for record in caplog.records
+    )
+    assert all(
+        getattr(record, "gemini_prompt_block_reason", None) == "UNKNOWN"
+        for record in caplog.records
+    )
+    assert "provider-secret" not in caplog.text
+    assert all("provider-secret" not in repr(record.__dict__) for record in caplog.records)
+
+
+def test_parse_ocr_json_drops_provider_output_from_error_context() -> None:
+    secret_output = '{"CT01": provider-secret-malformed-json}'
+
+    with pytest.raises(ocr_report.OcrError, match="invalid OCR JSON") as caught:
+        ocr_report._parse_ocr_json(secret_output)
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
 
 
 def test_pdf_ocr_preview_returns_additive_evidence_without_persisting(

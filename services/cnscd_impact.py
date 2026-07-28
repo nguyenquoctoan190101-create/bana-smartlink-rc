@@ -14,8 +14,6 @@ class VillageCnscdImpact:
     report_id: str | None
     assisted_report_count: int
     ct13_value: int | None
-    difference: int | None
-    absolute_difference: int | None
 
 
 @dataclass(frozen=True)
@@ -26,8 +24,6 @@ class CnscdImpact:
     submitted_report_count: int
     assisted_report_count: int
     ct13_total: int | None
-    difference: int | None
-    absolute_difference: int | None
     missing_ct13_report_count: int
     villages: list[VillageCnscdImpact]
     interpretation: str
@@ -38,7 +34,7 @@ class CnscdImpactService:
         self._supabase = supabase
 
     async def calculate(self, period_id: str) -> CnscdImpact:
-        """Compare actual CNSCD-assisted submissions with self-declared CT13."""
+        """Summarize CNSCD-assisted reports and CT13 as separate measures."""
         period = await self._fetch_period(period_id)
         villages = await self._fetch_villages(period_id)
         reports = await self._fetch_reports(period_id)
@@ -52,7 +48,6 @@ class CnscdImpactService:
             report_id = str(report["id"]) if report is not None else None
             assisted_count = 1 if report is not None and bool(report.get("assisted_by_cnscd")) else 0
             ct13_value = values_by_report.get(report_id or "") if report_id is not None else None
-            difference = ct13_value - assisted_count if ct13_value is not None else None
             village_impacts.append(
                 VillageCnscdImpact(
                     village_id=village_id,
@@ -60,8 +55,6 @@ class CnscdImpactService:
                     report_id=report_id,
                     assisted_report_count=assisted_count,
                     ct13_value=ct13_value,
-                    difference=difference,
-                    absolute_difference=abs(difference) if difference is not None else None,
                 )
             )
 
@@ -75,17 +68,16 @@ class CnscdImpactService:
             sum(item.ct13_value for item in village_impacts if item.ct13_value is not None)
             if complete_ct13 else None
         )
-        difference = ct13_total - assisted_report_count if ct13_total is not None else None
         if not has_report_data:
             interpretation = (
                 f"Kỳ {period['name']}: chưa có báo cáo nào được nộp; "
-                "chưa thể đối chiếu số lượt hỗ trợ nhập hộ với CT13."
+                "chưa có dữ liệu hỗ trợ lập báo cáo hoặc CT13 để tổng hợp."
             )
         else:
             interpretation = (
-                f"Kỳ {period['name']}: Tổ CNSCĐ hỗ trợ nhập hộ {assisted_report_count} báo cáo; "
+                f"Kỳ {period['name']}: Tổ CNSCĐ tham gia lập {assisted_report_count} báo cáo; "
                 + (
-                    f"CT13 do thôn tự khai là {ct13_total} người; chênh lệch {abs(difference or 0)}."
+                    f"CT13 ghi nhận {ct13_total} người được hướng dẫn sử dụng dịch vụ công trực tuyến."
                     if complete_ct13
                     else f"chưa thể tính tổng CT13 vì {missing_ct13_report_count} báo cáo thiếu dữ liệu."
                 )
@@ -97,8 +89,6 @@ class CnscdImpactService:
             submitted_report_count=len(reports),
             assisted_report_count=assisted_report_count,
             ct13_total=ct13_total,
-            difference=difference,
-            absolute_difference=abs(difference) if difference is not None else None,
             missing_ct13_report_count=missing_ct13_report_count,
             villages=village_impacts,
             interpretation=interpretation,

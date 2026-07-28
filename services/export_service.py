@@ -378,6 +378,9 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
 
     # Sort villages
     sorted_villages = _ordered_village_items(villages_map)
+    reports_by_village: dict[Any, dict] = {}
+    for report in reports_data:
+        reports_by_village.setdefault(report["village_id"], report)
     
     # Data Rows
     sums = {code: 0 for code in INDICATORS_DICT.keys()}
@@ -386,7 +389,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     row_idx = 5
     
     for i, (v_id, v_name) in enumerate(sorted_villages, 1):
-        report = next((r for r in reports_data if r["village_id"] == v_id), None)
+        report = reports_by_village.get(v_id)
         if report:
             vals = report.get("values", {})
             status_text = _submission_status_label(report)
@@ -469,7 +472,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
         
     row_idx = 5
     for i, (v_id, v_name) in enumerate(sorted_villages, 1):
-        report = next((r for r in reports_data if r["village_id"] == v_id), None)
+        report = reports_by_village.get(v_id)
         if report:
             submitter_name = report.get("reporter_name") or ""
             submitter_phone = report.get("reporter_phone") or ""

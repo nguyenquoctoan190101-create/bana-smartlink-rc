@@ -1234,17 +1234,6 @@
       },
       "CnscdImpactResponse": {
         "properties": {
-          "absolute_difference": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Absolute Difference"
-          },
           "assisted_report_count": {
             "title": "Assisted Report Count",
             "type": "integer"
@@ -1259,17 +1248,6 @@
               }
             ],
             "title": "Ct13 Total"
-          },
-          "difference": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Difference"
           },
           "has_report_data": {
             "title": "Has Report Data",
@@ -1311,8 +1289,6 @@
           "submitted_report_count",
           "assisted_report_count",
           "ct13_total",
-          "difference",
-          "absolute_difference",
           "missing_ct13_report_count",
           "villages",
           "interpretation"
@@ -4212,17 +4188,6 @@
       },
       "VillageCnscdImpactResponse": {
         "properties": {
-          "absolute_difference": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Absolute Difference"
-          },
           "assisted_report_count": {
             "title": "Assisted Report Count",
             "type": "integer"
@@ -4237,17 +4202,6 @@
               }
             ],
             "title": "Ct13 Value"
-          },
-          "difference": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Difference"
           },
           "report_id": {
             "anyOf": [
@@ -4276,9 +4230,7 @@
           "village_name",
           "report_id",
           "assisted_report_count",
-          "ct13_value",
-          "difference",
-          "absolute_difference"
+          "ct13_value"
         ],
         "title": "VillageCnscdImpactResponse",
         "type": "object"
@@ -4942,7 +4894,7 @@
     },
     "/api/cnscd-impact": {
       "get": {
-        "description": "Compare assisted submissions with self-declared CT13 for a period.",
+        "description": "Summarize assisted reports and CT13 independently for a period.",
         "operationId": "get_cnscd_impact_api_cnscd_impact_get",
         "parameters": [
           {

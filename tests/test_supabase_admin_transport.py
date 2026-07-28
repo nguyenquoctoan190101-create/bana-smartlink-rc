@@ -203,6 +203,69 @@ async def test_storage_transport_and_http_failures_are_redacted() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "storage_user",
+        "storage_admin",
+        "storage_delete",
+        "auth",
+        "rest",
+    ],
+)
+async def test_transport_failures_do_not_retain_request_or_response_secrets(
+    operation: str,
+) -> None:
+    request_secret = "provider-secret-authorization"
+    response_secret = b"provider-secret-response-body"
+    request = httpx.Request(
+        "POST",
+        "https://project.supabase.co/private",
+        headers={
+            "Authorization": f"Bearer {request_secret}",
+            "apikey": "provider-secret-apikey",
+        },
+    )
+    response = httpx.Response(502, content=response_secret, request=request)
+    error = httpx.HTTPStatusError(
+        "provider-secret-transport-detail",
+        request=request,
+        response=response,
+    )
+    fake = FakeAsyncClient(error=error)
+    client = SupabaseAdminClient(_settings())
+
+    with patch("services.supabase_admin.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(SupabaseAdminError) as caught:
+            if operation == "storage_user":
+                await client.as_user("caller.jwt").upload_storage_object(
+                    "bucket",
+                    "object",
+                    b"content",
+                    "application/octet-stream",
+                )
+            elif operation == "storage_admin":
+                await client.upload_storage_object_admin(
+                    "bucket",
+                    "object",
+                    b"content",
+                    "application/octet-stream",
+                )
+            elif operation == "storage_delete":
+                await client.delete_storage_object_admin("bucket", "object")
+            elif operation == "auth":
+                await client._auth_request("POST", "/auth/v1/admin/users", {})
+            else:
+                await client._rest_request("GET", "/rest/v1/private")
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    public_error = f"{caught.value!s} {caught.value.__dict__!r}"
+    assert request_secret not in public_error
+    assert response_secret.decode() not in public_error
+
+
+@pytest.mark.asyncio
 async def test_auth_transport_response_shapes_and_errors() -> None:
     client = SupabaseAdminClient(_settings())
     fake = FakeAsyncClient(httpx.Response(204))
@@ -220,6 +283,16 @@ async def test_auth_transport_response_shapes_and_errors() -> None:
             await client._auth_request("POST", "/auth/v1/admin/users", {})
     assert caught.value.status_code == 401
     assert "sensitive" not in str(caught.value)
+
+    fake = FakeAsyncClient(
+        httpx.Response(200, content=b"provider-secret-malformed-auth-json")
+    )
+    with patch("services.supabase_admin.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(SupabaseAdminError, match="Unexpected") as caught:
+            await client._auth_request("POST", "/auth/v1/admin/users", {})
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
 
 
 @pytest.mark.asyncio
@@ -245,6 +318,16 @@ async def test_rest_transport_empty_list_error_code_and_shape() -> None:
     with patch("services.supabase_admin.httpx.AsyncClient", return_value=fake):
         with pytest.raises(SupabaseAdminError, match="Unexpected"):
             await client._rest_request("GET", "/rest/v1/x")
+
+    fake = FakeAsyncClient(
+        httpx.Response(200, content=b"provider-secret-malformed-rest-json")
+    )
+    with patch("services.supabase_admin.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(SupabaseAdminError, match="Unexpected") as caught:
+            await client._rest_request("GET", "/rest/v1/x")
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
 
 
 @pytest.mark.asyncio

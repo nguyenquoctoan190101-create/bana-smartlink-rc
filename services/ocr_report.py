@@ -85,6 +85,35 @@ _LOW_CONFIDENCE_THRESHOLD = 0.8
 _MAX_PDF_IMAGES = 20
 _MAX_PDF_IMAGE_PIXELS_TOTAL = 50_000_000
 logger = logging.getLogger(__name__)
+_SAFE_PROVIDER_STATUSES = frozenset({
+    "BLOCKLIST",
+    "BLOCK_REASON_UNSPECIFIED",
+    "FINISH_REASON_UNSPECIFIED",
+    "IMAGE_PROHIBITED_CONTENT",
+    "IMAGE_RECITATION",
+    "IMAGE_SAFETY",
+    "LANGUAGE",
+    "MALFORMED_FUNCTION_CALL",
+    "MAX_TOKENS",
+    "MISSING_THOUGHT_SIGNATURE",
+    "NO_IMAGE",
+    "OTHER",
+    "PROHIBITED_CONTENT",
+    "RECITATION",
+    "SAFETY",
+    "SPII",
+    "STOP",
+    "TOO_MANY_TOOL_CALLS",
+    "UNEXPECTED_TOOL_CALL",
+})
+
+
+def _safe_provider_status(value: Any) -> str | None:
+    """Keep only documented provider status enums in telemetry."""
+    normalized = str(value or "").strip().upper()
+    if not normalized:
+        return None
+    return normalized if normalized in _SAFE_PROVIDER_STATUSES else "UNKNOWN"
 
 
 def _is_transient_provider_status(status_code: int) -> bool:
@@ -946,14 +975,21 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
             }
             url = f"{base_url}/v1beta/models/{model}:generateContent"
             for retry_index in range(_OCR_TRANSIENT_RETRIES_PER_MODEL + 1):
+                transport_error_message: str | None = None
                 try:
                     response = await client.post(
                         url,
                         headers={"x-goog-api-key": settings.gemini_api_key},
                         json=payload,
                     )
-                except httpx.TimeoutException as exc:
-                    last_error = OcrError("Gemini OCR request timed out")
+                except httpx.TimeoutException:
+                    transport_error_message = "Gemini OCR request timed out"
+                except httpx.HTTPError:
+                    transport_error_message = (
+                        "Gemini OCR request failed (network error)"
+                    )
+                if transport_error_message is not None:
+                    last_error = OcrError(transport_error_message)
                     if retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL:
                         await asyncio.sleep(
                             _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
@@ -961,17 +997,9 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                         continue
                     if model_index + 1 < len(models):
                         break
-                    raise last_error from exc
-                except httpx.HTTPError as exc:
-                    last_error = OcrError("Gemini OCR request failed (network error)")
-                    if retry_index < _OCR_TRANSIENT_RETRIES_PER_MODEL:
-                        await asyncio.sleep(
-                            _OCR_RETRY_BASE_DELAY_SECONDS * (retry_index + 1)
-                        )
-                        continue
-                    if model_index + 1 < len(models):
-                        break
-                    raise last_error from exc
+                    # Raise after leaving the handler so request headers and
+                    # provider response data are not retained in __context__.
+                    raise last_error from None
 
                 if response.status_code >= 400:
                     last_error = OcrError(
@@ -993,10 +1021,17 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                         break
                     raise last_error
 
+                response_payload: Any = None
+                response_text = ""
+                invalid_response = False
                 try:
                     response_payload = response.json()
-                    return _extract_text(response_payload)
-                except (GeminiError, ValueError) as exc:
+                    response_text = _extract_text(response_payload)
+                except (GeminiError, ValueError):
+                    invalid_response = True
+                if not invalid_response:
+                    return response_text
+                if invalid_response:
                     last_error = OcrError("Could not parse Gemini OCR response")
                     candidates = (
                         response_payload.get("candidates")
@@ -1019,14 +1054,30 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                                 len(part["text"]) if isinstance(part.get("text"), str) else 0
                             ),
                             "thought": part.get("thought") is True,
-                            "keys": sorted(
-                                key
-                                for key in part
-                                if key not in {
+                            "has_inline_data": any(
+                                key in part for key in ("inlineData", "inline_data")
+                            ),
+                            "has_function_call": any(
+                                key in part for key in ("functionCall", "function_call")
+                            ),
+                            "unknown_key_count": sum(
+                                key not in {
+                                    "codeExecutionResult",
+                                    "code_execution_result",
+                                    "executableCode",
+                                    "executable_code",
+                                    "functionCall",
+                                    "functionResponse",
+                                    "function_call",
+                                    "function_response",
+                                    "inlineData",
+                                    "inline_data",
                                     "text",
+                                    "thought",
                                     "thoughtSignature",
                                     "thought_signature",
                                 }
+                                for key in part
                             ),
                         }
                         for part in parts
@@ -1037,10 +1088,16 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                         extra={
                             "gemini_ocr_model": model,
                             "gemini_retry_index": retry_index,
-                            "gemini_finish_reason": first_candidate.get("finishReason"),
+                            "gemini_finish_reason": _safe_provider_status(
+                                first_candidate.get("finishReason")
+                            ),
                             "gemini_part_shapes": part_shapes,
                             "gemini_prompt_block_reason": (
-                                response_payload.get("promptFeedback", {}).get("blockReason")
+                                _safe_provider_status(
+                                    response_payload.get("promptFeedback", {}).get(
+                                        "blockReason"
+                                    )
+                                )
                                 if isinstance(response_payload, dict)
                                 and isinstance(
                                     response_payload.get("promptFeedback"), dict
@@ -1056,7 +1113,9 @@ async def _call_gemini_ocr(cropped_bytes: bytes) -> str:
                         continue
                     if model_index + 1 < len(models):
                         break
-                    raise last_error from exc
+                    # JSON decoding errors can retain the complete provider
+                    # response; discard that context at the OCR boundary.
+                    raise last_error from None
 
     if last_error is not None:
         raise last_error
@@ -1068,17 +1127,23 @@ def _parse_ocr_json(raw_text: str) -> dict[str, Any]:
     import re as _re
 
     cleaned = _re.sub(r"```(?:json)?\s*", "", raw_text).strip().rstrip("`").strip()
+    invalid_json = False
     try:
         parsed = json.loads(cleaned)
     except json.JSONDecodeError:
+        invalid_json = True
+    if invalid_json:
         match = _re.search(r"\{.*\}", cleaned, _re.DOTALL)
         if match:
+            invalid_embedded_json = False
             try:
                 parsed = json.loads(match.group(0))
-            except json.JSONDecodeError as exc:
-                raise OcrError("Gemini returned invalid OCR JSON") from exc
+            except json.JSONDecodeError:
+                invalid_embedded_json = True
+            if invalid_embedded_json:
+                raise OcrError("Gemini returned invalid OCR JSON") from None
         else:
-            raise OcrError("Gemini returned no OCR JSON object")
+            raise OcrError("Gemini returned no OCR JSON object") from None
 
     if not isinstance(parsed, dict):
         raise OcrError("Gemini OCR response is not a JSON object")

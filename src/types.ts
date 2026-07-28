@@ -204,3 +204,12 @@ export function workflowStatusOf(report: Pick<ReportData, "workflow_status" | "s
     default: return "draft";
   }
 }
+
+export function isPubliclyVisibleReport(
+  report: Pick<ReportData, "workflow_status" | "publication_status">,
+): boolean {
+  return (
+    report.publication_status === "published"
+    && (report.workflow_status === "approved" || report.workflow_status === "locked")
+  );
+}

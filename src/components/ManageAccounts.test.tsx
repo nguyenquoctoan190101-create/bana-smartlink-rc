@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ManageAccounts from "./ManageAccounts";
@@ -52,12 +52,15 @@ async function openAndFillForm() {
   await user.click(
     screen.getByRole("button", { name: "Cấp tài khoản mới" }),
   );
-  await user.type(screen.getByPlaceholderText("vd: Nguyễn Văn A"), "Nguyễn Văn A");
-  await user.type(
-    screen.getByPlaceholderText("vd: canbo.tanlang@bana.gov.vn"),
-    "canbo@example.gov.vn",
-  );
-  await user.type(screen.getByPlaceholderText("vd: 0905123456"), "0901234567");
+  fireEvent.change(screen.getByPlaceholderText("vd: Nguyễn Văn A"), {
+    target: { value: "Nguyễn Văn A" },
+  });
+  fireEvent.change(screen.getByPlaceholderText("vd: canbo.tanlang@bana.gov.vn"), {
+    target: { value: "canbo@example.gov.vn" },
+  });
+  fireEvent.change(screen.getByPlaceholderText("vd: 0905123456"), {
+    target: { value: "0901234567" },
+  });
   return user;
 }
 

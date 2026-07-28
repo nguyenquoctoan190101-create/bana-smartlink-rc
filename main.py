@@ -54,6 +54,13 @@ def _request_id(request: Request) -> str | None:
     return getattr(request.state, "request_id", None)
 
 
+def _route_template(request: Request) -> str:
+    """Return the matched route pattern without capability-bearing values."""
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+    return route_path if isinstance(route_path, str) else "<unmatched>"
+
+
 def _http_error_content(
     request: Request,
     exc: StarletteHTTPException,
@@ -244,9 +251,8 @@ def create_app() -> FastAPI:
             "Unhandled server error",
             exc_info=exc,
             extra={
-                "path": str(request.url.path),
+                "path": _route_template(request),
                 "method": request.method,
-                "client": request.client.host if request.client else "unknown",
             },
         )
         # Capture to Sentry if configured

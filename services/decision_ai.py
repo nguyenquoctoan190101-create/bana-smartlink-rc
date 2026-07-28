@@ -22,6 +22,7 @@ from services.settings import Settings
 
 PROMPT_VERSION = "decision-copilot-v1"
 _OPENAI_SCHEMA_NAME = "bana_decision_analysis"
+_GEMINI_DECISION_TIMEOUT_SECONDS = 45.0
 _FREE_TEXT_DIGIT_RE = re.compile(r"\d")
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
 _PHONE_RE = re.compile(r"(?<!\d)(?:\+?84|0)\s*(?:\d[\s.-]*){8,10}(?!\d)")
@@ -393,6 +394,7 @@ async def _gemini_enrichment(
             _schema_for_bundle(bundle, gemini=True),
             max_output_tokens=1800,
             allow_json_mode_fallback=True,
+            timeout_seconds=_GEMINI_DECISION_TIMEOUT_SECONDS,
         )
     except GeminiError:
         provider_failed = True

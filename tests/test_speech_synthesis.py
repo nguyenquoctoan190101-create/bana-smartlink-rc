@@ -11,7 +11,7 @@ from services.settings import Settings
 
 
 class _FakeSpeechClient:
-    def __init__(self, responses: list[httpx.Response]) -> None:
+    def __init__(self, responses: list[httpx.Response | Exception]) -> None:
         self.post = AsyncMock(side_effect=responses)
 
     async def __aenter__(self):
@@ -148,3 +148,63 @@ async def test_server_tts_retries_one_transient_invalid_response(
     assert audio.startswith(b"RIFF")
     assert fake.post.await_count == 2
     sleep.assert_awaited_once_with(0.5)
+
+
+@pytest.mark.asyncio
+async def test_server_tts_transport_error_drops_request_and_response_secrets(
+    monkeypatch,
+) -> None:
+    def _provider_error(suffix: str) -> httpx.HTTPStatusError:
+        request = httpx.Request(
+            "POST",
+            "https://gemini.example/generateContent",
+            headers={"x-goog-api-key": f"provider-secret-key-{suffix}"},
+        )
+        response = httpx.Response(
+            502,
+            content=f"provider-secret-body-{suffix}".encode(),
+            request=request,
+        )
+        return httpx.HTTPStatusError(
+            f"provider-secret-transport-{suffix}",
+            request=request,
+            response=response,
+        )
+
+    fake = _FakeSpeechClient([_provider_error("one"), _provider_error("two")])
+    monkeypatch.setattr(speech_synthesis, "load_settings", _settings)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+    monkeypatch.setattr(speech_synthesis.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(
+        speech_synthesis.SpeechSynthesisError,
+        match="request failed",
+    ) as caught:
+        await speech_synthesis.synthesize_vietnamese_speech("Xin chào.")
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_server_tts_malformed_json_does_not_retain_provider_body(
+    monkeypatch,
+) -> None:
+    fake = _FakeSpeechClient([
+        httpx.Response(200, content=b"provider-secret-malformed-body-one"),
+        httpx.Response(200, content=b"provider-secret-malformed-body-two"),
+    ])
+    monkeypatch.setattr(speech_synthesis, "load_settings", _settings)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_kwargs: fake)
+    monkeypatch.setattr(speech_synthesis.asyncio, "sleep", AsyncMock())
+
+    with pytest.raises(
+        speech_synthesis.SpeechSynthesisError,
+        match="invalid audio",
+    ) as caught:
+        await speech_synthesis.synthesize_vietnamese_speech("Xin chào.")
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)

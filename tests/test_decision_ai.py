@@ -336,6 +336,7 @@ async def test_gemini_schema_preserves_titles_and_binds_request_evidence() -> No
         "report-1",
     ]
     assert generate_json.await_args.kwargs["allow_json_mode_fallback"] is True
+    assert generate_json.await_args.kwargs["timeout_seconds"] == 45.0
 
 
 @pytest.mark.asyncio
@@ -365,6 +366,7 @@ async def test_gemini_json_fallback_remains_inside_strict_local_boundary() -> No
     assert attempt.status == "fallback"
     assert attempt.model_provider == "deterministic-evidence-v2"
     assert generate_json.await_args.kwargs["allow_json_mode_fallback"] is True
+    assert generate_json.await_args.kwargs["timeout_seconds"] == 45.0
 
 
 @pytest.mark.asyncio

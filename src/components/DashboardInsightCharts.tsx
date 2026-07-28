@@ -47,7 +47,14 @@ const riskClass: Record<RiskBand, string> = {
   low: "bg-emerald-50 text-emerald-900",
   medium: "bg-amber-100 text-amber-950",
   high: "bg-rose-100 text-rose-950",
-  missing: "bg-slate-100 text-slate-400",
+  missing: "bg-slate-100 text-slate-700",
+};
+
+const riskLabel: Record<RiskBand, string> = {
+  low: "Thấp",
+  medium: "Trung bình",
+  high: "Cao",
+  missing: "Thiếu dữ liệu",
 };
 
 export function buildDecisionVillages(reports: ReportData[], villageName: (id: string) => string): DecisionVillage[] {
@@ -277,12 +284,14 @@ function SingleVillageInsights({
         <div>
           <dt>Kỳ có căn cứ</dt>
           <dd>{trend.length ? `${trend.length} kỳ` : "—"}</dd>
-          <p>Tối đa sáu kỳ gần nhất</p>
+          <dd className="decision-summary-note">Tối đa sáu kỳ gần nhất</dd>
         </div>
         <div>
           <dt>BHYT kỳ gần nhất</dt>
           <dd>{percent(latest?.bhytRate ?? null)}</dd>
-          <p>{changeLabel(latest?.bhytRate ?? null, previous?.bhytRate)}</p>
+          <dd className="decision-summary-note">
+            {changeLabel(latest?.bhytRate ?? null, previous?.bhytRate)}
+          </dd>
         </div>
         <div>
           <dt>An sinh kỳ gần nhất</dt>
@@ -291,9 +300,9 @@ function SingleVillageInsights({
               ? `${latest.welfareHouseholds} hộ`
               : "—"}
           </dd>
-          <p>
+          <dd className="decision-summary-note">
             {changeLabel(latest?.welfareRate ?? null, previous?.welfareRate)}
-          </p>
+          </dd>
         </div>
       </dl>
 
@@ -318,7 +327,7 @@ function SingleVillageInsights({
                   <dd className="mt-1 text-lg font-black text-slate-900">
                     {metric.value}
                   </dd>
-                  <p className="mt-1 text-xs text-slate-500">{metric.note}</p>
+                  <dd className="mt-1 text-xs text-slate-500">{metric.note}</dd>
                 </div>
               ))}
             </dl>
@@ -339,7 +348,12 @@ function SingleVillageInsights({
             description="Mỗi hàng là một kỳ báo cáo; thay đổi được trình bày theo thời gian, không suy diễn thành quan hệ nhân quả."
           />
           {trend.length ? (
-            <div className="mt-4 overflow-x-auto">
+            <div
+              className="table-scroll-region mt-4 overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
+              role="region"
+              tabIndex={0}
+              aria-label="Bảng xu hướng theo kỳ; có thể cuộn ngang trên màn hình nhỏ"
+            >
               <p className="mb-2 text-xs font-semibold text-slate-500 sm:hidden">
                 Vuốt ngang để xem đủ các chỉ tiêu.
               </p>
@@ -347,17 +361,37 @@ function SingleVillageInsights({
                 className="w-full min-w-[42rem] text-sm"
                 aria-label={`Xu hướng chỉ tiêu của ${scopedVillageName}`}
               >
+                <caption className="sr-only">
+                  Xu hướng các chỉ tiêu của {scopedVillageName} qua từng kỳ báo
+                  cáo
+                </caption>
                 <thead>
                   <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                    <th className="pb-2 pr-3 font-semibold">Kỳ báo cáo</th>
-                    <th className="px-2 pb-2 text-right font-semibold">BHYT</th>
-                    <th className="px-2 pb-2 text-right font-semibold">
+                    <th scope="col" className="pb-2 pr-3 font-semibold">
+                      Kỳ báo cáo
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-2 pb-2 text-right font-semibold"
+                    >
+                      BHYT
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-2 pb-2 text-right font-semibold"
+                    >
                       Hộ nghèo + cận nghèo
                     </th>
-                    <th className="px-2 pb-2 text-right font-semibold">
+                    <th
+                      scope="col"
+                      className="px-2 pb-2 text-right font-semibold"
+                    >
                       Gia đình văn hóa
                     </th>
-                    <th className="pl-2 pb-2 text-right font-semibold">
+                    <th
+                      scope="col"
+                      className="pl-2 pb-2 text-right font-semibold"
+                    >
                       Hướng dẫn/1.000 dân
                     </th>
                   </tr>
@@ -369,6 +403,7 @@ function SingleVillageInsights({
                       className="border-b border-slate-100 last:border-0"
                     >
                       <th
+                        scope="row"
                         className="max-w-48 py-3 pr-3 text-left font-semibold text-slate-700"
                         title={point.periodLabel}
                       >
@@ -509,17 +544,23 @@ export default function DashboardInsightCharts({
         <div>
           <dt>Phạm vi có căn cứ</dt>
           <dd>{villages.length} thôn</dd>
-          <p>Báo cáo đã duyệt hoặc đã khóa</p>
+          <dd className="decision-summary-note">
+            Báo cáo đã duyệt hoặc đã khóa
+          </dd>
         </div>
         <div>
           <dt>Khoảng trống BHYT</dt>
           <dd>{bhytRows.length ? `${belowBhytTarget} thôn` : "—"}</dd>
-          <p>Đối chiếu mức tham chiếu 95%</p>
+          <dd className="decision-summary-note">
+            Đối chiếu mức tham chiếu 95%
+          </dd>
         </div>
         <div>
           <dt>Tập trung an sinh</dt>
           <dd>{paretoCutoff ? `${paretoCutoff} thôn` : "—"}</dd>
-          <p>Đạt khoảng 80% số hộ cần quan tâm</p>
+          <dd className="decision-summary-note">
+            Đạt khoảng 80% số hộ cần quan tâm
+          </dd>
         </div>
       </dl>
 
@@ -532,18 +573,26 @@ export default function DashboardInsightCharts({
             description="Mỗi ô giữ nguyên giá trị nghiệp vụ; màu chỉ giúp quét nhanh mức cần chú ý, không phải điểm xếp hạng tổng hợp."
           />
           {heatRows.length ? (
-            <div className="mt-4 overflow-x-auto">
+            <div
+              className="table-scroll-region mt-4 overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
+              role="region"
+              tabIndex={0}
+              aria-label="Bản đồ nhiệt mức cần chú ý; có thể cuộn ngang trên màn hình nhỏ"
+            >
               <p className="mb-2 text-2xs font-semibold text-slate-500 sm:hidden">
                 Vuốt ngang để xem đủ bốn nội dung.
               </p>
               <table className="w-full min-w-[42rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
+                <caption className="sr-only">
+                  Mức cần chú ý theo từng chỉ tiêu và từng thôn
+                </caption>
                 <thead>
                   <tr className="text-left text-slate-500">
-                    <th className="w-36 pb-2 font-semibold">Thôn</th>
-                    <th className="px-1 pb-2 text-center font-semibold">BHYT</th>
-                    <th className="px-1 pb-2 text-center font-semibold">Hộ nghèo + cận nghèo</th>
-                    <th className="px-1 pb-2 text-center font-semibold">Gia đình văn hóa</th>
-                    <th className="px-1 pb-2 text-center font-semibold">Hướng dẫn DV công</th>
+                    <th scope="col" className="w-36 pb-2 font-semibold">Thôn</th>
+                    <th scope="col" className="px-1 pb-2 text-center font-semibold">BHYT</th>
+                    <th scope="col" className="px-1 pb-2 text-center font-semibold">Hộ nghèo + cận nghèo</th>
+                    <th scope="col" className="px-1 pb-2 text-center font-semibold">Gia đình văn hóa</th>
+                    <th scope="col" className="px-1 pb-2 text-center font-semibold">Hướng dẫn DV công</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -576,14 +625,19 @@ export default function DashboardInsightCharts({
                     ];
                     return (
                       <tr key={item.id}>
-                        <th className="break-words py-1.5 pr-3 text-left font-semibold leading-snug text-slate-700" title={item.label}>
+                        <th scope="row" className="break-words py-1.5 pr-3 text-left font-semibold leading-snug text-slate-700" title={item.label}>
                           {item.label}
                         </th>
                         {cells.map((cell) => {
                           const band = heatRisk(cell.metric, cell.value, digitalMax);
                           return (
                             <td key={cell.key} className="p-1">
-                              <span className={`block rounded-md px-2 py-2 text-center font-bold ${riskClass[band]}`}>{cell.label}</span>
+                              <span className={`block rounded-md px-2 py-2 text-center font-bold ${riskClass[band]}`}>
+                                <span className="block">{cell.label}</span>
+                                <span className="mt-0.5 block text-3xs font-semibold">
+                                  Mức {riskLabel[band]}
+                                </span>
+                              </span>
                             </td>
                           );
                         })}
@@ -607,52 +661,57 @@ export default function DashboardInsightCharts({
             description="Pareto cho biết nơi tập trung nhiều hộ cần hỗ trợ, không thay thế danh sách nghiệp vụ từng hộ."
           />
           {paretoRows.length && welfareTotal > 0 ? (
-            <div className="mt-4" role="img" aria-label="Biểu đồ Pareto hộ nghèo và cận nghèo theo thôn">
-              <svg viewBox="0 0 440 245" className="h-60 w-full overflow-visible">
-                {[0, 25, 50, 75, 100].map((tick) => {
-                  const y = 190 - tick * 1.5;
-                  return (
-                    <g key={tick}>
-                      <line x1="35" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
-                      <text x="28" y={y + 4} textAnchor="end" className="fill-slate-500 text-[11px]">
-                        {tick}%
-                      </text>
-                    </g>
-                  );
-                })}
-                {paretoRows.map((item, index) => {
-                  const slot = 365 / Math.max(1, paretoRows.length);
-                  const barWidth = Math.max(8, slot * 0.55);
-                  const share = (item.affected * 100) / welfareTotal;
-                  const x = 45 + index * slot;
-                  return (
-                    <g key={item.id}>
-                      <rect x={x} y={190 - share * 1.5} width={barWidth} height={share * 1.5} rx="2" fill={index < paretoCutoff ? "#b45309" : "#94a3b8"}>
-                        <title>{`${item.label}: ${item.affected} hộ (${share.toFixed(1)}%)`}</title>
-                      </rect>
-                    </g>
-                  );
-                })}
-                <polyline
-                  fill="none"
-                  stroke="#0f766e"
-                  strokeWidth="2.5"
-                  points={paretoRows
-                    .map((item, index) => {
-                      const slot = 365 / Math.max(1, paretoRows.length);
-                      return `${45 + index * slot + Math.max(8, slot * 0.55) / 2},${190 - item.cumulative * 1.5}`;
-                    })
-                    .join(" ")}
-                />
-                {paretoRows.map((item, index) => {
-                  const slot = 365 / Math.max(1, paretoRows.length);
-                  return (
-                    <circle key={item.id} cx={45 + index * slot + Math.max(8, slot * 0.55) / 2} cy={190 - item.cumulative * 1.5} r="2.5" fill="#0f766e">
-                      <title>{`Lũy kế ${item.cumulative.toFixed(1)}%`}</title>
-                    </circle>
-                  );
-                })}
-              </svg>
+            <div className="mt-4">
+              <div
+                role="img"
+                aria-label="Biểu đồ Pareto hộ nghèo và cận nghèo theo thôn"
+              >
+                <svg viewBox="0 0 440 245" className="h-60 w-full overflow-visible">
+                  {[0, 25, 50, 75, 100].map((tick) => {
+                    const y = 190 - tick * 1.5;
+                    return (
+                      <g key={tick}>
+                        <line x1="35" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
+                        <text x="28" y={y + 4} textAnchor="end" className="fill-slate-500 text-[11px]">
+                          {tick}%
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {paretoRows.map((item, index) => {
+                    const slot = 365 / Math.max(1, paretoRows.length);
+                    const barWidth = Math.max(8, slot * 0.55);
+                    const share = (item.affected * 100) / welfareTotal;
+                    const x = 45 + index * slot;
+                    return (
+                      <g key={item.id}>
+                        <rect x={x} y={190 - share * 1.5} width={barWidth} height={share * 1.5} rx="2" fill={index < paretoCutoff ? "#b45309" : "#94a3b8"}>
+                          <title>{`${item.label}: ${item.affected} hộ (${share.toFixed(1)}%)`}</title>
+                        </rect>
+                      </g>
+                    );
+                  })}
+                  <polyline
+                    fill="none"
+                    stroke="#0f766e"
+                    strokeWidth="2.5"
+                    points={paretoRows
+                      .map((item, index) => {
+                        const slot = 365 / Math.max(1, paretoRows.length);
+                        return `${45 + index * slot + Math.max(8, slot * 0.55) / 2},${190 - item.cumulative * 1.5}`;
+                      })
+                      .join(" ")}
+                  />
+                  {paretoRows.map((item, index) => {
+                    const slot = 365 / Math.max(1, paretoRows.length);
+                    return (
+                      <circle key={item.id} cx={45 + index * slot + Math.max(8, slot * 0.55) / 2} cy={190 - item.cumulative * 1.5} r="2.5" fill="#0f766e">
+                        <title>{`Lũy kế ${item.cumulative.toFixed(1)}%`}</title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+              </div>
               <ul
                 className="mt-1 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3"
                 aria-label="Số hộ cần quan tâm theo từng thôn"
@@ -700,19 +759,28 @@ export default function DashboardInsightCharts({
             description="Bullet graph đối chiếu từng thôn với mức tham chiếu 95%; ưu tiên thôn có khoảng cách lớn nhất."
           />
           {bhytRows.length ? (
-            <div className="mt-4 space-y-2.5" role="img" aria-label="Biểu đồ bullet tỷ lệ BHYT theo thôn, mức tham chiếu 95 phần trăm">
-              {bhytRows.map((item) => (
-                <div key={item.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
-                  <span className="truncate font-semibold text-slate-700" title={item.label}>
-                    {item.label}
-                  </span>
-                  <span className="relative h-3 rounded-sm bg-slate-100">
-                    <span className={`absolute inset-y-0 left-0 rounded-sm ${(item.bhytRate ?? 0) < 95 ? "bg-amber-500" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, item.bhytRate ?? 0)}%` }} />
-                    <span className="absolute -inset-y-1 w-0.5 bg-slate-900" style={{ left: "95%" }} />
-                  </span>
-                  <strong className="text-right text-slate-700">{percent(item.bhytRate, 2)}</strong>
-                </div>
-              ))}
+            <div className="mt-4">
+              <div className="space-y-2.5" role="img" aria-label="Biểu đồ bullet tỷ lệ BHYT theo thôn, mức tham chiếu 95 phần trăm">
+                {bhytRows.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2 text-xs">
+                    <span className="truncate font-semibold text-slate-700" title={item.label}>
+                      {item.label}
+                    </span>
+                    <span className="relative h-3 rounded-sm bg-slate-100">
+                      <span className={`absolute inset-y-0 left-0 rounded-sm ${(item.bhytRate ?? 0) < 95 ? "bg-amber-500" : "bg-emerald-700"}`} style={{ width: `${Math.min(100, item.bhytRate ?? 0)}%` }} />
+                      <span className="absolute -inset-y-1 w-0.5 bg-slate-900" style={{ left: "95%" }} />
+                    </span>
+                    <strong className="text-right text-slate-700">{percent(item.bhytRate, 2)}</strong>
+                  </div>
+                ))}
+              </div>
+              <ul className="sr-only" aria-label="Dữ liệu tỷ lệ BHYT theo từng thôn">
+                {bhytRows.map((item) => (
+                  <li key={item.id}>
+                    {item.label}: {percent(item.bhytRate, 2)}
+                  </li>
+                ))}
+              </ul>
               <p className="pt-1 text-2xs text-slate-500">Vạch đen: mức tham chiếu 95%.</p>
             </div>
           ) : (
@@ -728,8 +796,9 @@ export default function DashboardInsightCharts({
             description="Vị trí thể hiện quy mô dân số và số lượt hướng dẫn/1.000 dân; kích thước điểm thể hiện số thành viên tổ công nghệ số."
           />
           {scatterRows.length ? (
-            <div className="mt-3" role="img" aria-label="Biểu đồ phân tán quy mô dân số và số lượt hướng dẫn dịch vụ công trên một nghìn dân">
-              <svg viewBox="0 0 440 245" className="h-60 w-full">
+            <div className="mt-3">
+              <div role="img" aria-label="Biểu đồ phân tán quy mô dân số và số lượt hướng dẫn dịch vụ công trên một nghìn dân">
+                <svg viewBox="0 0 440 245" className="h-60 w-full">
                 {[0, 0.5, 1].map((tick) => {
                   const y = 200 - tick * 160;
                   const label = minGuidedRate + guidedRateRange * tick;
@@ -773,7 +842,18 @@ export default function DashboardInsightCharts({
                 <text x="12" y="120" transform="rotate(-90 12 120)" textAnchor="middle" className="fill-slate-600 text-[11px]">
                   Lượt hướng dẫn/1.000 dân →
                 </text>
-              </svg>
+                </svg>
+              </div>
+              <ul className="sr-only" aria-label="Dữ liệu hướng dẫn dịch vụ công theo từng thôn">
+                {scatterRows.map((item) => (
+                  <li key={item.id}>
+                    {item.label}: {item.population?.toLocaleString("vi-VN")} dân;{" "}
+                    {item.guidedPerThousand?.toFixed(0)} lượt hướng dẫn trên 1.000
+                    dân; {item.digitalTeam ?? "chưa có dữ liệu"} thành viên tổ
+                    công nghệ số
+                  </li>
+                ))}
+              </ul>
               <p className="text-2xs leading-relaxed text-slate-500">Biểu đồ giúp phát hiện khác biệt theo quy mô; mối liên hệ quan sát được không đồng nghĩa quan hệ nhân quả.</p>
             </div>
           ) : (
@@ -789,35 +869,46 @@ export default function DashboardInsightCharts({
             description="Cơ cấu 100% so sánh tỷ trọng trong tổng số trẻ em; số tuyệt đối được ghi bên phải để tránh hiểu sai do quy mô thôn."
           />
           {childrenRows.length ? (
-            <div className="mt-4 grid gap-x-6 gap-y-2.5 md:grid-cols-2" role="img" aria-label="Biểu đồ cơ cấu một trăm phần trăm trẻ em hoàn cảnh đặc biệt theo thôn">
-              {childrenRows.map((item) => (
-                <div key={item.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-xs">
-                  <span className="truncate font-semibold text-slate-700" title={item.label}>
-                    {item.label}
+            <div className="mt-4">
+              <div className="grid gap-x-6 gap-y-2.5 md:grid-cols-2" role="img" aria-label="Biểu đồ cơ cấu một trăm phần trăm trẻ em hoàn cảnh đặc biệt theo thôn">
+                {childrenRows.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-xs">
+                    <span className="truncate font-semibold text-slate-700" title={item.label}>
+                      {item.label}
+                    </span>
+                    <span className="flex h-3 overflow-hidden rounded-sm bg-emerald-100">
+                      <span
+                        className="bg-rose-600"
+                        style={{
+                          width: `${Math.min(100, item.specialChildrenRate ?? 0)}%`,
+                        }}
+                      />
+                    </span>
+                    <strong className="text-right text-slate-700">
+                      {item.specialChildren ?? 0}/{item.children ?? 0} trẻ
+                    </strong>
+                  </div>
+                ))}
+                <div className="md:col-span-2 flex gap-4 pt-1 text-2xs text-slate-500">
+                  <span>
+                    <i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-rose-600" />
+                    Hoàn cảnh đặc biệt
                   </span>
-                  <span className="flex h-3 overflow-hidden rounded-sm bg-emerald-100">
-                    <span
-                      className="bg-rose-600"
-                      style={{
-                        width: `${Math.min(100, item.specialChildrenRate ?? 0)}%`,
-                      }}
-                    />
+                  <span>
+                    <i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-100" />
+                    Nhóm còn lại
                   </span>
-                  <strong className="text-right text-slate-700">
-                    {item.specialChildren ?? 0}/{item.children ?? 0} trẻ
-                  </strong>
                 </div>
-              ))}
-              <div className="md:col-span-2 flex gap-4 pt-1 text-2xs text-slate-500">
-                <span>
-                  <i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-rose-600" />
-                  Hoàn cảnh đặc biệt
-                </span>
-                <span>
-                  <i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-100" />
-                  Nhóm còn lại
-                </span>
               </div>
+              <ul className="sr-only" aria-label="Dữ liệu trẻ em hoàn cảnh đặc biệt theo từng thôn">
+                {childrenRows.map((item) => (
+                  <li key={item.id}>
+                    {item.label}: {item.specialChildren ?? 0} trên{" "}
+                    {item.children ?? 0} trẻ, tương ứng{" "}
+                    {percent(item.specialChildrenRate)}
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : (
             <EmptyChart />

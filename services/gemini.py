@@ -199,6 +199,7 @@ class GeminiClient:
         max_output_tokens: int = 256,
         *,
         allow_json_mode_fallback: bool = False,
+        timeout_seconds: float = 20.0,
     ) -> dict[str, Any]:
         """Generate a schema-constrained JSON object.
 
@@ -227,7 +228,10 @@ class GeminiClient:
         }
         fallback_reason: str | None = None
         try:
-            raw = await self._generate_content(payload)
+            raw = await self._generate_content(
+                payload,
+                timeout_seconds=timeout_seconds,
+            )
         except _GeminiProviderError as exc:
             if not (
                 allow_json_mode_fallback
@@ -285,7 +289,10 @@ class GeminiClient:
                     "gemini_fallback_reason": fallback_reason,
                 },
             )
-            raw = await self._generate_content(fallback_payload)
+            raw = await self._generate_content(
+                fallback_payload,
+                timeout_seconds=timeout_seconds,
+            )
         invalid_json = False
         try:
             parsed = json.loads(raw)
@@ -313,10 +320,16 @@ class GeminiClient:
         model = self._settings.gemini_model
         return f"{base_url}/v1beta/models/{model}:generateContent"
 
-    async def _generate_content(self, payload: dict[str, Any]) -> str:
+    async def _generate_content(
+        self,
+        payload: dict[str, Any],
+        *,
+        timeout_seconds: float = 20.0,
+    ) -> str:
         transport_failed = False
+        transport_error_type = ""
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
                 response = await client.post(
                     self._gemini_url(),
                     # Never put credentials in the URL: HTTP access logs record
@@ -328,9 +341,19 @@ class GeminiClient:
                     },
                     json=payload,
                 )
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
             transport_failed = True
+            transport_error_type = type(exc).__name__
         if transport_failed:
+            logger.warning(
+                "Gemini provider transport failed",
+                extra={
+                    "gemini_model": self._settings.gemini_model,
+                    "gemini_request_mode": _gemini_request_mode(payload),
+                    "gemini_error_class": "transport",
+                    "gemini_transport_error_type": transport_error_type,
+                },
+            )
             # Raise outside the except block so the safe exception does not
             # retain a request, headers, or connection metadata in __context__.
             raise GeminiError("Gemini request failed") from None

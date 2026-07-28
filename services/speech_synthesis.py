@@ -41,10 +41,13 @@ def _extract_pcm(payload: Any) -> bytes:
         mime_type = str(inline.get("mimeType") or inline.get("mime_type") or "")
         if "audio" not in mime_type.lower():
             continue
+        invalid_audio = False
         try:
             pcm = base64.b64decode(inline["data"], validate=True)
-        except (ValueError, TypeError) as exc:
-            raise SpeechSynthesisError("Invalid speech audio") from exc
+        except (ValueError, TypeError):
+            invalid_audio = True
+        if invalid_audio:
+            raise SpeechSynthesisError("Invalid speech audio") from None
         if not pcm or len(pcm) > _MAX_PCM_BYTES:
             raise SpeechSynthesisError("Invalid speech audio")
         return pcm
@@ -95,17 +98,20 @@ async def synthesize_vietnamese_speech(text: str) -> bytes:
     timeout = httpx.Timeout(connect=10.0, read=50.0, write=15.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         for attempt in range(2):
+            transport_failed = False
             try:
                 response = await client.post(
                     url,
                     headers={"x-goog-api-key": settings.gemini_api_key},
                     json=payload,
                 )
-            except httpx.HTTPError as exc:
+            except httpx.HTTPError:
                 if attempt == 0:
                     await asyncio.sleep(0.5)
                     continue
-                raise SpeechSynthesisError("Speech provider request failed") from exc
+                transport_failed = True
+            if transport_failed:
+                raise SpeechSynthesisError("Speech provider request failed") from None
             if response.status_code >= 400:
                 if (
                     attempt == 0
@@ -117,13 +123,18 @@ async def synthesize_vietnamese_speech(text: str) -> bytes:
                     await asyncio.sleep(0.5)
                     continue
                 raise SpeechSynthesisError("Speech provider request failed")
+            invalid_audio = False
             try:
                 return _pcm_to_wav(_extract_pcm(response.json()))
-            except (ValueError, SpeechSynthesisError) as exc:
+            except (ValueError, SpeechSynthesisError):
                 if attempt == 0:
                     await asyncio.sleep(0.5)
                     continue
-                raise SpeechSynthesisError("Speech provider returned invalid audio") from exc
+                invalid_audio = True
+            if invalid_audio:
+                raise SpeechSynthesisError(
+                    "Speech provider returned invalid audio"
+                ) from None
     raise SpeechSynthesisError("Speech provider request failed")
 
 

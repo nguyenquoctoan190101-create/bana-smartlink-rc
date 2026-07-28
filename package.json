@@ -16,7 +16,7 @@
     "lint": "npm run typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "openapi:generate": "python scripts/export_openapi.py && openapi-typescript docs/openapi.json -o src/generated/openapi.ts",
+    "openapi:generate": "python scripts/export_openapi.py && node scripts/generate_openapi_types.mjs",
     "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
@@ -48,6 +48,7 @@
     "vitest": "^3.2.4"
   },
   "overrides": {
+    "brace-expansion": "5.0.8",
     "js-yaml": "^4.3.0"
   }
 }
