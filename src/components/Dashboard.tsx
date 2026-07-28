@@ -1249,10 +1249,10 @@ export default function Dashboard({
               selectedPeriodLabel={selectedPeriodLabel}
             />
           ) : (
-            <details className="dashboard-insight-disclosure">
+            <details className="dashboard-insight-disclosure" open>
               <summary>
                 <span>
-                  <strong>Mở bộ biểu đồ phân tích chi tiết</strong>
+                  <strong>Bộ biểu đồ phân tích chi tiết</strong>
                   <small>
                     So sánh độ phủ, cơ cấu và tín hiệu ưu tiên giữa các thôn
                     trong đúng kỳ đang chọn.
