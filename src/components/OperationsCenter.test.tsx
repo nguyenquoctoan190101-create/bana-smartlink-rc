@@ -172,7 +172,7 @@ describe("OperationsCenter", () => {
             status: "pending_review",
             content,
             confidence: 0.82,
-            model_provider: "deterministic-evidence-v2",
+            model_provider: "openai-responses:gpt-5.6-sol",
             created_at: "2026-07-28T12:00:00+07:00",
             citations: [
               {
@@ -184,6 +184,58 @@ describe("OperationsCenter", () => {
                 report_source: "excel",
                 report_version: 3,
                 rule_version: "2026-07-14",
+              },
+              {
+                kind: "decision_metrics",
+                id: "period:Tháng 7/2026",
+                label: "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+              },
+              {
+                kind: "ai_enrichment",
+                id: "decision-ai-analysis",
+                status: "grounded",
+                model: "gpt-5.6-sol",
+                prompt_version: "decision-copilot-v1",
+                analysis: {
+                  executive_assessment:
+                    "Cần rà soát nguồn và trách nhiệm xử lý trước khi mở rộng sử dụng.",
+                  recommended_option_id: "A",
+                  options: [
+                    {
+                      id: "A",
+                      title: "Rà soát theo nhóm cảnh báo",
+                      rationale:
+                        "Tập trung vào căn cứ cần xem lại và giữ được dấu vết kiểm tra.",
+                      tradeoff: "Cần thêm thời gian đối chiếu thủ công.",
+                      urgency: "ngay",
+                      evidence_ids: ["report-1"],
+                    },
+                    {
+                      id: "B",
+                      title: "Theo dõi rồi đánh giá lại",
+                      rationale:
+                        "Giữ nhịp vận hành và chờ thêm căn cứ trước khi thay đổi.",
+                      tradeoff: "Có thể làm chậm việc xử lý cảnh báo.",
+                      urgency: "theo_doi",
+                      evidence_ids: ["period:Tháng 7/2026"],
+                    },
+                  ],
+                  risks: [
+                    {
+                      title: "Bỏ sót căn cứ nguồn",
+                      severity: "cao",
+                      mitigation:
+                        "Yêu cầu người duyệt mở bản nguồn và lưu nhận xét đối chiếu.",
+                      evidence_ids: ["report-1"],
+                    },
+                  ],
+                  reviewer_questions: [
+                    "Nguồn báo cáo đã được đối chiếu độc lập hay chưa?",
+                  ],
+                  assumptions: [
+                    "Trạng thái báo cáo là trạng thái mới nhất.",
+                  ],
+                },
               },
             ],
           },
@@ -214,6 +266,15 @@ describe("OperationsCenter", () => {
     expect(screen.getByText("Cần rà soát 1 báo cáo trước khi sử dụng.")).toBeInTheDocument();
     expect(screen.getByText("Đối chiếu cảnh báo với tài liệu nguồn.")).toBeInTheDocument();
     expect(screen.getByText("Độ sẵn sàng căn cứ 82%")).toBeInTheDocument();
+    expect(screen.getByText("AI tăng cường · đã kiểm tra dẫn chứng")).toBeInTheDocument();
+    expect(screen.getByText("Nhận định điều hành")).toBeInTheDocument();
+    expect(screen.getByText("Rà soát theo nhóm cảnh báo")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Đánh đổi cần chấp nhận").length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Rủi ro và cách giảm thiểu")).toBeInTheDocument();
+    expect(screen.getByText("Câu hỏi phản biện trước khi duyệt")).toBeInTheDocument();
+    expect(screen.getAllByText("Thôn An Sơn").length).toBeGreaterThan(0);
     expect(screen.getByText("Xem 1 căn cứ báo cáo")).toBeInTheDocument();
     expect(screen.getByText("Lịch sử bản tóm tắt (1)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đang chờ duyệt" })).toBeDisabled();

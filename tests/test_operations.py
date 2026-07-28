@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -13,7 +14,9 @@ from routers.operations import (
     AiDraftReviewRequest,
     create_ai_draft,
 )
+from services.decision_ai import DecisionAiAttempt
 from services.operations import build_safe_period_brief, quality_snapshot, validate_maturity_scores
+from services.settings import Settings
 from services.supabase_admin import UserProfile
 
 
@@ -170,6 +173,44 @@ async def test_create_decision_brief_persists_structured_v2_evidence() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_decision_brief_persists_grounded_ai_enrichment() -> None:
+    client = _FakeOperationsClient()
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+    attempt = DecisionAiAttempt(
+        status="enhanced",
+        model_provider="openai-responses:gpt-5.6-sol",
+        citation={
+            "kind": "ai_enrichment",
+            "id": "decision-ai-analysis",
+            "status": "grounded",
+            "analysis": {"executive_assessment": "Cần rà soát nguồn."},
+        },
+    )
+    settings = Settings(
+        _env_file=None,
+        feature_decision_ai=True,
+        decision_ai_provider="openai",
+        openai_api_key="test-key",
+    )
+    with patch("routers.operations.get_settings", return_value=settings), patch(
+        "routers.operations.enrich_decision_brief",
+        new=AsyncMock(return_value=attempt),
+    ):
+        result = await create_ai_draft(
+            AiDraftCreateRequest(
+                period_id=UUID("11111111-1111-4111-8111-111111111111")
+            ),
+            profile,
+            client,  # type: ignore[arg-type]
+            "Bearer caller-token",
+        )
+
+    assert result["model_provider"] == "openai-responses:gpt-5.6-sol"
+    assert result["citations"][-1]["kind"] == "ai_enrichment"
+    assert result["citations"][-1]["status"] == "grounded"
+
+
+@pytest.mark.asyncio
 async def test_create_decision_brief_rejects_unapproved_evidence() -> None:
     client = _FakeOperationsClient(workflow_status="submitted")
     profile = UserProfile(str(uuid4()), "admin_xa", None, False)
@@ -218,8 +259,15 @@ async def test_create_decision_brief_blocks_pending_and_unchanged_duplicates() -
         {
             "id": first["id"],
             "status": "accepted",
-            "content": first["content"],
-            "citations": first["citations"],
+            "content": "Cách diễn đạt AI có thể thay đổi nhưng căn cứ không đổi.",
+            "citations": [
+                *first["citations"],
+                {
+                    "kind": "ai_enrichment",
+                    "id": "decision-ai-analysis",
+                    "analysis": {"executive_assessment": "Nội dung khác"},
+                },
+            ],
         }
     ]
     with pytest.raises(HTTPException) as unchanged:

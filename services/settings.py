@@ -28,6 +28,23 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_api_url: str = "https://generativelanguage.googleapis.com"
     gemini_model: str = "gemini-2.5-flash"
+    openai_api_key: str = ""
+    openai_api_url: str = "https://api.openai.com/v1"
+    openai_decision_model: str = "gpt-5.6-sol"
+    feature_decision_ai: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "FEATURE_DECISION_AI",
+            "ENABLE_DECISION_AI",
+        ),
+    )
+    decision_ai_provider: str = Field(
+        default="auto",
+        validation_alias=AliasChoices(
+            "DECISION_AI_PROVIDER",
+            "AI_DECISION_PROVIDER",
+        ),
+    )
     # Keep document OCR on a stable vision-capable model even when the
     # conversational assistant is upgraded independently.
     gemini_ocr_model: str = "gemini-3.5-flash-lite"
@@ -165,12 +182,41 @@ class Settings(BaseSettings):
         """Expose OCR only when both the feature and provider are configured."""
         return self.feature_external_ocr and bool(self.gemini_api_key.strip())
 
+    @property
+    def decision_ai_provider_order(self) -> tuple[str, ...]:
+        """Return configured providers in fail-safe preference order."""
+        provider = self.decision_ai_provider.strip().lower()
+        if provider == "auto":
+            providers: list[str] = []
+            if self.openai_api_key.strip():
+                providers.append("openai")
+            if self.gemini_api_key.strip():
+                providers.append("gemini")
+            return tuple(providers)
+        if provider not in {"openai", "gemini", "deterministic"}:
+            raise SettingsError(
+                "DECISION_AI_PROVIDER must be auto, openai, gemini, or deterministic"
+            )
+        if provider == "openai" and not self.openai_api_key.strip():
+            return ()
+        if provider == "gemini" and not self.gemini_api_key.strip():
+            return ()
+        if provider == "deterministic":
+            return ()
+        return (provider,)
+
+    @property
+    def decision_ai_ready(self) -> bool:
+        """AI enhancement is optional; deterministic support always remains."""
+        return self.feature_decision_ai and bool(self.decision_ai_provider_order)
+
     def validate_for_startup(self) -> None:
         """Fail closed in staging/production without disclosing secret values."""
         environment = self.app_env.strip().lower()
         if environment not in {"development", "test", "staging", "production"}:
             raise SettingsError("APP_ENV/ENVIRONMENT has an unsupported value")
 
+        _ = self.decision_ai_provider_order
         if environment not in {"staging", "production"}:
             _ = self.required_mfa_roles
             _ = self.internal_ip_networks
@@ -224,6 +270,16 @@ class Settings(BaseSettings):
 
         if self.supabase_jwt_secret and len(self.supabase_jwt_secret) < 32:
             raise SettingsError("SUPABASE_JWT_SECRET must contain at least 32 characters")
+
+        if self.openai_api_key.strip():
+            parsed_openai = urlsplit(self.openai_api_url.rstrip("/"))
+            if (
+                parsed_openai.scheme != "https"
+                or not parsed_openai.netloc
+                or parsed_openai.username is not None
+                or parsed_openai.password is not None
+            ):
+                raise SettingsError("OPENAI_API_URL must be an HTTPS URL")
 
 
 @lru_cache

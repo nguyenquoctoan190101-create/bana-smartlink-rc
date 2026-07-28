@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import date
+import hashlib
+import json
 from typing import Any
 
 ALL_CT_CODES = {f"CT{number:02d}" for number in range(1, 15)}
@@ -65,6 +67,19 @@ def validate_maturity_scores(scores: dict[str, int]) -> dict[str, int]:
             raise ValueError(f"Score for {dimension} must be an integer from 1 to 5")
         normalized[dimension] = value
     return normalized
+
+
+def evidence_fingerprint_from_citations(
+    citations: Iterable[dict[str, Any]] | None,
+) -> str | None:
+    """Read the deterministic evidence fingerprint from a stored draft."""
+    for citation in citations or ():
+        if citation.get("kind") != "decision_metrics":
+            continue
+        fingerprint = citation.get("evidence_fingerprint")
+        if isinstance(fingerprint, str) and fingerprint:
+            return fingerprint
+    return None
 
 
 def build_safe_period_brief(
@@ -195,22 +210,33 @@ def build_safe_period_brief(
         }
         for item in entries
     ]
-    citations.append(
-        {
-            "kind": "decision_metrics",
-            "id": f"period:{period_name}",
-            "label": "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
-            "report_count": len(entries),
-            "ready_report_count": len(ready),
-            "average_quality_score": average,
-            "blocked_report_count": len(blocked),
-            "review_report_count": len(needs_review),
-            "late_report_count": len(late),
-            "open_action_count": len(open_actions),
-            "overdue_action_count": len(overdue_actions),
-            "generator_version": "deterministic-evidence-v2",
-        }
-    )
+    metrics = {
+        "kind": "decision_metrics",
+        "id": f"period:{period_name}",
+        "label": "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+        "report_count": len(entries),
+        "ready_report_count": len(ready),
+        "average_quality_score": average,
+        "blocked_report_count": len(blocked),
+        "review_report_count": len(needs_review),
+        "late_report_count": len(late),
+        "open_action_count": len(open_actions),
+        "overdue_action_count": len(overdue_actions),
+        "generator_version": "deterministic-evidence-v2",
+    }
+    fingerprint_payload = {
+        "reports": citations,
+        "metrics": metrics,
+    }
+    metrics["evidence_fingerprint"] = hashlib.sha256(
+        json.dumps(
+            fingerprint_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    citations.append(metrics)
     ready_ratio = len(ready) / len(entries)
     confidence = round(
         min(1.0, max(0.0, (average / 100 * 0.7) + (ready_ratio * 0.3))),
@@ -219,4 +245,11 @@ def build_safe_period_brief(
     return content, citations, confidence
 
 
-__all__ = ["MATURITY_DIMENSIONS", "RULE_VERSION", "build_safe_period_brief", "quality_snapshot", "validate_maturity_scores"]
+__all__ = [
+    "MATURITY_DIMENSIONS",
+    "RULE_VERSION",
+    "build_safe_period_brief",
+    "evidence_fingerprint_from_citations",
+    "quality_snapshot",
+    "validate_maturity_scores",
+]

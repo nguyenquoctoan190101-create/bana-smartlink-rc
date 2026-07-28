@@ -344,6 +344,13 @@ def _clear_settings_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "VAPID_CONTACT",
         "VAPID_CLAIMS_EMAIL",
         "FEATURE_EXTERNAL_OCR",
+        "FEATURE_DECISION_AI",
+        "ENABLE_DECISION_AI",
+        "DECISION_AI_PROVIDER",
+        "AI_DECISION_PROVIDER",
+        "OPENAI_API_KEY",
+        "OPENAI_API_URL",
+        "OPENAI_DECISION_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -476,6 +483,87 @@ def test_external_ocr_requires_both_feature_flag_and_provider_key() -> None:
     )
     ready.validate_for_startup()
     assert ready.external_ocr_ready is True
+
+
+def test_decision_ai_provider_selection_is_explicit_and_fail_safe() -> None:
+    assert Settings(_env_file=None).decision_ai_provider_order == ()
+    assert Settings(
+        _env_file=None,
+        openai_api_key="openai-unit-test-key",
+        gemini_api_key="gemini-unit-test-key",
+    ).decision_ai_provider_order == ("openai", "gemini")
+
+    assert Settings(
+        _env_file=None,
+        decision_ai_provider="openai",
+    ).decision_ai_provider_order == ()
+    assert Settings(
+        _env_file=None,
+        decision_ai_provider="openai",
+        openai_api_key="openai-unit-test-key",
+    ).decision_ai_provider_order == ("openai",)
+    assert Settings(
+        _env_file=None,
+        decision_ai_provider="gemini",
+    ).decision_ai_provider_order == ()
+    assert Settings(
+        _env_file=None,
+        decision_ai_provider="gemini",
+        gemini_api_key="gemini-unit-test-key",
+    ).decision_ai_provider_order == ("gemini",)
+    assert Settings(
+        _env_file=None,
+        decision_ai_provider="deterministic",
+    ).decision_ai_provider_order == ()
+
+    with pytest.raises(SettingsError, match="DECISION_AI_PROVIDER"):
+        _ = Settings(
+            _env_file=None,
+            decision_ai_provider="untrusted-provider",
+        ).decision_ai_provider_order
+
+    assert Settings(
+        _env_file=None,
+        feature_decision_ai=False,
+        openai_api_key="openai-unit-test-key",
+    ).decision_ai_ready is False
+    assert Settings(
+        _env_file=None,
+        feature_decision_ai=True,
+    ).decision_ai_ready is False
+    assert Settings(
+        _env_file=None,
+        feature_decision_ai=True,
+        gemini_api_key="gemini-unit-test-key",
+    ).decision_ai_ready is True
+
+
+@pytest.mark.parametrize(
+    "openai_api_url",
+    [
+        "http://api.openai.example/v1",
+        "https:///v1",
+        "https://user@api.openai.example/v1",
+        "https://user:password@api.openai.example/v1",
+    ],
+)
+def test_production_settings_reject_insecure_openai_urls(
+    openai_api_url: str,
+) -> None:
+    with pytest.raises(SettingsError, match="OPENAI_API_URL"):
+        _production_settings(
+            openai_api_key="openai-unit-test-key",
+            openai_api_url=openai_api_url,
+        ).validate_for_startup()
+
+
+def test_production_settings_accepts_https_openai_endpoint() -> None:
+    settings = _production_settings(
+        openai_api_key="openai-unit-test-key",
+        openai_api_url="https://api.openai.example/v1/",
+    )
+    settings.validate_for_startup()
+    assert settings.decision_ai_provider_order == ("openai",)
 
 
 def test_privileged_access_settings_validate_roles_and_networks() -> None:
