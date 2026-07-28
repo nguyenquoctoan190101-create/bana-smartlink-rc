@@ -109,6 +109,35 @@
   padding: 0 1.1rem 1.1rem;
 }
 
+.decision-support-card,
+.decision-support-review,
+.decision-support-review__input {
+  border-color: #ddd6fe;
+}
+
+.decision-support-kicker {
+  color: #6d28d9;
+}
+
+.decision-support-priority {
+  border-color: #ddd6fe;
+  color: #5b21b6;
+  background: #f5f3ff;
+}
+
+.decision-support-review {
+  background: #f5f3ff;
+}
+
+.decision-support-review__label {
+  color: #2e1065;
+}
+
+.decision-support-review__input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px #ede9fe;
+}
+
 @media (max-width: 640px) {
   .executive-brief--collapsible > summary {
     gap: 0.75rem;

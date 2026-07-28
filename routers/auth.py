@@ -9,7 +9,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.passwords import generate_temporary_password
 from services.rate_limit import limiter
@@ -25,7 +25,8 @@ import asyncpg
 from services.proposal_actions import ProposalValidationError, execute_proposal_action
 
 
-StaffRole = Literal["can_bo_thon", "to_cnscd"]
+StaffRole = Literal["can_bo_thon", "to_cnscd", "admin_xa", "lanh_dao"]
+StaffScope = Literal["single_village", "assigned_villages", "commune"]
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -35,13 +36,35 @@ class CreateStaffAccountRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     phone: str | None = Field(default=None, min_length=10, max_length=20)
     role: StaffRole
-    village_id: UUID
+    # ``village_id`` remains accepted for backwards compatibility with the
+    # original single-village form. New clients use ``village_ids``.
+    village_id: UUID | None = None
+    village_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def validate_role_scope(self) -> "CreateStaffAccountRequest":
+        scope_ids = self.normalized_village_ids()
+        if self.role == "can_bo_thon" and len(scope_ids) != 1:
+            raise ValueError("Cán bộ thôn phải được giao đúng một thôn")
+        if self.role == "to_cnscd" and not scope_ids:
+            raise ValueError("Thành viên CNSCĐ phải được giao ít nhất một thôn")
+        if self.role in {"admin_xa", "lanh_dao"} and scope_ids:
+            raise ValueError("Cán bộ xã và lãnh đạo xã mặc định quản lý toàn xã")
+        return self
+
+    def normalized_village_ids(self) -> list[UUID]:
+        values = [*self.village_ids]
+        if self.village_id is not None:
+            values.append(self.village_id)
+        return list(dict.fromkeys(values))
 
 
 class CreateStaffAccountResponse(BaseModel):
     user_id: UUID
     role: StaffRole
-    village_id: UUID
+    scope: StaffScope
+    village_id: UUID | None
+    village_ids: list[UUID] = Field(default_factory=list)
     force_password_reset: bool
     temporary_password: str
 
@@ -104,6 +127,7 @@ class OfficerResponse(BaseModel):
     phone: str | None
     role: str
     village_id: str | None
+    village_ids: list[str] = Field(default_factory=list)
     is_active: bool
     last_login: str | None
 
@@ -475,28 +499,43 @@ async def create_staff_account(
     settings: Annotated[Settings, Depends(get_settings)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
 ) -> CreateStaffAccountResponse:
-    """Create village staff accounts through Supabase Auth Admin API."""
+    """Create a staff identity and enforce the role-specific working scope."""
     _validate_email(payload.email)
     phone = _normalize_staff_phone(payload.phone)
     commune_id = admin.commune_id or _string_setting(
         settings,
         "bana_commune_id",
     ) or "ba_na"
-    try:
-        village_is_valid = await supabase.village_in_commune(
-            str(payload.village_id),
-            commune_id,
-        )
-    except SupabaseAdminError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Unable to validate village assignment",
-        ) from exc
-    if not village_is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Village assignment is outside the administrator commune",
-        )
+    village_ids = payload.normalized_village_ids()
+    if village_ids:
+        try:
+            validation_results = await asyncio.gather(
+                *(
+                    supabase.village_in_commune(str(village_id), commune_id)
+                    for village_id in village_ids
+                )
+            )
+        except SupabaseAdminError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to validate village assignment",
+            ) from exc
+        if not all(validation_results):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Village assignment is outside the administrator commune",
+            )
+
+    scope: StaffScope
+    profile_village_id: UUID | None = None
+    if payload.role == "can_bo_thon":
+        scope = "single_village"
+        profile_village_id = village_ids[0]
+    elif payload.role == "to_cnscd":
+        scope = "assigned_villages"
+    else:
+        scope = "commune"
+
     temporary_password = generate_temporary_password()
     try:
         user_id = await supabase.create_auth_user(
@@ -516,12 +555,22 @@ async def create_staff_account(
         profile = await supabase.create_user_profile(
             user_id=user_id,
             role=payload.role,
-            village_id=str(payload.village_id),
+            village_id=(
+                str(profile_village_id)
+                if profile_village_id is not None
+                else None
+            ),
             display_name=payload.display_name.strip(),
             phone=phone,
             force_password_reset=True,
             commune_id=commune_id,
         )
+        if payload.role == "to_cnscd":
+            await supabase.create_user_village_assignments(
+                user_id=user_id,
+                village_ids=[str(village_id) for village_id in village_ids],
+                assigned_by=admin.id,
+            )
     except SupabaseAdminError as exc:
         try:
             await supabase.delete_auth_user(user_id)
@@ -529,13 +578,15 @@ async def create_staff_account(
             pass
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unable to create user profile",
+            detail="Unable to create user profile and working scope",
         ) from exc
 
     return CreateStaffAccountResponse(
         user_id=UUID(profile.id),
         role=payload.role,
-        village_id=payload.village_id,
+        scope=scope,
+        village_id=profile_village_id,
+        village_ids=village_ids,
         force_password_reset=profile.force_password_reset,
         temporary_password=temporary_password,
     )
@@ -737,6 +788,16 @@ async def list_officers(
             p.id, 
             p.role, 
             p.village_id,
+            ARRAY_REMOVE(
+              ARRAY[p.village_id::text] ||
+              ARRAY(
+                SELECT assignment.village_id::text
+                FROM user_village_assignments AS assignment
+                WHERE assignment.user_id = p.id
+                ORDER BY assignment.village_id
+              ),
+              NULL
+            ) AS village_ids,
             COALESCE(p.display_name, u.raw_user_meta_data->>'display_name', '') as name,
             u.email,
             COALESCE(p.phone, u.phone) AS phone,
@@ -745,8 +806,9 @@ async def list_officers(
         FROM user_profiles p
         LEFT JOIN auth.users u ON p.id = u.id
         JOIN user_profiles actor ON actor.id = $1::uuid
-        WHERE p.role IN ('can_bo_thon', 'to_cnscd')
+        WHERE p.role IN ('can_bo_thon', 'to_cnscd', 'admin_xa', 'lanh_dao')
           AND p.commune_id = actor.commune_id
+        ORDER BY p.created_at DESC, p.display_name ASC
     """
     rows = await conn.fetch(query, admin.id)
     return [
@@ -757,6 +819,7 @@ async def list_officers(
             phone=r["phone"] if r["phone"] else None,
             role=str(r["role"]),
             village_id=str(r["village_id"]) if r["village_id"] else None,
+            village_ids=[str(village_id) for village_id in (r["village_ids"] or [])],
             is_active=bool(r["is_active"]),
             last_login=r["last_login"]
         )

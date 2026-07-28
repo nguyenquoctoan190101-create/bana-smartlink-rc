@@ -1,4 +1,16 @@
 /** Resolve the shared public lookup route by the opaque code format. */
+export const EXAMPLE_LOOKUP_CODES = [
+  "A1B2C3D4E5F6G7H8",
+  "A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6",
+] as const;
+
+export function isExampleLookupCode(code: string): boolean {
+  const normalized = code.trim().toUpperCase();
+  return EXAMPLE_LOOKUP_CODES.some(
+    (exampleCode) => exampleCode === normalized,
+  );
+}
+
 export function getPublicLookupEndpoint(code: string): string | null {
   const normalized = code.trim().toUpperCase();
   if (normalized.length === 16) return `/auth/citizen/pending-updates/${encodeURIComponent(normalized)}`;

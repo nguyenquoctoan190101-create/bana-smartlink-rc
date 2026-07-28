@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -61,6 +62,7 @@ class _FakeAdminClient:
         *,
         fail_password: bool = False,
         fail_profile_update: bool = False,
+        fail_assignments: bool = False,
         village_valid: bool = True,
     ) -> None:
         self.profile = profile
@@ -68,6 +70,7 @@ class _FakeAdminClient:
         self.access_token: str | None = None
         self.user_client = _FakeUserClient(self.events, fail_password)
         self.fail_profile_update = fail_profile_update
+        self.fail_assignments = fail_assignments
         self.village_valid = village_valid
 
     async def get_user_profile(self, user_id: str) -> UserProfile | None:
@@ -102,6 +105,25 @@ class _FakeAdminClient:
             phone=kwargs["phone"],
             commune_id=kwargs["commune_id"],
         )
+
+    async def create_user_village_assignments(
+        self,
+        user_id: str,
+        village_ids: list[str],
+        assigned_by: str,
+    ) -> None:
+        self.events.append(
+            (
+                "create_user_village_assignments",
+                {
+                    "user_id": user_id,
+                    "village_ids": village_ids,
+                    "assigned_by": assigned_by,
+                },
+            )
+        )
+        if self.fail_assignments:
+            raise SupabaseAdminError("assignment failure")
 
     async def delete_auth_user(self, user_id: str) -> None:
         self.events.append(("delete_auth_user", user_id))
@@ -222,6 +244,138 @@ def test_create_staff_account_normalizes_and_persists_phone_in_both_records() ->
     assert create_profile["phone"] == "0901234567"
     assert create_profile["display_name"] == "Nguyễn Văn A"
     assert create_profile["commune_id"] == "ba_na"
+    assert response.json()["scope"] == "single_village"
+    assert response.json()["village_ids"] == [village_id]
+
+
+def test_create_cnscd_account_persists_all_explicit_village_assignments() -> None:
+    admin_id = str(uuid4())
+    village_ids = [str(uuid4()), str(uuid4())]
+    admin = _FakeAdminClient(
+        UserProfile(admin_id, "admin_xa", None, False, commune_id="ba_na")
+    )
+    with _client_with_admin(admin) as client:
+        response = client.post(
+            "/auth/staff-users",
+            json={
+                "email": "cnscd@example.gov.vn",
+                "display_name": "Thành viên CNSCĐ",
+                "phone": "0901234567",
+                "role": "to_cnscd",
+                "village_ids": village_ids,
+            },
+            headers={"Authorization": f"Bearer {_jwt(admin_id)}"},
+        )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["scope"] == "assigned_villages"
+    assert body["village_id"] is None
+    assert body["village_ids"] == village_ids
+    profile_payload = next(
+        event[1] for event in admin.events if event[0] == "create_user_profile"
+    )
+    assignment_payload = next(
+        event[1]
+        for event in admin.events
+        if event[0] == "create_user_village_assignments"
+    )
+    assert profile_payload["village_id"] is None
+    assert assignment_payload["village_ids"] == village_ids
+    assert assignment_payload["assigned_by"] == admin_id
+
+
+@pytest.mark.parametrize("role", ["admin_xa", "lanh_dao"])
+def test_create_commune_role_uses_automatic_commune_scope(role: str) -> None:
+    admin_id = str(uuid4())
+    admin = _FakeAdminClient(
+        UserProfile(admin_id, "admin_xa", None, False, commune_id="ba_na")
+    )
+    with _client_with_admin(admin) as client:
+        response = client.post(
+            "/auth/staff-users",
+            json={
+                "email": f"{role}@example.gov.vn",
+                "display_name": "Tài khoản cấp xã",
+                "phone": "0901234567",
+                "role": role,
+                "village_ids": [],
+            },
+            headers={"Authorization": f"Bearer {_jwt(admin_id)}"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["scope"] == "commune"
+    assert response.json()["village_id"] is None
+    assert response.json()["village_ids"] == []
+    profile_payload = next(
+        event[1] for event in admin.events if event[0] == "create_user_profile"
+    )
+    assert profile_payload["village_id"] is None
+    assert not any(
+        event[0] == "create_user_village_assignments" for event in admin.events
+    )
+
+
+@pytest.mark.parametrize(
+    ("role", "village_ids"),
+    [
+        ("can_bo_thon", []),
+        ("can_bo_thon", [str(uuid4()), str(uuid4())]),
+        ("to_cnscd", []),
+        ("admin_xa", [str(uuid4())]),
+        ("lanh_dao", [str(uuid4())]),
+    ],
+)
+def test_create_staff_account_rejects_scope_that_does_not_match_role(
+    role: str,
+    village_ids: list[str],
+) -> None:
+    admin_id = str(uuid4())
+    admin = _FakeAdminClient(UserProfile(admin_id, "admin_xa", None, False))
+    with _client_with_admin(admin) as client:
+        response = client.post(
+            "/auth/staff-users",
+            json={
+                "email": "invalid-scope@example.gov.vn",
+                "display_name": "Sai phạm vi",
+                "phone": "0901234567",
+                "role": role,
+                "village_ids": village_ids,
+            },
+            headers={"Authorization": f"Bearer {_jwt(admin_id)}"},
+        )
+
+    assert response.status_code == 422
+    assert not any(event[0] == "create_auth_user" for event in admin.events)
+
+
+def test_create_cnscd_rolls_back_auth_identity_when_assignment_write_fails() -> None:
+    admin_id = str(uuid4())
+    admin = _FakeAdminClient(
+        UserProfile(admin_id, "admin_xa", None, False),
+        fail_assignments=True,
+    )
+    with _client_with_admin(admin) as client:
+        response = client.post(
+            "/auth/staff-users",
+            json={
+                "email": "rollback@example.gov.vn",
+                "display_name": "Kiểm thử hoàn tác",
+                "phone": "0901234567",
+                "role": "to_cnscd",
+                "village_ids": [str(uuid4())],
+            },
+            headers={"Authorization": f"Bearer {_jwt(admin_id)}"},
+        )
+
+    assert response.status_code == 400
+    created_user_id = next(
+        event[1]["user_id"]
+        for event in admin.events
+        if event[0] == "create_user_village_assignments"
+    )
+    assert ("delete_auth_user", created_user_id) in admin.events
 
 
 def test_create_staff_account_rejects_cross_commune_village_before_auth_creation() -> None:

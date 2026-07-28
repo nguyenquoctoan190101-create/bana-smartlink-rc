@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
-import { apiFetch, apiJson } from "../lib/apiClient";
+import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import type { ReportPeriod, UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, StatusBadge, WorkSection } from "./ui";
 import "./OperationsCenter.css";
@@ -19,6 +19,40 @@ type Action = {
   status: string;
   due_date?: string | null;
   owner_name?: string | null;
+};
+type DraftCitation = {
+  kind?: string;
+  id?: string;
+  label?: string;
+  village_name?: string;
+  quality_status?: string;
+  quality_score?: number;
+  unresolved_flag_count?: number;
+  outlier_count?: number;
+  timeliness_status?: string;
+  report_source?: string;
+  report_version?: number;
+  rule_version?: string;
+  generator_version?: string;
+};
+type DecisionDraft = {
+  id: string;
+  period_id?: string | null;
+  status: "pending_review" | "accepted" | "rejected";
+  content: string;
+  citations?: DraftCitation[];
+  confidence?: number | null;
+  model_provider?: string;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
+};
+type DecisionBriefSections = {
+  conclusion: string;
+  priority: string;
+  action: string;
+  basis: string;
+  limitation: string;
 };
 type Quality = {
   report_id: string;
@@ -52,6 +86,40 @@ type LoadResult = {
 };
 type Availability = Record<LoadResult["key"], boolean | null>;
 const EMPTY_PERIODS: ReportPeriod[] = [];
+
+const DECISION_SECTION_PREFIXES: Array<
+  [keyof DecisionBriefSections, string]
+> = [
+  ["conclusion", "Kết luận:"],
+  ["priority", "Mức ưu tiên:"],
+  ["action", "Hành động đề xuất:"],
+  ["basis", "Căn cứ:"],
+  ["limitation", "Giới hạn:"],
+];
+
+function parseDecisionBrief(content: string): DecisionBriefSections {
+  const result: DecisionBriefSections = {
+    conclusion: content,
+    priority: "Chưa phân loại",
+    action: "Người có thẩm quyền đọc căn cứ và xác định bước xử lý tiếp theo.",
+    basis: "Xem danh sách căn cứ đi kèm bản tóm tắt.",
+    limitation:
+      "Đây là nội dung hỗ trợ; không thay thế quyết định của người có thẩm quyền.",
+  };
+  let foundStructuredSection = false;
+  for (const line of content.split(/\r?\n/)) {
+    const normalizedLine = line.trim();
+    const matched = DECISION_SECTION_PREFIXES.find(([, prefix]) =>
+      normalizedLine.startsWith(prefix),
+    );
+    if (!matched) continue;
+    foundStructuredSection = true;
+    const [key, prefix] = matched;
+    result[key] = normalizedLine.slice(prefix.length).trim();
+  }
+  if (!foundStructuredSection) result.conclusion = content.trim();
+  return result;
+}
 
 const reportSourceLabels: Record<string, string> = {
   manual: "Nhập thủ công",
@@ -113,10 +181,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const [quality, setQuality] = useState<QualityResponse | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [alerts, setAlerts] = useState<TrendAlert[]>([]);
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<DecisionDraft[]>([]);
   const [maturity, setMaturity] = useState<any[]>([]);
   const [initiatives, setInitiatives] = useState<any[]>([]);
   const [actionOutcomes, setActionOutcomes] = useState<Record<string, string>>({});
+  const [draftReviewNotes, setDraftReviewNotes] = useState<Record<string, string>>({});
+  const [draftBusy, setDraftBusy] = useState<string | null>(null);
   const [available, setAvailable] = useState<Availability>({
     quality: null,
     actions: null,
@@ -171,7 +241,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       load("alerts", "biến động theo kỳ", trendRequest),
     ];
     if (internal) {
-      requests.push(load("drafts", "nội dung điều hành chờ duyệt", apiJson("/api/operations/ai-drafts")));
+      requests.push(load("drafts", "bản tóm tắt hỗ trợ quyết định", apiJson("/api/operations/ai-drafts")));
     }
     if (admin) {
       requests.push(load("initiatives", "danh mục sáng kiến", apiJson("/api/operations/initiatives")));
@@ -190,7 +260,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       if (result.key === "quality") setQuality(result.value as typeof quality);
       if (result.key === "actions") setActions(Array.isArray(result.value) ? (result.value as Action[]) : []);
       if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? (result.value as TrendAlert[]) : []);
-      if (result.key === "drafts") setDrafts(Array.isArray(result.value) ? result.value : []);
+      if (result.key === "drafts") setDrafts(Array.isArray(result.value) ? (result.value as DecisionDraft[]) : []);
       if (result.key === "maturity") setMaturity(Array.isArray(result.value) ? result.value : []);
       if (result.key === "initiatives") setInitiatives(Array.isArray(result.value) ? result.value : []);
     }
@@ -229,10 +299,21 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const flaggedReports = useMemo(() => visibleQualityReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [visibleQualityReports]);
   const flaggedApprovedReports = useMemo(() => approvedReports.filter((item) => item.unresolved_flag_count > 0 || item.outlier_count > 0), [approvedReports]);
   const currentPeriodDrafts = useMemo(
-    () => drafts.filter((item) => !item.period_id || item.period_id === periodId),
+    () =>
+      drafts
+        .filter((item) => !item.period_id || item.period_id === periodId)
+        .sort((left, right) => {
+          const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+          const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+          return rightTime - leftTime;
+        }),
     [drafts, periodId],
   );
   const pendingDrafts = useMemo(() => currentPeriodDrafts.filter((item) => item.status === "pending_review"), [currentPeriodDrafts]);
+  const latestDecisionDraft = pendingDrafts[0] ?? currentPeriodDrafts[0];
+  const decisionHistory = latestDecisionDraft
+    ? currentPeriodDrafts.filter((item) => item.id !== latestDecisionDraft.id)
+    : [];
   const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : alerts.length ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
   const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
   const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
@@ -257,23 +338,71 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   };
   const createDraft = async () => {
     if (!periodId) return;
-    const response = await apiFetch("/api/operations/ai-drafts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ period_id: periodId, kind: "period_brief" }),
-    });
-    setNotice(response.ok ? "Đã tạo nội dung gợi ý có dẫn chứng. Nội dung đang chờ người có thẩm quyền xem xét." : "Không thể tạo nội dung gợi ý.");
-    if (response.ok) void refresh();
+    setDraftBusy("create");
+    try {
+      await apiJson("/api/operations/ai-drafts", {
+        method: "POST",
+        body: JSON.stringify({ period_id: periodId, kind: "period_brief" }),
+      });
+      await refresh();
+      setNotice("Đã tạo bản tóm tắt có căn cứ. Nội dung đang chờ người có thẩm quyền xem xét.");
+    } catch (error) {
+      setNotice(
+        `Không thể tạo bản tóm tắt: ${toUserFacingError(
+          error,
+          "Không thể tạo bản tóm tắt hỗ trợ quyết định.",
+        )}`,
+      );
+    } finally {
+      setDraftBusy(null);
+    }
   };
   const reviewDraft = async (id: string, decision: "accepted" | "rejected") => {
-    const response = await apiFetch(`/api/operations/ai-drafts/${id}/review`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision }),
-    });
-    if (!response.ok) setNotice("Không thể duyệt nội dung gợi ý.");
-    else void refresh();
+    const notes = draftReviewNotes[id]?.trim() || "";
+    if (notes.length < 10) {
+      setNotice("Không thể lưu quyết định: hãy ghi căn cứ nhận xét ít nhất 10 ký tự.");
+      return;
+    }
+    setDraftBusy(id);
+    try {
+      await apiJson(`/api/operations/ai-drafts/${id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ decision, notes }),
+      });
+      setDraftReviewNotes((current) => ({ ...current, [id]: "" }));
+      await refresh();
+      setNotice(
+        decision === "accepted"
+          ? "Đã chấp nhận bản tóm tắt và lưu căn cứ người duyệt."
+          : "Đã từ chối bản tóm tắt và lưu căn cứ người duyệt.",
+      );
+    } catch (error) {
+      setNotice(
+        `Không thể lưu quyết định: ${toUserFacingError(
+          error,
+          "Không thể lưu quyết định duyệt bản tóm tắt.",
+        )}`,
+      );
+    } finally {
+      setDraftBusy(null);
+    }
   };
+
+  const latestBriefSections = latestDecisionDraft
+    ? parseDecisionBrief(latestDecisionDraft.content)
+    : null;
+  const latestEvidenceCitations = (latestDecisionDraft?.citations || []).filter(
+    (citation) => citation.kind === "quality_snapshot",
+  );
+  const evidenceReadiness =
+    typeof latestDecisionDraft?.confidence === "number"
+      ? Math.round(latestDecisionDraft.confidence * 100)
+      : null;
+  const canCreateDecisionBrief =
+    Boolean(periodId) &&
+    approvedReports.length > 0 &&
+    pendingDrafts.length === 0 &&
+    draftBusy === null;
 
   if (loading)
     return (
@@ -388,7 +517,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
           <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
           <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
-          {internal ? <MetricCard label="Nội dung gợi ý chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được nội dung gợi ý" : "Chỉ hỗ trợ người có thẩm quyền"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
+          {internal ? <MetricCard label="Bản tóm tắt chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được bản tóm tắt" : "Có căn cứ và nhận xét người duyệt"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
         </div>
       </WorkSection>
 
@@ -510,46 +639,300 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           id="operations-support"
           index="04"
           title="Nội dung hỗ trợ quyết định"
-          description="Nội dung gợi ý được đặt trong vùng riêng, luôn có trạng thái và không trộn với việc đã giao hoặc dữ liệu đã phê duyệt."
+          description="Bản tóm tắt tách rõ kết luận, hành động, căn cứ và giới hạn; người có thẩm quyền phải ghi nhận xét trước khi chấp nhận hoặc từ chối."
           tone="support"
           icon={<BrainCircuit />}
           actions={
             admin ? (
-              <Button onClick={() => void createDraft()} disabled={!periodId}>
-                <Sparkles />
-                Tạo nội dung gợi ý
+              <Button
+                onClick={() => void createDraft()}
+                disabled={!canCreateDecisionBrief}
+                title={
+                  !periodId
+                    ? "Hãy chọn kỳ báo cáo"
+                    : !approvedReports.length
+                      ? "Chưa có báo cáo đã duyệt hoặc khóa"
+                      : pendingDrafts.length
+                        ? "Đang có một bản chờ duyệt"
+                        : undefined
+                }
+              >
+                {draftBusy === "create" ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Sparkles />
+                )}
+                {pendingDrafts.length
+                  ? "Đang chờ duyệt"
+                  : "Tạo bản tóm tắt có căn cứ"}
               </Button>
             ) : undefined
           }
         >
-          <div className="work-section__list space-y-3">
+          <div className="work-section__list space-y-4">
+            <div
+              role="note"
+              className="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950"
+            >
+              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-indigo-700" />
+              <div>
+                <p className="font-black">Con người giữ quyền quyết định</p>
+                <p className="mt-1 leading-relaxed text-indigo-800">
+                  Hệ thống chỉ tổng hợp bằng luật xác định từ báo cáo đã duyệt/khóa
+                  và trạng thái công việc. Nội dung này không tự phê duyệt, giao
+                  việc hoặc công bố số liệu.
+                </p>
+              </div>
+            </div>
+
             {available.drafts === false ? (
-              <ErrorState title="Chưa tải được nội dung gợi ý" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
+              <ErrorState title="Chưa tải được bản tóm tắt" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
+            ) : !latestDecisionDraft || !latestBriefSections ? (
+              <EmptyState
+                title="Chưa có bản tóm tắt cho kỳ này"
+                description={
+                  approvedReports.length
+                    ? "Cán bộ xã có thể tạo một bản tóm tắt có căn cứ để người có thẩm quyền xem xét."
+                    : "Cần ít nhất một báo cáo đã duyệt hoặc khóa; bản đang xử lý không được dùng làm căn cứ quyết định."
+                }
+              />
             ) : (
               <>
-                {!currentPeriodDrafts.length && <EmptyState title="Chưa có nội dung gợi ý cho kỳ này" description="Cán bộ xã có thể tạo nội dung sau khi kỳ báo cáo có dữ liệu đủ chất lượng." />}
-                {currentPeriodDrafts.slice(0, 5).map((draft) => (
-                  <article key={draft.id} className="work-support-card rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm leading-relaxed text-slate-800">{draft.content}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <StatusBadge status={draft.status} />
-                      <span className="text-xs text-slate-500">Mức tin cậy tham khảo {draft.confidence ?? "—"}</span>
-                      {draft.created_at && (
-                        <span className="text-xs text-slate-500">
-                          Tạo lúc {new Date(draft.created_at).toLocaleString("vi-VN")}
-                        </span>
-                      )}
-                      {admin && draft.status === "pending_review" && (
-                        <div className="ml-auto flex gap-2">
-                          <Button onClick={() => void reviewDraft(draft.id, "accepted")}>Chấp nhận</Button>
-                          <Button variant="secondary" onClick={() => void reviewDraft(draft.id, "rejected")}>
-                            Từ chối
-                          </Button>
-                        </div>
+                <article className="decision-support-card rounded-2xl border bg-white p-5 shadow-sm">
+                  <header className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="decision-support-kicker text-4xs font-black uppercase tracking-wider">
+                        Bản tóm tắt đang cần xem
+                      </p>
+                      <h3 className="mt-1 text-base font-black text-slate-950">
+                        Căn cứ ra quyết định · {quality?.period?.name || "Kỳ đang chọn"}
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {latestDecisionDraft.created_at
+                          ? `Tạo lúc ${new Date(latestDecisionDraft.created_at).toLocaleString("vi-VN")}`
+                          : "Chưa có thời điểm tạo"}
+                        {latestDecisionDraft.model_provider === "deterministic-evidence-v2"
+                          ? " · Tổng hợp bằng luật xác định phiên bản 2"
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={latestDecisionDraft.status} />
+                      <span className="decision-support-priority rounded-full border px-2.5 py-1 text-xs font-black">
+                        Ưu tiên: {latestBriefSections.priority}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">
+                        Độ sẵn sàng căn cứ {evidenceReadiness == null ? "—" : `${evidenceReadiness}%`}
+                      </span>
+                    </div>
+                  </header>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-4xs font-black uppercase tracking-wider text-emerald-700">
+                        Kết luận đề xuất
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-emerald-950">
+                        {latestBriefSections.conclusion}
+                      </p>
+                    </section>
+                    <section className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                      <p className="text-4xs font-black uppercase tracking-wider text-sky-700">
+                        Việc nên làm tiếp theo
+                      </p>
+                      <p className="mt-2 text-sm font-semibold leading-relaxed text-sky-950">
+                        {latestBriefSections.action}
+                      </p>
+                    </section>
+                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-4xs font-black uppercase tracking-wider text-slate-600">
+                        Căn cứ định lượng
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-slate-800">
+                        {latestBriefSections.basis}
+                      </p>
+                    </section>
+                    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-4xs font-black uppercase tracking-wider text-amber-700">
+                        Giới hạn sử dụng
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-amber-950">
+                        {latestBriefSections.limitation}
+                      </p>
+                    </section>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        document
+                          .getElementById("operations-evidence")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                    >
+                      <FileCheck2 />
+                      Đối chiếu dữ liệu
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        document
+                          .getElementById("operations-tasks")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                    >
+                      <ClipboardList />
+                      Mở hàng việc
+                    </Button>
+                  </div>
+
+                  <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                    <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-800">
+                      Xem {latestEvidenceCitations.length} căn cứ báo cáo
+                    </summary>
+                    <div className="grid gap-2 border-t border-slate-200 p-3 md:grid-cols-2">
+                      {latestEvidenceCitations.length ? (
+                        latestEvidenceCitations.map((citation, index) => (
+                          <div
+                            key={`${citation.id || "citation"}-${index}`}
+                            className="rounded-lg border border-slate-200 bg-white p-3"
+                          >
+                            <p className="text-xs font-black text-slate-900">
+                              {citation.village_name || citation.label || citation.id || "Căn cứ báo cáo"}
+                            </p>
+                            <p className="mt-1 text-5xs leading-relaxed text-slate-600">
+                              {typeof citation.quality_score === "number"
+                                ? `Điểm ${citation.quality_score}% · `
+                                : ""}
+                              {typeof citation.unresolved_flag_count === "number"
+                                ? `${citation.unresolved_flag_count} cảnh báo · `
+                                : ""}
+                              {reportSourceLabels[citation.report_source || ""] || "Nguồn đã ghi nhận"}
+                              {citation.report_version
+                                ? ` · phiên bản ${citation.report_version}`
+                                : ""}
+                            </p>
+                            {citation.rule_version && (
+                              <p className="mt-1 text-5xs font-mono text-slate-400">
+                                Bộ quy tắc {citation.rule_version}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="p-2 text-xs text-slate-500">
+                          Bản cũ chưa có căn cứ chi tiết; hãy tạo lại sau khi dữ liệu thay đổi.
+                        </p>
                       )}
                     </div>
-                  </article>
-                ))}
+                  </details>
+
+                  {latestDecisionDraft.status === "pending_review" && admin && (
+                    <div className="decision-support-review mt-4 rounded-xl border p-4">
+                      <label
+                        htmlFor={`draft-review-${latestDecisionDraft.id}`}
+                        className="decision-support-review__label block text-sm font-black"
+                      >
+                        Căn cứ nhận xét của người duyệt
+                      </label>
+                      <textarea
+                        id={`draft-review-${latestDecisionDraft.id}`}
+                        value={draftReviewNotes[latestDecisionDraft.id] || ""}
+                        onChange={(event) =>
+                          setDraftReviewNotes((current) => ({
+                            ...current,
+                            [latestDecisionDraft.id]: event.target.value,
+                          }))
+                        }
+                        maxLength={2000}
+                        rows={3}
+                        placeholder="Nêu tài liệu đã kiểm tra, điểm đồng ý hoặc lý do chưa chấp nhận (ít nhất 10 ký tự)…"
+                        className="decision-support-review__input mt-2 w-full rounded-xl border bg-white p-3 text-sm text-slate-800 outline-none"
+                      />
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <Button
+                          variant="secondary"
+                          disabled={
+                            (draftReviewNotes[latestDecisionDraft.id]?.trim().length || 0) < 10 ||
+                            draftBusy === latestDecisionDraft.id
+                          }
+                          onClick={() =>
+                            void reviewDraft(latestDecisionDraft.id, "rejected")
+                          }
+                        >
+                          Từ chối và lưu lý do
+                        </Button>
+                        <Button
+                          disabled={
+                            (draftReviewNotes[latestDecisionDraft.id]?.trim().length || 0) < 10 ||
+                            draftBusy === latestDecisionDraft.id
+                          }
+                          onClick={() =>
+                            void reviewDraft(latestDecisionDraft.id, "accepted")
+                          }
+                        >
+                          {draftBusy === latestDecisionDraft.id && (
+                            <Loader2 className="animate-spin" />
+                          )}
+                          Chấp nhận và lưu căn cứ
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {latestDecisionDraft.status !== "pending_review" &&
+                    latestDecisionDraft.review_notes && (
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                        <p className="font-black text-slate-900">Nhận xét đã lưu</p>
+                        <p className="mt-1 leading-relaxed">
+                          {latestDecisionDraft.review_notes}
+                        </p>
+                        {latestDecisionDraft.reviewed_at && (
+                          <p className="mt-2 text-xs text-slate-500">
+                            Xử lý lúc{" "}
+                            {new Date(latestDecisionDraft.reviewed_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                </article>
+
+                {decisionHistory.length > 0 && (
+                  <details className="rounded-xl border border-slate-200 bg-white">
+                    <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-800">
+                      Lịch sử bản tóm tắt ({decisionHistory.length})
+                    </summary>
+                    <div className="space-y-2 border-t border-slate-200 p-3">
+                      {decisionHistory.map((draft) => {
+                        const historicalBrief = parseDecisionBrief(draft.content);
+                        return (
+                          <article
+                            key={draft.id}
+                            className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={draft.status} />
+                              {draft.created_at && (
+                                <span className="text-xs text-slate-500">
+                                  {new Date(draft.created_at).toLocaleString("vi-VN")}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                              {historicalBrief.conclusion}
+                            </p>
+                            {draft.review_notes && (
+                              <p className="mt-2 text-xs text-slate-500">
+                                Nhận xét: {draft.review_notes}
+                              </p>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
               </>
             )}
           </div>

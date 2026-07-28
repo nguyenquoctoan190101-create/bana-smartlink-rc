@@ -214,20 +214,15 @@
             "type": "string"
           },
           "notes": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Notes",
+            "type": "string"
           }
         },
         "required": [
-          "decision"
+          "decision",
+          "notes"
         ],
         "title": "AiDraftReviewRequest",
         "type": "object"
@@ -1419,22 +1414,39 @@
           "role": {
             "enum": [
               "can_bo_thon",
-              "to_cnscd"
+              "to_cnscd",
+              "admin_xa",
+              "lanh_dao"
             ],
             "title": "Role",
             "type": "string"
           },
           "village_id": {
-            "format": "uuid",
-            "title": "Village Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          },
+          "village_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Village Ids",
+            "type": "array"
           }
         },
         "required": [
           "email",
           "display_name",
-          "role",
-          "village_id"
+          "role"
         ],
         "title": "CreateStaffAccountRequest",
         "type": "object"
@@ -1448,9 +1460,20 @@
           "role": {
             "enum": [
               "can_bo_thon",
-              "to_cnscd"
+              "to_cnscd",
+              "admin_xa",
+              "lanh_dao"
             ],
             "title": "Role",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "single_village",
+              "assigned_villages",
+              "commune"
+            ],
+            "title": "Scope",
             "type": "string"
           },
           "temporary_password": {
@@ -1463,14 +1486,30 @@
             "type": "string"
           },
           "village_id": {
-            "format": "uuid",
-            "title": "Village Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          },
+          "village_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Village Ids",
+            "type": "array"
           }
         },
         "required": [
           "user_id",
           "role",
+          "scope",
           "village_id",
           "force_password_reset",
           "temporary_password"
@@ -2298,6 +2337,13 @@
               }
             ],
             "title": "Village Id"
+          },
+          "village_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Village Ids",
+            "type": "array"
           }
         },
         "required": [
@@ -8043,7 +8089,7 @@
     },
     "/auth/staff-users": {
       "post": {
-        "description": "Create village staff accounts through Supabase Auth Admin API.",
+        "description": "Create a staff identity and enforce the role-specific working scope.",
         "operationId": "create_staff_account_auth_staff_users_post",
         "parameters": [
           {

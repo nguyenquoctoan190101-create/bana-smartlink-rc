@@ -981,7 +981,7 @@ export interface paths {
         put?: never;
         /**
          * Create Staff Account
-         * @description Create village staff accounts through Supabase Auth Admin API.
+         * @description Create a staff identity and enforce the role-specific working scope.
          */
         post: operations["create_staff_account_auth_staff_users_post"];
         delete?: never;
@@ -1694,7 +1694,7 @@ export interface components {
              */
             decision: "accepted" | "rejected";
             /** Notes */
-            notes?: string | null;
+            notes: string;
         };
         /** ApproveReportRequest */
         ApproveReportRequest: {
@@ -2110,12 +2110,11 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "can_bo_thon" | "to_cnscd";
-            /**
-             * Village Id
-             * Format: uuid
-             */
-            village_id: string;
+            role: "can_bo_thon" | "to_cnscd" | "admin_xa" | "lanh_dao";
+            /** Village Id */
+            village_id?: string | null;
+            /** Village Ids */
+            village_ids?: string[];
         };
         /** CreateStaffAccountResponse */
         CreateStaffAccountResponse: {
@@ -2125,7 +2124,12 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "can_bo_thon" | "to_cnscd";
+            role: "can_bo_thon" | "to_cnscd" | "admin_xa" | "lanh_dao";
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "single_village" | "assigned_villages" | "commune";
             /** Temporary Password */
             temporary_password: string;
             /**
@@ -2133,11 +2137,10 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
-            /**
-             * Village Id
-             * Format: uuid
-             */
-            village_id: string;
+            /** Village Id */
+            village_id: string | null;
+            /** Village Ids */
+            village_ids?: string[];
         };
         /** CurrentUserResponse */
         CurrentUserResponse: {
@@ -2418,6 +2421,8 @@ export interface components {
             role: string;
             /** Village Id */
             village_id: string | null;
+            /** Village Ids */
+            village_ids?: string[];
         };
         /** OfflineReportItem */
         OfflineReportItem: {

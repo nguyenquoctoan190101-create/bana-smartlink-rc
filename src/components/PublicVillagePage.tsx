@@ -25,6 +25,7 @@ import {
   getPublicCaseCategoryLabel,
   getPublicLookupEndpoint,
   getPublicStatusLabel,
+  isExampleLookupCode,
 } from "../lib/publicLookup";
 import { loadVillages } from "../lib/useVillages";
 import {
@@ -424,6 +425,14 @@ export default function PublicVillagePage({
     event.preventDefault();
     setLookupResult(null);
     const code = lookupCode.trim().toUpperCase();
+    if (isExampleLookupCode(code)) {
+      setLookupResult({
+        status: "invalid_code",
+        message:
+          "Đây là mã ví dụ để minh họa định dạng, không phải mã hồ sơ thật. Vui lòng nhập mã đã được cấp khi gửi hồ sơ.",
+      });
+      return;
+    }
     const endpoint = getPublicLookupEndpoint(code);
     if (!endpoint) {
       setLookupResult({
@@ -897,24 +906,30 @@ export default function PublicVillagePage({
             aria-label="Ví dụ định dạng mã tra cứu"
           >
             <div>
+              <strong className="mb-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[0.65rem] font-black uppercase tracking-wide text-amber-950">
+                Mã ví dụ — không dùng để tra cứu
+              </strong>
               <span>Đề nghị đối chiếu · 16 ký tự</span>
               <code>A1B2C3D4E5F6G7H8</code>
             </div>
             <div>
+              <strong className="mb-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[0.65rem] font-black uppercase tracking-wide text-amber-950">
+                Mã ví dụ — không dùng để tra cứu
+              </strong>
               <span>Phản ánh hiện trường · 32 ký tự</span>
               <code>A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6</code>
             </div>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            Các mã trên chỉ minh họa định dạng, không phải mã hồ sơ thật. Hãy
-            nhập liền các ký tự đúng như mã bạn nhận được.
+          <p className="mt-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-950">
+            Hai mã phía trên chỉ minh họa hình thức và không có hồ sơ tương
+            ứng. Hãy nhập liền các ký tự của mã thật đã được cấp cho bạn.
           </p>
           <form
             onSubmit={lookupSubmission}
             className="mt-6 flex flex-col gap-3 sm:flex-row"
           >
             <label className="flex-1 text-sm font-semibold text-slate-700">
-              Mã tra cứu
+              Mã tra cứu thật đã được cấp
               <input
                 value={lookupCode}
                 onChange={(event) =>
@@ -927,7 +942,7 @@ export default function PublicVillagePage({
                 spellCheck={false}
                 aria-describedby="public-lookup-help public-lookup-state-help"
                 className="mt-1.5 font-mono tracking-wider"
-                placeholder="Nhập mã 16 hoặc 32 ký tự"
+                placeholder="Nhập mã thật đã được cấp (16 hoặc 32 ký tự)"
               />
             </label>
             <Button
@@ -940,8 +955,14 @@ export default function PublicVillagePage({
           </form>
           {lookupResult && (
             <div
-              role="status"
-              className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+              role={
+                lookupResult.status === "invalid_code" ? "alert" : "status"
+              }
+              className={
+                lookupResult.status === "invalid_code"
+                  ? "mt-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+                  : "mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"
+              }
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="status-badge" data-tone="info">
