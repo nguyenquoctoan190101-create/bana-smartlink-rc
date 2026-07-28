@@ -53,7 +53,9 @@ def run_health_check(base_url: str, timeout_seconds: float = 10.0) -> bool:
                 url,
                 headers={"User-Agent": "BaNaSmartLink-PreDemo/1.0"},
             )
-            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            # _safe_base_url restricts the origin to credential-free HTTP(S);
+            # health paths are fixed constants owned by this script.
+            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 status = response.getcode()
                 content_type = response.headers.get_content_type()
@@ -72,7 +74,9 @@ def _fetch_json(base_url: str, path: str, timeout_seconds: float) -> Any:
         f"{base_url}{path}",
         headers={"User-Agent": "BaNaSmartLink-PreDemo/1.0"},
     )
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+    # _safe_base_url restricts the origin to credential-free HTTP(S), and all
+    # callers pass fixed public API paths owned by this script.
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
         if response.getcode() != 200:
             raise ValueError(f"unexpected HTTP status for {path}")
         return json.loads(response.read().decode("utf-8"))
