@@ -8,7 +8,10 @@ import pytest
 from services.report_repository import (
     ReportRepository,
     _dashboard_color,
+    _days_delta,
     _days_late,
+    _parse_datetime_date,
+    _progress_status,
     _safe_report_status,
 )
 
@@ -211,6 +214,7 @@ async def test_submission_statuses_use_only_confirmed_aliases_and_server_timelin
     statuses = await ReportRepository(supabase).submission_statuses("period/1")
     assert statuses[0].old_village_names == ["Thôn A cũ"]
     assert statuses[0].status == "late" and statuses[0].days_late == 2
+    assert statuses[0].days_delta == 2
     assert statuses[0].dashboard_color == "yellow"
     assert len(statuses) == 1
     alias_path = supabase._rest_request.await_args_list[2].args[1]
@@ -235,6 +239,44 @@ async def test_submission_status_helper_and_invalid_db_status_fail_safe() -> Non
     assert _safe_report_status("unexpected") == "not_submitted"
     assert _dashboard_color("on_time") == "green"
     assert _dashboard_color("late") == "yellow"
-    assert _dashboard_color("not_submitted") == "red"
-    assert _days_late("on_time", date.today(), None) == 0
-    assert _days_late("not_submitted", None, None) == 0
+    assert _dashboard_color("not_submitted") == "blue"
+    assert _dashboard_color("overdue") == "red"
+    assert _days_late("on_time", date.today(), None) is None
+    assert _days_late("not_submitted", None, None) is None
+
+
+def test_progress_status_separates_four_states_and_keeps_signed_deadline_delta() -> None:
+    due = date(2026, 7, 21)
+
+    assert _days_delta("not_submitted", None, None, as_of=date(2026, 7, 18)) is None
+    assert _progress_status(
+        "not_submitted", due, None, as_of=date(2026, 7, 18)
+    ) == "not_submitted"
+    assert _days_delta(
+        "not_submitted", due, None, as_of=date(2026, 7, 18)
+    ) == -3
+    assert _progress_status(
+        "not_submitted", due, None, as_of=date(2026, 7, 24)
+    ) == "overdue"
+    assert _days_delta(
+        "not_submitted", due, None, as_of=date(2026, 7, 24)
+    ) == 3
+    assert _progress_status(
+        "on_time", due, "2026-07-20T23:30:00+07:00"
+    ) == "on_time"
+    assert _days_delta(
+        "on_time", due, "2026-07-20T23:30:00+07:00"
+    ) == -1
+    assert _days_late(
+        "on_time", due, "2026-07-20T23:30:00+07:00"
+    ) == 0
+    assert _progress_status(
+        "late", due, "2026-07-23T08:00:00+07:00"
+    ) == "late"
+    assert _days_delta(
+        "late", due, "2026-07-23T08:00:00+07:00"
+    ) == 2
+
+
+def test_submission_timestamp_is_compared_in_ba_na_local_date() -> None:
+    assert _parse_datetime_date("2026-07-20T18:30:00Z") == date(2026, 7, 21)

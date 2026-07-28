@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, GitCompareArrows, TableProperties } from "lucide-react";
+import { CalendarDays, TableProperties } from "lucide-react";
 import "./ProgressDashboard.css";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { WorkSection } from "./ui";
 
-type DashboardColor = "green" | "yellow" | "red";
-type ReportStatus = "not_submitted" | "on_time" | "late";
+type DashboardColor = "blue" | "green" | "yellow" | "red";
+type ReportStatus = "not_submitted" | "overdue" | "on_time" | "late";
 
 type VillageStatus = {
   village_id: string;
@@ -14,7 +14,8 @@ type VillageStatus = {
   report_id: string | null;
   submitted_at: string | null;
   due_date: string | null;
-  days_late: number;
+  days_late: number | null;
+  days_delta: number | null;
   status: ReportStatus;
   dashboard_color: DashboardColor;
 };
@@ -28,33 +29,20 @@ type ProgressDashboardProps = {
   periodId?: string;
   currentPeriod?: string;
   periods?: PeriodItem[];
-  apiBaseUrl?: string;
 };
 
 const STATUS_LABELS: Record<ReportStatus, string> = {
-  not_submitted: "Chưa nộp",
-  on_time: "Đúng hạn",
-  late: "Trễ hạn",
+  not_submitted: "Chưa nộp, còn hạn",
+  overdue: "Quá hạn, chưa nộp",
+  on_time: "Đã nộp đúng hạn",
+  late: "Đã nộp trễ",
 };
 
-const STATUS_DOT_LABELS: Record<DashboardColor, string> = {
-  green: "Đúng hạn",
-  yellow: "Trễ hạn",
-  red: "Chưa nộp hoặc quá hạn",
-};
-
-const viteApiBaseUrl =
-  (import.meta as unknown as { env?: { VITE_API_BASE_URL?: string } }).env
-    ?.VITE_API_BASE_URL ?? "";
-
-type TrendAlert = {
-  village_id: string;
-  village_name: string;
-  ct_code: string;
-  indicator_name: string;
-  prev_value: number;
-  curr_value: number;
-  change_pct: number;
+const STATUS_ORDER: Record<ReportStatus, number> = {
+  overdue: 0,
+  late: 1,
+  not_submitted: 2,
+  on_time: 3,
 };
 
 type PeriodItem = {
@@ -69,16 +57,12 @@ export default function ProgressDashboard({
   periodId,
   currentPeriod,
   periods: availablePeriods = EMPTY_PERIODS,
-  apiBaseUrl = viteApiBaseUrl,
 }: ProgressDashboardProps) {
   const preferredPeriodId = periodId || currentPeriod || "";
   const [activePeriodId, setActivePeriodId] = useState(preferredPeriodId);
   const [villages, setVillages] = useState<VillageStatus[]>([]);
-  const [alerts, setAlerts] = useState<TrendAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [alertsError, setAlertsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (
@@ -95,15 +79,11 @@ export default function ProgressDashboard({
 
     async function loadData() {
       setIsLoading(true);
-      setIsLoadingAlerts(true);
       setErrorMessage(null);
-      setAlertsError(null);
 
       try {
-        // 1. Fetch status of submissions
         if (!activePeriodId) {
           setVillages([]);
-          setAlerts([]);
           return;
         }
         const statusParams = new URLSearchParams({ period_id: activePeriodId });
@@ -117,49 +97,6 @@ export default function ProgressDashboard({
         }
         const statusPayload = (await statusResponse.json()) as ReportsStatusResponse;
         setVillages(statusPayload.villages);
-
-        // Trend comparison is supplementary. Keep the primary progress table
-        // visible if this secondary chain fails, but tell the user that the
-        // absence of alerts is not an authoritative "no change" conclusion.
-        try {
-          const periodsResponse = await apiFetch(`/reports/periods`, {
-            signal: abortController.signal,
-          });
-          if (!periodsResponse.ok) {
-            throw new Error("Không tải được danh sách kỳ để đối chiếu.");
-          }
-          const periods = (await periodsResponse.json()) as PeriodItem[];
-
-          // Use backend resolved period_id UUID for correct index finding
-          const resolvedPeriodId = statusPayload.period_id;
-          const currentIndex = periods.findIndex((p) => p.id === resolvedPeriodId);
-          if (currentIndex !== -1 && currentIndex + 1 < periods.length) {
-            const prevPeriodId = periods[currentIndex + 1].id;
-            const alertParams = new URLSearchParams({
-              curr_period_id: resolvedPeriodId,
-              prev_period_id: prevPeriodId,
-            });
-            const alertsResponse = await apiFetch(
-              `/reports/trend-alerts?${alertParams}`,
-              { signal: abortController.signal },
-            );
-            if (!alertsResponse.ok) {
-              throw new Error("Không tải được dữ liệu biến động giữa hai kỳ.");
-            }
-            const alertsPayload = (await alertsResponse.json()) as TrendAlert[];
-            setAlerts(alertsPayload);
-          }
-        } catch (optionalError) {
-          if (!abortController.signal.aborted) {
-            setAlerts([]);
-            setAlertsError(
-              toUserFacingError(
-                optionalError,
-                "Đã tải tiến độ nộp báo cáo nhưng chưa đối chiếu được biến động với kỳ trước.",
-              ),
-            );
-          }
-        }
       } catch (error) {
         if (!abortController.signal.aborted) {
           let msg = toUserFacingError(error, "Có lỗi xảy ra khi tải dữ liệu tiến độ.");
@@ -174,14 +111,13 @@ export default function ProgressDashboard({
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoading(false);
-          setIsLoadingAlerts(false);
         }
       }
     }
 
     void loadData();
     return () => abortController.abort();
-  }, [activePeriodId, apiBaseUrl]);
+  }, [activePeriodId]);
 
   const summary = useMemo(() => {
     const totalVillages = villages.length;
@@ -190,9 +126,22 @@ export default function ProgressDashboard({
     ).length;
     const submittedRate =
       totalVillages === 0 ? 0 : Math.round((submittedVillages / totalVillages) * 100);
+    const overdueVillages = villages.filter(
+      (village) => village.status === "overdue",
+    ).length;
 
-    return { submittedRate, submittedVillages, totalVillages };
+    return { overdueVillages, submittedRate, submittedVillages, totalVillages };
   }, [villages]);
+
+  const orderedVillages = useMemo(
+    () =>
+      [...villages].sort(
+        (left, right) =>
+          STATUS_ORDER[left.status] - STATUS_ORDER[right.status] ||
+          left.village_name.localeCompare(right.village_name, "vi"),
+      ),
+    [villages],
+  );
 
   return (
     <section className="progress-dashboard" aria-busy={isLoading}>
@@ -236,6 +185,10 @@ export default function ProgressDashboard({
               <dt>Tỷ lệ nộp</dt>
               <dd>{summary.submittedRate}%</dd>
             </div>
+            <div className="progress-dashboard__metric">
+              <dt>Quá hạn chưa nộp</dt>
+              <dd>{summary.overdueVillages}</dd>
+            </div>
           </dl>
         </div>
 
@@ -245,24 +198,19 @@ export default function ProgressDashboard({
           </div>
         ) : null}
 
-        {alertsError ? (
-          <div className="progress-dashboard__notice" role="status">
-            {alertsError} Phần tiến độ bên dưới vẫn sử dụng được.
-          </div>
-        ) : null}
-
         <div className="progress-dashboard__legend" aria-label="Chú giải trạng thái">
-          <span><i className="progress-dashboard__dot progress-dashboard__dot--green" aria-hidden="true" /> Đúng hạn</span>
-          <span><i className="progress-dashboard__dot progress-dashboard__dot--yellow" aria-hidden="true" /> Trễ hạn</span>
-          <span><i className="progress-dashboard__dot progress-dashboard__dot--red" aria-hidden="true" /> Chưa nộp / quá hạn</span>
-          <span className="progress-dashboard__legend-note">Ngày nộp lấy từ máy chủ; “—” là chưa nộp.</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--green" aria-hidden="true" /> Đã nộp đúng hạn</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--yellow" aria-hidden="true" /> Đã nộp trễ</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--blue" aria-hidden="true" /> Chưa nộp, còn hạn</span>
+          <span><i className="progress-dashboard__dot progress-dashboard__dot--red" aria-hidden="true" /> Quá hạn, chưa nộp</span>
+          <span className="progress-dashboard__legend-note">Hạn và ngày nộp lấy từ máy chủ; “—” là chưa có bằng chứng.</span>
         </div>
       </WorkSection>
 
       <WorkSection
         index="02"
         title="Tiến độ chi tiết theo thôn"
-        description="Mỗi dòng là một đơn vị báo cáo độc lập, thể hiện trạng thái nộp, thời điểm gửi và số ngày trễ."
+        description="Mỗi dòng là một đơn vị báo cáo độc lập, đặt hạn nộp cạnh ngày gửi và chênh lệch ngày để thấy rõ việc cần xử lý."
         tone="tasks"
         icon={<TableProperties />}
       >
@@ -271,114 +219,72 @@ export default function ProgressDashboard({
             Vuốt ngang để xem thêm →
           </span>
           <table className="progress-dashboard__table">
-          <thead>
-            <tr>
-              <th scope="col">STT</th>
-              <th scope="col">Thôn</th>
-              <th scope="col">Trạng thái</th>
-              <th scope="col">Ngày nộp</th>
-              <th scope="col">Số ngày trễ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+            <caption className="sr-only">
+              Tiến độ báo cáo theo thôn, gồm trạng thái, hạn nộp, ngày nộp và
+              chênh lệch so với hạn
+            </caption>
+            <thead>
               <tr>
-                <td colSpan={5}>Đang tải...</td>
+                <th scope="col">STT</th>
+                <th scope="col">Thôn</th>
+                <th scope="col">Trạng thái</th>
+                <th scope="col">Hạn nộp</th>
+                <th scope="col">Ngày nộp</th>
+                <th scope="col">Chênh lệch với hạn</th>
               </tr>
-            ) : null}
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6}>Đang tải...</td>
+                </tr>
+              ) : null}
 
-            {!isLoading && villages.length === 0 ? (
-              <tr>
-                <td colSpan={5}>Chưa có dữ liệu tiến độ.</td>
-              </tr>
-            ) : null}
+              {!isLoading && villages.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>Chưa có dữ liệu tiến độ.</td>
+                </tr>
+              ) : null}
 
-            {!isLoading
-              ? villages.map((village, index) => (
-                  <tr key={village.village_id}>
-                    <td>{index + 1}</td>
-                    <td>
-                      <span className="progress-dashboard__village-name">
-                        {village.village_name}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="progress-dashboard__status">
-                        <span
-                          className={`progress-dashboard__dot progress-dashboard__dot--${village.dashboard_color}`}
-                          aria-label={STATUS_DOT_LABELS[village.dashboard_color]}
-                          role="img"
-                        />
-                        {STATUS_LABELS[village.status]}
-                      </span>
-                    </td>
-                    <td>{formatDate(village.submitted_at)}</td>
-                    <td>{formatDaysLate(village.days_late)}</td>
-                  </tr>
-                ))
-              : null}
-          </tbody>
+              {!isLoading
+                ? orderedVillages.map((village, index) => (
+                    <tr key={village.village_id}>
+                      <td>{index + 1}</td>
+                      <th scope="row">
+                        <span className="progress-dashboard__village-name">
+                          {village.village_name}
+                        </span>
+                      </th>
+                      <td>
+                        <span className="progress-dashboard__status">
+                          <span
+                            className={`progress-dashboard__dot progress-dashboard__dot--${village.dashboard_color}`}
+                            aria-hidden="true"
+                          />
+                          {STATUS_LABELS[village.status]}
+                        </span>
+                      </td>
+                      <td>{formatDate(village.due_date)}</td>
+                      <td>{formatDate(village.submitted_at)}</td>
+                      <td>
+                        {formatDaysDelta(
+                          village.status,
+                          village.days_delta,
+                          village.due_date,
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                : null}
+            </tbody>
           </table>
         </div>
       </WorkSection>
 
-      {/* Biến động đáng chú ý kỳ này */}
-      {!isLoadingAlerts && alerts.length > 0 ? (
-        <WorkSection
-          index="03"
-          title="Biến động cần rà soát"
-          description="Tách riêng các chỉ tiêu thay đổi trên 20% so với kỳ trước để không trộn với tiến độ nộp báo cáo."
-          tone="evidence"
-          icon={<GitCompareArrows />}
-        >
-          <div className="progress-dashboard__alerts-section">
-            <h3>Biến động đáng chú ý kỳ này (&gt; 20%)</h3>
-            <div className="progress-dashboard__table-wrap table-scroll-region focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng biến động cần rà soát; có thể cuộn ngang trên màn hình nhỏ">
-              <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
-                Vuốt ngang để xem thêm →
-              </span>
-              <table className="progress-dashboard__table progress-dashboard__table--alerts">
-              <thead>
-                <tr>
-                  <th scope="col" style={{ width: "20%" }}>Thôn</th>
-                  <th scope="col" style={{ width: "40%" }}>Chỉ tiêu</th>
-                  <th scope="col" style={{ width: "13%" }}>Kỳ trước</th>
-                  <th scope="col" style={{ width: "13%" }}>Kỳ này</th>
-                  <th scope="col" style={{ width: "14%" }}>Biến động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((alert) => (
-                  <tr key={`${alert.village_id}-${alert.ct_code}`}>
-                    <td>
-                      <span className="progress-dashboard__village-name">
-                        {alert.village_name}
-                      </span>
-                    </td>
-                    <td>{alert.indicator_name} ({alert.ct_code})</td>
-                    <td>{alert.prev_value}</td>
-                    <td>{alert.curr_value}</td>
-                    <td>
-                      <span
-                        className="progress-dashboard__change-badge progress-dashboard__change-badge--neutral"
-                        aria-label={`${alert.change_pct >= 0 ? "Tăng" : "Giảm"} ${Math.abs(alert.change_pct)} phần trăm so với kỳ trước`}
-                      >
-                        {alert.change_pct >= 0 ? `+${alert.change_pct}%` : `${alert.change_pct}%`}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
-            </div>
-          </div>
-        </WorkSection>
-      ) : !isLoadingAlerts ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600" role="status">
-          Không có biến động vượt ngưỡng 20% trong phạm vi so sánh, hoặc kỳ đang
-          chọn chưa có kỳ trước đủ dữ liệu để đối chiếu.
-        </div>
-      ) : null}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600" role="status">
+        So sánh qua kỳ chưa bật vì registry chưa có quy tắc so sánh, ngưỡng tuyệt
+        đối và tương đối, baseline, hướng biến động và chủ sở hữu được phê duyệt.
+      </div>
 
     </section>
   );
@@ -398,13 +304,25 @@ function formatDate(value: string | null): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "Asia/Ho_Chi_Minh",
   }).format(date);
 }
 
-function formatDaysLate(daysLate: number): string {
-  if (daysLate <= 0) {
-    return "-";
+function formatDaysDelta(
+  status: ReportStatus,
+  daysDelta: number | null,
+  dueDate: string | null,
+): string {
+  if (!dueDate) return "Chưa đặt hạn";
+  if (daysDelta == null || !Number.isFinite(daysDelta)) return "—";
+  if (status === "overdue") return `Quá hạn ${Math.max(0, daysDelta)} ngày`;
+  if (status === "late") return `Muộn ${Math.max(0, daysDelta)} ngày`;
+  if (status === "not_submitted") {
+    if (daysDelta < 0) return `Còn ${Math.abs(daysDelta)} ngày`;
+    if (daysDelta === 0) return "Hạn hôm nay";
+    return `Quá hạn ${daysDelta} ngày`;
   }
-
-  return `${daysLate} ngày`;
+  if (daysDelta < 0) return `Sớm ${Math.abs(daysDelta)} ngày`;
+  if (daysDelta === 0) return "Đúng hạn";
+  return `Muộn ${daysDelta} ngày`;
 }

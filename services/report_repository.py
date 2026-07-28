@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 from urllib.parse import quote
 
@@ -11,6 +11,10 @@ from services.validator import ValidationError
 
 ReportSource = Literal["manual", "excel", "photo_ocr", "direct_api"]
 ReportStatus = Literal["not_submitted", "on_time", "late"]
+ProgressStatus = Literal["not_submitted", "overdue", "on_time", "late"]
+DashboardColor = Literal["blue", "green", "yellow", "red"]
+# Viet Nam has used UTC+07:00 without daylight-saving changes since 1975.
+LOCAL_TIMEZONE = timezone(timedelta(hours=7), name="Asia/Ho_Chi_Minh")
 
 
 @dataclass(frozen=True)
@@ -37,9 +41,10 @@ class VillageSubmissionStatus:
     report_id: str | None
     submitted_at: str | None
     due_date: str | None
-    days_late: int
-    status: ReportStatus
-    dashboard_color: str
+    days_late: int | None
+    days_delta: int | None
+    status: ProgressStatus
+    dashboard_color: DashboardColor
 
 
 class ReportRepository:
@@ -250,8 +255,18 @@ class ReportRepository:
                 continue
             report = reports_by_village.get(village_id)
             status_value = str(report["timeliness_status"]) if report is not None else "not_submitted"
-            status = _safe_report_status(status_value)
+            report_status = _safe_report_status(status_value)
             submitted_at = str(report["submitted_at"]) if report is not None else None
+            progress_status = _progress_status(
+                report_status,
+                due_date,
+                submitted_at,
+            )
+            days_delta = _days_delta(
+                report_status,
+                due_date,
+                submitted_at,
+            )
             statuses.append(
                 VillageSubmissionStatus(
                     village_id=village_id,
@@ -260,13 +275,20 @@ class ReportRepository:
                     report_id=str(report["id"]) if report is not None else None,
                     submitted_at=submitted_at,
                     due_date=due_date.isoformat() if due_date is not None else None,
-                    days_late=_days_late(status, due_date, submitted_at),
-                    status=status,
-                    dashboard_color=_dashboard_color(status),
+                    days_late=(
+                        None if days_delta is None else max(0, days_delta)
+                    ),
+                    days_delta=days_delta,
+                    status=progress_status,
+                    dashboard_color=_dashboard_color(progress_status),
                 )
             )
 
-        return statuses
+        priority = {"overdue": 0, "late": 1, "not_submitted": 2, "on_time": 3}
+        return sorted(
+            statuses,
+            key=lambda item: (priority[item.status], item.village_name.casefold()),
+        )
 
     async def _submission_status(self, period_id: str) -> ReportStatus:
         encoded_period_id = quote(period_id, safe="")
@@ -278,7 +300,7 @@ class ReportRepository:
             return "on_time"
 
         due_date = _parse_date(str(rows[0]["due_date"]))
-        return "on_time" if date.today() <= due_date else "late"
+        return "on_time" if _local_today() <= due_date else "late"
 
 
 def _parse_date(value: str) -> date:
@@ -287,18 +309,62 @@ def _parse_date(value: str) -> date:
 
 def _parse_datetime_date(value: str) -> date:
     normalized_value = value.replace("Z", "+00:00")
-    return datetime.fromisoformat(normalized_value).date()
+    parsed = datetime.fromisoformat(normalized_value)
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(LOCAL_TIMEZONE)
+    return parsed.date()
 
 
-def _days_late(status: ReportStatus, due_date: date | None, submitted_at: str | None) -> int:
-    if due_date is None or status == "on_time":
-        return 0
+def _local_today() -> date:
+    return datetime.now(LOCAL_TIMEZONE).date()
 
-    comparison_date = date.today()
-    if status == "late" and submitted_at is not None:
+
+def _days_delta(
+    status: ReportStatus,
+    due_date: date | None,
+    submitted_at: str | None,
+    *,
+    as_of: date | None = None,
+) -> int | None:
+    """Return signed days from deadline without converting missing evidence to zero."""
+    if due_date is None:
+        return None
+
+    if status in {"on_time", "late"}:
+        if submitted_at is None:
+            return None
         comparison_date = _parse_datetime_date(submitted_at)
+    else:
+        comparison_date = as_of or _local_today()
 
-    return max(0, (comparison_date - due_date).days)
+    return (comparison_date - due_date).days
+
+
+def _days_late(
+    status: ReportStatus,
+    due_date: date | None,
+    submitted_at: str | None,
+) -> int | None:
+    days_delta = _days_delta(status, due_date, submitted_at)
+    return None if days_delta is None else max(0, days_delta)
+
+
+def _progress_status(
+    status: ReportStatus,
+    due_date: date | None,
+    submitted_at: str | None,
+    *,
+    as_of: date | None = None,
+) -> ProgressStatus:
+    if status in {"on_time", "late"}:
+        return status
+    days_delta = _days_delta(
+        status,
+        due_date,
+        submitted_at,
+        as_of=as_of,
+    )
+    return "overdue" if days_delta is not None and days_delta > 0 else "not_submitted"
 
 
 def _safe_report_status(value: str) -> ReportStatus:
@@ -308,11 +374,13 @@ def _safe_report_status(value: str) -> ReportStatus:
     return "not_submitted"
 
 
-def _dashboard_color(status: ReportStatus) -> str:
+def _dashboard_color(status: ProgressStatus) -> DashboardColor:
     if status == "on_time":
         return "green"
     if status == "late":
         return "yellow"
+    if status == "not_submitted":
+        return "blue"
 
     return "red"
 

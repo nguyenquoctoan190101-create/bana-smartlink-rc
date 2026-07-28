@@ -3076,18 +3076,26 @@ export interface components {
         };
         /** VillageStatusResponse */
         VillageStatusResponse: {
-            /** Dashboard Color */
-            dashboard_color: string;
+            /**
+             * Dashboard Color
+             * @enum {string}
+             */
+            dashboard_color: "blue" | "green" | "yellow" | "red";
+            /** Days Delta */
+            days_delta: number | null;
             /** Days Late */
-            days_late: number;
+            days_late: number | null;
             /** Due Date */
             due_date: string | null;
             /** Old Village Names */
             old_village_names: string[];
             /** Report Id */
             report_id: string | null;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_submitted" | "overdue" | "on_time" | "late";
             /** Submitted At */
             submitted_at: string | null;
             /**

@@ -283,9 +283,10 @@ class VillageStatusResponse(BaseModel):
     report_id: UUID | None
     submitted_at: str | None
     due_date: str | None
-    days_late: int
-    status: str
-    dashboard_color: str
+    days_late: int | None
+    days_delta: int | None
+    status: Literal["not_submitted", "overdue", "on_time", "late"]
+    dashboard_color: Literal["blue", "green", "yellow", "red"]
 
 
 class ReportsStatusResponse(BaseModel):
@@ -2349,6 +2350,7 @@ def _status_response(item: VillageSubmissionStatus) -> VillageStatusResponse:
         submitted_at=item.submitted_at,
         due_date=item.due_date,
         days_late=item.days_late,
+        days_delta=item.days_delta,
         status=item.status,
         dashboard_color=item.dashboard_color,
     )
