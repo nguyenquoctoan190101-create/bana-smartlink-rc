@@ -391,7 +391,11 @@ export default function PublicVillagePage({
       : selectedPeriod;
   const reportTimestamp = getPublicReportTimestamp(selectedReport);
   const updatedLabel = reportTimestamp
-    ? new Date(reportTimestamp).toLocaleDateString("vi-VN")
+    ? new Date(reportTimestamp).toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
     : "Chưa có bản công bố";
   const publicDownloadUrl =
     selectedReport && datasetMetadata
@@ -412,30 +416,60 @@ export default function PublicVillagePage({
 
   const goToProposalStep = (step: ProposalStep) => {
     setFormError(null);
-    if (
-      step === 2 &&
-      (!selectedReport || suggestedValue === "" || !explanation.trim())
-    ) {
-      setFormError(
-        !selectedReport
-          ? "Thôn hoặc kỳ này chưa có báo cáo công khai để kiến nghị."
-          : "Vui lòng nhập giá trị đề xuất và lý do điều chỉnh.",
-      );
-      return;
+    if (step === 2) {
+      const numericValue = Number(suggestedValue);
+      if (!selectedReport) {
+        setFormError(
+          "Thôn hoặc kỳ này chưa có báo cáo công khai để kiến nghị.",
+        );
+        return;
+      }
+      if (
+        suggestedValue === ""
+        || !Number.isInteger(numericValue)
+        || numericValue < 0
+      ) {
+        setFormError("Giá trị đề xuất phải là số nguyên không âm.");
+        return;
+      }
+      if (!explanation.trim()) {
+        setFormError("Vui lòng nêu lý do và nguồn thông tin cần đối chiếu.");
+        return;
+      }
     }
-    if (step === 3 && !phone.trim()) {
-      setFormError("Vui lòng nhập số điện thoại để cán bộ liên hệ đối chiếu.");
-      return;
+    if (step === 3) {
+      const normalizedPhone = phone.replace(/[\s().-]/g, "");
+      if (!/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)) {
+        setFormError(
+          "Số điện thoại chưa đúng định dạng. Ví dụ: 0901 234 567.",
+        );
+        return;
+      }
     }
     setProposalStep(step);
   };
 
   const handleSubmitProposal = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedReport || !privacyConsent) {
+    const numericValue = Number(suggestedValue);
+    const normalizedPhone = phone.replace(/[\s().-]/g, "");
+    if (
+      !selectedReport
+      || !Number.isInteger(numericValue)
+      || numericValue < 0
+      || !explanation.trim()
+      || !/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)
+      || !privacyConsent
+    ) {
       setFormError(
         !selectedReport
           ? "Không tìm thấy bản công bố phù hợp để đối chiếu."
+          : !Number.isInteger(numericValue) || numericValue < 0
+            ? "Giá trị đề xuất phải là số nguyên không âm."
+            : !explanation.trim()
+              ? "Vui lòng nêu lý do và nguồn thông tin cần đối chiếu."
+              : !/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)
+                ? "Số điện thoại chưa đúng định dạng. Ví dụ: 0901 234 567."
           : "Bạn cần đồng ý với thông báo quyền riêng tư trước khi gửi.",
       );
       return;
@@ -451,8 +485,8 @@ export default function PublicVillagePage({
           village_id: selectedVillageId,
           report_period: selectedReport.report_period,
           ct_code: selectedIndicator,
-          proposed_value: Number(suggestedValue),
-          proposed_by_phone: phone.trim(),
+          proposed_value: numericValue,
+          proposed_by_phone: normalizedPhone,
           submitter_name: submitterName.trim() || undefined,
           explanation,
           privacy_consent: true,
@@ -1293,6 +1327,7 @@ export default function PublicVillagePage({
                       className="mt-1.5"
                       type="number"
                       min={0}
+                      step={1}
                       required
                       value={suggestedValue}
                       onChange={(event) =>

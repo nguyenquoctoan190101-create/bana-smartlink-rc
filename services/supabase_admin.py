@@ -358,7 +358,7 @@ class SupabaseAdminClient:
         submitter_address: str | None = None,
         submitter_relation: str | None = None,
         explanation: str | None = None,
-        consent_version: str = "2026-07-13",
+        consent_version: str = "1.0-2026-07-26",
         tracking_code: str | None = None,
     ) -> dict[str, Any]:
         payload = {

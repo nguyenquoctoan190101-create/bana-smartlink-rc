@@ -186,4 +186,54 @@ describe("PublicVillagePage navigation", () => {
     );
     expect(download).toHaveAttribute("download");
   });
+
+  it("blocks invalid proposal values and phone numbers before submission", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path === "/reports/public/metadata") {
+        return Promise.resolve(publicMetadata);
+      }
+      if (path === "/reports/public") {
+        return Promise.resolve([
+          {
+            village_id: "village-1",
+            report_period: "Tháng 7/2026",
+            published_at: "2026-07-28T08:00:00+07:00",
+            values: { CT01: 318 },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    render(<PublicVillagePage onGoToLogin={vi.fn()} />);
+
+    await screen.findByText("318");
+    await user.click(
+      within(
+        screen.getByRole("navigation", {
+          name: "Điều hướng cổng công khai",
+        }),
+      ).getByRole("button", { name: "Đề nghị đối chiếu số liệu" }),
+    );
+
+    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "-1");
+    await user.type(
+      screen.getByLabelText("Lý do cần đối chiếu"),
+      "Đối chiếu nguồn công khai.",
+    );
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "số nguyên không âm",
+    );
+
+    await user.clear(screen.getByLabelText(/Giá trị đề xuất/));
+    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "320");
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    await user.type(screen.getByLabelText(/Số điện thoại/), "123");
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Số điện thoại chưa đúng định dạng",
+    );
+    expect(mocks.apiFetch).not.toHaveBeenCalled();
+  });
 });
