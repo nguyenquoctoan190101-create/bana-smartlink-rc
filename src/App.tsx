@@ -146,6 +146,8 @@ type AppTab =
   | "pilots"
   | "record-lookup";
 
+const CNSCD_IMPACT_LABEL = "Kết quả hỗ trợ chuyển đổi số";
+
 const APP_TAB_TITLES: Record<AppTab, string> = {
   dashboard: "Báo cáo tổng hợp",
   "progress-dashboard": "Tiến độ báo cáo",
@@ -153,7 +155,7 @@ const APP_TAB_TITLES: Record<AppTab, string> = {
   "citizen-proposal": "Đề nghị đối chiếu số liệu",
   "admin-panel": "Quản lý tài khoản",
   "policy-scorecard": "Chỉ số báo cáo điện tử",
-  "cnscd-impact": "Hỗ trợ lập báo cáo",
+  "cnscd-impact": CNSCD_IMPACT_LABEL,
   "create-period": "Kỳ và biểu mẫu báo cáo",
   "period-change-requests": "Phê duyệt thay đổi kỳ báo cáo",
   "pending-updates": "Xử lý đề nghị đối chiếu",
@@ -1417,7 +1419,7 @@ export default function App() {
             label: "Theo dõi thực hiện kế hoạch",
             icon: Award,
           },
-          { id: "cnscd-impact", label: "Hỗ trợ lập báo cáo", icon: UserCheck },
+          { id: "cnscd-impact", label: CNSCD_IMPACT_LABEL, icon: UserCheck },
           {
             id: "create-period",
             label: "Kỳ và biểu mẫu báo cáo",
@@ -1479,7 +1481,7 @@ export default function App() {
             ? [
                 {
                   id: "cnscd-impact" as const,
-                  label: "Kết quả hỗ trợ chuyển đổi số",
+                  label: CNSCD_IMPACT_LABEL,
                   icon: UserCheck,
                 },
               ]
@@ -1561,7 +1563,7 @@ export default function App() {
         },
         {
           id: "cnscd-impact" as const,
-          label: "Kết quả hỗ trợ chuyển đổi số",
+          label: CNSCD_IMPACT_LABEL,
         },
         {
           id: "period-change-requests" as const,

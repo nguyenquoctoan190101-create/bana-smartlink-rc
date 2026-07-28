@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
+import { auditActionLabel, auditObjectLabel } from "../lib/auditPresentation";
 import type { ReportPeriod, UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, StatusBadge, WorkSection } from "./ui";
 import "./OperationsCenter.css";
@@ -212,31 +213,6 @@ const actionEvidenceStatuses = new Set<Action["evidence_status"]>([
   "manual",
   "missing",
 ]);
-const auditActionLabels: Record<string, string> = {
-  INSERT: "Tạo bản ghi",
-  UPDATE: "Cập nhật bản ghi",
-  DELETE: "Xóa bản ghi",
-  CREATE_REPORT_PERIOD: "Tạo kỳ báo cáo",
-  PROPOSAL_APPROVE: "Phê duyệt kiến nghị",
-  PROPOSAL_REJECT: "Từ chối kiến nghị",
-  REPORT_SUBMIT: "Nộp báo cáo",
-  REPORT_APPROVE: "Duyệt báo cáo",
-  REPORT_LOCK: "Khóa báo cáo",
-  REPORT_PUBLISH: "Công bố báo cáo",
-  REPORT_DELETE: "Xóa báo cáo",
-};
-const auditTableLabels: Record<string, string> = {
-  reports: "Báo cáo thôn",
-  report_values: "Chỉ tiêu báo cáo",
-  report_validation_flags: "Cờ kiểm tra dữ liệu",
-  report_periods: "Kỳ báo cáo",
-  pending_updates: "Kiến nghị đối chiếu",
-  profiles: "Tài khoản cán bộ",
-  ai_action_drafts: "Nội dung hỗ trợ quyết định",
-  action_items: "Hàng việc",
-  legacy_import_batches: "Lô dữ liệu lịch sử",
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -1590,12 +1566,10 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                           })}
                         </td>
                         <td>
-                          {auditActionLabels[entry.action] ||
-                            `Mã thao tác ${entry.action}`}
+                          {auditActionLabel(entry.action)}
                         </td>
                         <td>
-                          {auditTableLabels[entry.table_name] ||
-                            entry.table_name}
+                          {auditObjectLabel(entry.table_name)}
                         </td>
                         <td className="font-mono">
                           {shortAuditReference(entry.record_id)}

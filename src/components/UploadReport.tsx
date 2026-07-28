@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { apiJson, apiUpload, toUserFacingError } from "../lib/apiClient";
 import type { ExtractionCorrection, ExtractionMetadata, IndicatorCode } from "../types";
+import rulesData from "../validation_rules.json";
 
 interface UploadReportProps {
   onDataExtracted: (
@@ -30,6 +31,56 @@ interface UploadReportProps {
 }
 
 type PreviewSource = "excel" | "photo_ocr" | "pdf_ocr";
+
+const EVIDENCE_FLAG_LABELS: Record<string, string> = {
+  AI_CONFIDENCE_UNCALIBRATED: "Độ tin cậy do hệ thống nhận dạng cung cấp; cán bộ cần kiểm tra",
+  OCR_CONFLICT: "Số liệu nhận dạng không thống nhất giữa các trang",
+  UNREADABLE: "Không đọc được nội dung trong vùng số liệu",
+  UNPARSEABLE: "Đã đọc được nội dung nhưng chưa chuyển được thành số",
+  LOW_CONFIDENCE: "Độ tin cậy nhận dạng thấp",
+  BLANK: "Thiếu số liệu bắt buộc",
+  TEXT: "Nội dung không phải là số hợp lệ",
+  SEP: "Dấu phân cách số chưa đúng",
+  LOGIC: "Số liệu chưa hợp lý so với chỉ tiêu liên quan",
+  OUTLIER: "Số liệu có biến động bất thường",
+  BADPHONE: "Số điện thoại không hợp lệ",
+};
+
+const evidenceFlagLabel = (flag: string): string =>
+  EVIDENCE_FLAG_LABELS[flag] || "Cần cán bộ kiểm tra lại số liệu";
+
+const EXTRACTOR_LABELS: Record<string, string> = {
+  gemini_multimodal: "Nhận dạng hình ảnh",
+  openpyxl: "Đọc tệp Excel",
+};
+
+const SOURCE_REGION_LABELS: Record<string, string> = {
+  data_table: "vùng bảng số liệu",
+  worksheet: "trang tính",
+  official_template: "biểu mẫu chính thức",
+};
+
+const extractorLabel = (extractor: string, version?: string | null): string => {
+  const [extractorName, embeddedVersion] = extractor.split(":", 2);
+  const label = EXTRACTOR_LABELS[extractorName] || "Đọc dữ liệu tự động";
+  const displayVersion = version || embeddedVersion;
+  return displayVersion ? `${label} · phiên bản ${displayVersion}` : label;
+};
+
+const sourceRegionLabel = (region: string): string =>
+  SOURCE_REGION_LABELS[region] || "vùng dữ liệu trong tệp";
+
+const templateVersionLabel = (version: string): string =>
+  version === "ct14-official-2026-07"
+    ? "Biểu mẫu 14 chỉ tiêu · 07/2026"
+    : version;
+
+const INDICATOR_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(rulesData).map(([code, rule]) => [
+    code,
+    `${rule.name} (${rule.unit})`,
+  ]),
+);
 
 interface FieldEvidence {
   raw_value?: string | number | null;
@@ -142,23 +193,6 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
       // Some reverse proxies return an HTML/plain-text error page.
     }
     return fallback;
-  };
-
-  const INDICATOR_MAP: Record<string, string> = {
-    CT01: "Tổng số hộ dân (Hộ)",
-    CT02: "Tổng số nhân khẩu (Nhân khẩu)",
-    CT03: "Số hộ nghèo (Hộ)",
-    CT04: "Số hộ cận nghèo (Hộ)",
-    CT05: "Số người có công với cách mạng đang được quản lý (Người)",
-    CT06: "Số đối tượng bảo trợ xã hội đang hưởng trợ cấp (Người)",
-    CT07: "Số trẻ em dưới 16 tuổi (Trẻ em)",
-    CT08: "Số trẻ em có hoàn cảnh đặc biệt (Trẻ em)",
-    CT09: "Số hộ đạt 'Gia đình văn hóa' (Hộ)",
-    CT10: "Số người trong độ tuổi lao động (Người)",
-    CT11: "Số người tham gia BHYT (Người)",
-    CT12: "Số thành viên Tổ công nghệ số cộng đồng (Người)",
-    CT13: "Số người được hướng dẫn sử dụng dịch vụ công trực tuyến trong kỳ (Người)",
-    CT14: "Số vụ bạo lực gia đình ghi nhận trong kỳ (Vụ)"
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -733,8 +767,8 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-4 py-3 text-2xs text-slate-600">
             <span><b>Loại nguồn:</b> {previewSource === "excel" ? "Excel theo biểu mẫu" : previewSource === "pdf_ocr" ? "PDF quét" : "Ảnh báo cáo"}</span>
             <span><b>Mã kiểm tra tệp:</b> {previewChecksum ? `${previewChecksum.slice(0, 12)}…` : "Chưa có"}</span>
-            <span><b>Bộ trích xuất:</b> {previewExtractorVersions.length ? previewExtractorVersions.join(", ") : "Chưa ghi nhận"}</span>
-            {previewImportMetadata?.template_version && <span><b>Phiên bản biểu mẫu:</b> {previewImportMetadata.template_version}</span>}
+            <span><b>Cách đọc dữ liệu:</b> {previewExtractorVersions.length ? previewExtractorVersions.map((item) => extractorLabel(item)).join(", ") : "Chưa ghi nhận"}</span>
+            {previewImportMetadata?.template_version && <span><b>Phiên bản biểu mẫu:</b> {templateVersionLabel(previewImportMetadata.template_version)}</span>}
             {previewImportMetadata?.rule_version && <span><b>Phiên bản quy tắc:</b> {previewImportMetadata.rule_version}</span>}
             {previewImportMetadata?.quality_summary && (
               <span><b>Chất lượng xem trước:</b> {
@@ -843,15 +877,17 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                                 {row.confidence !== undefined && <span className={`rounded-full px-2 py-0.5 font-black ${badgeClass}`}>Tin cậy {confPercentage}%</span>}
                               </div>
                               <p className="text-slate-500">
-                                <b>Vị trí:</b> {row.sourcePage ? `trang ${row.sourcePage}` : "tệp hiện tại"}{row.sourceRegion ? ` · ${row.sourceRegion}` : ""}
+                                <b>Vị trí:</b> {row.sourcePage ? `trang ${row.sourcePage}` : "tệp hiện tại"}{row.sourceRegion ? ` · ${sourceRegionLabel(row.sourceRegion)}` : ""}
                               </p>
-                              {(row.extractor || row.extractorVersion) && <p className="text-slate-400">Bộ trích xuất: {row.extractor || "OCR"}{row.extractorVersion ? ` · ${row.extractorVersion}` : ""}</p>}
+                              {(row.extractor || row.extractorVersion) && <p className="text-slate-400">Cách đọc: {extractorLabel(row.extractor || "ocr", row.extractorVersion)}</p>}
                               {row.isNullCode ? (
                                 <span className="font-extrabold text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 block">Không đọc được số liệu; cần nhập từ tài liệu gốc.</span>
                               ) : row.ocrWarning ? (
                                 <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">{row.ocrWarning}</span>
                               ) : row.evidenceFlags?.length ? (
-                                <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">{row.evidenceFlags.join(" · ")}</span>
+                                <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 block">
+                                  {row.evidenceFlags.map(evidenceFlagLabel).join(" · ")}
+                                </span>
                               ) : (
                                 <span className="text-slate-500">Không có cảnh báo theo quy tắc.</span>
                               )}
@@ -861,7 +897,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                           <>
                             <td className="py-3 px-4 text-slate-500 italic max-w-[200px] truncate" title={row.matchedFrom}>
                               <span className="text-2xs font-medium">{row.rawValue === null || row.rawValue === undefined ? "—" : String(row.rawValue)}</span>
-                              {row.sourceRegion && <span className="mt-1 block text-4xs not-italic text-slate-400">Nguồn: {row.sourceRegion}</span>}
+                              {row.sourceRegion && <span className="mt-1 block text-4xs not-italic text-slate-400">Nguồn: {sourceRegionLabel(row.sourceRegion)}</span>}
                             </td>
                             <td className="py-3 px-4 text-center">
                               <div className="flex flex-col items-center justify-center">

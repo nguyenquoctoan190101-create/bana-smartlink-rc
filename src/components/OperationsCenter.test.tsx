@@ -129,8 +129,8 @@ describe("OperationsCenter", () => {
       if (path === "/auth/audit-logs") {
         return Promise.resolve([{
           id: "00000000-0000-4000-8000-000000000101",
-          action: "UPDATE",
-          table_name: "reports",
+          action: "APPROVED_REPORT_PERIOD_DELETE",
+          table_name: "report_period_change_decisions",
           record_id: "00000000-0000-4000-8000-000000000202",
           user_id: "00000000-0000-4000-8000-000000000303",
           created_at: "2026-07-29T02:15:00Z",
@@ -152,8 +152,10 @@ describe("OperationsCenter", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Tệp Excel · phiên bản 4")).toBeInTheDocument();
     expect(screen.getByText("2 lỗi · 1 bất thường")).toBeInTheDocument();
-    expect(screen.getByText("Cập nhật bản ghi")).toBeInTheDocument();
-    expect(screen.getByText("Báo cáo thôn")).toBeInTheDocument();
+    expect(screen.getByText("Phê duyệt xóa kỳ báo cáo")).toBeInTheDocument();
+    expect(screen.getByText("Quyết định thay đổi kỳ báo cáo")).toBeInTheDocument();
+    expect(screen.queryByText("APPROVED_REPORT_PERIOD_DELETE")).not.toBeInTheDocument();
+    expect(screen.queryByText("report_period_change_decisions")).not.toBeInTheDocument();
     expect(screen.getByText("00000000")).toBeInTheDocument();
     expect(screen.getByText("Tài khoản 00000000")).toBeInTheDocument();
     expect(screen.queryByText(/0900000000/)).not.toBeInTheDocument();

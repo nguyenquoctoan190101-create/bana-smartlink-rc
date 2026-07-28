@@ -126,6 +126,46 @@ describe("UploadReport", () => {
     expect(await screen.findByText(/Kết quả trích xuất/)).toBeInTheDocument();
   });
 
+  it("presents OCR evidence flags as clear Vietnamese guidance", async () => {
+    mockedApiJson.mockResolvedValue({
+      ocr_preview_enabled: true,
+      ocr_setup_status: "ready",
+    });
+    const ocrPreview = previewResponse();
+    ocrPreview.source = "photo_ocr";
+    ocrPreview.import_metadata.source_type = "photo_ocr";
+    ocrPreview.evidence.CT01.flags = [
+      "AI_CONFIDENCE_UNCALIBRATED",
+      "LOW_CONFIDENCE",
+    ];
+    ocrPreview.evidence.CT01.source_region = "data_table";
+    ocrPreview.evidence.CT01.extractor = "gemini_multimodal";
+    ocrPreview.evidence.CT01.version = "2.1";
+    ocrPreview.extractor_versions = ["gemini_multimodal:2.1"];
+    mockedApiUpload.mockResolvedValue(new Response(
+      JSON.stringify(ocrPreview),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    const { container } = render(
+      <UploadReport onDataExtracted={vi.fn()} onCancel={vi.fn()} />,
+    );
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    await waitFor(() => expect(input).toHaveAttribute("accept", expect.stringContaining(".jpg")));
+
+    fireEvent.change(input!, {
+      target: { files: [new File(["image"], "bao-cao.jpg", { type: "image/jpeg" })] },
+    });
+
+    expect(await screen.findByText(/Độ tin cậy do hệ thống nhận dạng cung cấp/)).toBeInTheDocument();
+    expect(screen.getByText(/Độ tin cậy nhận dạng thấp/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Nhận dạng hình ảnh · phiên bản 2.1/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/trang 1 · vùng bảng số liệu/)).toBeInTheDocument();
+    expect(screen.queryByText(/AI_CONFIDENCE_UNCALIBRATED/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/LOW_CONFIDENCE/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/gemini_multimodal/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/data_table/)).not.toBeInTheDocument();
+  });
+
   it("explains when OCR awaits server-side provider configuration", async () => {
     mockedApiJson.mockResolvedValue({
       ocr_preview_enabled: false,
@@ -205,5 +245,7 @@ describe("UploadReport", () => {
     ));
     expect(await screen.findByText(/Kết quả trích xuất/)).toBeInTheDocument();
     expect(screen.getByText("bao-cao.xlsx")).toBeInTheDocument();
+    expect(screen.getByText("Tổng số nhân khẩu (Người)")).toBeInTheDocument();
+    expect(screen.getByText("Số trẻ em dưới 16 tuổi (Người)")).toBeInTheDocument();
   });
 });

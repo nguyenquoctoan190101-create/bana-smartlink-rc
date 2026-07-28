@@ -15,7 +15,7 @@ function isEnteredInteger(value: number | null | undefined): value is number {
 function requiredError(code: IndicatorCode): ValidationError {
   return {
     field: code,
-    message: `${code} là bắt buộc và phải là số nguyên không âm.`,
+    message: `${validationRules[code].name} (${code}) là bắt buộc và phải là số nguyên không âm.`,
     severity: "error",
   };
 }
@@ -53,7 +53,10 @@ export function validateReportIndicators(indicators: IndicatorValues): ReportVal
     if (minimum !== undefined && maximum !== undefined && (ratio < minimum || ratio > maximum)) {
       warnings.push({
         field: "CT02",
-        message: `${validationRules.CT02.warning_message} (Tỷ lệ hiện tại: ${ratio.toFixed(2)} lần)`,
+        message: `${validationRules.CT02.warning_message} Tỷ lệ hiện tại: ${ratio.toLocaleString("vi-VN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} lần.`,
         severity: "warning",
       });
     }
@@ -82,7 +85,10 @@ export function validateReportIndicators(indicators: IndicatorValues): ReportVal
     if (minimum !== undefined && maximum !== undefined && (ratio < minimum || ratio > maximum)) {
       warnings.push({
         field: "CT07",
-        message: `Cảnh báo: tỷ lệ trẻ em dưới 16 tuổi là ${(ratio * 100).toFixed(1)}%; cần đối chiếu lại danh sách dân cư trước khi nộp.`,
+        message: `Tỷ lệ trẻ em dưới 16 tuổi hiện là ${(ratio * 100).toLocaleString("vi-VN", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}%; cần đối chiếu lại danh sách dân cư trước khi nộp.`,
         severity: "warning",
       });
     }

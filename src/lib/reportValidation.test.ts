@@ -70,5 +70,7 @@ describe("validateReportIndicators", () => {
 
     const outlier = validateReportIndicators(values({ CT02: 500, CT07: 250, CT10: 200, CT11: 330 }));
     expect(outlier.warnings.map((warning) => warning.field)).toEqual(["CT02", "CT07"]);
+    expect(outlier.warnings[0].message).toContain("5,00 lần");
+    expect(outlier.warnings[1].message).toContain("50,0%");
   });
 });
