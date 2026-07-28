@@ -131,8 +131,22 @@ type QualityResponse = {
   reports?: Quality[];
   rule_version?: string;
 };
+type AuditEntry = {
+  id: string;
+  action: string;
+  table_name: string;
+  record_id: string;
+  user_id: string | null;
+  created_at: string;
+};
 type LoadResult = {
-  key: "quality" | "actions" | "drafts" | "maturity" | "initiatives";
+  key:
+    | "quality"
+    | "actions"
+    | "drafts"
+    | "maturity"
+    | "initiatives"
+    | "audit";
   label: string;
   value: unknown;
   error?: unknown;
@@ -198,6 +212,30 @@ const actionEvidenceStatuses = new Set<Action["evidence_status"]>([
   "manual",
   "missing",
 ]);
+const auditActionLabels: Record<string, string> = {
+  INSERT: "Tạo bản ghi",
+  UPDATE: "Cập nhật bản ghi",
+  DELETE: "Xóa bản ghi",
+  CREATE_REPORT_PERIOD: "Tạo kỳ báo cáo",
+  PROPOSAL_APPROVE: "Phê duyệt kiến nghị",
+  PROPOSAL_REJECT: "Từ chối kiến nghị",
+  REPORT_SUBMIT: "Nộp báo cáo",
+  REPORT_APPROVE: "Duyệt báo cáo",
+  REPORT_LOCK: "Khóa báo cáo",
+  REPORT_PUBLISH: "Công bố báo cáo",
+  REPORT_DELETE: "Xóa báo cáo",
+};
+const auditTableLabels: Record<string, string> = {
+  reports: "Báo cáo thôn",
+  report_values: "Chỉ tiêu báo cáo",
+  report_validation_flags: "Cờ kiểm tra dữ liệu",
+  report_periods: "Kỳ báo cáo",
+  pending_updates: "Kiến nghị đối chiếu",
+  profiles: "Tài khoản cán bộ",
+  ai_action_drafts: "Nội dung hỗ trợ quyết định",
+  action_items: "Hàng việc",
+  legacy_import_batches: "Lô dữ liệu lịch sử",
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -209,6 +247,25 @@ function isStringArray(value: unknown): value is string[] {
 
 function isOptionalString(value: unknown): value is string | null | undefined {
   return value == null || typeof value === "string";
+}
+
+function isAuditEntry(value: unknown): value is AuditEntry {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.action === "string" &&
+    typeof value.table_name === "string" &&
+    typeof value.record_id === "string" &&
+    (value.user_id === null || typeof value.user_id === "string") &&
+    typeof value.created_at === "string" &&
+    Number.isFinite(Date.parse(value.created_at))
+  );
+}
+
+function shortAuditReference(value: string | null): string {
+  if (!value) return "Hệ thống";
+  const compact = value.replace(/-/g, "");
+  return compact ? compact.slice(0, 8).toUpperCase() : "Hệ thống";
 }
 
 function isActionQueueItem(value: unknown): value is Action {
@@ -678,6 +735,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const [drafts, setDrafts] = useState<DecisionDraft[]>([]);
   const [maturity, setMaturity] = useState<any[]>([]);
   const [initiatives, setInitiatives] = useState<any[]>([]);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [actionOutcomes, setActionOutcomes] = useState<Record<string, string>>({});
   const [draftReviewNotes, setDraftReviewNotes] = useState<Record<string, string>>({});
   const [draftBusy, setDraftBusy] = useState<string | null>(null);
@@ -690,6 +748,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     drafts: null,
     maturity: null,
     initiatives: null,
+    audit: null,
   });
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -733,6 +792,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     }
     if (admin) {
       requests.push(load("initiatives", "danh mục sáng kiến", apiJson("/api/operations/initiatives")));
+      requests.push(
+        load("audit", "nhật ký kiểm toán", apiJson("/auth/audit-logs")),
+      );
       if (maturityEnabled) {
         requests.push(load("maturity", "đánh giá trưởng thành số", apiJson("/api/operations/maturity")));
       }
@@ -751,6 +813,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         if (result.key === "drafts") setDrafts([]);
         if (result.key === "maturity") setMaturity([]);
         if (result.key === "initiatives") setInitiatives([]);
+        if (result.key === "audit") setAuditEntries([]);
         continue;
       }
       if (result.key === "quality") setQuality(result.value as typeof quality);
@@ -770,6 +833,13 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       }
       if (result.key === "maturity") setMaturity(Array.isArray(result.value) ? result.value : []);
       if (result.key === "initiatives") setInitiatives(Array.isArray(result.value) ? result.value : []);
+      if (result.key === "audit") {
+        setAuditEntries(
+          Array.isArray(result.value)
+            ? result.value.filter(isAuditEntry).slice(0, 10)
+            : [],
+        );
+      }
     }
     const failed = results.filter((result) => result.error).map((result) => result.label);
     if (failed.length) {
@@ -1464,6 +1534,92 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
             </>
           )}
         </div>
+        {admin && (
+          <section
+            aria-labelledby="operations-audit-title"
+            className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4"
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3
+                  id="operations-audit-title"
+                  className="font-bold text-slate-900"
+                >
+                  Dấu vết kiểm soát gần nhất
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Đối chiếu thao tác, đối tượng, mã bản ghi, người thực hiện và
+                  thời điểm. Chi tiết nội bộ không được lặp lại trên bảng tổng
+                  quan.
+                </p>
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-slate-500">
+                Tối đa 10 bản ghi mới nhất
+              </span>
+            </div>
+            {available.audit === false ? (
+              <div className="mt-4">
+                <ErrorState
+                  title="Chưa tải được nhật ký kiểm toán"
+                  description="Bằng chứng chất lượng vẫn được giữ nguyên; thử tải lại nhật ký trước khi kết luận về thao tác gần nhất."
+                  onRetry={() => void refresh()}
+                />
+              </div>
+            ) : auditEntries.length > 0 ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="operations-quality-table">
+                  <caption className="sr-only">
+                    Mười bản ghi kiểm toán mới nhất gồm thời gian, thao tác, đối
+                    tượng, mã bản ghi và người thực hiện
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Thời gian</th>
+                      <th scope="col">Thao tác</th>
+                      <th scope="col">Đối tượng</th>
+                      <th scope="col">Mã bản ghi</th>
+                      <th scope="col">Người thực hiện</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditEntries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>
+                          {new Date(entry.created_at).toLocaleString("vi-VN", {
+                            timeZone: "Asia/Ho_Chi_Minh",
+                          })}
+                        </td>
+                        <td>
+                          {auditActionLabels[entry.action] ||
+                            `Mã thao tác ${entry.action}`}
+                        </td>
+                        <td>
+                          {auditTableLabels[entry.table_name] ||
+                            entry.table_name}
+                        </td>
+                        <td className="font-mono">
+                          {shortAuditReference(entry.record_id)}
+                        </td>
+                        <td>
+                          {entry.user_id
+                            ? `Tài khoản ${shortAuditReference(entry.user_id)}`
+                            : "Hệ thống"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="mt-4">
+                <EmptyState
+                  title="Chưa có dấu vết kiểm toán"
+                  description="Nhật ký sẽ xuất hiện sau khi hệ thống ghi nhận thao tác quản trị hoặc thay đổi dữ liệu."
+                />
+              </div>
+            )}
+          </section>
+        )}
       </WorkSection>
 
       {internal && (

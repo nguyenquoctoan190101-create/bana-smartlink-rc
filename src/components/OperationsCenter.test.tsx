@@ -103,6 +103,71 @@ describe("OperationsCenter", () => {
     expect(screen.queryByText("ready")).not.toBeInTheDocument();
   });
 
+  it("gives administrators one control view for quality lineage flags and audit", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          rule_version: "2026-07-29",
+          reports: [{
+            report_id: "report-1",
+            village_name: "Thôn An Sơn",
+            completeness_percent: 100,
+            completeness_numerator: 14,
+            completeness_denominator: 14,
+            validity_percent: 92,
+            blocking_flag_count: 1,
+            timeliness_percent: 100,
+            timeliness_status: "on_time",
+            quality_status: "needs_review",
+            unresolved_flag_count: 2,
+            outlier_count: 1,
+            lineage: { report_source: "excel", report_version: 4 },
+          }],
+        });
+      }
+      if (path === "/auth/audit-logs") {
+        return Promise.resolve([{
+          id: "00000000-0000-4000-8000-000000000101",
+          action: "UPDATE",
+          table_name: "reports",
+          record_id: "00000000-0000-4000-8000-000000000202",
+          user_id: "00000000-0000-4000-8000-000000000303",
+          created_at: "2026-07-29T02:15:00Z",
+          details: '{"phone":"0900000000","internal_note":"không lặp lại"}',
+        }]);
+      }
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    const { container } = render(
+      <OperationsCenter periodId="period-1" role="admin_xa" />,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Dấu vết kiểm soát gần nhất",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tệp Excel · phiên bản 4")).toBeInTheDocument();
+    expect(screen.getByText("2 lỗi · 1 bất thường")).toBeInTheDocument();
+    expect(screen.getByText("Cập nhật bản ghi")).toBeInTheDocument();
+    expect(screen.getByText("Báo cáo thôn")).toBeInTheDocument();
+    expect(screen.getByText("00000000")).toBeInTheDocument();
+    expect(screen.getByText("Tài khoản 00000000")).toBeInTheDocument();
+    expect(screen.queryByText(/0900000000/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/không lặp lại/)).not.toBeInTheDocument();
+    const result = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
+    expect(
+      result.violations.filter(
+        ({ impact }) => impact === "serious" || impact === "critical",
+      ),
+    ).toEqual([]);
+  });
+
   it("keeps leadership evidence approved and scoped to the selected period", async () => {
     mocks.apiJson.mockImplementation((path: string) => {
       if (path.startsWith("/api/operations/quality")) {
@@ -993,6 +1058,12 @@ describe("OperationsCenter", () => {
     const view = within(container);
 
     expect(await view.findByRole("heading", { name: heading })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.apiJson).toHaveBeenCalledWith(
+        expect.stringContaining("/api/operations/quality"),
+      ),
+    );
+    expect(mocks.apiJson).not.toHaveBeenCalledWith("/auth/audit-logs");
     expect(view.getByRole("heading", { name: "Hàng việc cần xử lý" })).toBeInTheDocument();
     expect(view.getByRole("heading", { name: "Dữ liệu cần rà soát" })).toBeInTheDocument();
     expect(view.queryByRole("heading", { name: "Nội dung hỗ trợ quyết định" })).not.toBeInTheDocument();
