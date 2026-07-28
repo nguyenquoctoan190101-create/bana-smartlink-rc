@@ -271,13 +271,17 @@ def _schema_for_bundle(
 
 
 def _parse_analysis(raw: str | dict[str, Any], bundle: dict[str, Any]) -> DecisionAnalysis:
+    invalid_analysis = False
     try:
         if isinstance(raw, str):
             analysis = DecisionAnalysis.model_validate_json(raw)
         else:
             analysis = DecisionAnalysis.model_validate(raw)
     except Exception:
-        # Pydantic validation errors can retain the provider's complete output.
+        invalid_analysis = True
+    if invalid_analysis:
+        # Raise outside the except block: Pydantic validation errors can retain
+        # the provider's complete output through __context__.
         raise DecisionAiError("AI returned an invalid decision schema") from None
     validate_grounding(
         analysis,
@@ -341,6 +345,7 @@ async def _openai_enrichment(
         "store": False,
         "safety_identifier": safety_identifier,
     }
+    transport_failed = False
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
             response = await client.post(
@@ -352,14 +357,19 @@ async def _openai_enrichment(
                 json=request_payload,
             )
     except httpx.HTTPError:
-        # The transport exception can retain the request, including its
-        # Authorization header. Do not carry it across the redaction boundary.
+        transport_failed = True
+    if transport_failed:
+        # Raise outside the except block so no request or Authorization header
+        # remains reachable through the safe exception's __context__.
         raise DecisionAiError("OpenAI request failed") from None
     if response.status_code >= 400:
         raise DecisionAiError("OpenAI request failed")
+    invalid_response_json = False
     try:
         payload = response.json()
     except ValueError:
+        invalid_response_json = True
+    if invalid_response_json:
         # JSON decoding errors retain the complete provider response body.
         raise DecisionAiError("OpenAI returned an unexpected response") from None
     analysis = _parse_analysis(_extract_openai_text(payload), bundle)
@@ -374,6 +384,7 @@ async def _gemini_enrichment(
     settings: Settings,
     bundle: dict[str, Any],
 ) -> tuple[DecisionAnalysis, dict[str, Any]]:
+    provider_failed = False
     try:
         payload = await GeminiClient(settings).generate_json(
             _instructions(),
@@ -381,9 +392,12 @@ async def _gemini_enrichment(
             + json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
             _schema_for_bundle(bundle, gemini=True),
             max_output_tokens=1800,
+            allow_json_mode_fallback=True,
         )
-    except GeminiError as exc:
-        raise DecisionAiError("Gemini request failed") from exc
+    except GeminiError:
+        provider_failed = True
+    if provider_failed:
+        raise DecisionAiError("Gemini request failed") from None
     return _parse_analysis(payload, bundle), {}
 
 

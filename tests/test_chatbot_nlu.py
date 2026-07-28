@@ -25,10 +25,10 @@ class _StructuredGemini:
         self,
         system_prompt: str,
         user_text: str,
-        response_schema: dict[str, Any],
+        response_json_schema: dict[str, Any],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        _ = (system_prompt, response_schema, kwargs)
+        _ = (system_prompt, response_json_schema, kwargs)
         self.user_text = user_text
         return self.result
 

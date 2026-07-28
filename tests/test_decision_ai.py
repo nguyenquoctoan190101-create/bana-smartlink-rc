@@ -9,12 +9,14 @@ import pytest
 from services.decision_ai import (
     DecisionAiError,
     DecisionAnalysis,
+    _gemini_enrichment,
     _openai_enrichment,
     _parse_analysis,
     build_evidence_bundle,
     enrich_decision_brief,
     validate_grounding,
 )
+from services.gemini import GeminiError
 from services.settings import Settings
 
 
@@ -265,6 +267,7 @@ async def test_openai_transport_error_does_not_retain_authorization() -> None:
             )
 
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
     assert "provider-secret" not in str(caught.value)
     assert "provider-secret" not in repr(caught.value.__dict__)
 
@@ -293,6 +296,7 @@ async def test_openai_malformed_json_does_not_retain_provider_body() -> None:
             )
 
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
     assert "provider-secret" not in str(caught.value)
     assert "provider-secret" not in repr(caught.value.__dict__)
 
@@ -331,6 +335,61 @@ async def test_gemini_schema_preserves_titles_and_binds_request_evidence() -> No
         "period:Tháng bảy",
         "report-1",
     ]
+    assert generate_json.await_args.kwargs["allow_json_mode_fallback"] is True
+
+
+@pytest.mark.asyncio
+async def test_gemini_json_fallback_remains_inside_strict_local_boundary() -> None:
+    settings = Settings(
+        _env_file=None,
+        feature_decision_ai=True,
+        decision_ai_provider="gemini",
+        gemini_api_key="gemini-test-key",
+    )
+    bad_payload = _analysis_payload()
+    bad_payload["provider_only_field"] = "must be rejected"
+    generate_json = AsyncMock(return_value=bad_payload)
+
+    with patch(
+        "services.decision_ai.GeminiClient.generate_json",
+        new=generate_json,
+    ):
+        attempt = await enrich_decision_brief(
+            settings=settings,
+            period_name="Tháng bảy",
+            deterministic_content="Kết luận: Cần rà soát.",
+            citations=_citations(),
+            safety_subject="user",
+        )
+
+    assert attempt.status == "fallback"
+    assert attempt.model_provider == "deterministic-evidence-v2"
+    assert generate_json.await_args.kwargs["allow_json_mode_fallback"] is True
+
+
+@pytest.mark.asyncio
+async def test_gemini_error_boundary_suppresses_provider_cause() -> None:
+    settings = Settings(
+        _env_file=None,
+        gemini_api_key="gemini-test-key",
+    )
+    bundle = build_evidence_bundle(
+        period_name="Tháng bảy",
+        deterministic_content="Kết luận: Cần rà soát.",
+        citations=_citations(),
+    )
+
+    with patch(
+        "services.decision_ai.GeminiClient.generate_json",
+        new=AsyncMock(side_effect=GeminiError("provider-secret-output")),
+    ):
+        with pytest.raises(DecisionAiError, match="request failed") as caught:
+            await _gemini_enrichment(settings, bundle)
+
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)
 
 
 def test_grounding_rejects_unknown_references_even_with_valid_schema() -> None:
@@ -354,6 +413,7 @@ def test_invalid_decision_schema_does_not_retain_provider_output() -> None:
 
     assert "do-not-retain" not in str(caught.value)
     assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
 
 
 @pytest.mark.asyncio

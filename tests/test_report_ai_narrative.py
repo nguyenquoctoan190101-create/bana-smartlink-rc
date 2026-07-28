@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from routers.reports import ReportNarrativeRequest, create_report_narrative
+from services.gemini import GeminiError
 
 
 VALID_VALUES = {
@@ -36,12 +37,46 @@ class FakeGemini:
     def __init__(self) -> None:
         self.kwargs: dict = {}
 
-    async def generate_json(self, **kwargs):  # type: ignore[no-untyped-def]
-        self.kwargs = kwargs
+    async def generate_json(
+        self,
+        system_prompt: str,
+        user_text: str,
+        response_json_schema: dict,
+        max_output_tokens: int = 256,
+        *,
+        allow_json_mode_fallback: bool = False,
+    ) -> dict:
+        self.kwargs = {
+            "system_prompt": system_prompt,
+            "user_text": user_text,
+            "response_json_schema": response_json_schema,
+            "max_output_tokens": max_output_tokens,
+            "allow_json_mode_fallback": allow_json_mode_fallback,
+        }
         return {
             "warnings": ["CT13 cần được đối chiếu với nguồn nhập."],
             "recommendations": ["Kiểm tra nguồn nhập CT13 trước khi nộp."],
         }
+
+
+class FailingGemini(FakeGemini):
+    async def generate_json(
+        self,
+        system_prompt: str,
+        user_text: str,
+        response_json_schema: dict,
+        max_output_tokens: int = 256,
+        *,
+        allow_json_mode_fallback: bool = False,
+    ) -> dict:
+        _ = (
+            system_prompt,
+            user_text,
+            response_json_schema,
+            max_output_tokens,
+            allow_json_mode_fallback,
+        )
+        raise GeminiError("provider-secret-output")
 
 
 def _request() -> Request:
@@ -90,3 +125,17 @@ def test_ai_narrative_rejects_unknown_indicator() -> None:
         asyncio.run(create_report_narrative(_request(), ReportNarrativeRequest(values=values), None))
 
     assert exc.value.status_code == 422
+
+
+def test_ai_narrative_provider_error_drops_exception_context() -> None:
+    payload = ReportNarrativeRequest(values=VALID_VALUES, period_name="Tháng 7/2026")
+
+    with patch("routers.reports.get_gemini_client", return_value=FailingGemini()):
+        with pytest.raises(HTTPException) as caught:
+            asyncio.run(create_report_narrative(_request(), payload, None))
+
+    assert caught.value.status_code == 503
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)

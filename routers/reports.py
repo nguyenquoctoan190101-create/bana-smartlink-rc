@@ -1567,18 +1567,21 @@ async def create_report_narrative(
         },
         ensure_ascii=False,
     )
+    provider_failed = False
     try:
         generated = await get_gemini_client().generate_json(
             system_prompt=system_prompt,
             user_text=user_text,
-            response_schema=response_schema,
+            response_json_schema=response_schema,
         )
-    except GeminiError as exc:
-        logger.warning("AI narrative unavailable: %s", type(exc).__name__)
+    except GeminiError:
+        provider_failed = True
+    if provider_failed:
+        logger.warning("AI narrative unavailable")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Dịch vụ diễn giải AI hiện chưa sẵn sàng. Kiểm tra nghiệp vụ vẫn hoạt động bình thường.",
-        ) from exc
+        ) from None
 
     def clean_items(value: Any) -> list[str]:
         if not isinstance(value, list):
