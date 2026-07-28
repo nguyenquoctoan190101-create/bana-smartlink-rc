@@ -1,9 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CitizenProposal from "./CitizenProposal";
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
+
+const publishedReport = {
+  village_id: "village-1",
+  report_period: "Tháng 7/2026",
+  workflow_status: "approved",
+  publication_status: "published",
+  updated_at: "2026-07-20T00:00:00Z",
+  published_at: "2026-07-20T00:00:00Z",
+  CT01: 120,
+};
 
 vi.mock("../lib/useVillages", () => ({ useVillages: () => ({ villages: [{ id: "village-1", name: "Thôn mẫu" }] }) }));
 vi.mock("../lib/apiClient", () => ({
@@ -12,6 +22,8 @@ vi.mock("../lib/apiClient", () => ({
 }));
 
 describe("citizen proposal workflow", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.apiFetch.mockResolvedValue({
@@ -22,7 +34,7 @@ describe("citizen proposal workflow", () => {
 
   it("moves through the three review steps before submission", async () => {
     const user = userEvent.setup();
-    render(<CitizenProposal reports={[{ village_id: "village-1", report_period: "Tháng 7/2026" }]} onProposalSubmitted={() => undefined} />);
+    render(<CitizenProposal reports={[publishedReport]} onProposalSubmitted={() => undefined} />);
 
     await user.type(screen.getByLabelText(/Giá trị đề xuất/), "125");
     await user.type(screen.getByLabelText("Lý do cần đối chiếu"), "Số liệu cần cán bộ đối chiếu lại.");
@@ -64,5 +76,64 @@ describe("citizen proposal workflow", () => {
     expect(screen.getByText(/đường, điện, nước, rác thải/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Phản ánh hiện trường" }));
     expect(openFieldReport).toHaveBeenCalledOnce();
+  });
+
+  it("uses only the newest public report and excludes internal data", async () => {
+    render(
+      <CitizenProposal
+        reports={[
+          {
+            ...publishedReport,
+            report_period: "Chưa xác định",
+            published_at: "2026-07-01T00:00:00Z",
+            CT01: 247,
+          },
+          {
+            ...publishedReport,
+            report_period: "Tháng 8/2026",
+            workflow_status: "submitted",
+            publication_status: "private",
+            published_at: null,
+            updated_at: "2026-08-20T00:00:00Z",
+            CT01: 999,
+          },
+          {
+            ...publishedReport,
+            report_period: "Bản công bố minh họa — Tháng 7/2026",
+            period_id: "period-july",
+            published_at: "2026-07-28T00:00:00Z",
+            CT01: 318,
+          },
+        ]}
+        onProposalSubmitted={() => undefined}
+      />,
+    );
+
+    expect(await screen.findByDisplayValue("Bản công bố minh họa — Tháng 7/2026")).toBeInTheDocument();
+    expect(screen.getByText("318 hộ")).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Tháng 8/2026" })).not.toBeInTheDocument();
+  });
+
+  it("blocks invalid values and phone numbers before advancing", async () => {
+    const user = userEvent.setup();
+    render(
+      <CitizenProposal
+        reports={[publishedReport]}
+        onProposalSubmitted={() => undefined}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "-1");
+    await user.type(screen.getByLabelText("Lý do cần đối chiếu"), "Đối chiếu nguồn.");
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("số nguyên không âm");
+
+    await user.clear(screen.getByLabelText(/Giá trị đề xuất/));
+    await user.type(screen.getByLabelText(/Giá trị đề xuất/), "125");
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    await user.type(screen.getByLabelText(/Số điện thoại/), "123");
+    await user.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("chưa đúng định dạng");
+    expect(screen.queryByText("Xác nhận nội dung")).not.toBeInTheDocument();
   });
 });

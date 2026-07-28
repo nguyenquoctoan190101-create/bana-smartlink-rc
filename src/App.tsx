@@ -2124,7 +2124,10 @@ export default function App() {
 
                 {activeTab === "citizen-proposal" && (
                   <CitizenProposal
-                    reports={reports.filter((report) => !report.local_only)}
+                    reports={reports.filter(
+                      (report) =>
+                        !report.local_only && isPubliclyVisibleReport(report),
+                    )}
                     onProposalSubmitted={loadAllReports}
                     onOpenFieldReport={() => changeTab("cases")}
                   />
