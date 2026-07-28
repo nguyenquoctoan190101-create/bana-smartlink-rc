@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { prepareReportForSync, sanitizeReportForOffline, selectLatestDraftForScope } from "./db";
+import {
+  prepareReportForSync,
+  reportDataFromApiRow,
+  sanitizeReportForOffline,
+  selectLatestDraftForScope,
+} from "./db";
 import { INDICATOR_CODES, type IndicatorValues, type ReportData } from "../types";
 
 describe("offline privacy boundary", () => {
@@ -78,5 +83,51 @@ describe("offline privacy boundary", () => {
     expect(selectLatestDraftForScope(reports, "village-a", "period-a")?.id).toBe("new");
     expect(selectLatestDraftForScope(reports, "village-a", "period-a")?.CT01).toBe(42);
     expect(selectLatestDraftForScope(reports, "village-a", "missing")).toBeNull();
+  });
+});
+
+describe("report API timestamp mapping", () => {
+  it("prefers the authoritative update time and preserves workflow timestamps", () => {
+    const mapped = reportDataFromApiRow(
+      {
+        id: "report-1",
+        village_id: "village-1",
+        period_id: "period-1",
+        workflow_status: "approved",
+        timeliness_status: "on_time",
+        publication_status: "private",
+        submitted_at: "2026-07-10T01:00:00Z",
+        approved_at: "2026-07-11T02:00:00Z",
+        updated_at: "2026-07-12T03:00:00Z",
+        values: { CT01: 318 },
+      },
+      new Map([["period-1", "Tháng 7/2026"]]),
+    );
+
+    expect(mapped.updated_at).toBe("2026-07-12T03:00:00Z");
+    expect(mapped.submitted_at).toBe("2026-07-10T01:00:00Z");
+    expect(mapped.approved_at).toBe("2026-07-11T02:00:00Z");
+    expect(mapped.report_period).toBe("Tháng 7/2026");
+    expect(mapped.CT01).toBe(318);
+    expect(mapped.CT02).toBeNull();
+  });
+
+  it("keeps the published timestamp fallback for the legacy public response", () => {
+    const mapped = reportDataFromApiRow(
+      {
+        id: "public-report",
+        village_id: "village-1",
+        report_period: "Tháng 7/2026",
+        published_at: "2026-07-15T04:00:00Z",
+        values: { CT01: 318 },
+      },
+      new Map(),
+      true,
+    );
+
+    expect(mapped.updated_at).toBe("2026-07-15T04:00:00Z");
+    expect(mapped.published_at).toBe("2026-07-15T04:00:00Z");
+    expect(mapped.workflow_status).toBe("approved");
+    expect(mapped.publication_status).toBe("published");
   });
 });

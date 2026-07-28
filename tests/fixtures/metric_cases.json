@@ -1,0 +1,672 @@
+{
+  "schema_version": 1,
+  "registry_version": "2026-07-28.1",
+  "cases": [
+    {
+      "case_id": "ratio_of_sums_filters_nonfinal",
+      "metric_id": "health_insurance_rate",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a", "village-b"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 4,
+          "values": {"CT02": 100, "CT11": 90}
+        },
+        {
+          "report_id": "r-b",
+          "village_id": "village-b",
+          "period_id": "period-2026-07",
+          "workflow_status": "locked",
+          "version": 7,
+          "values": {"CT02": 2, "CT11": 1}
+        },
+        {
+          "report_id": "r-draft",
+          "village_id": "village-draft",
+          "period_id": "period-2026-07",
+          "workflow_status": "draft",
+          "version": 99,
+          "values": {"CT02": 1, "CT11": 1}
+        }
+      ],
+      "expected": {
+        "metric_id": "health_insurance_rate",
+        "value": 89.2156862745098,
+        "numerator": 91,
+        "denominator": 102,
+        "unit": "percent_people",
+        "included_count": 2,
+        "expected_count": 2,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": null,
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 4,
+            "workflow_status": "approved"
+          },
+          {
+            "report_id": "r-b",
+            "village_id": "village-b",
+            "version": 7,
+            "workflow_status": "locked"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "confirmed_zero",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-zero",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": 0}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": 0,
+        "numerator": 0,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": null,
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-zero",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "missing_formula_value",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-missing",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": null}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "partial",
+        "reason": "partial_coverage",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-missing",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "zero_denominator",
+      "metric_id": "poverty_household_rate",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-zero-denominator",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT01": 0, "CT03": 0}
+        }
+      ],
+      "expected": {
+        "metric_id": "poverty_household_rate",
+        "value": null,
+        "numerator": 0,
+        "denominator": 0,
+        "unit": "percent_households",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "zero_denominator",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-zero-denominator",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "negative_value",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-negative",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": -1}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "invalid_value",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-negative",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "partial_village_scope",
+      "metric_id": "poverty_household_rate",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a", "village-b"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT01": 50, "CT03": 5}
+        }
+      ],
+      "expected": {
+        "metric_id": "poverty_household_rate",
+        "value": 10,
+        "numerator": 5,
+        "denominator": 50,
+        "unit": "percent_households",
+        "included_count": 1,
+        "expected_count": 2,
+        "missing_count": 1,
+        "coverage_status": "partial",
+        "reason": "partial_coverage",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "mixed_periods",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a", "village-b"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": 3}
+        },
+        {
+          "report_id": "r-b",
+          "village_id": "village-b",
+          "period_id": "period-2026-06",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": 4}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 2,
+        "expected_count": 2,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "period_mismatch",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          },
+          {
+            "report_id": "r-b",
+            "village_id": "village-b",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "duplicate_village_period",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a-v1",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": 3}
+        },
+        {
+          "report_id": "r-a-v2",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "locked",
+          "version": 2,
+          "values": {"CT13": 4}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 2,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "duplicate_village_period",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a-v1",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          },
+          {
+            "report_id": "r-a-v2",
+            "village_id": "village-a",
+            "version": 2,
+            "workflow_status": "locked"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "outside_scope",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-outside",
+          "village_id": "village-outside",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT13": 3}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 1,
+        "coverage_status": "partial",
+        "reason": "scope_mismatch",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-outside",
+            "village_id": "village-outside",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "case_workflow_not_aggregated",
+      "metric_id": "CT14",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT14": 1}
+        }
+      ],
+      "expected": {
+        "metric_id": "CT14",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "case",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "aggregation_not_supported",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "draft_metric_blocked",
+      "metric_id": "vulnerable_children_rate",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT07": 20, "CT08": 2}
+        }
+      ],
+      "expected": {
+        "metric_id": "vulnerable_children_rate",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "percent_children",
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "metric_not_approved",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "no_final_reports",
+      "metric_id": "guided_people_count",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-draft",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "draft",
+          "version": 1,
+          "values": {"CT13": 8}
+        }
+      ],
+      "expected": {
+        "metric_id": "guided_people_count",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "person",
+        "included_count": 0,
+        "expected_count": 1,
+        "missing_count": 1,
+        "coverage_status": "unavailable",
+        "reason": "no_eligible_reports",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": []
+      }
+    },
+    {
+      "case_id": "duplicate_expected_scope",
+      "metric_id": "CT01",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a", "village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT01": 10}
+        }
+      ],
+      "expected": {
+        "metric_id": "CT01",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "household",
+        "included_count": 1,
+        "expected_count": 2,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "invalid_context",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "invalid_provenance_version",
+      "metric_id": "CT01",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 0,
+          "values": {"CT01": 10}
+        }
+      ],
+      "expected": {
+        "metric_id": "CT01",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": "household",
+        "included_count": 0,
+        "expected_count": 1,
+        "missing_count": 1,
+        "coverage_status": "unavailable",
+        "reason": "invalid_report",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": []
+      }
+    },
+    {
+      "case_id": "unknown_metric",
+      "metric_id": "not_registered",
+      "context": {
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "expected_village_ids": ["village-a"]
+      },
+      "reports": [
+        {
+          "report_id": "r-a",
+          "village_id": "village-a",
+          "period_id": "period-2026-07",
+          "workflow_status": "approved",
+          "version": 1,
+          "values": {"CT01": 10}
+        }
+      ],
+      "expected": {
+        "metric_id": "not_registered",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "unit": null,
+        "included_count": 1,
+        "expected_count": 1,
+        "missing_count": 0,
+        "coverage_status": "complete",
+        "reason": "metric_not_found",
+        "registry_version": "2026-07-28.1",
+        "period_id": "period-2026-07",
+        "scope": "commune:ba-na",
+        "source_report_versions": [
+          {
+            "report_id": "r-a",
+            "village_id": "village-a",
+            "version": 1,
+            "workflow_status": "approved"
+          }
+        ]
+      }
+    }
+  ]
+}

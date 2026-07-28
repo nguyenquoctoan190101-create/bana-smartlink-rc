@@ -90,7 +90,9 @@ def main() -> int:
     for json_path in [
         ROOT / "package.json",
         ROOT / "config" / "validation_rules.json",
+        ROOT / "config" / "metric_registry.json",
         ROOT / "config" / "field_synonyms.json",
+        ROOT / "tests" / "fixtures" / "metric_cases.json",
     ]:
         try:
             json.loads(json_path.read_text(encoding="utf-8"))

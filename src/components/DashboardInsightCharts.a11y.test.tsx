@@ -143,8 +143,13 @@ describe("DashboardInsightCharts accessibility", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("list", {
+      screen.queryByRole("list", {
         name: "Dữ liệu trẻ em hoàn cảnh đặc biệt theo từng thôn",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Chưa đủ dữ liệu về trẻ em có hoàn cảnh đặc biệt",
       }),
     ).toBeInTheDocument();
   });

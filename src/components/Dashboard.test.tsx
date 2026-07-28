@@ -484,6 +484,93 @@ describe("Dashboard device drafts", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses the registry ratio-of-sums for commune KPIs", async () => {
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "report-a",
+            village_id: "village-1",
+            period_id: "period-july",
+            CT02: 100,
+            CT11: 100,
+          }),
+          report({
+            id: "report-b",
+            village_id: "village-2",
+            period_id: "period-july",
+            CT02: 900,
+            CT11: 450,
+          }),
+        ]}
+        reportPeriods={[{
+          id: "period-july",
+          name: "Tháng 7/2026",
+          due_date: "2026-07-31T17:00:00+07:00",
+          village_ids: ["village-1", "village-2"],
+        }]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Kỳ dữ liệu")).toHaveValue(
+        "period:period-july",
+      ),
+    );
+    const bhytCard = screen
+      .getByRole("heading", { name: "Tỷ lệ tham gia BHYT" })
+      .closest<HTMLElement>(".leadership-metric-card");
+
+    expect(bhytCard).not.toBeNull();
+    expect(within(bhytCard!).getByText("55.0%")).toBeInTheDocument();
+    expect(bhytCard).toHaveTextContent(/550\s*\/\s*1[.,]000/);
+    expect(within(bhytCard!).queryByText("75.0%")).not.toBeInTheDocument();
+  });
+
+  it("keeps the partial-scope value while stating exact coverage", async () => {
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "report-a",
+            village_id: "village-1",
+            period_id: "period-july",
+            CT02: 100,
+            CT11: 90,
+          }),
+        ]}
+        reportPeriods={[{
+          id: "period-july",
+          name: "Tháng 7/2026",
+          due_date: "2026-07-31T17:00:00+07:00",
+          village_ids: ["village-1", "village-2"],
+        }]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="admin_xa"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Kỳ dữ liệu")).toHaveValue(
+        "period:period-july",
+      ),
+    );
+    expect(screen.getAllByText("90.0%").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("status").some((element) =>
+        element.textContent?.includes(
+          "Kỳ báo cáo hiện có dữ liệu đã duyệt của 1/2 thôn",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("shows where the draft is stored and deletes only the local copy", () => {
     const onDeleteReport = vi.fn();
     const localDraft = report({
@@ -657,7 +744,9 @@ describe("Dashboard device drafts", () => {
     expect(screen.getByText(/thôn đầu chiếm khoảng/i)).toBeInTheDocument();
     expect(screen.getByText(/mức tham gia BHYT 95%/i)).toBeInTheDocument();
     expect(screen.getByText(/cường độ hướng dẫn cao nhất/i)).toBeInTheDocument();
-    expect(screen.getByText(/trẻ em hoàn cảnh đặc biệt cao nhất/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Chưa đủ dữ liệu về trẻ em có hoàn cảnh đặc biệt/i),
+    ).toBeInTheDocument();
   });
 
   it("opens cross-village priority analysis by default and still allows it to be collapsed", () => {

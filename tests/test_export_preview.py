@@ -151,6 +151,25 @@ def test_export_preview_with_data(client: TestClient) -> None:
     assert response.content.startswith(b"%PDF")
 
 
+def test_period_export_scope_uses_only_assigned_villages() -> None:
+    from routers.reports import scope_villages_map_to_period
+
+    villages_map = {
+        "village-1": "Thôn An Sơn",
+        "village-2": "Thôn Hòa Nhơn",
+        "village-3": "Thôn Tà Lang",
+    }
+
+    assert scope_villages_map_to_period(
+        villages_map,
+        ["village-3", "village-1"],
+    ) == {
+        "village-3": "Thôn Tà Lang",
+        "village-1": "Thôn An Sơn",
+    }
+    assert scope_villages_map_to_period(villages_map, []) == villages_map
+
+
 def test_village_docx_export_contains_only_authorized_village(client: TestClient) -> None:
     fake_supabase = None
     for dependency, stub_func in client.app.dependency_overrides.items():
@@ -276,5 +295,7 @@ async def test_period_export_query_keeps_previously_submitted_needs_revision_rep
     report_path = next(path for path in requested_paths if "/rest/v1/reports?" in path)
     assert "timeliness_status=in.(on_time,late)" in report_path
     assert "workflow_status=in." not in report_path
+    assert "id,village_id,period_id,workflow_status" in report_path
+    assert "submitted_at,approved_at" in report_path
     assert result[0]["workflow_status"] == "needs_revision"
     assert result[0]["values"]["CT01"] == 320

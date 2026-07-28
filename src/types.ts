@@ -88,6 +88,9 @@ export interface ReportData extends IndicatorValues {
   expected_version?: number;
   idempotency_key?: string;
   updated_at: string;
+  submitted_at?: string | null;
+  approved_at?: string | null;
+  published_at?: string | null;
   assisted_by_cnscd?: boolean;
   assisted_member_name?: string;
   raw_source?: ReportSource;
