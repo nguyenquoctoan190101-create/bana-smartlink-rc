@@ -97,6 +97,10 @@ def test_decision_draft_mutation_is_admin_only_at_the_database_boundary() -> Non
     assert "public.profile_role() = 'admin_xa'" in schema_select_policy
     assert "public.profile_role() = 'lanh_dao'" in schema_select_policy
     assert "status = 'accepted'" in schema_select_policy
+    assert "reviewed_by is not null" in schema_select_policy
+    assert "reviewed_at is not null" in schema_select_policy
+    assert "review_notes is not null" in schema_select_policy
+    assert "char_length(btrim(review_notes)) between 10 and 2000" in schema_select_policy
 
     schema_policy = SCHEMA.split(
         "create policy ai_drafts_insert_admin", 1
@@ -113,6 +117,13 @@ def test_decision_draft_mutation_is_admin_only_at_the_database_boundary() -> Non
     assert "public.profile_role() = 'admin_xa'" in migration_select_policy
     assert "public.profile_role() = 'lanh_dao'" in migration_select_policy
     assert "status = 'accepted'" in migration_select_policy
+    assert "reviewed_by is not null" in migration_select_policy
+    assert "reviewed_at is not null" in migration_select_policy
+    assert "review_notes is not null" in migration_select_policy
+    assert (
+        "char_length(btrim(review_notes)) between 10 and 2000"
+        in migration_select_policy
+    )
     assert "drop policy if exists ai_drafts_insert_internal" in migration
     migration_policy = migration.split(
         "create policy ai_drafts_insert_admin", 1
@@ -146,6 +157,10 @@ def test_decision_draft_mutation_is_admin_only_at_the_database_boundary() -> Non
     assert "group by commune_id, period_id, kind" in migration
     assert "having count(*) > 1" in migration
     assert "using errcode = '23505'" in migration
+    assert ") not valid;" in migration
+    assert "validate constraint ai_drafts_review_metadata" in migration
+    assert "when check_violation then null" in migration
+    assert "update public.ai_action_drafts" not in migration
     assert "delete from public.ai_action_drafts" not in migration
 
 
@@ -387,12 +402,14 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
     rls_matrix = (ROOT / "tests" / "sql" / "rls_matrix.sql").read_text(
         encoding="utf-8"
     )
-    assert workflow.count("psql -v ON_ERROR_STOP=1") == 8
+    assert workflow.count("psql -v ON_ERROR_STOP=1") == 12
     assert (
         "migrations/20260715_*.sql migrations/20260718_*.sql "
         "migrations/20260722_*.sql migrations/20260723_*.sql"
     ) in workflow
     assert "migrations/20260728_*.sql" in workflow
+    assert "tests/sql/ai_draft_legacy_compat.sql" in workflow
+    assert "tests/sql/supabase_existing_roles_bootstrap.sql" in workflow
     assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")

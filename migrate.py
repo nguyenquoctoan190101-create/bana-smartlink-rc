@@ -134,8 +134,12 @@ async def run(
         raise RuntimeError("DATABASE_URL is required")
 
     conn = await asyncpg.connect(database_url, command_timeout=120)
+    primary_error: BaseException | None = None
+    cleanup_error: BaseException | None = None
+    lock_acquired = False
     try:
         await conn.execute("select pg_advisory_lock($1)", LOCK_KEY)
+        lock_acquired = True
         await _ensure_tracking(conn)
         if status_only:
             if baseline:
@@ -170,11 +174,30 @@ async def run(
             files = sorted(MIGRATIONS.glob("*.sql"))
         for path in files:
             await _apply(conn, path)
+    except BaseException as exc:
+        # Preserve the migration failure. Cleanup runs outside any failed SQL
+        # transaction so advisory-unlock errors cannot replace the root cause.
+        primary_error = exc
+        raise
     finally:
         try:
-            await conn.execute("select pg_advisory_unlock($1)", LOCK_KEY)
-        finally:
+            if conn.is_in_transaction():
+                await conn.execute("rollback")
+        except BaseException as exc:
+            cleanup_error = exc
+        try:
+            if lock_acquired:
+                await conn.execute("select pg_advisory_unlock($1)", LOCK_KEY)
+        except BaseException as exc:
+            if cleanup_error is None:
+                cleanup_error = exc
+        try:
             await conn.close()
+        except BaseException as exc:
+            if cleanup_error is None:
+                cleanup_error = exc
+        if primary_error is None and cleanup_error is not None:
+            raise cleanup_error
 
 
 def main() -> int:

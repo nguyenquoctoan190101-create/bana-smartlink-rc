@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+
+import pytest
+
 import migrate
 
 
@@ -53,6 +57,98 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260727_0029_seed_reconciled_sample_reports.sql",
         "20260728_0030_ai_draft_admin_mutation.sql",
     ]
+
+
+def test_failed_migration_rolls_back_before_unlock_without_masking_root_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RootMigrationError(RuntimeError):
+        pass
+
+    class CleanupError(RuntimeError):
+        pass
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.commands: list[str] = []
+            self.in_transaction = False
+            self.closed = False
+
+        async def execute(self, query: str, *args: object) -> None:
+            normalized = query.strip().lower()
+            self.commands.append(normalized)
+            if normalized == "rollback":
+                self.in_transaction = False
+            elif "pg_advisory_unlock" in normalized:
+                raise CleanupError("unlock failure must not mask migration failure")
+
+        def is_in_transaction(self) -> bool:
+            return self.in_transaction
+
+        async def close(self) -> None:
+            self.closed = True
+
+    connection = FakeConnection()
+
+    async def fake_connect(*args: object, **kwargs: object) -> FakeConnection:
+        return connection
+
+    async def fake_ensure_tracking(conn: FakeConnection) -> None:
+        assert conn is connection
+
+    async def fake_apply(conn: FakeConnection, path: object) -> None:
+        assert conn is connection
+        conn.in_transaction = True
+        raise RootMigrationError("original migration failure")
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://redacted.invalid/test")
+    monkeypatch.setattr(migrate.asyncpg, "connect", fake_connect)
+    monkeypatch.setattr(migrate, "_ensure_tracking", fake_ensure_tracking)
+    monkeypatch.setattr(migrate, "_apply", fake_apply)
+    monkeypatch.setattr(
+        migrate,
+        "_release_overlay_files",
+        lambda: [migrate.MIGRATIONS / "failing.sql"],
+    )
+
+    with pytest.raises(RootMigrationError, match="original migration failure"):
+        asyncio.run(
+            migrate.run(
+                baseline=False,
+                status_only=False,
+                release_overlays=True,
+            )
+        )
+
+    assert connection.commands.index("rollback") < next(
+        index
+        for index, command in enumerate(connection.commands)
+        if "pg_advisory_unlock" in command
+    )
+    assert connection.closed is True
+
+
+def test_migration_cli_reports_only_error_class(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class RootMigrationError(RuntimeError):
+        pass
+
+    async def fail_run(**kwargs: object) -> None:
+        raise RootMigrationError("private database response and DSN")
+
+    monkeypatch.setattr(migrate, "run", fail_run)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["migrate.py", "--release-overlays"],
+    )
+
+    assert migrate.main() == 1
+    output = capsys.readouterr().out
+    assert "RootMigrationError" in output
+    assert "private database response" not in output
+    assert "DSN" not in output
 
 
 def test_demo_public_backfill_is_guarded_and_complete() -> None:

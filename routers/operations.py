@@ -308,10 +308,33 @@ async def list_ai_drafts(
     query = "/rest/v1/ai_action_drafts?select=*"
     if profile.role == "lanh_dao":
         # PostgreSQL enforces the same boundary. Keep this server-side filter as
-        # defense in depth and avoid asking PostgREST for unreviewed drafts.
-        query += "&status=eq.accepted"
+        # defense in depth and avoid asking PostgREST for incomplete legacy
+        # reviews. The local predicate also enforces the note-length contract.
+        query += (
+            "&status=eq.accepted"
+            "&reviewed_by=not.is.null"
+            "&reviewed_at=not.is.null"
+            "&review_notes=not.is.null"
+        )
     query += "&order=created_at.desc"
-    return await _caller_client(supabase, authorization)._rest_request("GET", query)
+    rows = await _caller_client(supabase, authorization)._rest_request("GET", query)
+    if profile.role != "lanh_dao":
+        return rows
+    return [row for row in rows if _has_complete_review_metadata(row)]
+
+
+def _has_complete_review_metadata(draft: dict[str, Any]) -> bool:
+    reviewed_by = draft.get("reviewed_by")
+    reviewed_at = draft.get("reviewed_at")
+    review_notes = draft.get("review_notes")
+    return (
+        isinstance(reviewed_by, str)
+        and bool(reviewed_by.strip())
+        and isinstance(reviewed_at, str)
+        and bool(reviewed_at.strip())
+        and isinstance(review_notes, str)
+        and 10 <= len(review_notes.strip()) <= 2000
+    )
 
 
 def _same_deterministic_evidence(

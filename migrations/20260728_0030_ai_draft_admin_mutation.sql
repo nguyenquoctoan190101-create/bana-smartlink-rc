@@ -1,6 +1,7 @@
 -- Keep leadership access to decision-support drafts read-only and make every
--- review a one-way, database-authenticated transition. Historical conflicts
--- fail the migration; this overlay never chooses or deletes a draft for users.
+-- review a one-way, database-authenticated transition. Duplicate pending rows
+-- fail closed. Legacy terminal metadata remains immutable and audit-visible to
+-- administrators; this overlay never chooses, edits, or deletes user data.
 
 begin;
 
@@ -17,28 +18,6 @@ begin
       using errcode = '23505';
   end if;
 
-  if exists (
-    select 1
-    from public.ai_action_drafts
-    where not (
-      (
-        status = 'pending_review'
-        and reviewed_by is null
-        and reviewed_at is null
-        and review_notes is null
-      )
-      or (
-        status in ('accepted', 'rejected')
-        and reviewed_by is not null
-        and reviewed_at is not null
-        and review_notes is not null
-        and char_length(btrim(review_notes)) between 10 and 2000
-      )
-    )
-  ) then
-    raise exception 'invalid decision draft review metadata requires manual review before migration'
-      using errcode = '23514';
-  end if;
 end
 $$;
 
@@ -59,7 +38,22 @@ alter table public.ai_action_drafts
       and review_notes is not null
       and char_length(btrim(review_notes)) between 10 and 2000
     )
-  );
+  ) not valid;
+
+-- A clean database validates the constraint immediately. An upgraded database
+-- may contain terminal rows created under the legacy contract without review
+-- notes. Preserve those rows for an administrator audit while PostgreSQL still
+-- enforces this NOT VALID constraint for every new insert or update.
+do $$
+begin
+  begin
+    alter table public.ai_action_drafts
+      validate constraint ai_drafts_review_metadata;
+  exception
+    when check_violation then null;
+  end;
+end
+$$;
 
 drop index if exists public.ai_action_drafts_one_pending_idx;
 create unique index ai_action_drafts_one_pending_idx
@@ -156,6 +150,10 @@ using (
     or (
       public.profile_role() = 'lanh_dao'
       and status = 'accepted'
+      and reviewed_by is not null
+      and reviewed_at is not null
+      and review_notes is not null
+      and char_length(btrim(review_notes)) between 10 and 2000
     )
   )
   and commune_id = public.profile_commune_id()

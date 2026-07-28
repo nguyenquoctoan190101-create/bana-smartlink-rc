@@ -192,6 +192,27 @@ def test_leader_can_list_but_cannot_create_decision_drafts() -> None:
             "status": "accepted",
             "content": "Reviewed decision support.",
             "citations": [],
+            "reviewed_by": "admin-1",
+            "reviewed_at": "2026-07-28T10:00:00Z",
+            "review_notes": "Evidence was checked by the administrator.",
+        },
+        {
+            "id": "draft-legacy-accepted",
+            "status": "accepted",
+            "content": "Legacy review without notes.",
+            "citations": [],
+            "reviewed_by": "admin-1",
+            "reviewed_at": "2026-07-20T10:00:00Z",
+            "review_notes": None,
+        },
+        {
+            "id": "draft-short-note-accepted",
+            "status": "accepted",
+            "content": "Legacy review with a short note.",
+            "citations": [],
+            "reviewed_by": "admin-1",
+            "reviewed_at": "2026-07-21T10:00:00Z",
+            "review_notes": "too short",
         },
         {
             "id": "draft-rejected",
@@ -240,7 +261,11 @@ def test_leader_can_list_but_cannot_create_decision_drafts() -> None:
         and path
         == (
             "/rest/v1/ai_action_drafts?select=*"
-            "&status=eq.accepted&order=created_at.desc"
+            "&status=eq.accepted"
+            "&reviewed_by=not.is.null"
+            "&reviewed_at=not.is.null"
+            "&review_notes=not.is.null"
+            "&order=created_at.desc"
         )
         for method, path, _, _ in supabase.calls
     )
