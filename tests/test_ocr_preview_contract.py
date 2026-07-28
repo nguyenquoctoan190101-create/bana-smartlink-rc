@@ -655,7 +655,7 @@ def test_pdf_ocr_preview_returns_additive_evidence_without_persisting(
     assert evidence["source_region"] == "data_table"
     assert evidence["extractor"] == "gemini_multimodal"
     assert evidence["method"] == "table_only_raster_ocr"
-    assert evidence["version"] == "2.0"
+    assert evidence["version"] == "2.1"
     assert "AI_CONFIDENCE_UNCALIBRATED" in evidence["flags"]
     assert evidence["requires_review"] is True
 

@@ -35,6 +35,10 @@ from typing import NamedTuple
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # ---------------------------------------------------------------------------
 # Ground truth
 # These are the values visible in the 5 test images (all images share the
@@ -57,27 +61,19 @@ GROUND_TRUTH: dict[str, int | None] = {
     "CT14": 1,
 }
 
-# ---------------------------------------------------------------------------
-# Test images
-# ---------------------------------------------------------------------------
-_SCRATCH = (
-    Path(__file__).resolve().parents[1]
-    / ".."  # up one from project root -- adjust if needed
-)
-
 BRAIN_DIR = Path(
     os.environ.get(
         "OCR_TEST_IMAGE_DIR",
-        str(Path(__file__).resolve().parent / "fixtures" / "ocr"),
+        str(Path(__file__).resolve().parent / "ocr_test_images"),
     )
 )
 
 TEST_IMAGES: list[tuple[str, Path]] = [
-    ("01_normal   (ideal light, flat)", BRAIN_DIR / "test_ocr_01_normal.png"),
-    ("02_tilted   (15° angle, indoor)", BRAIN_DIR / "test_ocr_02_tilted.png"),
-    ("03_low_light (dim lamp, shadow)", BRAIN_DIR / "test_ocr_03_low_light.png"),
-    ("04_glare    (sunlight reflection)", BRAIN_DIR / "test_ocr_04_glare.png"),
-    ("05_crumpled (wrinkled paper)", BRAIN_DIR / "test_ocr_05_crumpled.png"),
+    ("01_normal   (ideal light, flat)", BRAIN_DIR / "ocr_test_normal.jpg"),
+    ("02_tilted   (4° angle, warm light)", BRAIN_DIR / "ocr_test_tilted.jpg"),
+    ("03_low_light (dim, compressed)", BRAIN_DIR / "ocr_test_lowlight.jpg"),
+    ("04_blue_pen (blue ink)", BRAIN_DIR / "ocr_test_bluepen.jpg"),
+    ("05_folded   (creased paper)", BRAIN_DIR / "ocr_test_folded.jpg"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -131,7 +127,7 @@ def _score_image(
     )
 
 
-def _print_report(results: list[ImageResult]) -> None:
+def _print_report(results: list[ImageResult], *, dry_run: bool = False) -> None:
     print("\n" + "=" * 70)
     print("  OCR ACCURACY REPORT — services/ocr_report.py")
     print("=" * 70)
@@ -168,7 +164,12 @@ def _print_report(results: list[ImageResult]) -> None:
 
     # Decision guidance
     print("\n" + "-" * 70)
-    if overall_pct >= 90:
+    if dry_run:
+        print(
+            "  RESULT: FIXTURE/CROP HARNESS PASSED -- "
+            "provider recognition accuracy was not measured."
+        )
+    elif overall_pct >= 90:
         print("  RESULT: OCR accuracy >= 90% -- SUITABLE for demo integration.")
     elif overall_pct >= 75:
         print("  RESULT: OCR accuracy 75-89% -- ACCEPTABLE with manual review UI.")
@@ -231,6 +232,27 @@ async def run_all(dry_run: bool = False) -> list[ImageResult]:
 # ---------------------------------------------------------------------------
 # Pytest integration
 # ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("label", "image_path"),
+    TEST_IMAGES,
+    ids=[label.split()[0] for label, _ in TEST_IMAGES],
+)
+def test_ocr_fixture_is_valid_and_privacy_crop_is_readable(
+    label: str,
+    image_path: Path,
+) -> None:
+    """Keep the benchmark corpus executable instead of silently using corrupt files."""
+    from services.ocr_report import extract_table_region
+
+    image_bytes = image_path.read_bytes()
+    assert image_bytes.startswith(b"\xff\xd8\xff"), f"{label}: invalid JPEG signature"
+    cropped = extract_table_region(image_bytes)
+    with Image.open(BytesIO(cropped)) as image:
+        assert image.format in {"JPEG", "PNG"}, f"{label}: unsupported crop format"
+        assert image.width >= 100
+        assert image.height >= 100
+
 
 def test_parse_ocr_result_perfect_json():
     """parse_ocr_result must correctly parse a perfect Gemini response."""
@@ -485,4 +507,4 @@ if __name__ == "__main__":
         print("Running in DRY-RUN mode (stub Gemini response, no API calls)")
 
     results = asyncio.run(run_all(dry_run=dry))
-    _print_report(results)
+    _print_report(results, dry_run=dry)
