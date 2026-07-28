@@ -9,7 +9,14 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 
 from routers.auth import _extract_bearer_token, get_settings, get_supabase_admin, require_admin_or_leader, require_admin_xa, require_authenticated_user
-from services.operations import MATURITY_DIMENSIONS, build_safe_period_brief, quality_snapshot, validate_maturity_scores
+from services.decision_ai import enrich_decision_brief
+from services.operations import (
+    MATURITY_DIMENSIONS,
+    build_safe_period_brief,
+    evidence_fingerprint_from_citations,
+    quality_snapshot,
+    validate_maturity_scores,
+)
 from services.settings import Settings
 from services.supabase_admin import SupabaseAdminClient, SupabaseAdminError, UserProfile
 
@@ -301,6 +308,53 @@ async def list_ai_drafts(
     return await _caller_client(supabase, authorization)._rest_request("GET", "/rest/v1/ai_action_drafts?select=*&order=created_at.desc")
 
 
+def _same_deterministic_evidence(
+    *,
+    current_content: str,
+    current_citations: list[dict[str, Any]],
+    stored_draft: dict[str, Any],
+) -> bool:
+    """Compare source evidence while ignoring non-deterministic AI wording."""
+    current_fingerprint = evidence_fingerprint_from_citations(current_citations)
+    stored_citations = stored_draft.get("citations")
+    stored_fingerprint = evidence_fingerprint_from_citations(
+        stored_citations if isinstance(stored_citations, list) else None
+    )
+    if current_fingerprint and stored_fingerprint:
+        return current_fingerprint == stored_fingerprint
+
+    def normalize(citations: Any) -> list[dict[str, Any]]:
+        if not isinstance(citations, list):
+            return []
+        normalized = []
+        for citation in citations:
+            if not isinstance(citation, dict) or citation.get("kind") not in {
+                "quality_snapshot",
+                "decision_metrics",
+            }:
+                continue
+            normalized.append(
+                {
+                    key: value
+                    for key, value in citation.items()
+                    if key != "evidence_fingerprint"
+                }
+            )
+        return normalized
+
+    return (
+        stored_draft.get("content") == current_content
+        and normalize(stored_citations) == normalize(current_citations)
+    )
+
+
+def _has_ai_enrichment(citations: Any) -> bool:
+    return isinstance(citations, list) and any(
+        isinstance(citation, dict) and citation.get("kind") == "ai_enrichment"
+        for citation in citations
+    )
+
+
 @router.post("/ai-drafts", status_code=status.HTTP_201_CREATED)
 async def create_ai_draft(
     payload: AiDraftCreateRequest,
@@ -346,6 +400,8 @@ async def create_ai_draft(
                 "&order=created_at.desc&limit=20"
             ),
         )
+        settings = get_settings()
+        same_evidence_latest: dict[str, Any] | None = None
         if latest_drafts:
             if any(
                 draft.get("status") == "pending_review"
@@ -356,18 +412,42 @@ async def create_ai_draft(
                     detail="Đã có một bản tóm tắt đang chờ duyệt cho kỳ này.",
                 )
             latest = latest_drafts[0]
-            if (
-                latest.get("content") == content
-                and latest.get("citations") == citations
+            if _same_deterministic_evidence(
+                current_content=content,
+                current_citations=citations,
+                stored_draft=latest,
+            ):
+                same_evidence_latest = latest
+            if same_evidence_latest and not (
+                settings.decision_ai_ready
+                and not _has_ai_enrichment(latest.get("citations"))
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Căn cứ chưa thay đổi so với bản tóm tắt gần nhất.",
                 )
+
+        ai_attempt = await enrich_decision_brief(
+            settings=settings,
+            period_name=str(period["name"]),
+            deterministic_content=content,
+            citations=citations,
+            safety_subject=profile.id,
+        )
+        if same_evidence_latest and ai_attempt.status != "enhanced":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "AI tạm thời chưa tạo được phân tích mới; "
+                    "bản tóm tắt có căn cứ gần nhất vẫn được giữ nguyên."
+                ),
+            )
+        if ai_attempt.citation:
+            citations.append(ai_attempt.citation)
         rows = await client._rest_request("POST", "/rest/v1/ai_action_drafts", {
             "commune_id": commune_id, "period_id": str(payload.period_id), "kind": payload.kind,
             "content": content, "citations": citations, "confidence": confidence,
-            "model_provider": "deterministic-evidence-v2", "created_by": profile.id,
+            "model_provider": ai_attempt.model_provider, "created_by": profile.id,
         }, prefer="return=representation")
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create reviewed draft") from exc

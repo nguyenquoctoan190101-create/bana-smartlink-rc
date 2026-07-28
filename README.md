@@ -156,7 +156,7 @@ npm run check
 python scripts/release_check.py
 ```
 
-Lần xác nhận gần nhất trên nhánh `main`: **574 kiểm thử backend** và **110 kiểm
+Lần xác nhận gần nhất trên nhánh phát hành: **595 kiểm thử backend** và **144 kiểm
 thử frontend** đạt; TypeScript typecheck và production build đạt. Con số có thể
 tăng khi bổ sung test mới, vì vậy kết quả của pipeline hiện tại luôn là nguồn
 xác nhận cuối cùng.
@@ -171,6 +171,15 @@ nhập trực tiếp/XLSX. Trước production vẫn phải hoàn tất privacy/
 benchmark trên bộ dữ liệu đã đăng ký, có tối thiểu 100 tài liệu cùng holdout độc
 lập theo [docs/AI_BENCHMARK_PROTOCOL.md](docs/AI_BENCHMARK_PROTOCOL.md). Fixture
 CI không phải bằng chứng chất lượng thực địa.
+
+Nội dung hỗ trợ quyết định dùng kiến trúc lai: luật xác định chốt số liệu, chất
+lượng và mức ưu tiên; AI chỉ bổ sung phương án, đánh đổi, rủi ro và câu hỏi phản
+biện từ gói bằng chứng tổng hợp không có PII. Bật bằng
+`FEATURE_DECISION_AI=true`; `DECISION_AI_PROVIDER=auto` ưu tiên OpenAI
+`gpt-5.6-sol`, sau đó dùng Gemini đã cấu hình và cuối cùng fallback về bản xác
+định. Mọi đầu ra AI bị khóa schema, kiểm tra mã dẫn chứng và phải qua người
+duyệt. Chi tiết vận hành tại
+[docs/PRODUCTION_OPERATIONS.md](docs/PRODUCTION_OPERATIONS.md).
 
 ## Gate staging và production
 

@@ -20,10 +20,37 @@ type Action = {
   due_date?: string | null;
   owner_name?: string | null;
 };
+type AiDecisionOption = {
+  id: "A" | "B" | "C";
+  title: string;
+  rationale: string;
+  tradeoff: string;
+  urgency: "ngay" | "trong_ky" | "theo_doi";
+  evidence_ids: string[];
+};
+type AiDecisionRisk = {
+  title: string;
+  severity: "cao" | "trung_binh" | "thap";
+  mitigation: string;
+  evidence_ids: string[];
+};
+type AiDecisionAnalysis = {
+  executive_assessment: string;
+  recommended_option_id: "A" | "B" | "C";
+  options: AiDecisionOption[];
+  risks: AiDecisionRisk[];
+  reviewer_questions: string[];
+  assumptions: string[];
+};
 type DraftCitation = {
   kind?: string;
   id?: string;
   label?: string;
+  status?: string;
+  provider?: string;
+  model?: string;
+  prompt_version?: string;
+  analysis?: AiDecisionAnalysis;
   village_name?: string;
   quality_status?: string;
   quality_score?: number;
@@ -86,6 +113,16 @@ type LoadResult = {
 };
 type Availability = Record<LoadResult["key"], boolean | null>;
 const EMPTY_PERIODS: ReportPeriod[] = [];
+const aiUrgencyLabels: Record<AiDecisionOption["urgency"], string> = {
+  ngay: "Nên xem ngay",
+  trong_ky: "Xử lý trong kỳ",
+  theo_doi: "Theo dõi",
+};
+const aiSeverityLabels: Record<AiDecisionRisk["severity"], string> = {
+  cao: "Rủi ro cao",
+  trung_binh: "Rủi ro trung bình",
+  thap: "Rủi ro thấp",
+};
 
 const DECISION_SECTION_PREFIXES: Array<
   [keyof DecisionBriefSections, string]
@@ -345,7 +382,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         body: JSON.stringify({ period_id: periodId, kind: "period_brief" }),
       });
       await refresh();
-      setNotice("Đã tạo bản tóm tắt có căn cứ. Nội dung đang chờ người có thẩm quyền xem xét.");
+      setNotice("Đã tạo phân tích có căn cứ. Nội dung đang chờ người có thẩm quyền xem xét.");
     } catch (error) {
       setNotice(
         `Không thể tạo bản tóm tắt: ${toUserFacingError(
@@ -393,6 +430,24 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     : null;
   const latestEvidenceCitations = (latestDecisionDraft?.citations || []).filter(
     (citation) => citation.kind === "quality_snapshot",
+  );
+  const latestAiCitation = (latestDecisionDraft?.citations || []).find(
+    (citation) => citation.kind === "ai_enrichment" && citation.analysis,
+  );
+  const latestAiStatus = (latestDecisionDraft?.citations || []).find(
+    (citation) => citation.kind === "ai_generation",
+  );
+  const latestAiAnalysis = latestAiCitation?.analysis;
+  const recommendedAiOption = latestAiAnalysis?.options.find(
+    (option) => option.id === latestAiAnalysis.recommended_option_id,
+  );
+  const aiEvidenceLabels = new Map(
+    (latestDecisionDraft?.citations || [])
+      .filter((citation) => citation.id)
+      .map((citation) => [
+        citation.id as string,
+        citation.village_name || citation.label || "Căn cứ tổng hợp",
+      ]),
   );
   const evidenceReadiness =
     typeof latestDecisionDraft?.confidence === "number"
@@ -600,7 +655,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
             </div>
           ) : (
             <>
-              <table className="min-w-[760px]">
+              <table className="operations-quality-table">
                 <thead>
                   <tr>
                     <th>Thôn</th>
@@ -639,7 +694,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           id="operations-support"
           index="04"
           title="Nội dung hỗ trợ quyết định"
-          description="Bản tóm tắt tách rõ kết luận, hành động, căn cứ và giới hạn; người có thẩm quyền phải ghi nhận xét trước khi chấp nhận hoặc từ chối."
+          description="Luật xác định chốt số liệu; AI phân tích phương án, đánh đổi và rủi ro có dẫn chứng. Người có thẩm quyền phải ghi nhận xét trước khi chấp nhận hoặc từ chối."
           tone="support"
           icon={<BrainCircuit />}
           actions={
@@ -664,23 +719,20 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                 )}
                 {pendingDrafts.length
                   ? "Đang chờ duyệt"
-                  : "Tạo bản tóm tắt có căn cứ"}
+                  : "Tạo phân tích AI có căn cứ"}
               </Button>
             ) : undefined
           }
         >
           <div className="work-section__list space-y-4">
-            <div
-              role="note"
-              className="flex items-start gap-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950"
-            >
-              <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-indigo-700" />
+            <div role="note" className="decision-human-note">
+              <ShieldCheck />
               <div>
-                <p className="font-black">Con người giữ quyền quyết định</p>
-                <p className="mt-1 leading-relaxed text-indigo-800">
-                  Hệ thống chỉ tổng hợp bằng luật xác định từ báo cáo đã duyệt/khóa
-                  và trạng thái công việc. Nội dung này không tự phê duyệt, giao
-                  việc hoặc công bố số liệu.
+                <p>Con người giữ quyền quyết định</p>
+                <p>
+                  Luật xác định vẫn chốt chất lượng và mức ưu tiên từ báo cáo đã
+                  duyệt/khóa. AI chỉ đề xuất phương án trên gói dữ liệu tổng hợp
+                  không có PII; không tự phê duyệt, giao việc hoặc công bố số liệu.
                 </p>
               </div>
             </div>
@@ -711,9 +763,11 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                         {latestDecisionDraft.created_at
                           ? `Tạo lúc ${new Date(latestDecisionDraft.created_at).toLocaleString("vi-VN")}`
                           : "Chưa có thời điểm tạo"}
-                        {latestDecisionDraft.model_provider === "deterministic-evidence-v2"
-                          ? " · Tổng hợp bằng luật xác định phiên bản 2"
-                          : ""}
+                        {latestAiCitation
+                          ? ` · AI có cấu trúc ${latestAiCitation.model || ""}`
+                          : latestDecisionDraft.model_provider === "deterministic-evidence-v2"
+                            ? " · Tổng hợp bằng luật xác định phiên bản 2"
+                            : ""}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -727,40 +781,197 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                     </div>
                   </header>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <p className="text-4xs font-black uppercase tracking-wider text-emerald-700">
+                  <div className="decision-brief-grid">
+                    <section className="decision-brief-card decision-brief-card--conclusion">
+                      <p>
                         Kết luận đề xuất
                       </p>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-emerald-950">
+                      <p>
                         {latestBriefSections.conclusion}
                       </p>
                     </section>
-                    <section className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-                      <p className="text-4xs font-black uppercase tracking-wider text-sky-700">
+                    <section className="decision-brief-card decision-brief-card--action">
+                      <p>
                         Việc nên làm tiếp theo
                       </p>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-sky-950">
+                      <p>
                         {latestBriefSections.action}
                       </p>
                     </section>
-                    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-4xs font-black uppercase tracking-wider text-slate-600">
+                    <section className="decision-brief-card decision-brief-card--basis">
+                      <p>
                         Căn cứ định lượng
                       </p>
-                      <p className="mt-2 text-sm leading-relaxed text-slate-800">
+                      <p>
                         {latestBriefSections.basis}
                       </p>
                     </section>
-                    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <p className="text-4xs font-black uppercase tracking-wider text-amber-700">
+                    <section className="decision-brief-card decision-brief-card--limitation">
+                      <p>
                         Giới hạn sử dụng
                       </p>
-                      <p className="mt-2 text-sm leading-relaxed text-amber-950">
+                      <p>
                         {latestBriefSections.limitation}
                       </p>
                     </section>
                   </div>
+
+                  {latestAiAnalysis ? (
+                    <section className="decision-ai">
+                      <header className="decision-ai__header">
+                        <div className="decision-ai__meta">
+                          <span className="decision-ai__badge">
+                            <Sparkles />
+                            AI tăng cường · đã kiểm tra dẫn chứng
+                          </span>
+                          <span className="decision-ai__model">
+                            {latestAiCitation?.model || "Mô hình đã cấu hình"} ·{" "}
+                            {latestAiCitation?.prompt_version || "phiên bản kiểm soát"}
+                          </span>
+                        </div>
+                        <h4 className="decision-ai__title">
+                          Nhận định điều hành
+                        </h4>
+                        <p className="decision-ai__assessment">
+                          {latestAiAnalysis.executive_assessment}
+                        </p>
+                      </header>
+
+                      <div className="decision-ai__body">
+                        <div>
+                          <div className="decision-ai__section-heading">
+                            <div>
+                              <p className="decision-ai__eyebrow">
+                                Các phương án để người duyệt cân nhắc
+                              </p>
+                              {recommendedAiOption && (
+                                <p className="decision-ai__hint">
+                                  AI nghiêng về phương án {recommendedAiOption.id}; đây không phải quyết định tự động.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="decision-ai__options">
+                            {latestAiAnalysis.options.map((option) => {
+                              const recommended =
+                                option.id === latestAiAnalysis.recommended_option_id;
+                              return (
+                                <article
+                                  key={option.id}
+                                  className={`decision-ai__option ${
+                                    recommended ? "decision-ai__option--recommended" : ""
+                                  }`}
+                                >
+                                  <div className="decision-ai__option-header">
+                                    <span className="decision-ai__option-id">
+                                      {option.id}
+                                    </span>
+                                    <div className="decision-ai__option-tags">
+                                      {recommended && (
+                                        <span className="decision-ai__recommended">
+                                          Khuyến nghị
+                                        </span>
+                                      )}
+                                      <span className="decision-ai__urgency">
+                                        {aiUrgencyLabels[option.urgency]}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <h5 className="decision-ai__option-title">
+                                    {option.title}
+                                  </h5>
+                                  <p className="decision-ai__option-copy">
+                                    {option.rationale}
+                                  </p>
+                                  <div className="decision-ai__tradeoff">
+                                    <p className="decision-ai__tradeoff-label">
+                                      Đánh đổi cần chấp nhận
+                                    </p>
+                                    <p>
+                                      {option.tradeoff}
+                                    </p>
+                                  </div>
+                                  <div className="decision-ai__evidence">
+                                    {option.evidence_ids.map((evidenceId) => (
+                                      <span
+                                        key={evidenceId}
+                                        className="decision-ai__evidence-chip"
+                                        title={evidenceId}
+                                      >
+                                        <Link2 />
+                                        {aiEvidenceLabels.get(evidenceId) || "Căn cứ đã kiểm tra"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="decision-ai__review-grid">
+                          <section className="decision-ai__risks">
+                            <p className="decision-ai__eyebrow">
+                              Rủi ro và cách giảm thiểu
+                            </p>
+                            <div className="decision-ai__risk-list">
+                              {latestAiAnalysis.risks.map((risk) => (
+                                <article key={`${risk.severity}-${risk.title}`}>
+                                  <div className="decision-ai__risk-heading">
+                                    <p>
+                                      {risk.title}
+                                    </p>
+                                    <span>
+                                      {aiSeverityLabels[risk.severity]}
+                                    </span>
+                                  </div>
+                                  <p className="decision-ai__risk-copy">
+                                    {risk.mitigation}
+                                  </p>
+                                </article>
+                              ))}
+                            </div>
+                          </section>
+                          <section className="decision-ai__questions">
+                            <p className="decision-ai__eyebrow">
+                              Câu hỏi phản biện trước khi duyệt
+                            </p>
+                            <ul>
+                              {latestAiAnalysis.reviewer_questions.map((question) => (
+                                <li key={question}>
+                                  <span aria-hidden="true">?</span>
+                                  <span>{question}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        </div>
+
+                        {latestAiAnalysis.assumptions.length > 0 && (
+                          <details className="decision-ai__assumptions">
+                            <summary>
+                              Giả định AI đã dùng ({latestAiAnalysis.assumptions.length})
+                            </summary>
+                            <ul>
+                              {latestAiAnalysis.assumptions.map((assumption) => (
+                                <li key={assumption}>{assumption}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
+                    </section>
+                  ) : (
+                    <div className="decision-ai-fallback">
+                      <p>
+                        Bản an toàn bằng luật xác định
+                      </p>
+                      <p>
+                        {latestAiStatus?.label ||
+                          "AI chưa được bật cho bản này; kết luận và căn cứ định lượng vẫn dùng được để rà soát."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button

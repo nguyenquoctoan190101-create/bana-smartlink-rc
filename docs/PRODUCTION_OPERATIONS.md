@@ -25,9 +25,13 @@ API `GET /api/operations/quality?period_id={uuid}` tính trực tiếp từ báo
 
 ## AI có kiểm soát
 
-`POST /api/operations/ai-drafts` hiện tạo brief deterministic từ số lượng báo cáo, điểm chất lượng và trạng thái lỗi/nộp muộn đã được quyền xem. Nó không gửi PII, giá trị CT14 hoặc bất kỳ chỉ tiêu nào vào nội dung/citation; không tự tạo action, cập nhật báo cáo, duyệt hay công bố.
+`POST /api/operations/ai-drafts` luôn tạo brief deterministic trước từ số lượng báo cáo, điểm chất lượng và trạng thái lỗi/nộp muộn đã được quyền xem. Khi `FEATURE_DECISION_AI=true` và có nhà cung cấp hợp lệ, hệ thống gửi duy nhất gói bằng chứng tổng hợp đã lọc sang AI để bổ sung nhận định, các phương án thay thế, đánh đổi, rủi ro, biện pháp giảm thiểu và câu hỏi phản biện.
 
-Chỉ `admin_xa` được gọi endpoint review. Một tích hợp LLM sau này phải giữ đúng contract này: input đã redaction, citations có cấu trúc, confidence, rate/cost limit, red-team prompt injection và human review trước mọi hành động.
+Đầu ra AI bị khóa bằng JSON schema, mọi phương án/rủi ro phải dẫn về `evidence_id` có thật, và server từ chối nội dung có mã dẫn chứng lạ, chữ số chưa được luật xác định kiểm chứng, email hoặc số điện thoại. OpenAI dùng Responses API với `store=false`, `safety_identifier` đã băm và mô hình mặc định `gpt-5.6-sol`; cấu hình `auto` ưu tiên OpenAI rồi dùng Gemini đã có. Nếu không có khóa hoặc nhà cung cấp lỗi, brief deterministic vẫn được tạo và giao diện nêu rõ trạng thái fallback.
+
+Không provider nào nhận giá trị chỉ tiêu, CT14, ghi chú báo cáo, tên/điện thoại người dân hoặc quyền gọi công cụ. Chuỗi nhãn trong gói bằng chứng được coi là dữ liệu không đáng tin, không phải chỉ thị. AI không được tự tạo action, cập nhật báo cáo, duyệt hay công bố.
+
+Chỉ `admin_xa` được gọi endpoint review. Người duyệt phải nhập căn cứ ít nhất 10 ký tự; mọi nội dung AI vẫn ở trạng thái `pending_review` trước khi được chấp nhận hoặc từ chối. `confidence` tiếp tục biểu thị độ sẵn sàng của bằng chứng deterministic, không phải “độ tin cậy” tự khai của mô hình.
 
 ## Cổng người dân
 
