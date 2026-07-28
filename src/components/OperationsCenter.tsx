@@ -204,6 +204,15 @@ function isOfficialAcceptedDraft(draft: DecisionDraft): boolean {
   return draft.status === "accepted" && hasValidReviewMetadata(draft);
 }
 
+function isTerminalDraftMissingReviewMetadata(
+  draft: DecisionDraft,
+): boolean {
+  return (
+    (draft.status === "accepted" || draft.status === "rejected") &&
+    !hasValidReviewMetadata(draft)
+  );
+}
+
 function asDraftCitations(value: unknown): DraftCitation[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((citation) => ({
@@ -586,6 +595,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     (admin
       ? pendingDrafts[0] ?? officialAcceptedDrafts[0] ?? rejectedDrafts[0]
       : undefined) ?? officialAcceptedDrafts[0];
+  const latestDraftMissingReviewMetadata = latestDecisionDraft
+    ? isTerminalDraftMissingReviewMetadata(latestDecisionDraft)
+    : false;
   const decisionHistorySource = admin
     ? currentPeriodDrafts
     : officialAcceptedDrafts;
@@ -1210,7 +1222,18 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                       </p>
                     </div>
                     <div className="decision-record-header__status">
-                      <StatusBadge status={latestDecisionDraft.status} />
+                      <StatusBadge
+                        status={
+                          latestDraftMissingReviewMetadata
+                            ? "needs_revision"
+                            : latestDecisionDraft.status
+                        }
+                        label={
+                          latestDraftMissingReviewMetadata
+                            ? "Thiếu căn cứ duyệt"
+                            : undefined
+                        }
+                      />
                       <span className="decision-support-priority">
                         Mức ưu tiên: {latestBriefSections.priority}
                       </span>
@@ -1841,6 +1864,16 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                     </section>
                   )}
 
+                  {latestDraftMissingReviewMetadata && (
+                    <section className="decision-recorded-review">
+                      <h4>Cảnh báo kiểm toán</h4>
+                      <p role="note">
+                        Hồ sơ lịch sử thiếu căn cứ duyệt; không dùng làm căn cứ
+                        chính thức
+                      </p>
+                    </section>
+                  )}
+
                   {latestDecisionDraft.status !== "pending_review" &&
                     latestDecisionDraft.review_notes && (
                       <section className="decision-recorded-review">
@@ -1869,9 +1902,8 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                 <div className="decision-history__list">
                   {decisionHistory.map((draft) => {
                     const historicalBrief = parseDecisionBrief(draft.content);
-                    const invalidLegacyAcceptance =
-                      draft.status === "accepted" &&
-                      !isOfficialAcceptedDraft(draft);
+                    const invalidLegacyTerminal =
+                      isTerminalDraftMissingReviewMetadata(draft);
                     return (
                       <article
                         key={draft.id}
@@ -1880,12 +1912,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                         <div className="decision-history__meta">
                           <StatusBadge
                             status={
-                              invalidLegacyAcceptance
+                              invalidLegacyTerminal
                                 ? "needs_revision"
                                 : draft.status
                             }
                             label={
-                              invalidLegacyAcceptance
+                              invalidLegacyTerminal
                                 ? "Thiếu căn cứ duyệt"
                                 : undefined
                             }
@@ -1896,7 +1928,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                             </span>
                           )}
                         </div>
-                        {invalidLegacyAcceptance && (
+                        {invalidLegacyTerminal && (
                           <p className="decision-history__notes" role="note">
                             Hồ sơ lịch sử thiếu căn cứ duyệt; không dùng làm căn
                             cứ chính thức
