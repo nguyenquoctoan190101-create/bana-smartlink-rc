@@ -1,5 +1,7 @@
 import { Activity, Baby, HeartPulse, LayoutGrid, Scale } from "lucide-react";
 import type { ReportData, ReportPeriod } from "../types";
+import { evaluateMetric } from "../lib/metricRegistry";
+import { reportToMetricEvaluationReport } from "../lib/reportMetrics";
 
 type DecisionVillage = {
   id: string;
@@ -39,7 +41,22 @@ const finite = (value: number | null | undefined): value is number => typeof val
 
 const shortVillageName = (name: string) => name.replace(/^Thôn\s+/i, "");
 
-const ratio = (numerator: number | null, denominator: number | null, scale = 100) => (finite(numerator) && finite(denominator) && denominator > 0 ? (numerator * scale) / denominator : null);
+const reportMetricValue = (
+  report: ReportData,
+  metricId: string,
+): number | null => {
+  const periodId =
+    report.period_id || `legacy:${report.report_period}`;
+  return evaluateMetric(
+    metricId,
+    [reportToMetricEvaluationReport(report, periodId)],
+    {
+      period_id: periodId,
+      scope: `village:${report.village_id}`,
+      expected_village_ids: [report.village_id],
+    },
+  ).value;
+};
 
 const percent = (value: number | null, digits = 1) => (finite(value) ? `${value.toFixed(digits)}%` : "—");
 
@@ -69,7 +86,7 @@ export function buildDecisionVillages(reports: ReportData[], villageName: (id: s
     const insured = finite(report.CT11) ? report.CT11 : null;
     const digitalTeam = finite(report.CT12) ? report.CT12 : null;
     const guided = finite(report.CT13) ? report.CT13 : null;
-    const welfareTotal = finite(poor) && finite(nearPoor) ? poor + nearPoor : null;
+    const welfareTotal = reportMetricValue(report, "welfare_burden_count");
 
     return {
       id: report.id,
@@ -84,11 +101,16 @@ export function buildDecisionVillages(reports: ReportData[], villageName: (id: s
       insured,
       digitalTeam,
       guided,
-      bhytRate: ratio(insured, population),
-      welfareRate: ratio(welfareTotal, households),
-      cultureRate: ratio(culturalFamilies, households),
-      guidedPerThousand: ratio(guided, population, 1_000),
-      specialChildrenRate: ratio(specialChildren, children),
+      bhytRate: reportMetricValue(report, "health_insurance_rate"),
+      welfareRate: reportMetricValue(report, "welfare_burden_rate"),
+      cultureRate: reportMetricValue(report, "cultural_family_rate"),
+      guidedPerThousand: reportMetricValue(report, "guided_people_per_1000"),
+      // This registry entry remains draft until a suppression policy is
+      // approved, so the evaluator deliberately returns null.
+      specialChildrenRate: reportMetricValue(
+        report,
+        "vulnerable_children_rate",
+      ),
     };
   });
 }
@@ -115,12 +137,10 @@ export function buildSingleVillageTrend(
       const period = report.period_id
         ? periodsById.get(report.period_id)
         : undefined;
-      const households = finite(report.CT01) ? report.CT01 : null;
-      const population = finite(report.CT02) ? report.CT02 : null;
-      const poor = finite(report.CT03) ? report.CT03 : null;
-      const nearPoor = finite(report.CT04) ? report.CT04 : null;
-      const welfareHouseholds =
-        finite(poor) && finite(nearPoor) ? poor + nearPoor : null;
+      const welfareHouseholds = reportMetricValue(
+        report,
+        "welfare_burden_count",
+      );
 
       return {
         id: report.id,
@@ -128,19 +148,12 @@ export function buildSingleVillageTrend(
         periodLabel:
           period?.display_name || period?.name || report.report_period,
         sortDate: period?.due_date || report.updated_at || "",
-        bhytRate: ratio(
-          finite(report.CT11) ? report.CT11 : null,
-          population,
-        ),
-        welfareRate: ratio(welfareHouseholds, households),
-        cultureRate: ratio(
-          finite(report.CT09) ? report.CT09 : null,
-          households,
-        ),
-        guidedPerThousand: ratio(
-          finite(report.CT13) ? report.CT13 : null,
-          population,
-          1_000,
+        bhytRate: reportMetricValue(report, "health_insurance_rate"),
+        welfareRate: reportMetricValue(report, "welfare_burden_rate"),
+        cultureRate: reportMetricValue(report, "cultural_family_rate"),
+        guidedPerThousand: reportMetricValue(
+          report,
+          "guided_people_per_1000",
         ),
         welfareHouseholds,
       };

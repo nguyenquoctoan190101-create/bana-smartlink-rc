@@ -32,6 +32,28 @@ thẩm quyền cuối cùng.
 Không được đổi `null` thành 0. `null` có nghĩa là thiếu/chưa xác nhận; 0 là một
 giá trị nghiệp vụ đã được người dùng xác nhận.
 
+## Registry chỉ số ngữ nghĩa
+
+`config/validation_rules.json` chỉ quản lý tính hợp lệ xác định của dữ liệu đầu
+vào. Định nghĩa chỉ số dùng để tổng hợp và trình bày được quản lý riêng trong
+`config/metric_registry.json`, có `registry_version` và được cùng evaluator
+Python/TypeScript sử dụng. UI, export và kiểm thử không được tự viết lại công
+thức nằm ngoài registry.
+
+- Metric `sum` cộng giá trị cùng chỉ tiêu; metric `ratio_of_sums` luôn tính
+  `tổng tử số / tổng mẫu số`, không lấy trung bình các tỷ lệ của từng thôn.
+- Chỉ báo cáo ở trạng thái `approved` hoặc `locked`, cùng một kỳ và không trùng
+  grain thôn × kỳ mới được dùng cho KPI điều hành. Báo cáo `needs_revision` vẫn
+  thuộc bảng theo dõi nghiệp vụ nhưng không đi vào KPI ngữ nghĩa.
+- Thiếu một thành phần công thức vẫn là `null`; mẫu số bằng 0 không sinh tỷ lệ.
+  Evaluator trả riêng độ phủ và lý do để UI/export không biến thiếu thành 0.
+- `updated_at` là thời điểm bản ghi được cập nhật thật trên máy chủ;
+  `approved_at` là thời điểm qua cổng duyệt. Không dùng `submitted_at` thay cho
+  hai mốc này khi mô tả độ mới hoặc căn cứ phê duyệt.
+- Target, trạng thái đạt/chưa đạt và màu severity chỉ được bật khi registry có
+  đủ giá trị, nguồn, chủ sở hữu, hiệu lực, dung sai, phạm vi và quy tắc làm tròn.
+  Khi chưa đủ metadata, chỉ hiển thị giá trị mô tả trung tính.
+
 ## Quy tắc chính
 
 - CT03 và CT04 không vượt CT01; CT03 + CT04 không vượt CT01.

@@ -117,7 +117,7 @@ def test_xlsx_exports_define_single_page_print_layouts() -> None:
 
     expected = {
         "Bảng tổng hợp": (8, "landscape", "$A$1:$Q$"),
-        "Dashboard": (9, "portrait", "$A$1:$B$"),
+        "Dashboard": (8, "landscape", "$A$1:$E$"),
         "Theo dõi tiến độ": (9, "landscape", "$A$1:$G$"),
         "Từ điển dữ liệu": (9, "landscape", "$A$1:$E$"),
         "Cảnh báo dữ liệu": (9, "landscape", "$A$1:$F$"),
@@ -245,6 +245,151 @@ def test_summary_export_keeps_submitted_report_that_needs_revision() -> None:
     assert summary["Q6"].value == "1/1"
     assert progress["E5"].value == "15/07/2026 10:00"
     assert progress["F5"].value == "Cần chỉnh sửa · Đúng hạn"
+
+
+def test_semantic_kpis_match_across_exports_without_absorbing_revision_rows() -> None:
+    period_id = "period-2026-07"
+    reports = [
+        {
+            "id": "report-a",
+            "village_id": "village-a",
+            "period_id": period_id,
+            "workflow_status": "approved",
+            "timeliness_status": "on_time",
+            "report_source": "manual",
+            "version": 4,
+            "submitted_at": "2026-07-10T10:00:00Z",
+            "values": {
+                "CT01": 100,
+                "CT02": 100,
+                "CT03": 10,
+                "CT04": 5,
+                "CT09": 80,
+                "CT11": 100,
+            },
+        },
+        {
+            "id": "report-b",
+            "village_id": "village-b",
+            "period_id": period_id,
+            "workflow_status": "locked",
+            "timeliness_status": "late",
+            "report_source": "excel",
+            "version": 7,
+            "submitted_at": "2026-07-11T10:00:00Z",
+            "values": {
+                "CT01": 900,
+                "CT02": 900,
+                "CT03": 90,
+                "CT04": 45,
+                "CT09": 720,
+                "CT11": 450,
+            },
+        },
+        {
+            "id": "report-revision",
+            "village_id": "village-c",
+            "period_id": period_id,
+            "workflow_status": "needs_revision",
+            "timeliness_status": "on_time",
+            "report_source": "manual",
+            "version": 2,
+            "submitted_at": "2026-07-12T10:00:00Z",
+            "values": {
+                "CT01": 100_000,
+                "CT02": 100_000,
+                "CT03": 100_000,
+                "CT04": 100_000,
+                "CT09": 100_000,
+                "CT11": 100_000,
+            },
+        },
+    ]
+    villages = {
+        "village-a": "Thôn A",
+        "village-b": "Thôn B",
+        "village-c": "Thôn C",
+    }
+
+    workbook = openpyxl.load_workbook(
+        BytesIO(
+            generate_summary_xlsx_file(
+                "Tháng 7/2026",
+                reports,
+                villages,
+                period_id=period_id,
+            )
+        )
+    )
+    dashboard = workbook["Dashboard"]
+    bhyt_row = next(
+        row
+        for row in range(1, dashboard.max_row + 1)
+        if dashboard.cell(row=row, column=1).value
+        == "Tỷ lệ tham gia BHYT"
+    )
+    assert dashboard.cell(row=bhyt_row, column=2).value == 55
+    assert dashboard.cell(row=bhyt_row, column=4).value.startswith(
+        "2/3 thôn"
+    )
+    assert "report-a@v4" in dashboard.cell(
+        row=bhyt_row, column=5
+    ).value
+    assert "report-b@v7" in dashboard.cell(
+        row=bhyt_row, column=5
+    ).value
+    assert "report-revision" not in dashboard.cell(
+        row=bhyt_row, column=5
+    ).value
+
+    source_sheet = workbook["Bảng tổng hợp"]
+    revision_row = next(
+        row
+        for row in range(5, source_sheet.max_row)
+        if source_sheet.cell(row=row, column=2).value == "Thôn C"
+    )
+    assert source_sheet.cell(row=revision_row, column=3).value == 100_000
+    assert "Cần chỉnh sửa" in source_sheet.cell(
+        row=revision_row, column=17
+    ).value
+
+    document = docx.Document(
+        BytesIO(
+            generate_docx_file(
+                "Tháng 7/2026",
+                reports,
+                villages,
+                period_id=period_id,
+            )
+        )
+    )
+    docx_text = "\n".join(
+        [
+            *(paragraph.text for paragraph in document.paragraphs),
+            *(
+                cell.text
+                for table in document.tables
+                for row in table.rows
+                for cell in row.cells
+            ),
+        ]
+    )
+    assert "CHỈ SỐ NGỮ NGHĨA — HỒ SƠ ĐÃ DUYỆT/KHÓA" in docx_text
+    assert "55,0%" in docx_text
+    assert "2/3 thôn" in docx_text
+
+    pdf_bytes = generate_pdf_file(
+        "Tháng 7/2026",
+        reports,
+        villages,
+        period_id=period_id,
+    )
+    pdf_text = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(BytesIO(pdf_bytes)).pages
+    )
+    assert "55,0%" in pdf_text
+    assert "2/3 thôn" in pdf_text
 
 
 def test_summary_export_uses_official_ten_village_order() -> None:

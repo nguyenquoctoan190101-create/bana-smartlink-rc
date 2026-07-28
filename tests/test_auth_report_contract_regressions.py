@@ -446,6 +446,39 @@ def _client_with_report(report_rest: _FakeReportRest, profile: UserProfile):
         app.dependency_overrides.update(previous)
 
 
+def test_report_listing_returns_authoritative_update_and_approval_times() -> None:
+    report_id = uuid4()
+    village_id = uuid4()
+    rest = _FakeReportRest(
+        {
+            "id": str(report_id),
+            "village_id": str(village_id),
+            "period_id": str(uuid4()),
+            "workflow_status": "approved",
+            "timeliness_status": "on_time",
+            "publication_status": "private",
+            "report_source": "manual",
+            "version": 4,
+            "submitted_at": "2026-07-10T01:00:00Z",
+            "approved_at": "2026-07-11T02:00:00Z",
+            "updated_at": "2026-07-12T03:00:00Z",
+            "report_values": [{"ct_code": "CT01", "value": 318, "note": None}],
+        }
+    )
+    profile = UserProfile(str(uuid4()), "admin_xa", None, False)
+
+    with _client_with_report(rest, profile) as client:
+        response = client.get("/reports")
+
+    assert response.status_code == 200
+    assert response.json()[0]["updated_at"] == "2026-07-12T03:00:00Z"
+    assert response.json()[0]["approved_at"] == "2026-07-11T02:00:00Z"
+    assert response.json()[0]["values"] == {"CT01": 318}
+    listing_call = rest.calls[-1]
+    assert listing_call[0] == "GET"
+    assert "submitted_at,updated_at,approved_at" in listing_call[1]
+
+
 def test_delete_report_returns_bodyless_204_under_fastapi_0139() -> None:
     report_id = uuid4()
     village_id = uuid4()

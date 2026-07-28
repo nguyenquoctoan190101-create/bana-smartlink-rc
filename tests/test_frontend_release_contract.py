@@ -27,12 +27,46 @@ def test_ct05_uses_one_canonical_business_label_in_both_rule_bundles() -> None:
     frontend_rules = json.loads(
         (ROOT / "src" / "validation_rules.json").read_text(encoding="utf-8")
     )
+    metric_registry = json.loads(
+        (ROOT / "config" / "metric_registry.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     backend_ct05 = next(
         rule for rule in backend_rules["indicators"] if rule["code"] == "CT05"
     )
     assert backend_ct05["name"] == CANONICAL_CT05_LABEL
     assert frontend_rules["CT05"]["name"] == CANONICAL_CT05_LABEL
+    registry_ct05 = next(
+        metric
+        for metric in metric_registry["metrics"]
+        if metric["metric_id"] == "CT05"
+    )
+    assert registry_ct05["label_vi"] == CANONICAL_CT05_LABEL
+
+
+def test_metric_registry_public_boundary_matches_release_inventory() -> None:
+    metric_registry = json.loads(
+        (ROOT / "config" / "metric_registry.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    inventory = json.loads(
+        (ROOT / "tests" / "route_authorization_inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert metric_registry["public_raw_metric_ids"] == inventory[
+        "public_indicator_codes"
+    ]
+    assert all(
+        metric["kind"] == "raw"
+        and metric["metric_id"] in inventory["public_indicator_codes"]
+        for metric in metric_registry["metrics"]
+        if metric["public"]
+    )
 
 
 def test_release_image_revision_is_not_the_stale_july_22_layer() -> None:

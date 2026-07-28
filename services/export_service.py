@@ -1,12 +1,19 @@
 from datetime import datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, Mapping
 import unicodedata
 
 from openpyxl import Workbook
 from openpyxl.worksheet.page import PageMargins
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+
+from services.metric_registry import (
+    EvaluationContext,
+    MetricEvaluationResult,
+    evaluate_metric,
+    load_metric_registry,
+)
 
 # Administrative export styling. The restrained blue is reserved for table
 # headers; all other text remains black for legible screen and paper output.
@@ -27,23 +34,25 @@ THIN_BORDER = Border(
 
 CENTER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
 LEFT_ALIGN = Alignment(horizontal="left", vertical="center", wrap_text=True)
+_METRIC_REGISTRY = load_metric_registry()
 INDICATORS_DICT = {
-    "CT01": ("Tổng số hộ dân", "Hộ"),
-    "CT02": ("Tổng số nhân khẩu", "Người"),
-    "CT03": ("Số hộ nghèo", "Hộ"),
-    "CT04": ("Số hộ cận nghèo", "Hộ"),
-    "CT05": ("Số người có công với cách mạng đang được quản lý", "Người"),
-    "CT06": ("Số đối tượng bảo trợ xã hội đang hưởng trợ cấp", "Người"),
-    "CT07": ("Số trẻ em dưới 16 tuổi", "Người"),
-    "CT08": ("Số trẻ em có hoàn cảnh đặc biệt", "Người"),
-    "CT09": ("Số hộ đạt 'Gia đình văn hóa'", "Hộ"),
-    "CT10": ("Số người trong độ tuổi lao động", "Người"),
-    "CT11": ("Số người tham gia BHYT", "Người"),
-    "CT12": ("Số thành viên Tổ công nghệ số cộng đồng", "Người"),
-    "CT13": ("Số người dân được hướng dẫn dùng DVC trực tuyến trong kỳ", "Người"),
-    "CT14": ("Số vụ bạo lực gia đình ghi nhận trong kỳ", "Vụ")
+    code: (
+        definition.label_vi,
+        definition.display_unit_vi[:1].upper()
+        + definition.display_unit_vi[1:],
+    )
+    for code in (f"CT{index:02d}" for index in range(1, 15))
+    if (definition := _METRIC_REGISTRY.get(code)) is not None
 }
 INDICATOR_CODES = tuple(INDICATORS_DICT)
+SEMANTIC_SUMMARY_METRIC_IDS = (
+    "CT01",
+    "CT02",
+    "poverty_household_rate",
+    "near_poverty_household_rate",
+    "health_insurance_rate",
+    "cultural_family_rate",
+)
 CURRENT_VILLAGE_ORDER = (
     "Thôn Thạch Nham Đông",
     "Thôn Thạch Nham Tây",
@@ -91,6 +100,79 @@ def _safe_excel_value(value: object | None) -> int | float | str | None:
     if isinstance(value, (int, float)):
         return value
     return _safe_excel_text(value)
+
+
+def build_semantic_summary(
+    period_name: str,
+    reports_data: list[dict[str, Any]],
+    villages_map: Mapping[Any, Any] | dict,
+    *,
+    period_id: str | None = None,
+) -> tuple[MetricEvaluationResult, ...]:
+    """Evaluate the shared KPI block without altering the operational export.
+
+    Non-final reports remain in source/progress tables but do not enter this
+    semantic slice. Missing provenance on a final report fails the whole KPI
+    block closed instead of fabricating an id or version.
+    """
+
+    final_reports = [
+        report
+        for report in reports_data
+        if report.get("workflow_status") in {"approved", "locked"}
+    ]
+    resolved_period_id = (
+        period_id
+        or next(
+            (
+                str(report["period_id"])
+                for report in final_reports
+                if report.get("period_id")
+            ),
+            None,
+        )
+        or f"export:{period_name}"
+    )
+    expected_village_ids = tuple(str(village_id) for village_id in villages_map)
+    metric_reports = [
+        {
+            "report_id": report.get("id"),
+            "village_id": report.get("village_id"),
+            "period_id": report.get("period_id") or resolved_period_id,
+            "workflow_status": report.get("workflow_status"),
+            "version": report.get("version"),
+            "values": report.get("values"),
+        }
+        for report in final_reports
+    ]
+    context = EvaluationContext(
+        period_id=resolved_period_id,
+        scope="commune:ba-na",
+        expected_village_ids=expected_village_ids,
+    )
+    return tuple(
+        evaluate_metric(metric_id, metric_reports, context)
+        for metric_id in SEMANTIC_SUMMARY_METRIC_IDS
+    )
+
+
+def semantic_coverage_text(result: MetricEvaluationResult) -> str:
+    return (
+        f"{result.included_count}/{result.expected_count} thôn"
+        f" · {result.coverage_status}"
+    )
+
+
+def semantic_provenance_text(result: MetricEvaluationResult) -> str:
+    sources = ", ".join(
+        f"{item.report_id}@v{item.version}"
+        for item in result.source_report_versions
+    )
+    return (
+        f"registry {result.registry_version}"
+        + (f" · {sources}" if sources else "")
+        + (f" · {result.reason}" if result.reason else "")
+    )
 
 
 def _configure_print_layout(
@@ -331,8 +413,20 @@ def generate_village_xlsx_file(period_name: str, report_data: dict, village_name
     return output.getvalue()
 
 
-def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_map: dict) -> bytes:
+def generate_summary_xlsx_file(
+    period_name: str,
+    reports_data: list,
+    villages_map: dict,
+    *,
+    period_id: str | None = None,
+) -> bytes:
     """Generates the All Villages Summary matching Pages 2,3,4."""
+    semantic_results = build_semantic_summary(
+        period_name,
+        reports_data,
+        villages_map,
+        period_id=period_id,
+    )
     wb = Workbook()
     wb.properties.creator = "Ủy ban nhân dân xã Bà Nà"
     wb.properties.title = "Báo cáo tổng hợp số liệu văn hóa – xã hội xã Bà Nà"
@@ -536,7 +630,7 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     # it remains accessible and verifiable in every spreadsheet viewer.
     dashboard = wb.create_sheet("Dashboard")
     wb.move_sheet(dashboard, offset=-1)
-    dashboard.merge_cells("A1:B1")
+    dashboard.merge_cells("A1:E1")
     dashboard["A1"] = "DASHBOARD TỔNG QUAN"
     dashboard["A1"].font = TITLE_FONT
     dashboard["A1"].alignment = CENTER_ALIGN
@@ -544,45 +638,85 @@ def generate_summary_xlsx_file(period_name: str, reports_data: list, villages_ma
     dashboard.append(["Chỉ số", "Giá trị"])
     on_time_count = sum(1 for report in reports_data if report.get("timeliness_status") == "on_time")
     late_count = sum(1 for report in reports_data if report.get("timeliness_status") == "late")
-    dashboard_rows = [
+    operational_rows = [
         ("Tổng số thôn", len(villages_map)),
         ("Đã nộp", submitted_count),
         ("Đúng hạn", on_time_count),
         ("Trễ hạn", late_count),
         ("Chưa nộp", len(villages_map) - submitted_count),
         ("Tỷ lệ nộp (%)", round(submitted_count * 100 / len(villages_map), 1) if villages_map else 0),
-        ("", ""),
-        ("Chỉ tiêu (tổng trong phạm vi)", "Giá trị"),
-        ("Tổng số hộ dân", "—" if incomplete_totals["CT01"] else sums["CT01"]),
-        ("Số hộ nghèo", "—" if incomplete_totals["CT03"] else sums["CT03"]),
-        ("Số hộ cận nghèo", "—" if incomplete_totals["CT04"] else sums["CT04"]),
-        ("Số người có công với cách mạng đang được quản lý", "—" if incomplete_totals["CT05"] else sums["CT05"]),
-        ("Đối tượng bảo trợ xã hội", "—" if incomplete_totals["CT06"] else sums["CT06"]),
-        ("Hộ đạt Gia đình văn hóa", "—" if incomplete_totals["CT09"] else sums["CT09"]),
     ]
-    for row in dashboard_rows:
+    for row in operational_rows:
         dashboard.append([_safe_excel_text(row[0]), _safe_excel_value(row[1])])
+    dashboard.append([])
+    dashboard.append([
+        "Chỉ số ngữ nghĩa — hồ sơ đã duyệt/khóa",
+        "Giá trị",
+        "Đơn vị",
+        "Độ phủ",
+        "Căn cứ",
+    ])
+    semantic_header_row = dashboard.max_row
+    semantic_rows: list[tuple[int, MetricEvaluationResult]] = []
+    for result in semantic_results:
+        definition = _METRIC_REGISTRY.get(result.metric_id)
+        value = result.value
+        if isinstance(value, float) and result.unit and result.unit.startswith(
+            "percent_"
+        ):
+            value = round(value, 1)
+        dashboard.append([
+            _safe_excel_text(
+                definition.label_vi if definition else result.metric_id
+            ),
+            _safe_excel_value(value if value is not None else "—"),
+            _safe_excel_text(
+                definition.display_unit_vi if definition else result.unit
+            ),
+            _safe_excel_text(semantic_coverage_text(result)),
+            _safe_excel_text(semantic_provenance_text(result)),
+        ])
+        semantic_rows.append((dashboard.max_row, result))
+
     for row in range(3, dashboard.max_row + 1):
-        for column in range(1, 3):
+        for column in range(1, 6):
             cell = dashboard.cell(row=row, column=column)
             cell.border = THIN_BORDER
-            cell.font = BLACK_BOLD_FONT if row in {3, 11} else NORMAL_FONT
-            if row in {3, 11}:
+            cell.font = (
+                BLACK_BOLD_FONT
+                if row in {3, semantic_header_row}
+                else NORMAL_FONT
+            )
+            if (
+                (row == 3 and column <= 2)
+                or row == semantic_header_row
+            ):
                 cell.fill = BLUE_HEADER_FILL
                 cell.font = WHITE_BOLD_FONT
-            if column == 2 and row not in {3, 10, 11}:
+            if column == 2 and row not in {3, semantic_header_row}:
                 cell.alignment = CENTER_ALIGN
                 if isinstance(cell.value, (int, float)):
                     cell.number_format = "#,##0.0" if row == 9 else "#,##0"
-    dashboard.column_dimensions["A"].width = 48
+    for row, result in semantic_rows:
+        value_cell = dashboard.cell(row=row, column=2)
+        if (
+            isinstance(value_cell.value, (int, float))
+            and result.unit
+            and result.unit.startswith("percent_")
+        ):
+            value_cell.number_format = "#,##0.0"
+    dashboard.column_dimensions["A"].width = 52
     dashboard.column_dimensions["B"].width = 18
+    dashboard.column_dimensions["C"].width = 18
+    dashboard.column_dimensions["D"].width = 20
+    dashboard.column_dimensions["E"].width = 54
     dashboard.freeze_panes = "A4"
     dashboard.sheet_view.showGridLines = False
     _configure_print_layout(
         dashboard,
-        print_area=f"A1:B{dashboard.max_row}",
-        landscape=False,
-        paper_size=dashboard.PAPERSIZE_A4,
+        print_area=f"A1:E{dashboard.max_row}",
+        landscape=True,
+        paper_size=dashboard.PAPERSIZE_A3,
         title_rows="1:3",
     )
 

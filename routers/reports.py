@@ -794,7 +794,7 @@ async def list_reports(
     query = (
         "/rest/v1/reports"
         "?select=id,village_id,period_id,workflow_status,timeliness_status,"
-        "publication_status,report_source,version,submitted_at,"
+        "publication_status,report_source,version,submitted_at,updated_at,approved_at,"
         "report_values(ct_code,value,note)"
         "&order=submitted_at.desc.nullslast,created_at.desc"
     )
@@ -2390,6 +2390,39 @@ async def get_villages_map(supabase: SupabaseAdminClient) -> dict[str, str]:
     return {str(r["id"]): str(r["name"]) for r in rows}
 
 
+async def get_period_village_ids(
+    supabase: SupabaseAdminClient,
+    period_id: str,
+) -> list[str]:
+    rows = await supabase._rest_request(
+        "GET",
+        (
+            "/rest/v1/report_period_villages"
+            f"?period_id=eq.{quote(period_id, safe='')}"
+            "&select=village_id"
+            "&order=village_id.asc"
+        ),
+    )
+    return [
+        str(row["village_id"])
+        for row in rows
+        if row.get("village_id") is not None
+    ]
+
+
+def scope_villages_map_to_period(
+    villages_map: dict[str, str],
+    period_village_ids: list[str],
+) -> dict[str, str]:
+    if not period_village_ids:
+        # Compatibility for legacy periods created before the assignment table.
+        return villages_map
+    return {
+        village_id: villages_map.get(village_id, village_id)
+        for village_id in period_village_ids
+    }
+
+
 async def get_period_reports_data(
     supabase: SupabaseAdminClient, period_id: str
 ) -> list[dict]:
@@ -2402,8 +2435,8 @@ async def get_period_reports_data(
             # approved citizen proposal and must remain part of the internal
             # snapshot/export while publication stays private.
             "&timeliness_status=in.(on_time,late)"
-            "&select=id,village_id,workflow_status,timeliness_status,report_source,"
-            "version,created_at,updated_at,submitted_at"
+            "&select=id,village_id,period_id,workflow_status,timeliness_status,"
+            "report_source,version,created_at,updated_at,submitted_at,approved_at"
         ),
     )
     if not reports:
@@ -2467,12 +2500,15 @@ def generate_docx_file(
     reports_data: list,
     villages_map: dict,
     scope_name: str | None = None,
+    *,
+    period_id: str | None = None,
 ) -> bytes:
     return _generate_administrative_docx_file(
         period_name,
         reports_data,
         villages_map,
         scope_name=scope_name,
+        period_id=period_id,
     )
 
 
@@ -2481,12 +2517,15 @@ def generate_pdf_file(
     reports_data: list,
     villages_map: dict,
     scope_name: str | None = None,
+    *,
+    period_id: str | None = None,
 ) -> bytes:
     return _generate_administrative_pdf_file(
         period_name,
         reports_data,
         villages_map,
         scope_name=scope_name,
+        period_id=period_id,
     )
 
 
@@ -2717,20 +2756,43 @@ async def export_reports(
     supabase = repository._supabase
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
+    period_village_ids = await get_period_village_ids(
+        supabase,
+        period_uuid,
+    )
+    villages_map = scope_villages_map_to_period(
+        villages_map,
+        period_village_ids,
+    )
     reports_data = await get_period_reports_data(supabase, period_uuid)
 
     if file_format == "xlsx":
-        file_bytes = generate_summary_xlsx_file(period_name, reports_data, villages_map)
+        file_bytes = generate_summary_xlsx_file(
+            period_name,
+            reports_data,
+            villages_map,
+            period_id=period_uuid,
+        )
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"Bang_tong_hop_Bana_SmartLink_{period_name}.xlsx"
     elif file_format == "docx":
-        file_bytes = generate_docx_file(period_name, reports_data, villages_map)
+        file_bytes = generate_docx_file(
+            period_name,
+            reports_data,
+            villages_map,
+            period_id=period_uuid,
+        )
         media_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
         filename = f"Bao_cao_Bana_SmartLink_{period_name}.docx"
     elif file_format == "pdf":
-        file_bytes = generate_pdf_file(period_name, reports_data, villages_map)
+        file_bytes = generate_pdf_file(
+            period_name,
+            reports_data,
+            villages_map,
+            period_id=period_uuid,
+        )
         media_type = "application/pdf"
         filename = f"Bao_cao_Bana_SmartLink_{period_name}.pdf"
     else:
@@ -2790,6 +2852,7 @@ async def export_village_report(
             [village_report],
             {village_id_text: village_name},
             scope_name=village_name,
+            period_id=period_uuid,
         )
         media_type = (
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -2801,6 +2864,7 @@ async def export_village_report(
             [village_report],
             {village_id_text: village_name},
             scope_name=village_name,
+            period_id=period_uuid,
         )
         media_type = "application/pdf"
         filename = f"Phieu_bao_cao_{village_name}_{period_name}.pdf".replace(" ", "_")
@@ -2823,6 +2887,14 @@ async def preview_reports(
     supabase = repository._supabase
     period_uuid, period_name = await resolve_period(supabase, period_id)
     villages_map = await get_villages_map(supabase)
+    period_village_ids = await get_period_village_ids(
+        supabase,
+        period_uuid,
+    )
+    villages_map = scope_villages_map_to_period(
+        villages_map,
+        period_village_ids,
+    )
     reports_data = await get_period_reports_data(supabase, period_uuid)
 
     html_content = generate_preview_html(period_name, reports_data, villages_map)

@@ -26,6 +26,8 @@ import {
 import { useVillages } from "../lib/useVillages";
 import { useAuth } from "../lib/AuthContext";
 import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
+import { evaluateMetric } from "../lib/metricRegistry";
+import { reportToMetricEvaluationReport } from "../lib/reportMetrics";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
 import "./Dashboard.css";
 import DashboardInsightCharts from "./DashboardInsightCharts";
@@ -431,68 +433,91 @@ export default function Dashboard({
     if (isCrossPeriodSnapshot) setShowChartModal(false);
   }, [isCrossPeriodSnapshot]);
 
-  // Calculate aggregated metrics
-  const value = (input: number | null) =>
-    typeof input === "number" && Number.isFinite(input) ? input : 0;
-  const availability = (key: keyof ReportData) => {
-    const present = analyticsReports.filter(
-      (report) =>
-        typeof report[key] === "number" &&
-        Number.isFinite(report[key] as number),
-    ).length;
-    return { present, missing: analyticsReports.length - present };
+  // Metric identity uses the selected period UUID. Legacy rows receive this
+  // resolved identity only after filterDashboardReportsByPeriod has proved
+  // that their display name maps to this one period.
+  const metricPeriodId =
+    selectedPeriodOption.periodId || selectedPeriodOption.value;
+  const expectedMetricVillageIds =
+    effectiveVillageFilter === "all"
+      ? expectedScopeVillageIds.length
+        ? expectedScopeVillageIds
+        : analyticsVillageIds
+      : effectiveVillageFilter
+        ? [effectiveVillageFilter]
+        : [];
+  const metricReports = analyticsReports.map((report) =>
+    reportToMetricEvaluationReport(report, metricPeriodId),
+  );
+  const metricContext = {
+    period_id: metricPeriodId,
+    scope:
+      effectiveVillageFilter === "all"
+        ? "commune:ba-na"
+        : `village:${effectiveVillageFilter}`,
+    expected_village_ids: expectedMetricVillageIds,
   };
-  const hasValueFor = (key: keyof ReportData) => availability(key).present > 0;
-  // A partial commune slice is useful when its coverage is stated explicitly.
-  // Aggregate only approved/locked reports that are actually present, and keep
-  // an indicator blank if any included report is missing that indicator.
-  const sumMetric = (key: keyof ReportData): number | null => {
-    if (
-      !canAggregateCurrentSlice ||
-      !analyticsReports.length ||
-      !hasValueFor(key) ||
-      availability(key).missing > 0
-    )
-      return null;
-    return analyticsReports.reduce(
-      (sum, report) => sum + value(report[key] as number | null),
-      0,
-    );
-  };
-  const totalHouseholds = sumMetric("CT01");
-  const totalPopulation = sumMetric("CT02");
-  const totalPoor = sumMetric("CT03");
-  const totalNearPoor = sumMetric("CT04");
-  const totalRevolutionContributors = sumMetric("CT05");
-  const totalSocialProtection = sumMetric("CT06");
-  const totalChildren = sumMetric("CT07");
-  const totalChildrenSpecial = sumMetric("CT08");
-  const totalCulturalFamilies = sumMetric("CT09");
-  const totalWorkingAge = sumMetric("CT10");
-  const totalBHYT = sumMetric("CT11");
-  const totalDigitalTeam = sumMetric("CT12");
-  const totalOnlineServiceGuided = sumMetric("CT13");
-  const totalDomesticViolence = sumMetric("CT14");
+  const aggregateMetric = (metricId: string) =>
+    canAggregateCurrentSlice
+      ? evaluateMetric(metricId, metricReports, metricContext)
+      : null;
 
-  // Poverty and near poverty rates
-  const povertyRate =
-    totalHouseholds !== null && totalPoor !== null && totalHouseholds > 0
-      ? (totalPoor / totalHouseholds) * 100
-      : null;
-  const nearPovertyRate =
-    totalHouseholds !== null && totalNearPoor !== null && totalHouseholds > 0
-      ? (totalNearPoor / totalHouseholds) * 100
-      : null;
-  const bhytRate =
-    totalPopulation !== null && totalBHYT !== null && totalPopulation > 0
-      ? (totalBHYT / totalPopulation) * 100
-      : null;
-  const culturalFamilyRate =
-    totalHouseholds !== null &&
-    totalCulturalFamilies !== null &&
-    totalHouseholds > 0
-      ? (totalCulturalFamilies / totalHouseholds) * 100
-      : null;
+  const householdsMetric = aggregateMetric("CT01");
+  const populationMetric = aggregateMetric("CT02");
+  const poorMetric = aggregateMetric("CT03");
+  const nearPoorMetric = aggregateMetric("CT04");
+  const revolutionContributorsMetric = aggregateMetric("CT05");
+  const socialProtectionMetric = aggregateMetric("CT06");
+  const childrenMetric = aggregateMetric("CT07");
+  const childrenSpecialMetric = aggregateMetric("CT08");
+  const culturalFamiliesMetric = aggregateMetric("CT09");
+  const workingAgeMetric = aggregateMetric("CT10");
+  const bhytCountMetric = aggregateMetric("CT11");
+  const digitalTeamMetric = aggregateMetric("CT12");
+  const onlineServiceGuidedMetric = aggregateMetric("CT13");
+  // CT14 is deliberately non-aggregatable and therefore evaluates to null.
+  const domesticViolenceMetric = aggregateMetric("CT14");
+  const povertyMetric = aggregateMetric("poverty_household_rate");
+  const nearPovertyMetric = aggregateMetric("near_poverty_household_rate");
+  const bhytMetric = aggregateMetric("health_insurance_rate");
+  const culturalFamilyMetric = aggregateMetric("cultural_family_rate");
+
+  const totalHouseholds = householdsMetric?.value ?? null;
+  const totalPopulation = populationMetric?.value ?? null;
+  const totalPoor = poorMetric?.value ?? null;
+  const totalNearPoor = nearPoorMetric?.value ?? null;
+  const totalRevolutionContributors =
+    revolutionContributorsMetric?.value ?? null;
+  const totalSocialProtection = socialProtectionMetric?.value ?? null;
+  const totalChildren = childrenMetric?.value ?? null;
+  const totalChildrenSpecial = childrenSpecialMetric?.value ?? null;
+  const totalCulturalFamilies = culturalFamiliesMetric?.value ?? null;
+  const totalWorkingAge = workingAgeMetric?.value ?? null;
+  const totalBHYT = bhytCountMetric?.value ?? null;
+  const totalDigitalTeam = digitalTeamMetric?.value ?? null;
+  const totalOnlineServiceGuided = onlineServiceGuidedMetric?.value ?? null;
+  const totalDomesticViolence = domesticViolenceMetric?.value ?? null;
+  const povertyRate = povertyMetric?.value ?? null;
+  const nearPovertyRate = nearPovertyMetric?.value ?? null;
+  const bhytRate = bhytMetric?.value ?? null;
+  const culturalFamilyRate = culturalFamilyMetric?.value ?? null;
+
+  const reportBhytRate = (report: ReportData): number | null => {
+    const periodId =
+      report.period_id
+      || (selectedPeriod !== ALL_PERIODS
+        ? metricPeriodId
+        : `legacy:${report.report_period}`);
+    return evaluateMetric(
+      "health_insurance_rate",
+      [reportToMetricEvaluationReport(report, periodId)],
+      {
+        period_id: periodId,
+        scope: `village:${report.village_id}`,
+        expected_village_ids: [report.village_id],
+      },
+    ).value;
+  };
 
   // Get village name helper
   const getVillageName = (id: string) => {
@@ -887,14 +912,19 @@ export default function Dashboard({
                 {povertyRate !== null ? `${povertyRate.toFixed(2)}%` : "—"}
               </span>
               <span className="text-2xs text-rose-500">
-                {totalPoor !== null ? `(${totalPoor} hộ)` : "Chưa có dữ liệu"}
+                {povertyMetric?.numerator !== null
+                  && povertyMetric?.numerator !== undefined
+                  ? `(${povertyMetric.numerator} hộ)`
+                  : "Chưa có dữ liệu"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
               <span>Cận nghèo:</span>
               <b className="text-slate-700 font-semibold">
-                {nearPovertyRate !== null && totalNearPoor !== null
-                  ? `${nearPovertyRate.toFixed(2)}% (${totalNearPoor} hộ)`
+                {nearPovertyRate !== null
+                  && nearPovertyMetric?.numerator !== null
+                  && nearPovertyMetric?.numerator !== undefined
+                  ? `${nearPovertyRate.toFixed(2)}% (${nearPovertyMetric.numerator} hộ)`
                   : "Chưa có dữ liệu"}
               </b>
             </p>
@@ -919,12 +949,14 @@ export default function Dashboard({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {totalBHYT !== null && totalPopulation !== null ? (
+              {bhytMetric?.numerator !== null
+              && bhytMetric?.numerator !== undefined
+              && bhytMetric.denominator !== null ? (
                 <>
                   Đã có{" "}
                   <b className="text-slate-700 font-semibold">
-                    {totalBHYT.toLocaleString()} /{" "}
-                    {totalPopulation.toLocaleString()}
+                    {bhytMetric.numerator.toLocaleString()} /{" "}
+                    {bhytMetric.denominator.toLocaleString()}
                   </b>{" "}
                   người tham gia
                 </>
@@ -955,12 +987,14 @@ export default function Dashboard({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {totalCulturalFamilies !== null && totalHouseholds !== null ? (
+              {culturalFamilyMetric?.numerator !== null
+              && culturalFamilyMetric?.numerator !== undefined
+              && culturalFamilyMetric.denominator !== null ? (
                 <>
                   Đạt chuẩn:{" "}
                   <b className="text-slate-700 font-semibold">
-                    {totalCulturalFamilies.toLocaleString()} /{" "}
-                    {totalHouseholds.toLocaleString()}
+                    {culturalFamilyMetric.numerator.toLocaleString()} /{" "}
+                    {culturalFamilyMetric.denominator.toLocaleString()}
                   </b>{" "}
                   hộ dân
                 </>
@@ -1372,7 +1406,9 @@ export default function Dashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {detailReports.map((report) => (
+                  {detailReports.map((report) => {
+                    const bhytRowRate = reportBhytRate(report);
+                    return (
                     <tr
                       key={report.id}
                       className="hover:bg-slate-25/50 transition-colors"
@@ -1389,8 +1425,8 @@ export default function Dashboard({
                         {report.CT03}
                       </td>
                       <td className="py-3.5 px-3 font-mono text-emerald-600 font-semibold">
-                        {value(report.CT02) > 0
-                          ? `${((value(report.CT11) / value(report.CT02)) * 100).toFixed(0)}%`
+                        {bhytRowRate !== null
+                          ? `${bhytRowRate.toFixed(0)}%`
                           : "—"}
                       </td>
                       <td className="py-3.5 px-3">
@@ -1499,7 +1535,8 @@ export default function Dashboard({
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

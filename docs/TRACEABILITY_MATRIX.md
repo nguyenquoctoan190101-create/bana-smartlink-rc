@@ -4,6 +4,8 @@
 |---|---|---|---|
 | Bảo toàn XLSX gốc | `scripts/audit_source_workbooks.py` chỉ đọc, ghi SHA-256/kích thước; không ghi PII người lập | `test_source_workbook_audit.py`, audit JSON ngoài repo | Đạt bằng mã và fixture; nguồn gốc đã audit |
 | Không biến thiếu/sai thành 0 | `excel_report_parser.py`, `validator.py`, preview API và UI giữ `null`/raw value | `test_excel_preview_contract.py`, security-critical coverage | Đạt |
+| Một định nghĩa/công thức KPI cho UI và export | `config/metric_registry.json` cùng evaluator Python/TypeScript; `ratio_of_sums`, độ phủ, kỳ và phiên bản nguồn dùng chung; target thiếu metadata giữ trung tính | `test_metric_registry.py`, `metricRegistry.test.ts`, component/export regression | P0-01: đạt contract và tích hợp UI/export bằng regression tự động |
+| Freshness và mốc duyệt không bị nhập làm một | `/reports` trả riêng `submitted_at`, `updated_at`, `approved_at`; mapper ưu tiên `updated_at` thật và chỉ fallback cho response public/legacy | `test_auth_report_contract_regressions.py`, `db.test.ts` | Đạt bằng regression tự động |
 | Bắt 7 ca lỗi mẫu | Validator deterministic cho BLANK/TEXT/SEP/OUTLIER/LOGIC/BADPHONE | `test_official_golden_files.py`, `test_source_workbook_audit.py` | Đạt |
 | 22 thôn cũ sang 10 thôn mới | Mapping có version, 22 village + 2 resettlement area, target đề xuất riêng | `test_village_mapping_golden.py`, `test_fixture_integrity.py` | Đạt; Đông Sơn vẫn chờ quyết định |
 | Nhập 19/22 tệp an toàn | Cho tạo batch thiếu nguồn; review từng tệp; chỉ chốt target đủ toàn bộ nguồn | `test_report_import.py`, `test_report_import_endpoints.py` | Đạt |

@@ -36,6 +36,50 @@ export function sanitizeReportForOffline(report: ReportData): ReportData {
   return { ...report, reporter_name: "", reporter_phone: "" };
 }
 
+function optionalTimestamp(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+/** Map one API row without conflating submission, approval and update times. */
+export function reportDataFromApiRow(
+  raw: unknown,
+  periodNames: ReadonlyMap<string, string> = new Map(),
+  publicOnly = false,
+): ReportData {
+  const row = (raw || {}) as Record<string, any>;
+  const values = (row.values || {}) as Record<string, unknown>;
+  const indicators = Object.fromEntries(INDICATOR_CODES.map((code) => [
+    code,
+    typeof values[code] === "number" && Number.isFinite(values[code]) ? values[code] : null,
+  ])) as Pick<ReportData, (typeof INDICATOR_CODES)[number]>;
+  const submittedAt = optionalTimestamp(row.submitted_at);
+  const approvedAt = optionalTimestamp(row.approved_at);
+  const publishedAt = optionalTimestamp(row.published_at);
+  const serverUpdatedAt = optionalTimestamp(row.updated_at);
+
+  return {
+    ...indicators,
+    id: String(row.id),
+    village_id: String(row.village_id),
+    period_id: row.period_id ? String(row.period_id) : undefined,
+    report_period: String(row.report_period || periodNames.get(String(row.period_id)) || "Chưa xác định"),
+    reporter_name: "",
+    reporter_phone: "",
+    workflow_status: (row.workflow_status || (publicOnly ? "approved" : "draft")) as WorkflowStatus,
+    timeliness_status: (row.timeliness_status || "not_submitted") as TimelinessStatus,
+    publication_status: (row.publication_status || (publicOnly ? "published" : "private")) as PublicationStatus,
+    version: typeof row.version === "number" ? row.version : undefined,
+    // Internal responses carry the authoritative reports.updated_at value. The
+    // fallbacks keep older/public response shapes readable without relabelling
+    // submitted_at as updated_at whenever the true field is present.
+    updated_at: serverUpdatedAt || publishedAt || submittedAt || "",
+    submitted_at: submittedAt,
+    approved_at: approvedAt,
+    published_at: publishedAt,
+    raw_source: (row.report_source || "manual") as ReportSource,
+  };
+}
+
 async function initDB() {
   return openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
@@ -63,29 +107,7 @@ export async function getAllReports(publicOnly = false): Promise<ReportData[]> {
   const rows = Array.isArray(payload) ? payload : (payload.items || []);
   const periodNames = new Map(periods.map((period) => [period.id, period.name]));
 
-  return rows.map((raw) => {
-    const row = (raw || {}) as Record<string, any>;
-    const values = (row.values || {}) as Record<string, unknown>;
-    const indicators = Object.fromEntries(INDICATOR_CODES.map((code) => [
-      code,
-      typeof values[code] === "number" && Number.isFinite(values[code]) ? values[code] : null,
-    ])) as Pick<ReportData, (typeof INDICATOR_CODES)[number]>;
-    return {
-      ...indicators,
-      id: String(row.id),
-      village_id: String(row.village_id),
-      period_id: row.period_id ? String(row.period_id) : undefined,
-      report_period: String(row.report_period || periodNames.get(String(row.period_id)) || "Chưa xác định"),
-      reporter_name: "",
-      reporter_phone: "",
-      workflow_status: (row.workflow_status || (publicOnly ? "approved" : "draft")) as WorkflowStatus,
-      timeliness_status: (row.timeliness_status || "not_submitted") as TimelinessStatus,
-      publication_status: (row.publication_status || (publicOnly ? "published" : "private")) as PublicationStatus,
-      version: typeof row.version === "number" ? row.version : undefined,
-      updated_at: String(row.submitted_at || row.published_at || ""),
-      raw_source: (row.report_source || "manual") as ReportSource,
-    };
-  });
+  return rows.map((raw) => reportDataFromApiRow(raw, periodNames, publicOnly));
 }
 
 export async function saveReport(report: ReportData): Promise<void> {

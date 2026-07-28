@@ -35,7 +35,11 @@ from services.export_service import (
     _submission_status_label,
     _timeliness_label,
     _workflow_label,
+    build_semantic_summary,
+    semantic_coverage_text,
+    semantic_provenance_text,
 )
+from services.metric_registry import load_metric_registry
 
 
 AUTHORITY_NAME = "ỦY BAN NHÂN DÂN\nXÃ BÀ NÀ"
@@ -95,6 +99,44 @@ def _submitted_totals(
             else:
                 totals[code] += value
     return totals, incomplete
+
+
+def _semantic_summary_rows(
+    *,
+    period_name: str,
+    reports_data: list[dict[str, Any]],
+    villages_map: dict[str, str],
+    period_id: str | None,
+) -> list[list[str]]:
+    registry = load_metric_registry()
+    rows = [["Chỉ số", "Giá trị", "Đơn vị", "Độ phủ", "Căn cứ"]]
+    for result in build_semantic_summary(
+        period_name,
+        reports_data,
+        villages_map,
+        period_id=period_id,
+    ):
+        definition = registry.get(result.metric_id)
+        if result.value is None:
+            value = "—"
+        elif result.unit and result.unit.startswith("percent_"):
+            value = f"{result.value:.1f}%".replace(".", ",")
+        else:
+            value = _format_value(result.value)
+        rows.append(
+            [
+                definition.label_vi if definition else result.metric_id,
+                value,
+                (
+                    definition.display_unit_vi
+                    if definition
+                    else str(result.unit or "")
+                ),
+                semantic_coverage_text(result),
+                semantic_provenance_text(result),
+            ]
+        )
+    return rows
 
 
 def _set_docx_run(
@@ -366,8 +408,10 @@ def _docx_village_body(
 def _docx_summary_body(
     document: Any,
     *,
+    period_name: str,
     reports_data: list[dict[str, Any]],
     villages_map: dict[str, str],
+    period_id: str | None,
 ) -> None:
     report_by_village = _report_index(reports_data)
     villages = _ordered_village_items(villages_map)
@@ -405,9 +449,24 @@ def _docx_summary_body(
         )
     _add_docx_table(document, progress_rows, first_column_left=True)
 
+    _add_docx_heading(
+        document,
+        "II. CHỈ SỐ NGỮ NGHĨA — HỒ SƠ ĐÃ DUYỆT/KHÓA",
+    )
+    _add_docx_table(
+        document,
+        _semantic_summary_rows(
+            period_name=period_name,
+            reports_data=reports_data,
+            villages_map=villages_map,
+            period_id=period_id,
+        ),
+        first_column_left=True,
+    )
+
     totals, incomplete = _submitted_totals(reports_data)
     document.add_page_break()
-    _add_docx_heading(document, "II. BẢNG TỔNG HỢP CHỈ TIÊU THEO THÔN")
+    _add_docx_heading(document, "III. BẢNG TỔNG HỢP CHỈ TIÊU THEO THÔN")
     for group_index, (group_name, codes) in enumerate(INDICATOR_GROUPS):
         if group_index:
             document.add_page_break()
@@ -442,7 +501,7 @@ def _docx_summary_body(
         _add_docx_table(document, rows, first_column_left=True)
 
     document.add_page_break()
-    _add_docx_heading(document, "III. DANH MỤC CHỈ TIÊU")
+    _add_docx_heading(document, "IV. DANH MỤC CHỈ TIÊU")
     dictionary_rows = [["Mã CT", "Tên chỉ tiêu", "Đơn vị tính"]]
     dictionary_rows.extend(
         [code, name, unit] for code, (name, unit) in INDICATORS_DICT.items()
@@ -450,7 +509,7 @@ def _docx_summary_body(
     _add_docx_table(document, dictionary_rows, first_column_left=True)
 
     document.add_page_break()
-    _add_docx_heading(document, "IV. NGUỒN DỮ LIỆU VÀ CẢNH BÁO")
+    _add_docx_heading(document, "V. NGUỒN DỮ LIỆU VÀ CẢNH BÁO")
     source_rows = [
         ["Thôn", "Nguồn nhập", "Trạng thái", "Đúng hạn", "Thời điểm nộp"]
     ]
@@ -494,6 +553,8 @@ def generate_docx_file(
     reports_data: list,
     villages_map: dict,
     scope_name: str | None = None,
+    *,
+    period_id: str | None = None,
 ) -> bytes:
     """Generate an A4 administrative report with readable, repeatable tables."""
     document = docx.Document()
@@ -553,8 +614,10 @@ def generate_docx_file(
     else:
         _docx_summary_body(
             document,
+            period_name=period_name,
             reports_data=reports_data,
             villages_map=villages_map,
+            period_id=period_id,
         )
     _add_docx_page_numbers(document)
 
@@ -884,8 +947,10 @@ def _pdf_village_story(
 
 def _pdf_summary_story(
     *,
+    period_name: str,
     reports_data: list[dict[str, Any]],
     villages_map: dict[str, str],
+    period_id: str | None,
     styles: dict[str, ParagraphStyle],
     usable_width: float,
 ) -> list[Any]:
@@ -937,8 +1002,33 @@ def _pdf_summary_story(
                 column_widths=[15 * mm, 75 * mm, 48 * mm, usable_width - 138 * mm],
                 first_column_left=True,
             ),
+            Spacer(1, 3 * mm),
+            _pdf_paragraph(
+                "II. CHỈ SỐ NGỮ NGHĨA — HỒ SƠ ĐÃ DUYỆT/KHÓA",
+                styles["heading"],
+            ),
+            _pdf_table(
+                _semantic_summary_rows(
+                    period_name=period_name,
+                    reports_data=reports_data,
+                    villages_map=villages_map,
+                    period_id=period_id,
+                ),
+                styles=styles,
+                column_widths=[
+                    48 * mm,
+                    22 * mm,
+                    28 * mm,
+                    32 * mm,
+                    usable_width - 130 * mm,
+                ],
+                first_column_left=True,
+            ),
             PageBreak(),
-            _pdf_paragraph("II. BẢNG TỔNG HỢP CHỈ TIÊU THEO THÔN", styles["heading"]),
+            _pdf_paragraph(
+                "III. BẢNG TỔNG HỢP CHỈ TIÊU THEO THÔN",
+                styles["heading"],
+            ),
         ]
     )
     totals, incomplete = _submitted_totals(reports_data)
@@ -994,7 +1084,7 @@ def _pdf_summary_story(
     story.extend(
         [
             PageBreak(),
-            _pdf_paragraph("III. DANH MỤC CHỈ TIÊU", styles["heading"]),
+            _pdf_paragraph("IV. DANH MỤC CHỈ TIÊU", styles["heading"]),
             _pdf_table(
                 dictionary,
                 styles=styles,
@@ -1002,7 +1092,10 @@ def _pdf_summary_story(
                 first_column_left=True,
             ),
             PageBreak(),
-            _pdf_paragraph("IV. NGUỒN DỮ LIỆU VÀ CẢNH BÁO", styles["heading"]),
+            _pdf_paragraph(
+                "V. NGUỒN DỮ LIỆU VÀ CẢNH BÁO",
+                styles["heading"],
+            ),
         ]
     )
     sources = [["Thôn", "Nguồn nhập", "Trạng thái", "Đúng hạn", "Thời điểm nộp"]]
@@ -1065,6 +1158,8 @@ def generate_pdf_file(
     reports_data: list,
     villages_map: dict,
     scope_name: str | None = None,
+    *,
+    period_id: str | None = None,
 ) -> bytes:
     """Generate a Unicode PDF mirroring the administrative DOCX structure."""
     styles = _pdf_styles()
@@ -1106,8 +1201,10 @@ def generate_pdf_file(
     else:
         story.extend(
             _pdf_summary_story(
+                period_name=period_name,
                 reports_data=reports_data,
                 villages_map=villages_map,
+                period_id=period_id,
                 styles=styles,
                 usable_width=usable_width,
             )
