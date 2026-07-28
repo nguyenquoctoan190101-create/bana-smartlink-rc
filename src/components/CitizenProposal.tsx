@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ClipboardCheck, Copy, MessageSquare, RefreshCw } from "lucide-react";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
-import { PUBLIC_INDICATOR_CODES } from "../types";
+import { isPubliclyVisibleReport, PUBLIC_INDICATOR_CODES } from "../types";
 import { Button, PageHeader, SectionCard } from "./ui";
 
 interface CitizenProposalProps {
@@ -37,7 +37,33 @@ export default function CitizenProposal({ reports, onProposalSubmitted, onOpenFi
   const [trackingCode, setTrackingCode] = useState<string | null>(null);
   const [trackingCodeCopied, setTrackingCodeCopied] = useState(false);
 
-  const villageReports = useMemo(() => reports.filter((report) => report.village_id === selectedVillage), [reports, selectedVillage]);
+  const villageReports = useMemo(() => {
+    const published = reports
+      .filter(
+        (report) =>
+          report.village_id === selectedVillage
+          && isPubliclyVisibleReport(report),
+      )
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.published_at || left.updated_at || "") || 0;
+        const rightTime = Date.parse(right.published_at || right.updated_at || "") || 0;
+        return (
+          rightTime - leftTime
+          || Number(Boolean(right.period_id)) - Number(Boolean(left.period_id))
+          || String(right.report_period).localeCompare(
+            String(left.report_period),
+            "vi",
+          )
+        );
+      });
+    const latestByPeriod = new Map<string, any>();
+    for (const report of published) {
+      if (!latestByPeriod.has(report.report_period)) {
+        latestByPeriod.set(report.report_period, report);
+      }
+    }
+    return Array.from(latestByPeriod.values());
+  }, [reports, selectedVillage]);
   const villageName = villages.find((item) => item.id === selectedVillage)?.name || "Chưa chọn thôn";
   const selectedReport = villageReports.find((item) => item.report_period === selectedReportPeriod);
   const reportName = selectedReport?.report_period || "Chưa chọn kỳ";
@@ -45,17 +71,41 @@ export default function CitizenProposal({ reports, onProposalSubmitted, onOpenFi
   const hasPublishedValue = typeof publishedValue === "number" && Number.isFinite(publishedValue);
 
   useEffect(() => { if (!selectedVillage && villages.length) setSelectedVillage(villages[0].id); }, [selectedVillage, villages]);
-  useEffect(() => { setSelectedReportPeriod(villageReports[0]?.report_period || ""); }, [selectedVillage, reports]);
+  useEffect(() => {
+    setSelectedReportPeriod((current) =>
+      villageReports.some((report) => report.report_period === current)
+        ? current
+        : villageReports[0]?.report_period || "",
+    );
+  }, [villageReports]);
 
   const moveTo = (next: Step) => {
     setError(null);
-    if (next === 2 && (!selectedReportPeriod || suggestedValue === "" || !explanation.trim())) {
-      setError(!selectedReportPeriod ? "Thôn này chưa có bản công bố để đối chiếu." : "Vui lòng nhập giá trị đề xuất và lý do điều chỉnh.");
-      return;
+    if (next === 2) {
+      const numericValue = Number(suggestedValue);
+      if (!selectedReportPeriod) {
+        setError("Thôn này chưa có bản công bố để đối chiếu.");
+        return;
+      }
+      if (
+        suggestedValue === ""
+        || !Number.isInteger(numericValue)
+        || numericValue < 0
+      ) {
+        setError("Giá trị đề xuất phải là số nguyên không âm.");
+        return;
+      }
+      if (!explanation.trim()) {
+        setError("Vui lòng nêu lý do và nguồn thông tin cần đối chiếu.");
+        return;
+      }
     }
-    if (next === 3 && !phone.trim()) {
-      setError("Vui lòng nhập số điện thoại để cán bộ liên hệ đối chiếu.");
-      return;
+    if (next === 3) {
+      const normalizedPhone = phone.replace(/[\s().-]/g, "");
+      if (!/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)) {
+        setError("Số điện thoại chưa đúng định dạng. Ví dụ: 0901 234 567.");
+        return;
+      }
     }
     setStep(next);
   };
@@ -102,7 +152,7 @@ export default function CitizenProposal({ reports, onProposalSubmitted, onOpenFi
       </div>
       <form onSubmit={submit} className="p-5 md:p-7">
         {error && <div role="alert" className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</div>}
-        {step === 1 && <div className="space-y-5"><div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-bold">Phạm vi tiếp nhận</p><p className="mt-1 leading-relaxed">Biểu mẫu áp dụng cho CT01, CT02, CT09, CT12 và CT13. Vấn đề về đường, điện, nước, rác thải hoặc an toàn được tiếp nhận tại mục phản ánh hiện trường.</p>{onOpenFieldReport && <Button type="button" variant="secondary" className="mt-3 w-full justify-center sm:w-auto" onClick={onOpenFieldReport}>Phản ánh hiện trường<ArrowRight /></Button>}</div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Thôn<select className="mt-1.5" value={selectedVillage} onChange={(event) => setSelectedVillage(event.target.value)}>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Kỳ công bố<select className="mt-1.5" value={selectedReportPeriod} onChange={(event) => setSelectedReportPeriod(event.target.value)} disabled={!villageReports.length}>{!villageReports.length && <option value="">Chưa có bản công bố</option>}{villageReports.map((report) => <option key={`${report.village_id}-${report.report_period}`} value={report.report_period}>{report.report_period}</option>)}</select></label></div><div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(12rem,.8fr)_minmax(12rem,.8fr)]"><label className="text-sm font-semibold text-slate-700">Chỉ tiêu công khai cần đối chiếu<select className="mt-1.5" value={selectedIndicator} onChange={(event) => setSelectedIndicator(event.target.value)}>{PUBLIC_INDICATOR_CODES.map((code) => <option key={code} value={code}>{code} · {indicatorNames[code]}</option>)}</select></label><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" aria-live="polite"><p className="text-xs font-semibold text-slate-500">Giá trị đang công bố</p><p className="mt-1 text-lg font-bold text-slate-900">{hasPublishedValue ? `${Number(publishedValue).toLocaleString("vi-VN")} ${indicatorUnits[selectedIndicator]}` : "Chưa có dữ liệu"}</p><p className="mt-1 text-xs text-slate-500">{reportName}</p></div><label className="text-sm font-semibold text-slate-700">Giá trị đề xuất <span className="font-normal text-slate-500">({indicatorUnits[selectedIndicator]})</span><input className="mt-1.5" type="number" min={0} value={suggestedValue} onChange={(event) => setSuggestedValue(event.target.value)} required /></label></div><label className="block text-sm font-semibold text-slate-700">Lý do cần đối chiếu<textarea className="mt-1.5" rows={4} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Nêu nguồn thông tin và nội dung cần kiểm tra…" required /></label><div className="flex justify-end"><Button type="button" className="w-full justify-center sm:w-auto" onClick={() => moveTo(2)}>Tiếp tục<ArrowRight /></Button></div></div>}
+        {step === 1 && <div className="space-y-5"><div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><p className="font-bold">Phạm vi tiếp nhận</p><p className="mt-1 leading-relaxed">Biểu mẫu áp dụng cho CT01, CT02, CT09, CT12 và CT13. Vấn đề về đường, điện, nước, rác thải hoặc an toàn được tiếp nhận tại mục phản ánh hiện trường.</p>{onOpenFieldReport && <Button type="button" variant="secondary" className="mt-3 w-full justify-center sm:w-auto" onClick={onOpenFieldReport}>Phản ánh hiện trường<ArrowRight /></Button>}</div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Thôn<select className="mt-1.5" value={selectedVillage} onChange={(event) => setSelectedVillage(event.target.value)}>{villages.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label className="text-sm font-semibold text-slate-700">Kỳ công bố<select className="mt-1.5" value={selectedReportPeriod} onChange={(event) => setSelectedReportPeriod(event.target.value)} disabled={!villageReports.length}>{!villageReports.length && <option value="">Chưa có bản công bố</option>}{villageReports.map((report) => <option key={`${report.village_id}-${report.report_period}`} value={report.report_period}>{report.report_period}</option>)}</select></label></div><div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(12rem,.8fr)_minmax(12rem,.8fr)]"><label className="text-sm font-semibold text-slate-700">Chỉ tiêu công khai cần đối chiếu<select className="mt-1.5" value={selectedIndicator} onChange={(event) => setSelectedIndicator(event.target.value)}>{PUBLIC_INDICATOR_CODES.map((code) => <option key={code} value={code}>{code} · {indicatorNames[code]}</option>)}</select></label><div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" aria-live="polite"><p className="text-xs font-semibold text-slate-500">Giá trị đang công bố</p><p className="mt-1 text-lg font-bold text-slate-900">{hasPublishedValue ? `${Number(publishedValue).toLocaleString("vi-VN")} ${indicatorUnits[selectedIndicator]}` : "Chưa có dữ liệu"}</p><p className="mt-1 text-xs text-slate-500">{reportName}</p></div><label className="text-sm font-semibold text-slate-700">Giá trị đề xuất <span className="font-normal text-slate-500">({indicatorUnits[selectedIndicator]})</span><input className="mt-1.5" type="number" min={0} step={1} value={suggestedValue} onChange={(event) => setSuggestedValue(event.target.value)} required /></label></div><label className="block text-sm font-semibold text-slate-700">Lý do cần đối chiếu<textarea className="mt-1.5" rows={4} value={explanation} onChange={(event) => setExplanation(event.target.value)} placeholder="Nêu nguồn thông tin và nội dung cần kiểm tra…" required /></label><div className="flex justify-end"><Button type="button" className="w-full justify-center sm:w-auto" onClick={() => moveTo(2)}>Tiếp tục<ArrowRight /></Button></div></div>}
         {step === 2 && (
           <div className="space-y-6">
             <section aria-labelledby="citizen-proposal-contact-heading" className="rounded-xl border border-slate-200 bg-slate-25 p-4 sm:p-5">

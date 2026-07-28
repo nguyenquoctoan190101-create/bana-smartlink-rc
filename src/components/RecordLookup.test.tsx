@@ -7,7 +7,11 @@ const mocks = vi.hoisted(() => ({ apiJson: vi.fn() }));
 
 vi.mock("../lib/apiClient", () => ({
   apiJson: mocks.apiJson,
-  toUserFacingError: (_error: unknown, fallback: string) => fallback,
+  toUserFacingError: (
+    _error: unknown,
+    fallback: string,
+    options?: { notFound?: string },
+  ) => options?.notFound || fallback,
 }));
 
 describe("RecordLookup", () => {
@@ -83,6 +87,22 @@ describe("RecordLookup", () => {
     expect(mocks.apiJson).toHaveBeenCalledWith(
       `/api/cases/track/${"A".repeat(32)}`,
       { auth: "none", cache: "no-store" },
+    );
+  });
+
+  it("explains clearly when a valid lookup code has no matching record", async () => {
+    mocks.apiJson.mockRejectedValue({ status: 404 });
+    const user = userEvent.setup();
+    render(<RecordLookup />);
+
+    await user.type(
+      screen.getByLabelText("Mã tra cứu thật đã được cấp"),
+      "Z9Y8X7W6V5U4T3S2",
+    );
+    await user.click(screen.getByRole("button", { name: "Tra cứu" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Không tìm thấy hồ sơ tương ứng. Vui lòng kiểm tra lại mã đã được cấp.",
     );
   });
 });

@@ -2,6 +2,7 @@ import { Activity, Baby, HeartPulse, LayoutGrid, Scale } from "lucide-react";
 import type { ReportData, ReportPeriod } from "../types";
 import { evaluateMetric } from "../lib/metricRegistry";
 import { reportToMetricEvaluationReport } from "../lib/reportMetrics";
+import { formatViNumber, formatViPercent } from "../lib/formatters";
 
 type DecisionVillage = {
   id: string;
@@ -56,7 +57,8 @@ const reportMetricValue = (
   ).value;
 };
 
-const percent = (value: number | null, digits = 1) => (finite(value) ? `${value.toFixed(digits)}%` : "—");
+const percent = (value: number | null, digits = 1) =>
+  finite(value) ? formatViPercent(value, digits) : "—";
 
 const descriptiveCellClass = (value: number | null) =>
   finite(value)
@@ -184,7 +186,7 @@ const changeLabel = (
   if (!finite(current) || !finite(previous)) return "Chưa đủ hai kỳ";
   const change = current - previous;
   if (Math.abs(change) < 0.05) return "Ổn định";
-  return `${change > 0 ? "Tăng" : "Giảm"} ${Math.abs(change).toFixed(1)} điểm %`;
+  return `${change > 0 ? "Tăng" : "Giảm"} ${formatViNumber(Math.abs(change), 1)} điểm %`;
 };
 
 function SingleVillageInsights({
@@ -242,7 +244,7 @@ function SingleVillageInsights({
         {
           label: "Hướng dẫn dịch vụ công",
           value: finite(current.guidedPerThousand)
-            ? `${current.guidedPerThousand.toFixed(0)}/1.000 dân`
+            ? `${formatViNumber(current.guidedPerThousand)}/1.000 dân`
             : "—",
           note: finite(current.guided)
             ? `${current.guided.toLocaleString("vi-VN")} lượt trong kỳ`
@@ -418,7 +420,7 @@ function SingleVillageInsights({
                       </td>
                       <td className="pl-2 py-3 text-right text-slate-700">
                         {finite(point.guidedPerThousand)
-                          ? point.guidedPerThousand.toFixed(0)
+                          ? formatViNumber(point.guidedPerThousand)
                           : "—"}
                       </td>
                     </tr>
@@ -600,7 +602,7 @@ export default function DashboardInsightCharts({
                       {
                         key: "digital",
                         value: item.guidedPerThousand,
-                        label: finite(item.guidedPerThousand) ? `${item.guidedPerThousand.toFixed(0)}/1.000` : "—",
+                        label: finite(item.guidedPerThousand) ? `${formatViNumber(item.guidedPerThousand)}/1.000` : "—",
                       },
                     ];
                     return (
@@ -636,7 +638,7 @@ export default function DashboardInsightCharts({
           <ChartHeader
             icon={Scale}
             eyebrow="Tập trung nguồn lực an sinh"
-            title={paretoRows.length && welfareTotal > 0 ? `${paretoCutoff} thôn đầu chiếm khoảng ${paretoRows[paretoCutoff - 1]?.cumulative.toFixed(0)}% số hộ cần quan tâm` : "Chưa ghi nhận đủ dữ liệu hộ nghèo và cận nghèo"}
+            title={paretoRows.length && welfareTotal > 0 ? `${paretoCutoff} thôn đầu chiếm khoảng ${formatViPercent(paretoRows[paretoCutoff - 1]?.cumulative ?? 0, 0)} số hộ cần quan tâm` : "Chưa ghi nhận đủ dữ liệu hộ nghèo và cận nghèo"}
             description="Pareto cho biết nơi tập trung nhiều hộ cần hỗ trợ, không thay thế danh sách nghiệp vụ từng hộ."
           />
           {paretoRows.length && welfareTotal > 0 ? (
@@ -665,7 +667,7 @@ export default function DashboardInsightCharts({
                     return (
                       <g key={item.id}>
                         <rect x={x} y={190 - share * 1.5} width={barWidth} height={share * 1.5} rx="2" fill={index < paretoCutoff ? "#b45309" : "#94a3b8"}>
-                          <title>{`${item.label}: ${item.affected} hộ (${share.toFixed(1)}%)`}</title>
+                          <title>{`${item.label}: ${formatViNumber(item.affected)} hộ (${formatViPercent(share, 1)})`}</title>
                         </rect>
                       </g>
                     );
@@ -685,7 +687,7 @@ export default function DashboardInsightCharts({
                     const slot = 365 / Math.max(1, paretoRows.length);
                     return (
                       <circle key={item.id} cx={45 + index * slot + Math.max(8, slot * 0.55) / 2} cy={190 - item.cumulative * 1.5} r="2.5" fill="#0f766e">
-                        <title>{`Lũy kế ${item.cumulative.toFixed(1)}%`}</title>
+                        <title>{`Lũy kế ${formatViPercent(item.cumulative, 1)}`}</title>
                       </circle>
                     );
                   })}
@@ -770,7 +772,7 @@ export default function DashboardInsightCharts({
           <ChartHeader
             icon={Activity}
             eyebrow="Dịch vụ công"
-            title={scatterLeader ? `${scatterLeader.label} có cường độ hướng dẫn cao nhất: ${scatterLeader.guidedPerThousand?.toFixed(0)} lượt/1.000 dân` : "Chưa đủ dữ liệu để so sánh cường độ hướng dẫn"}
+            title={scatterLeader ? `${scatterLeader.label} có cường độ hướng dẫn cao nhất: ${formatViNumber(scatterLeader.guidedPerThousand ?? 0)} lượt/1.000 dân` : "Chưa đủ dữ liệu để so sánh cường độ hướng dẫn"}
             description="Vị trí thể hiện quy mô dân số và số lượt hướng dẫn/1.000 dân; kích thước điểm thể hiện số thành viên tổ công nghệ số."
           />
           {scatterRows.length ? (
@@ -784,7 +786,7 @@ export default function DashboardInsightCharts({
                     <g key={tick}>
                       <line x1="48" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
                       <text x="42" y={y + 3} textAnchor="end" className="fill-slate-500 text-[11px]">
-                        {label.toFixed(0)}
+                        {formatViNumber(label)}
                       </text>
                     </g>
                   );
@@ -798,7 +800,7 @@ export default function DashboardInsightCharts({
                   return (
                     <g key={item.id}>
                       <circle cx={x} cy={y} r={radius} fill={item.id === scatterLeader?.id ? "#b45309" : "#047857"} fillOpacity="0.78" stroke="white" strokeWidth="1.5">
-                        <title>{`${item.label}: ${item.population?.toLocaleString("vi-VN")} dân; ${item.guidedPerThousand?.toFixed(0)} lượt/1.000 dân; ${item.digitalTeam ?? "—"} thành viên`}</title>
+                        <title>{`${item.label}: ${item.population == null ? "—" : formatViNumber(item.population)} dân; ${item.guidedPerThousand == null ? "—" : formatViNumber(item.guidedPerThousand)} lượt/1.000 dân; ${item.digitalTeam == null ? "—" : formatViNumber(item.digitalTeam)} thành viên`}</title>
                       </circle>
                       {item.id === scatterLeader?.id && (
                         <text x={Math.min(390, x + 8)} y={Math.max(22, y - 8)} className="fill-amber-800 text-[11px] font-bold">
@@ -809,10 +811,10 @@ export default function DashboardInsightCharts({
                   );
                 })}
                 <text x="55" y="216" textAnchor="start" className="fill-slate-500 text-[11px]">
-                  {minPopulation.toLocaleString("vi-VN")}
+                  {formatViNumber(minPopulation)}
                 </text>
                 <text x="405" y="216" textAnchor="end" className="fill-slate-500 text-[11px]">
-                  {maxPopulation.toLocaleString("vi-VN")}
+                  {formatViNumber(maxPopulation)}
                 </text>
                 <text x="232" y="232" textAnchor="middle" className="fill-slate-600 text-[11px]">
                   Quy mô dân số →
@@ -825,8 +827,8 @@ export default function DashboardInsightCharts({
               <ul className="sr-only" aria-label="Dữ liệu hướng dẫn dịch vụ công theo từng thôn">
                 {scatterRows.map((item) => (
                   <li key={item.id}>
-                    {item.label}: {item.population?.toLocaleString("vi-VN")} dân;{" "}
-                    {item.guidedPerThousand?.toFixed(0)} lượt hướng dẫn trên 1.000
+                    {item.label}: {item.population == null ? "—" : formatViNumber(item.population)} dân;{" "}
+                    {item.guidedPerThousand == null ? "—" : formatViNumber(item.guidedPerThousand)} lượt hướng dẫn trên 1.000
                     dân; {item.digitalTeam ?? "chưa có dữ liệu"} thành viên tổ
                     công nghệ số
                   </li>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateMetric,
+  evaluateMetrics,
   isMetricEvaluationReport,
   metricRegistry,
   MetricRegistryError,
@@ -275,6 +276,59 @@ describe("evaluateMetric", () => {
       reason: "no_eligible_reports",
       source_report_versions: [],
     });
+  });
+});
+
+describe("evaluateMetrics", () => {
+  it("matches independent evaluation while preparing shared evidence once", () => {
+    const reports = [
+      report("r-b", "village-b", { CT01: 40, CT02: 120, CT03: 4, CT11: 110 }, { workflowStatus: "locked", version: 2 }),
+      report("r-a", "village-a", { CT01: 60, CT02: 180, CT03: 6, CT11: 170 }, { workflowStatus: "approved", version: 3 }),
+      report("r-draft", "village-a", { CT01: 999 }, { workflowStatus: "draft" }),
+    ];
+    const metricIds = [
+      "CT01",
+      "CT02",
+      "poverty_household_rate",
+      "health_insurance_rate",
+      "CT14",
+      "unknown_metric",
+    ];
+
+    const batch = evaluateMetrics(metricIds, reports, context());
+    for (const metricId of metricIds) {
+      expect(batch.get(metricId)).toEqual(
+        evaluateMetric(metricId, reports, context()),
+      );
+    }
+
+    expect(batch.get("CT01")?.source_report_versions).toBe(
+      batch.get("health_insurance_rate")?.source_report_versions,
+    );
+  });
+
+  it("validates each report envelope once for the whole metric batch", () => {
+    let envelopeValidationCount = 0;
+    const trackedReports = [
+      report("r-a", "village-a", { CT01: 60, CT02: 180, CT03: 6 }),
+      report("r-b", "village-b", { CT01: 40, CT02: 120, CT03: 4 }),
+    ].map(
+      (item) =>
+        new Proxy(item, {
+          ownKeys(target) {
+            envelopeValidationCount += 1;
+            return Reflect.ownKeys(target);
+          },
+        }),
+    );
+
+    evaluateMetrics(
+      ["CT01", "CT02", "CT03", "poverty_household_rate"],
+      trackedReports,
+      context(),
+    );
+
+    expect(envelopeValidationCount).toBe(trackedReports.length);
   });
 });
 

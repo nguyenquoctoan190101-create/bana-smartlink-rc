@@ -43,7 +43,14 @@ export default function RecordLookup() {
       });
       setMessage(formatPublicLookupMessage(result));
     } catch (lookupError) {
-      setError(toUserFacingError(lookupError, "Không tra cứu được hồ sơ. Vui lòng kiểm tra mã và thử lại."));
+      setError(toUserFacingError(
+        lookupError,
+        "Không tra cứu được hồ sơ. Vui lòng kiểm tra mã và thử lại.",
+        {
+          notFound:
+            "Không tìm thấy hồ sơ tương ứng. Vui lòng kiểm tra lại mã đã được cấp.",
+        },
+      ));
     } finally {
       setIsLoading(false);
     }

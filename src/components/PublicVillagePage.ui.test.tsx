@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -185,5 +185,59 @@ describe("PublicVillagePage navigation", () => {
       "/reports/public/export.csv?village_id=village-1&report_period=Th%C3%A1ng%207%2F2026",
     );
     expect(download).toHaveAttribute("download");
+  });
+
+  it("blocks invalid proposal values and phone numbers before submission", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path === "/reports/public/metadata") {
+        return Promise.resolve(publicMetadata);
+      }
+      if (path === "/reports/public") {
+        return Promise.resolve([
+          {
+            village_id: "village-1",
+            report_period: "Tháng 7/2026",
+            published_at: "2026-07-28T08:00:00+07:00",
+            values: { CT01: 318 },
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const user = userEvent.setup();
+    render(<PublicVillagePage onGoToLogin={vi.fn()} />);
+
+    await screen.findByText("318");
+    await user.click(
+      within(
+        screen.getByRole("navigation", {
+          name: "Điều hướng cổng công khai",
+        }),
+      ).getByRole("button", { name: "Đề nghị đối chiếu số liệu" }),
+    );
+
+    fireEvent.change(screen.getByLabelText(/Giá trị đề xuất/), {
+      target: { value: "-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Lý do cần đối chiếu"), {
+      target: { value: "Đối chiếu nguồn công khai." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "số nguyên không âm",
+    );
+
+    fireEvent.change(screen.getByLabelText(/Giá trị đề xuất/), {
+      target: { value: "320" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    fireEvent.change(screen.getByLabelText(/Số điện thoại/), {
+      target: { value: "123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Số điện thoại chưa đúng định dạng",
+    );
+    expect(mocks.apiFetch).not.toHaveBeenCalled();
   });
 });

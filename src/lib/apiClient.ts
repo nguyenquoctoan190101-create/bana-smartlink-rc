@@ -23,16 +23,61 @@ export class ApiError extends Error {
   }
 }
 
+const BACKEND_MESSAGE_TRANSLATIONS: Record<string, string> = {
+  "unsupported file type": "Loại tệp chưa được hỗ trợ.",
+  "empty file": "Tệp đang rỗng. Vui lòng chọn tệp có dữ liệu.",
+  "file content does not match extension":
+    "Nội dung tệp không đúng với phần mở rộng. Vui lòng xuất lại tệp đúng định dạng rồi thử lại.",
+  "unsupported ocr image format": "Định dạng ảnh chưa được hỗ trợ để nhận dạng số liệu.",
+  "invalid tracking code": "Mã tra cứu không đúng định dạng.",
+  "invalid status filter": "Bộ lọc trạng thái không hợp lệ.",
+  "invalid report period": "Kỳ báo cáo không hợp lệ.",
+  "invalid email": "Địa chỉ thư điện tử không hợp lệ.",
+  "unsupported report source": "Nguồn dữ liệu báo cáo chưa được hỗ trợ.",
+  "user has no village assignment": "Tài khoản chưa được phân công thôn.",
+  "leadership role is read-only": "Tài khoản lãnh đạo chỉ được xem dữ liệu.",
+  "administrators review reports but do not enter village data":
+    "Quản trị viên chỉ rà soát báo cáo, không nhập số liệu thay cho thôn.",
+  "role cannot modify reports": "Vai trò hiện tại không được phép sửa báo cáo.",
+  "cannot modify an unassigned village":
+    "Bạn không được phép sửa dữ liệu của thôn chưa được phân công.",
+  "cannot read an unassigned village":
+    "Bạn không được phép xem dữ liệu của thôn chưa được phân công.",
+  "report validation failed": "Báo cáo chưa đạt các quy tắc kiểm tra dữ liệu.",
+};
+
+const translateBackendMessage = (message: string): string | null =>
+  BACKEND_MESSAGE_TRANSLATIONS[message.trim().toLowerCase()] || null;
+
+const looksLikeUntranslatedBackendMessage = (message: string): boolean =>
+  /\b(unable|invalid|unsupported|not found|cannot|failed|failure|field required|input should|empty file|leadership role|administrators|user has no|role cannot|does not match)\b/i.test(
+    message,
+  );
+
+type UserFacingErrorOptions = {
+  notFound?: string;
+};
+
 /** Convert transport/backend failures into safe, actionable Vietnamese copy. */
-export function toUserFacingError(error: unknown, fallback: string): string {
+export function toUserFacingError(
+  error: unknown,
+  fallback: string,
+  options: UserFacingErrorOptions = {},
+): string {
   if (error instanceof ApiError) {
     if (error.status >= 500 || error.code === "INVALID_RESPONSE") {
       return "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.";
     }
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
     if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
-    if (error.status === 404) return "Không tìm thấy dữ liệu yêu cầu hoặc dữ liệu đã thay đổi.";
+    if (error.status === 404) {
+      return options.notFound
+        || "Không tìm thấy dữ liệu yêu cầu hoặc dữ liệu đã thay đổi.";
+    }
     if (error.status === 429) return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
+    const translated = translateBackendMessage(error.message);
+    if (translated) return translated;
+    if (looksLikeUntranslatedBackendMessage(error.message)) return fallback;
     return error.message || fallback;
   }
   if (error instanceof Error) {
@@ -42,6 +87,9 @@ export function toUserFacingError(error: unknown, fallback: string): string {
     if (/failed to fetch|network error|load failed|fetch failed/i.test(error.message)) {
       return "Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.";
     }
+    const translated = translateBackendMessage(error.message);
+    if (translated) return translated;
+    if (looksLikeUntranslatedBackendMessage(error.message)) return fallback;
     return error.message || fallback;
   }
   return fallback;

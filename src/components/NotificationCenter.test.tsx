@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import NotificationCenter, {
   AppNotification,
+  formatNotificationBody,
   formatNotificationTime,
 } from "./NotificationCenter";
 
@@ -109,6 +110,14 @@ describe("NotificationCenter", () => {
     expect(
       formatNotificationTime("2026-07-27T08:18:00+07:00", now),
     ).toBe("12 phút trước");
+  });
+
+  it("makes report deadlines natural to read", () => {
+    expect(
+      formatNotificationBody(
+        "Kỳ Tháng 8/2026 có hạn nộp 05/08/2026 18:00",
+      ),
+    ).toBe("Kỳ Tháng 8/2026 có hạn nộp 05/08/2026 lúc 18:00");
   });
 
   it("closes an open panel when application navigation changes the path", async () => {

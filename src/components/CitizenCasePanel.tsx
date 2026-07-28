@@ -82,6 +82,23 @@ export default function CitizenCasePanel({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    const normalizedDescription = description.trim();
+    const normalizedPhone = phone.replace(/[\s().-]/g, "");
+    if (!villageId || !villages.some((village) => village.id === villageId)) {
+      setError("Vui lòng chọn thôn xảy ra sự cố.");
+      return;
+    }
+    if (normalizedDescription.length < 5) {
+      setError("Mô tả sự cố cần có ít nhất 5 ký tự.");
+      return;
+    }
+    if (
+      normalizedPhone
+      && !/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)
+    ) {
+      setError("Số điện thoại chưa đúng định dạng. Ví dụ: 0901 234 567.");
+      return;
+    }
     if (!consent) {
       setError("Bạn cần đồng ý với thông báo quyền riêng tư trước khi gửi.");
       return;
@@ -94,12 +111,12 @@ export default function CitizenCasePanel({
         body: JSON.stringify({
           village_id: villageId || null,
           category,
-          description,
+          description: normalizedDescription,
           priority: "normal",
-          submitter_name: name || null,
-          submitter_phone: phone || null,
+          submitter_name: name.trim() || null,
+          submitter_phone: normalizedPhone || null,
           privacy_consent: true,
-          consent_version: "2026-07-18",
+          consent_version: "1.0-2026-07-26",
           location_confirmed: Boolean(location),
           location_source: location ? "gps" : null,
           ...location,
@@ -119,7 +136,7 @@ export default function CitizenCasePanel({
             });
           } catch {
             uploadWarning =
-              "Phản ánh đã được tiếp nhận nhưng có tệp chưa tải lên được. Bạn có thể gửi lại phản ánh không kèm tệp hoặc liên hệ cán bộ.";
+              "Phản ánh đã được tiếp nhận nhưng có ảnh chưa tải lên được. Không cần gửi lại phản ánh; hãy lưu mã tra cứu để cung cấp khi liên hệ cán bộ.";
             break;
           }
         }
@@ -249,10 +266,17 @@ export default function CitizenCasePanel({
               type="button"
               variant="secondary"
               className="w-full justify-center sm:w-auto"
-              onClick={captureLocation}
+              onClick={() => {
+                if (location) {
+                  setLocation(null);
+                  setError(null);
+                } else {
+                  captureLocation();
+                }
+              }}
             >
               <MapPin />
-              {location ? "Đã lấy vị trí" : "Lấy vị trí hiện tại"}
+              {location ? "Xóa vị trí đã lấy" : "Lấy vị trí hiện tại"}
             </Button>
           </div>
           {location && (
@@ -284,7 +308,7 @@ export default function CitizenCasePanel({
                 )
               ) {
                 setError(
-                  "Chọn tối đa 5 ảnh JPG, PNG hoặc WebP; mỗi ảnh không quá 8MB.",
+                  "Chọn tối đa 5 ảnh JPG, PNG hoặc WebP; mỗi ảnh không quá 8 MB.",
                 );
                 setMedia([]);
                 return;
@@ -303,7 +327,7 @@ export default function CitizenCasePanel({
           </span>
           <span className="mt-1 block text-xs font-normal text-slate-600">
             Tối đa 5 ảnh JPG, PNG hoặc WebP; mỗi ảnh không quá 8 MB. Ảnh chỉ
-            được chia sẻ sau khi cán bộ rà soát. Hãy che biển số, giấy tờ hoặc
+            dùng để cán bộ rà soát và không tự động được công khai. Hãy che biển số, giấy tờ hoặc
             khuôn mặt nếu các chi tiết đó không cần thiết.
           </span>
         </label>
@@ -315,6 +339,7 @@ export default function CitizenCasePanel({
               value={name}
               onChange={(event) => setName(event.target.value)}
               autoComplete="name"
+              maxLength={120}
             />
           </label>
           <label className="text-sm font-semibold text-slate-700">
@@ -326,6 +351,7 @@ export default function CitizenCasePanel({
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               autoComplete="tel"
+              maxLength={30}
               placeholder="0901 234 567"
             />
           </label>

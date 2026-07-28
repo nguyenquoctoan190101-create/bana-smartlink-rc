@@ -78,7 +78,27 @@ function formatDuration(minutes: number): string {
 function formatDate(value?: string | null): string {
   if (!value) return "Chưa xác định";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Chưa xác định" : date.toLocaleString("vi-VN");
+  return Number.isNaN(date.getTime())
+    ? "Chưa xác định"
+    : date.toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+}
+
+function routingVersionLabel(value?: string): string {
+  const demoDate = value?.match(/^demo-(\d{4})-(\d{2})-(\d{2})$/);
+  if (demoDate) {
+    return `Cấu hình thử nghiệm · cập nhật ${demoDate[3]}/${demoDate[2]}/${demoDate[1]}`;
+  }
+  return value
+    ? "Cấu hình nội bộ đã được thiết lập"
+    : "Chưa có thông tin phiên bản cấu hình";
 }
 
 export default function CaseManagement({ role, villages }: { role: UserRole; villages: Village[] }) {
@@ -250,7 +270,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
       <SectionCard className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-200 p-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Hàng đợi xử lý</h2>
+            <h2 className="text-lg font-bold text-slate-900">Danh sách phản ánh cần xử lý</h2>
             <p className="mt-1 text-sm text-slate-600">Lãnh đạo và cán bộ thôn chỉ xem; quản trị xã xác nhận phân công, Tổ công nghệ số cộng đồng được cập nhật tiến độ.</p>
             {statusFilter === "all" && open.length === 0 && cases.length > 0 && (
               <p className="mt-2 text-sm font-semibold text-emerald-800" role="status">
@@ -286,8 +306,8 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={isOverdue ? "overdue" : item.status} label={isOverdue ? "Quá hạn xử lý" : statusLabels[item.status] || item.status} />
-                      <span className="text-xs font-semibold text-slate-500">{categoryLabels[item.category] || item.category}</span>
+                      <StatusBadge status={isOverdue ? "overdue" : item.status} label={isOverdue ? "Quá hạn xử lý" : statusLabels[item.status] || "Trạng thái chưa xác định"} />
+                      <span className="text-xs font-semibold text-slate-500">{categoryLabels[item.category] || "Nội dung khác"}</span>
                       <span className="text-xs text-slate-400">Mã nội bộ {item.id.slice(0, 8).toUpperCase()}</span>
                     </div>
                     <h3 className="mt-3 font-bold text-slate-900">{villageNames.get(item.village_id || "") || "Chưa xác định thôn"}</h3>
@@ -298,7 +318,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
                         <dd className="mt-1 font-medium text-slate-800">{formatDate(item.created_at)}</dd>
                       </div>
                       <div>
-                        <dt className="text-xs font-semibold text-slate-500">Đơn vị dự kiến</dt>
+                        <dt className="text-xs font-semibold text-slate-500">Đơn vị xử lý</dt>
                         <dd className="mt-1 font-medium text-slate-800">{item.assigned_department || "Chưa có gợi ý"}</dd>
                       </div>
                       <div>
@@ -400,7 +420,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
       <SectionCard className="overflow-hidden">
         <div className="border-b border-slate-200 p-5">
           <h2 className="text-lg font-bold text-slate-900">Danh mục và thời hạn xử lý</h2>
-          <p className="mt-1 text-sm text-slate-600">Phiên bản {rules[0]?.sla_version || "chưa cấu hình"}. Thời gian là mục tiêu xử lý nội bộ của cấu hình thử nghiệm, không phải cam kết pháp lý.</p>
+          <p className="mt-1 text-sm text-slate-600">{routingVersionLabel(rules[0]?.sla_version)}. Các mốc thời gian là mục tiêu xử lý nội bộ của cấu hình thử nghiệm, không phải cam kết pháp lý.</p>
         </div>
         <div
           className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
@@ -423,7 +443,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
             <tbody>
               {rules.map((rule) => (
                 <tr key={rule.id}>
-                  <td className="font-semibold">{categoryLabels[rule.category] || rule.category}</td>
+                  <td className="font-semibold">{categoryLabels[rule.category] || "Nội dung khác"}</td>
                   <td>{rule.department}</td>
                   <td>{formatDuration(rule.verification_minutes)}</td>
                   <td>{formatDuration(rule.resolution_minutes)}</td>

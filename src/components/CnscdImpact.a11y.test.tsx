@@ -60,6 +60,10 @@ describe("CnscdImpact accessibility", () => {
     expect(table.querySelectorAll('thead th[scope="col"]')).toHaveLength(8);
     expect(table.querySelectorAll('tbody th[scope="row"]')).toHaveLength(1);
     expect(
+      screen.getByText(/bộ chỉ số phiên bản 2026-07-28\.1/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/registry/i)).not.toBeInTheDocument();
+    expect(
       screen.getByRole("region", {
         name: (
           "Bảng kết quả hỗ trợ theo thôn; có thể cuộn ngang trên màn hình nhỏ"

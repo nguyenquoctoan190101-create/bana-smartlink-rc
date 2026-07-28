@@ -197,7 +197,7 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
             <h3>2. Dữ liệu dùng để làm gì?</h3>
             <p>
               Mọi số liệu thu thập được chỉ sử dụng để tổng hợp báo cáo kinh tế - xã hội của địa phương
-              và hỗ trợ công tác quản lý an sinh xã hội tại xã Ba Na, không sử dụng cho mục đích thương
+              và hỗ trợ công tác quản lý an sinh xã hội tại xã Bà Nà, không sử dụng cho mục đích thương
               mại hoặc quảng cáo.
             </p>
 

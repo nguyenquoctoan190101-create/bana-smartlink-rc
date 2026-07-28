@@ -47,7 +47,7 @@ def test_citizen_pending_updates_all_fields():
             submitter_address="Test Address",
             submitter_relation="Test Relation",
             explanation=None,
-        consent_version="2026-07-13",
+        consent_version="1.0-2026-07-26",
     )
     assert response.json() == {
         "ct_code": "CT01",

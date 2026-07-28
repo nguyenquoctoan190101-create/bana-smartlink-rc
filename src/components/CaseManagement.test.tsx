@@ -81,6 +81,13 @@ describe("CaseManagement", () => {
     expect(screen.getByText("4 giờ")).toBeInTheDocument();
     expect(screen.getByText("2 ngày")).toBeInTheDocument();
     expect(
+      screen.getByText(/Cấu hình thử nghiệm · cập nhật 18\/07\/2026/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/demo-2026-07-18/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Danh sách phản ánh cần xử lý" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getAllByText("Bộ phận Địa chính - Xây dựng - Môi trường").length,
     ).toBeGreaterThan(0);
     const caseCard = screen

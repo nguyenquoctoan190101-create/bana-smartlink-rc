@@ -94,4 +94,35 @@ describe("apiClient", () => {
       "Giá trị CT01 không hợp lệ.",
     );
   });
+
+  it("allows a specific not-found message for the current user task", () => {
+    expect(
+      toUserFacingError(
+        new ApiError("Not found", 404),
+        "Không thể thực hiện thao tác.",
+        { notFound: "Không tìm thấy hồ sơ tương ứng." },
+      ),
+    ).toBe("Không tìm thấy hồ sơ tương ứng.");
+  });
+
+  it("translates actionable backend validation messages", () => {
+    expect(toUserFacingError(new ApiError("Unsupported file type", 400), "Không tải được tệp.")).toBe(
+      "Loại tệp chưa được hỗ trợ.",
+    );
+    expect(toUserFacingError(new Error("File content does not match extension"), "Không tải được tệp.")).toBe(
+      "Nội dung tệp không đúng với phần mở rộng. Vui lòng xuất lại tệp đúng định dạng rồi thử lại.",
+    );
+    expect(toUserFacingError(new ApiError("Leadership role is read-only", 409), "Không thể lưu báo cáo.")).toBe(
+      "Tài khoản lãnh đạo chỉ được xem dữ liệu.",
+    );
+  });
+
+  it("does not expose unknown English backend messages", () => {
+    expect(toUserFacingError(new ApiError("Unable to perform future operation", 422), "Không thể thực hiện thao tác.")).toBe(
+      "Không thể thực hiện thao tác.",
+    );
+    expect(toUserFacingError(new Error("Field required"), "Vui lòng kiểm tra dữ liệu.")).toBe(
+      "Vui lòng kiểm tra dữ liệu.",
+    );
+  });
 });

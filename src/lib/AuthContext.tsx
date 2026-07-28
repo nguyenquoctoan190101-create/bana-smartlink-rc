@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { Session } from "@supabase/supabase-js";
 import { supabase, isAuthConfigured } from "./supabase";
 import { apiJson } from "./apiClient";
+import { resolveStaffLoginEmail } from "./loginIdentifier";
 import { clearOfflineData, setOfflineOwner } from "./db";
 import type { AuthProfile, UserRole } from "../types";
 import { resolveRoleVillageIds } from "./rolePresentation";
@@ -195,11 +196,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setIsLoginSubmitting(true);
     try {
-      const identifier = loginPhone.trim();
-      const email = identifier.includes("@") ? identifier : `${identifier}@bana.local`;
+      const email = resolveStaffLoginEmail(loginPhone);
+      if (!email) {
+        setLoginError("Vui lòng nhập đúng số điện thoại hoặc địa chỉ email.");
+        return;
+      }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password: loginPassword });
       if (error || !data.session) {
-        setLoginError("Số điện thoại/email hoặc mật khẩu không chính xác.");
+        setLoginError("Số điện thoại, email hoặc mật khẩu không chính xác.");
         return;
       }
       const loaded = await loadProfile(data.session);

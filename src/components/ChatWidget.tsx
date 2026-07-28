@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { LockKeyhole, Mic, Send, ShieldCheck, Square, Volume2, X } from "lucide-react";
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
+import type { UserRole } from "../types";
 import "./ChatWidget.css";
 
 /* ─────────────────────────── Types ─────────────────────────────────── */
@@ -23,6 +24,7 @@ type ChatWidgetProps = {
   xaId?: string;
   apiBaseUrl?: string;
   userPhone?: string | null;
+  userRole?: UserRole;
 };
 
 type ApiSource = {
@@ -83,8 +85,22 @@ const PUBLIC_SUGGESTED_QUESTIONS = [
   "Có thể tra cứu những chỉ tiêu nào?",
 ];
 
-const STAFF_SUGGESTED_QUESTIONS = [
+const VILLAGE_OFFICER_SUGGESTED_QUESTIONS = [
   "Thôn tôi có bao nhiêu hộ nghèo?",
+  "Báo cáo kỳ này của thôn tôi đã nộp chưa?",
+  "Thôn tôi có bao nhiêu nhân khẩu?",
+  "So sánh số hộ dân của thôn tôi giữa hai kỳ gần nhất?",
+];
+
+const SUPPORT_TEAM_SUGGESTED_QUESTIONS = [
+  "Các thôn tôi hỗ trợ có bao nhiêu hộ nghèo?",
+  "Thôn nào trong phạm vi hỗ trợ chưa nộp báo cáo kỳ này?",
+  "Các thôn tôi hỗ trợ có bao nhiêu nhân khẩu?",
+  "So sánh số hộ dân giữa các thôn tôi được phân công?",
+];
+
+const COMMUNE_SUGGESTED_QUESTIONS = [
+  "Toàn xã có bao nhiêu hộ nghèo?",
   "Thôn nào chưa nộp báo cáo kỳ này?",
   "Toàn xã có bao nhiêu nhân khẩu?",
   "So sánh hộ dân giữa Thôn An Sơn và Thôn Phú Hòa?",
@@ -105,6 +121,7 @@ export default function ChatWidget({
   xaId,
   apiBaseUrl = viteApiBaseUrl,
   userPhone,
+  userRole,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCompactLayout, setIsCompactLayout] = useState(false);
@@ -640,9 +657,14 @@ export default function ChatWidget({
   }
 
   const showSuggestions = messages.length === 0;
-  const suggestedQuestions = userPhone
-    ? STAFF_SUGGESTED_QUESTIONS
-    : PUBLIC_SUGGESTED_QUESTIONS;
+  const isStaff = userRole ? userRole !== "dan" : Boolean(userPhone);
+  const suggestedQuestions = !isStaff
+    ? PUBLIC_SUGGESTED_QUESTIONS
+    : userRole === "can_bo_thon"
+      ? VILLAGE_OFFICER_SUGGESTED_QUESTIONS
+      : userRole === "to_cnscd"
+        ? SUPPORT_TEAM_SUGGESTED_QUESTIONS
+        : COMMUNE_SUGGESTED_QUESTIONS;
 
   /* ─── Render ──────────────────────────────────────────────────────── */
   const shouldAvoidActions = avoidanceOffset > 0 && !isOpen;
@@ -982,13 +1004,20 @@ function formatSourceScope(source: ApiSource): string {
   return source.scope;
 }
 
-function formatAsOf(value: string): string {
+export function formatAsOf(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime()) || !value.match(/^\d{4}-\d{2}-\d{2}/)) {
     return value;
   }
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: value.includes("T") ? "short" : undefined,
-  }).format(parsed);
+  const date = parsed.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  if (!value.includes("T")) return date;
+  const time = parsed.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${date} lúc ${time}`;
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye, FileText, ArrowRight, Activity, Shield, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
+import { auditActionLabel, auditObjectLabel } from "../lib/auditPresentation";
 import { useVillages } from "../lib/useVillages";
 import { WorkSection } from "./ui";
 import "./PendingUpdates.css";
@@ -68,24 +69,6 @@ interface AuditLogApiRow {
   payload?: Record<string, unknown>;
   created_at: string;
 }
-
-const AUDIT_ACTION_LABELS: Record<string, string> = {
-  UPDATE: "Cập nhật bản ghi",
-  INSERT: "Tạo bản ghi",
-  DELETE: "Xóa bản ghi",
-  CREATE_REPORT_PERIOD: "Tạo kỳ báo cáo",
-  PROPOSAL_APPROVE: "Phê duyệt kiến nghị",
-  PROPOSAL_REJECT: "Từ chối kiến nghị",
-};
-
-const AUDIT_TABLE_LABELS: Record<string, string> = {
-  evacuation_points: "Điểm sơ tán",
-  report_periods: "Kỳ báo cáo",
-  pending_updates: "Kiến nghị đối chiếu số liệu",
-  ai_action_drafts: "Nội dung điều hành gợi ý",
-  reports: "Báo cáo thôn",
-  report_values: "Chỉ tiêu báo cáo",
-};
 
 const shortReference = (value: string) =>
   value ? value.replace(/-/g, "").slice(0, 8).toUpperCase() : "—";
@@ -507,7 +490,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                   <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-xs space-y-2">
                     <div className="flex justify-between items-start gap-1">
                       <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
-                        {AUDIT_ACTION_LABELS[log.action] || "Thay đổi dữ liệu"}
+                        {auditActionLabel(log.action)}
                       </span>
                       <span className="text-slate-400 font-mono font-medium">{new Date(log.created_at).toLocaleTimeString("vi-VN")}</span>
                     </div>
@@ -517,7 +500,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                         Người thao tác: <b className="text-slate-800">Tài khoản nội bộ</b>
                       </div>
                       <div>
-                        Nội dung: <b className="text-slate-800">{AUDIT_TABLE_LABELS[log.table_name] || "Dữ liệu nghiệp vụ"}</b>
+                        Nội dung: <b className="text-slate-800">{auditObjectLabel(log.table_name)}</b>
                       </div>
                       <div>
                         Mã đối chiếu: <b className="font-mono text-slate-700">{shortReference(log.row_id)}</b>

@@ -38,6 +38,7 @@ export default function PilotWorkbench({ role }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState("");
   const [deviceType, setDeviceType] = useState("water_level");
   const [deviceUnit, setDeviceUnit] = useState("m");
@@ -62,18 +63,55 @@ export default function PilotWorkbench({ role }: Props) {
   useEffect(() => { void refresh(); }, []);
 
   const createDevice = async () => {
-    if (!deviceName.trim() || !deviceUnit.trim()) return;
-    await apiJson<Device>("/api/pilots/sensors/devices", { method: "POST", body: JSON.stringify({ name: deviceName.trim(), device_type: deviceType, unit: deviceUnit.trim() }) });
-    setDeviceName(""); setNotice("Đã tạo thiết bị thử nghiệm. Cần hiệu chuẩn và phân công người phụ trách trước khi dùng dữ liệu."); await refresh();
+    const name = deviceName.trim();
+    const unit = deviceUnit.trim();
+    setActionError(null);
+    if (name.length < 2 || name.length > 160) {
+      setActionError("Tên thiết bị phải có từ 2 đến 160 ký tự.");
+      return;
+    }
+    if (!unit || unit.length > 40) {
+      setActionError("Đơn vị đo phải có từ 1 đến 40 ký tự.");
+      return;
+    }
+    try {
+      await apiJson<Device>("/api/pilots/sensors/devices", { method: "POST", body: JSON.stringify({ name, device_type: deviceType, unit }) });
+      setDeviceName(""); setNotice("Đã tạo thiết bị thử nghiệm. Cần hiệu chuẩn và phân công người phụ trách trước khi dùng dữ liệu."); await refresh();
+    } catch (cause) {
+      setActionError(
+        toUserFacingError(cause, "Không thể tạo thiết bị thử nghiệm. Vui lòng thử lại."),
+      );
+    }
   };
   const createPlace = async () => {
-    if (!placeName.trim() || !placeSummary.trim()) return;
-    await apiJson<Place>("/api/pilots/tourism/places", { method: "POST", body: JSON.stringify({ name: placeName.trim(), category: placeCategory, summary: placeSummary.trim(), opening_hours: placeHours.trim() || null }) });
-    setPlaceName(""); setPlaceSummary(""); setPlaceHours(""); setNotice("Đã lưu điểm du lịch ở trạng thái chờ duyệt nội bộ."); await refresh();
+    const name = placeName.trim();
+    const summary = placeSummary.trim();
+    const openingHours = placeHours.trim();
+    setActionError(null);
+    if (name.length < 2 || name.length > 180) {
+      setActionError("Tên điểm đến phải có từ 2 đến 180 ký tự.");
+      return;
+    }
+    if (summary.length < 3 || summary.length > 2000) {
+      setActionError("Mô tả điểm đến phải có từ 3 đến 2.000 ký tự.");
+      return;
+    }
+    if (openingHours.length > 300) {
+      setActionError("Giờ mở cửa không được vượt quá 300 ký tự.");
+      return;
+    }
+    try {
+      await apiJson<Place>("/api/pilots/tourism/places", { method: "POST", body: JSON.stringify({ name, category: placeCategory, summary, opening_hours: openingHours || null }) });
+      setPlaceName(""); setPlaceSummary(""); setPlaceHours(""); setNotice("Đã lưu điểm du lịch ở trạng thái chờ duyệt nội bộ."); await refresh();
+    } catch (cause) {
+      setActionError(
+        toUserFacingError(cause, "Không thể lưu điểm du lịch. Vui lòng thử lại."),
+      );
+    }
   };
   const updatePlaceStatus = async (place: Place, nextStatus: PlaceStatus) => {
     try {
-      setError(null);
+      setActionError(null);
       await apiJson<Place>(`/api/pilots/tourism/places/${place.id}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status: nextStatus }),
@@ -82,7 +120,7 @@ export default function PilotWorkbench({ role }: Props) {
       setNotice(`Đã ${action} điểm du lịch “${place.name}”.`);
       await refresh();
     } catch (cause) {
-      setError(toUserFacingError(cause, "Không cập nhật được trạng thái điểm du lịch."));
+      setActionError(toUserFacingError(cause, "Không cập nhật được trạng thái điểm du lịch."));
     }
   };
 
@@ -93,10 +131,11 @@ export default function PilotWorkbench({ role }: Props) {
   return <div className="space-y-5">
     <PageHeader eyebrow="MÔ HÌNH THỬ NGHIỆM CÓ KIỂM SOÁT" title="IoT và du lịch cộng đồng" description="Khu vực thử nghiệm nội bộ. Dữ liệu cảm biến và nội dung du lịch phải được kiểm chứng, hiệu chuẩn và duyệt trước khi công bố." actions={<Button variant="secondary" onClick={() => void refresh()}><RefreshCw />Làm mới</Button>} />
     {notice && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">{notice}</div>}
+    {actionError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{actionError}</div>}
     <div className="grid gap-4 md:grid-cols-2"><div className={`rounded-xl border p-4 ${iotEnabled ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}><div className="flex items-center gap-2 font-bold"><Radio className="h-5 w-5" />Mô hình IoT {iotEnabled ? "đang bật" : "đang tắt"}</div><p className="mt-2 text-sm text-slate-600">Chỉ hiển thị ngưỡng và bất thường sau khi có thiết bị, dữ liệu hiệu chuẩn và người chịu trách nhiệm.</p></div><div className={`rounded-xl border p-4 ${tourismEnabled ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}><div className="flex items-center gap-2 font-bold"><Compass className="h-5 w-5" />Mô hình du lịch {tourismEnabled ? "đang bật" : "đang tắt"}</div><p className="mt-2 text-sm text-slate-600">Danh mục phải có nguồn, quyền sử dụng và phê duyệt; chưa có mô hình bản sao số hoặc dự báo luồng khách.</p></div></div>
     {!iotEnabled && !tourismEnabled ? <SectionCard><EmptyState title="Mô hình thử nghiệm chưa được bật" description="Chỉ bật tại môi trường thử nghiệm sau khi có phê duyệt, thiết bị, dữ liệu và người chịu trách nhiệm." /></SectionCard> : <>
-      <div className="grid gap-5 lg:grid-cols-2"><SectionCard><h2 className="text-lg font-bold">Thiết bị cảm biến</h2>{devices.length ? <ul className="knowledge-list mt-3">{devices.map((device) => <li className="knowledge-item" key={device.id}><strong>{device.name}</strong><span>{deviceTypes[device.device_type as keyof typeof deviceTypes] || "Loại thiết bị khác"} · đơn vị {device.unit}</span></li>)}</ul> : <EmptyState title="Chưa có thiết bị" description="Tạo thiết bị sau khi xác nhận vị trí và kế hoạch hiệu chuẩn." />}{admin && iotEnabled && <div className="knowledge-form mt-3"><input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="Tên thiết bị" /><select value={deviceType} onChange={(e) => setDeviceType(e.target.value)}>{Object.entries(deviceTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><div className="flex gap-2"><input className="min-w-0 flex-1" value={deviceUnit} onChange={(e) => setDeviceUnit(e.target.value)} placeholder="Đơn vị (m, mm, dB…)" /><Button onClick={() => void createDevice()} disabled={!deviceName.trim()}>Tạo thiết bị</Button></div></div>}</SectionCard><SectionCard><h2 className="text-lg font-bold">Danh mục điểm du lịch nội bộ</h2><p className="mt-1 text-sm text-slate-600">Bản nháp chỉ hiện nội bộ; chỉ mục đã duyệt mới được trả về cổng công khai.</p>{places.length ? <ul className="knowledge-list mt-3">{places.map((place) => {
-        const statusMeta = placeStatuses[place.status];
+      <div className="grid gap-5 lg:grid-cols-2"><SectionCard><h2 className="text-lg font-bold">Thiết bị cảm biến</h2>{devices.length ? <ul className="knowledge-list mt-3">{devices.map((device) => <li className="knowledge-item" key={device.id}><strong>{device.name}</strong><span>{deviceTypes[device.device_type as keyof typeof deviceTypes] || "Loại thiết bị khác"} · đơn vị {device.unit}</span></li>)}</ul> : <EmptyState title="Chưa có thiết bị" description="Tạo thiết bị sau khi xác nhận vị trí và kế hoạch hiệu chuẩn." />}{admin && iotEnabled && <div className="knowledge-form mt-3"><input aria-label="Tên thiết bị" maxLength={160} value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="Tên thiết bị" /><select aria-label="Loại thiết bị" value={deviceType} onChange={(e) => setDeviceType(e.target.value)}>{Object.entries(deviceTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><div className="flex gap-2"><input aria-label="Đơn vị đo" maxLength={40} className="min-w-0 flex-1" value={deviceUnit} onChange={(e) => setDeviceUnit(e.target.value)} placeholder="Đơn vị (m, mm, dB…)" /><Button onClick={() => void createDevice()} disabled={!deviceName.trim()}>Tạo thiết bị</Button></div></div>}</SectionCard><SectionCard><h2 className="text-lg font-bold">Danh mục điểm du lịch nội bộ</h2><p className="mt-1 text-sm text-slate-600">Bản nháp chỉ hiện nội bộ; chỉ mục đã duyệt mới được trả về cổng công khai.</p>{places.length ? <ul className="knowledge-list mt-3">{places.map((place) => {
+        const statusMeta = placeStatuses[place.status] ?? { label: "Trạng thái chưa xác định", className: "border-slate-200 bg-slate-100 text-slate-700" };
         const nextAction: { status: PlaceStatus; label: string; variant: "primary" | "secondary" } = place.status === "draft"
           ? { status: "approved", label: "Duyệt công bố", variant: "primary" }
           : place.status === "approved"
@@ -111,7 +150,7 @@ export default function PilotWorkbench({ role }: Props) {
           <span>{place.opening_hours || "Chưa cập nhật giờ mở cửa"}</span>
           {admin && <div className="mt-2"><Button variant={nextAction.variant} onClick={() => void updatePlaceStatus(place, nextAction.status)}>{nextAction.label}</Button></div>}
         </li>;
-      })}</ul> : <EmptyState title="Chưa có điểm du lịch" description="Chỉ thêm nội dung có nguồn và bản quyền rõ ràng." />}{admin && tourismEnabled && <div className="knowledge-form mt-3"><input value={placeName} onChange={(e) => setPlaceName(e.target.value)} placeholder="Tên điểm đến" /><select value={placeCategory} onChange={(e) => setPlaceCategory(e.target.value)}>{Object.entries(placeCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><textarea value={placeSummary} onChange={(e) => setPlaceSummary(e.target.value)} placeholder="Mô tả có nguồn, không tự bịa giá/giờ mở cửa" /><div className="flex gap-2"><input className="min-w-0 flex-1" value={placeHours} onChange={(e) => setPlaceHours(e.target.value)} placeholder="Giờ mở cửa" /><Button onClick={() => void createPlace()} disabled={!placeName.trim() || !placeSummary.trim()}>Thêm điểm</Button></div></div>}</SectionCard></div>
+      })}</ul> : <EmptyState title="Chưa có điểm du lịch" description="Chỉ thêm nội dung có nguồn và bản quyền rõ ràng." />}{admin && tourismEnabled && <div className="knowledge-form mt-3"><input aria-label="Tên điểm đến" maxLength={180} value={placeName} onChange={(e) => setPlaceName(e.target.value)} placeholder="Tên điểm đến" /><select aria-label="Loại điểm đến" value={placeCategory} onChange={(e) => setPlaceCategory(e.target.value)}>{Object.entries(placeCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><textarea aria-label="Mô tả điểm đến" maxLength={2000} value={placeSummary} onChange={(e) => setPlaceSummary(e.target.value)} placeholder="Mô tả có nguồn, không tự bịa đặt giá hoặc giờ mở cửa" /><div className="flex gap-2"><input aria-label="Giờ mở cửa" maxLength={300} className="min-w-0 flex-1" value={placeHours} onChange={(e) => setPlaceHours(e.target.value)} placeholder="Giờ mở cửa" /><Button onClick={() => void createPlace()} disabled={!placeName.trim() || !placeSummary.trim()}>Thêm điểm</Button></div></div>}</SectionCard></div>
       <PilotObservatory enabled={iotEnabled} />
     </>}
     <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600"><ShieldAlert className="mr-2 inline h-4 w-4 text-amber-600" />Không dùng mô hình thử nghiệm này để phát cảnh báo thiên tai chính thức, dự báo bằng AI hoặc theo dõi cá nhân. Mọi cảnh báo cần nguồn, phạm vi và thời hạn hiệu lực.</div>

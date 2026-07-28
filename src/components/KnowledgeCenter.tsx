@@ -64,8 +64,8 @@ const roleLabel = (role: string) =>
     admin_xa: "Cán bộ xã",
     to_cnscd: "Tổ công nghệ số cộng đồng",
     can_bo_thon: "Cán bộ thôn",
-    lanh_dao: "Lãnh đạo",
-  })[role] || role;
+    lanh_dao: "Lãnh đạo xã",
+  })[role] || "Vai trò chưa xác định";
 
 export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props) {
   const admin = role === "admin_xa";
@@ -260,17 +260,45 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
     }, "Đã tạo kịch bản. Kết quả mô phỏng không ghi ngược vào dữ liệu báo cáo thật.");
 
   const runScenario = async (id: string) => {
-    const values = [baselinePopulation, baselineBudget, baselineDemand, populationChange, budgetChange, demandChange].map(Number);
-    if (values.some((item) => !Number.isFinite(item) || item < 0)) {
+    const baselineValues = [
+      baselinePopulation,
+      baselineBudget,
+      baselineDemand,
+    ].map(Number);
+    const assumptionValues = [
+      populationChange,
+      budgetChange,
+      demandChange,
+    ].map(Number);
+    if (
+      baselineValues.some((item) => !Number.isFinite(item) || item < 0)
+    ) {
       setNotice({
         kind: "error",
-        message: "Giá trị mô phỏng phải là số không âm.",
+        message: "Giá trị nền phải là số không âm.",
+      });
+      return;
+    }
+    if (
+      assumptionValues.some(
+        (item) => !Number.isFinite(item) || item < -100 || item > 1000,
+      )
+    ) {
+      setNotice({
+        kind: "error",
+        message:
+          "Tỷ lệ thay đổi phải nằm trong khoảng từ -100% đến 1.000%.",
       });
       return;
     }
     setRunningScenario(id);
     try {
-      const [population, budget, service_demand, population_change_pct, budget_change_pct, service_demand_change_pct] = values;
+      const [population, budget, service_demand] = baselineValues;
+      const [
+        population_change_pct,
+        budget_change_pct,
+        service_demand_change_pct,
+      ] = assumptionValues;
       const response = await apiJson<{
         result?: { projection?: Record<string, number> };
       }>(`/api/knowledge/scenarios/${id}/run`, {
@@ -305,7 +333,34 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
       const latitude = Number(evacuationLatitude),
         longitude = Number(evacuationLongitude),
         capacity = Number(evacuationCapacity);
-      if (!evacuationVillageId || !evacuationName.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isInteger(capacity) || capacity <= 0) throw new Error("Hãy nhập thôn, tên, tọa độ và sức chứa hợp lệ.");
+      const normalizedPhone = evacuationPhone.replace(/[\s().-]/g, "");
+      if (!evacuationVillageId || evacuationName.trim().length < 3) {
+        throw new Error("Hãy chọn thôn và nhập tên điểm sơ tán từ 3 ký tự.");
+      }
+      if (
+        !Number.isFinite(latitude)
+        || latitude < -90
+        || latitude > 90
+        || !Number.isFinite(longitude)
+        || longitude < -180
+        || longitude > 180
+      ) {
+        throw new Error("Vĩ độ phải từ -90 đến 90 và kinh độ từ -180 đến 180.");
+      }
+      if (!Number.isInteger(capacity) || capacity <= 0 || capacity > 100000) {
+        throw new Error("Sức chứa phải là số hộ nguyên từ 1 đến 100.000.");
+      }
+      if (evacuationContact.trim().length < 2) {
+        throw new Error("Hãy nhập đầu mối nội bộ phụ trách điểm sơ tán.");
+      }
+      if (
+        normalizedPhone
+        && !/^(?:\+84|0)\d{9,10}$/.test(normalizedPhone)
+      ) {
+        throw new Error(
+          "Số điện thoại đầu mối chưa đúng định dạng. Ví dụ: 0901 234 567.",
+        );
+      }
       await apiJson<EvacuationPoint>("/api/pilots/evacuation-points", {
         method: "POST",
         body: JSON.stringify({
@@ -315,13 +370,14 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
           longitude,
           capacity_households: capacity,
           contact_name: evacuationContact.trim() || "Trực ban UBND xã",
-          contact_phone: evacuationPhone.trim() || null,
+          contact_phone: normalizedPhone || null,
         }),
       });
       setEvacuationName("");
       setEvacuationLatitude("");
       setEvacuationLongitude("");
       setEvacuationCapacity("");
+      setEvacuationPhone("");
     }, "Đã thêm điểm sơ tán ở trạng thái chờ xác minh. Chưa công khai cho người dân.");
 
   const toggleEvacuationPoint = (point: EvacuationPoint) =>
@@ -348,7 +404,13 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
       <PageHeader
         eyebrow="TRI THỨC VÀ HỖ TRỢ"
         title="Kho tri thức và mạng lưới hỗ trợ"
-        description={showScenarioSimulation ? "Bốn nhóm nội dung riêng biệt: văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán; mô phỏng chỉ xuất hiện trong khu vực quản trị thử nghiệm." : "Văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán được trình bày theo đúng phạm vi vai trò."}
+        description={
+          showScenarioSimulation
+            ? "Tài liệu nghiệp vụ, mạng lưới hỗ trợ và điểm sơ tán; mô phỏng chỉ xuất hiện trong khu vực quản trị thử nghiệm."
+            : canViewEvacuation
+              ? "Tài liệu nghiệp vụ, mạng lưới hỗ trợ và điểm sơ tán được trình bày theo đúng phạm vi vai trò."
+              : "Tài liệu nghiệp vụ và mạng lưới hỗ trợ dành cho cán bộ thôn."
+        }
         actions={
           <Button variant="secondary" onClick={() => void refresh()}>
             <RotateCw />
@@ -668,13 +730,13 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                   <input type="number" min="0" value={baselineDemand} onChange={(event) => setBaselineDemand(event.target.value)} />
                 </Field>
                 <Field label="Thay đổi dân số (%)">
-                  <input type="number" min="0" value={populationChange} onChange={(event) => setPopulationChange(event.target.value)} />
+                  <input type="number" min="-100" max="1000" step="any" value={populationChange} onChange={(event) => setPopulationChange(event.target.value)} />
                 </Field>
                 <Field label="Thay đổi ngân sách (%)">
-                  <input type="number" min="0" value={budgetChange} onChange={(event) => setBudgetChange(event.target.value)} />
+                  <input type="number" min="-100" max="1000" step="any" value={budgetChange} onChange={(event) => setBudgetChange(event.target.value)} />
                 </Field>
                 <Field label="Thay đổi nhu cầu (%)">
-                  <input type="number" min="0" value={demandChange} onChange={(event) => setDemandChange(event.target.value)} />
+                  <input type="number" min="-100" max="1000" step="any" value={demandChange} onChange={(event) => setDemandChange(event.target.value)} />
                 </Field>
               </div>
             </div>

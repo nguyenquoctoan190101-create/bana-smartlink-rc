@@ -14,7 +14,12 @@ describe("role presentation", () => {
 
   it("makes mutation boundaries explicit", () => {
     expect(getRoleScope("admin_xa")).toContain("duyệt, khóa và công bố");
-    expect(getRoleScope("lanh_dao")).toContain("Không sửa dữ liệu");
+    expect(getRoleScope("lanh_dao")).toContain(
+      "Không nhập, sửa, duyệt, khóa hoặc công bố báo cáo",
+    );
+    expect(getRoleScope("lanh_dao")).toContain(
+      "chỉ quyết định yêu cầu thay đổi kỳ",
+    );
     expect(getRoleScope("to_cnscd")).toContain("Không có quyền duyệt");
   });
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
+import { auditActionLabel, auditObjectLabel } from "../lib/auditPresentation";
 import type { ReportPeriod, UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, StatusBadge, WorkSection } from "./ui";
 import "./OperationsCenter.css";
@@ -212,31 +213,6 @@ const actionEvidenceStatuses = new Set<Action["evidence_status"]>([
   "manual",
   "missing",
 ]);
-const auditActionLabels: Record<string, string> = {
-  INSERT: "Tạo bản ghi",
-  UPDATE: "Cập nhật bản ghi",
-  DELETE: "Xóa bản ghi",
-  CREATE_REPORT_PERIOD: "Tạo kỳ báo cáo",
-  PROPOSAL_APPROVE: "Phê duyệt kiến nghị",
-  PROPOSAL_REJECT: "Từ chối kiến nghị",
-  REPORT_SUBMIT: "Nộp báo cáo",
-  REPORT_APPROVE: "Duyệt báo cáo",
-  REPORT_LOCK: "Khóa báo cáo",
-  REPORT_PUBLISH: "Công bố báo cáo",
-  REPORT_DELETE: "Xóa báo cáo",
-};
-const auditTableLabels: Record<string, string> = {
-  reports: "Báo cáo thôn",
-  report_values: "Chỉ tiêu báo cáo",
-  report_validation_flags: "Cờ kiểm tra dữ liệu",
-  report_periods: "Kỳ báo cáo",
-  pending_updates: "Kiến nghị đối chiếu",
-  profiles: "Tài khoản cán bộ",
-  ai_action_drafts: "Nội dung hỗ trợ quyết định",
-  action_items: "Hàng việc",
-  legacy_import_batches: "Lô dữ liệu lịch sử",
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -401,6 +377,20 @@ function formatDimensionPercent(value: number | null | undefined): string {
   return typeof value === "number" && Number.isFinite(value)
     ? `${value}%`
     : "—";
+}
+
+function formatDateTimeVi(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Chưa xác định";
+  return date.toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function isDecisionDraft(value: unknown): value is DecisionDraft {
@@ -616,9 +606,9 @@ function parseDecisionBrief(content: string): DecisionBriefSections {
 
 const reportSourceLabels: Record<string, string> = {
   manual: "Nhập thủ công",
-  excel: "Tệp Excel",
-  photo_ocr: "Ảnh OCR",
-  direct_api: "API trực tiếp",
+  excel: "Nhập từ tệp Excel",
+  photo_ocr: "Nhận dạng từ ảnh",
+  direct_api: "Nhập trực tiếp trên hệ thống",
 };
 
 const timelinessLabels: Record<string, string> = {
@@ -713,7 +703,7 @@ const roleCopy: Record<string, { eyebrow: string; title: string; description: st
 const roleOverviewCopy: Record<string, { title: string; description: string }> = {
   admin_xa: {
     title: "Ưu tiên điều hành",
-    description: "Xem phạm vi dữ liệu, kết luận cần chú ý và các chỉ số phải xử lý trước khi chuyển sang hàng việc chi tiết.",
+    description: "Xem phạm vi dữ liệu, kết luận cần chú ý và các chỉ số phải xử lý trước khi chuyển sang danh sách việc chi tiết.",
   },
   lanh_dao: {
     title: "Ưu tiên ra quyết định",
@@ -926,7 +916,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     ? decisionHistorySource.filter((item) => item.id !== latestDecisionDraft.id)
     : decisionHistorySource;
   const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
-  const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
+  const generatedAt = quality?.generated_at
+    ? formatDateTimeVi(quality.generated_at)
+    : "Chưa có thời điểm tổng hợp";
   const currentPeriodName =
     (available.quality === true && quality?.period?.id === periodId
       ? quality.period.name
@@ -1333,7 +1325,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                 ? "Không tải được bằng chứng đúng hạn"
                 : visibleQualityDimensions.timeliness.percent == null
                   ? "Chưa có bằng chứng; không quy đổi thành 0"
-                  : `${visibleQualityDimensions.timeliness.numerator}/${visibleQualityDimensions.timeliness.denominator} báo cáo · ${visibleQualityDimensions.timeliness.reportsNeedingReview} không đúng hạn`
+                  : `${visibleQualityDimensions.timeliness.numerator}/${visibleQualityDimensions.timeliness.denominator} báo cáo · ${visibleQualityDimensions.timeliness.reportsNeedingReview} báo cáo chưa đúng hạn`
             }
             tone={visibleQualityDimensions.timeliness.reportsNeedingReview ? "warning" : "success"}
             icon={<Clock3 />}
@@ -1387,8 +1379,16 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         id="operations-tasks"
         tabIndex={-1}
         index="02"
-        title="Hàng việc cần xử lý"
-        description="Xếp việc quá hạn lên trước; mỗi thẻ nêu người phụ trách, ưu tiên, tuổi việc, hạn xử lý, căn cứ và hành động được phép."
+        title={
+          role === "lanh_dao"
+            ? "Danh sách việc cần theo dõi"
+            : "Danh sách việc cần xử lý"
+        }
+        description={
+          role === "lanh_dao"
+            ? "Xếp việc quá hạn lên trước để lãnh đạo theo dõi người phụ trách, mức ưu tiên, thời gian đã mở, hạn xử lý và căn cứ; không thao tác thay người thực hiện."
+            : "Xếp việc quá hạn lên trước; mỗi thẻ nêu người phụ trách, mức ưu tiên, thời gian đã mở, hạn xử lý, căn cứ và hành động được phép."
+        }
         tone="tasks"
         icon={<ClipboardList />}
       >
@@ -1408,7 +1408,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                     meta={
                       <span>
                         Phụ trách: {item.owner_label} · Ưu tiên{" "}
-                        {priorityLabels[item.priority]} · Tuổi việc {ageLabel} ·{" "}
+                        {priorityLabels[item.priority]} · Đã mở {ageLabel} ·{" "}
                         {actionDueLabels[item.due_state]}
                         {item.due_date
                           ? ` ${new Date(`${item.due_date}T00:00:00`).toLocaleDateString("vi-VN")}`
@@ -1428,12 +1428,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                       />
                     }
                   >
-                    {item.next_action === "start" && (
+                    {item.can_update && item.next_action === "start" && (
                       <Button variant="secondary" onClick={() => void updateAction(item.id, "in_progress")}>
                         Nhận việc
                       </Button>
                     )}
-                    {item.next_action === "complete" && (
+                    {item.can_update && item.next_action === "complete" && (
                       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end">
                         <label className="flex-1 text-sm font-semibold text-slate-700">
                           Kết quả hoàn thành
@@ -1585,17 +1585,13 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                     {auditEntries.map((entry) => (
                       <tr key={entry.id}>
                         <td>
-                          {new Date(entry.created_at).toLocaleString("vi-VN", {
-                            timeZone: "Asia/Ho_Chi_Minh",
-                          })}
+                          {formatDateTimeVi(entry.created_at)}
                         </td>
                         <td>
-                          {auditActionLabels[entry.action] ||
-                            `Mã thao tác ${entry.action}`}
+                          {auditActionLabel(entry.action)}
                         </td>
                         <td>
-                          {auditTableLabels[entry.table_name] ||
-                            entry.table_name}
+                          {auditObjectLabel(entry.table_name)}
                         </td>
                         <td className="font-mono">
                           {shortAuditReference(entry.record_id)}
@@ -1713,9 +1709,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                       </h3>
                       <p>
                         {latestDecisionDraft.created_at
-                          ? `Tạo lúc ${new Date(
+                          ? `Tạo lúc ${formatDateTimeVi(
                               latestDecisionDraft.created_at,
-                            ).toLocaleString("vi-VN")}`
+                            )}`
                           : "Chưa có thời điểm tạo"}
                         {" · "}
                         {latestAiAnalysis
@@ -2411,7 +2407,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                         {latestDecisionDraft.reviewed_at && (
                           <p className="decision-recorded-review__time">
                             Xử lý lúc{" "}
-                            {new Date(latestDecisionDraft.reviewed_at).toLocaleString("vi-VN")}
+                            {formatDateTimeVi(latestDecisionDraft.reviewed_at)}
                           </p>
                         )}
                       </section>
@@ -2451,7 +2447,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                           />
                           {draft.created_at && (
                             <span>
-                              {new Date(draft.created_at).toLocaleString("vi-VN")}
+                              {formatDateTimeVi(draft.created_at)}
                             </span>
                           )}
                         </div>

@@ -759,7 +759,7 @@ async def submit_citizen_pending_update(
             submitter_address=payload.submitter_address,
             submitter_relation=payload.submitter_relation,
             explanation=payload.explanation,
-            consent_version="2026-07-13",
+            consent_version="1.0-2026-07-26",
         )
     except HTTPException:
         raise

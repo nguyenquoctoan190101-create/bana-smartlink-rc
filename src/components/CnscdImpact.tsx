@@ -291,7 +291,7 @@ export default function CnscdImpact({
           ["Tỷ lệ báo cáo có hỗ trợ", assistanceRate === null ? "—" : `${assistanceRate}%`, assistanceRate === null ? "Chưa có mẫu số" : `${data.assisted_report_count}/${data.submitted_report_count} báo cáo đã nộp`],
           ["Dân số trong báo cáo (CT02)", showNumber(data.ct02_total), data.ct02_total === null ? "Chưa đủ dữ liệu" : "người"],
           ["Người được hướng dẫn sử dụng dịch vụ công trực tuyến", showNumber(data.ct13_total), data.ct13_total === null ? "Chưa đủ dữ liệu" : "người"],
-          ["Người được hướng dẫn trên 1.000 dân", showRate(data.guided_people_per_1000), data.guided_people_per_1000 === null ? "Chưa đủ CT02/CT13" : `người/1.000 dân/kỳ · registry ${data.metric_registry_version}`],
+          ["Người được hướng dẫn trên 1.000 dân", showRate(data.guided_people_per_1000), data.guided_people_per_1000 === null ? "Chưa đủ CT02/CT13" : `người/1.000 dân/kỳ · bộ chỉ số phiên bản ${data.metric_registry_version}`],
         ].map(([label, value, context]) => (
           <article key={label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-medium text-slate-600">{label}</p>

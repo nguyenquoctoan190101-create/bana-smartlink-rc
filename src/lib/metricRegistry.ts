@@ -471,16 +471,26 @@ function aggregateExpression(
   return missing ? { state: "missing" } : { state: "value", value: total };
 }
 
-/**
- * Deterministic frontend counterpart of the server semantic evaluator.
- * It never substitutes missing data with zero and never averages ratios.
- */
-export function evaluateMetric(
-  metricId: string,
+interface PreparedMetricEvaluation {
+  periodId: string;
+  scope: string;
+  validExpectedVillageIds: boolean;
+  expectedVillageIds: string[];
+  validReports: boolean;
+  eligible: MetricEvaluationReport[];
+  missingCount: number;
+  coverageStatus: MetricCoverageStatus;
+  sourceReportVersions: MetricSourceReportVersion[];
+  hasDuplicateExpectedVillage: boolean;
+  hasPeriodMismatch: boolean;
+  hasDuplicateVillagePeriod: boolean;
+  hasScopeMismatch: boolean;
+}
+
+function prepareMetricEvaluation(
   reports: readonly MetricEvaluationReport[],
   context: MetricEvaluationContext,
-  registry: MetricRegistry = metricRegistry,
-): MetricEvaluationResult {
+): PreparedMetricEvaluation {
   const contextRecord = context as unknown as Record<string, unknown>;
   const periodId = typeof contextRecord?.period_id === "string" ? contextRecord.period_id.trim() : "";
   const scope = typeof contextRecord?.scope === "string" ? contextRecord.scope.trim() : "";
@@ -490,7 +500,6 @@ export function evaluateMetric(
   const expectedVillageIds = validExpectedVillageIds
     ? rawExpectedVillageIds as string[]
     : [];
-  const metric = registry.metrics.find((candidate) => candidate.metric_id === metricId);
   const validReports = reports.every(hasMetricEvaluationReportEnvelope);
   const eligible = validReports
     ? reports.filter((report) => FINAL_WORKFLOW_STATUSES.has(report.workflow_status))
@@ -503,6 +512,50 @@ export function evaluateMetric(
     : missingCount > 0
       ? "partial"
       : "complete";
+  const scopeKeys = eligible.map((report) => `${report.village_id}\u0000${report.period_id}`);
+  return {
+    periodId,
+    scope,
+    validExpectedVillageIds,
+    expectedVillageIds,
+    validReports,
+    eligible,
+    missingCount,
+    coverageStatus,
+    sourceReportVersions: sourceVersions(eligible),
+    hasDuplicateExpectedVillage:
+      new Set(expectedVillageIds).size !== expectedVillageIds.length,
+    hasPeriodMismatch: eligible.some((report) => report.period_id !== periodId),
+    hasDuplicateVillagePeriod: new Set(scopeKeys).size !== scopeKeys.length,
+    hasScopeMismatch: eligible.some(
+      (report) => !expectedSet.has(report.village_id),
+    ),
+  };
+}
+
+function evaluatePreparedMetric(
+  metricId: string,
+  prepared: PreparedMetricEvaluation,
+  registry: MetricRegistry,
+): MetricEvaluationResult {
+  const {
+    periodId,
+    scope,
+    validExpectedVillageIds,
+    expectedVillageIds,
+    validReports,
+    eligible,
+    missingCount,
+    coverageStatus,
+    sourceReportVersions,
+    hasDuplicateExpectedVillage,
+    hasPeriodMismatch,
+    hasDuplicateVillagePeriod,
+    hasScopeMismatch,
+  } = prepared;
+  const metric = registry === metricRegistry
+    ? metricById.get(metricId)
+    : registry.metrics.find((candidate) => candidate.metric_id === metricId);
   const base = {
     metric_id: metricId,
     unit: metric?.unit ?? null,
@@ -513,7 +566,7 @@ export function evaluateMetric(
     registry_version: registry.registry_version,
     period_id: periodId,
     scope,
-    source_report_versions: sourceVersions(eligible),
+    source_report_versions: sourceReportVersions,
   } as const;
   const blocked = (reason: MetricEvaluationReason, numerator: number | null = null, denominator: number | null = null): MetricEvaluationResult => ({
     ...base,
@@ -527,16 +580,15 @@ export function evaluateMetric(
     periodId === ""
     || scope === ""
     || !validExpectedVillageIds
-    || new Set(expectedVillageIds).size !== expectedVillageIds.length
+    || hasDuplicateExpectedVillage
   ) return blocked("invalid_context");
   if (!metric) return blocked("metric_not_found");
   if (!validReports) return blocked("invalid_report");
   if (metric.status !== "approved") return blocked("metric_not_approved");
   if (eligible.length === 0) return blocked("no_eligible_reports");
-  if (eligible.some((report) => report.period_id !== periodId)) return blocked("period_mismatch");
-  const scopeKeys = eligible.map((report) => `${report.village_id}\u0000${report.period_id}`);
-  if (new Set(scopeKeys).size !== scopeKeys.length) return blocked("duplicate_village_period");
-  if (eligible.some((report) => !expectedSet.has(report.village_id))) return blocked("scope_mismatch");
+  if (hasPeriodMismatch) return blocked("period_mismatch");
+  if (hasDuplicateVillagePeriod) return blocked("duplicate_village_period");
+  if (hasScopeMismatch) return blocked("scope_mismatch");
   if (metric.aggregation === "none") return blocked("aggregation_not_supported");
 
   const numeratorResult = aggregateExpression(metric.numerator, eligible);
@@ -566,6 +618,45 @@ export function evaluateMetric(
     denominator,
     reason: coverageStatus === "partial" ? "partial_coverage" : null,
   };
+}
+
+/**
+ * Evaluate several metrics against one immutable report slice.
+ *
+ * Context validation, eligibility filtering, coverage calculation and source
+ * ordering are prepared once instead of once per metric. Metric formulas still
+ * run independently, so the deterministic registry contract is unchanged.
+ */
+export function evaluateMetrics(
+  metricIds: readonly string[],
+  reports: readonly MetricEvaluationReport[],
+  context: MetricEvaluationContext,
+  registry: MetricRegistry = metricRegistry,
+): ReadonlyMap<string, MetricEvaluationResult> {
+  const prepared = prepareMetricEvaluation(reports, context);
+  return new Map(
+    metricIds.map((metricId) => [
+      metricId,
+      evaluatePreparedMetric(metricId, prepared, registry),
+    ]),
+  );
+}
+
+/**
+ * Deterministic frontend counterpart of the server semantic evaluator.
+ * It never substitutes missing data with zero and never averages ratios.
+ */
+export function evaluateMetric(
+  metricId: string,
+  reports: readonly MetricEvaluationReport[],
+  context: MetricEvaluationContext,
+  registry: MetricRegistry = metricRegistry,
+): MetricEvaluationResult {
+  return evaluatePreparedMetric(
+    metricId,
+    prepareMetricEvaluation(reports, context),
+    registry,
+  );
 }
 
 const METRIC_REPORT_KEYS = [

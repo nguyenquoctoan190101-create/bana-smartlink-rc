@@ -15,21 +15,31 @@ const mocks = vi.hoisted(() => ({
   queueReportForSync: vi.fn(),
   saveDraftForScope: vi.fn(),
   syncQueuedReports: vi.fn(),
+  authScope: {
+    userName: "Cán bộ thôn",
+    userPhone: "0900000000",
+    userVillageId: "village-1" as string | null,
+    userVillageIds: ["village-1"] as string[],
+    userRole: "can_bo_thon" as
+      | "can_bo_thon"
+      | "to_cnscd"
+      | "admin_xa"
+      | "lanh_dao"
+      | "dan",
+  },
 }));
 
 vi.mock("../lib/AuthContext", () => ({
-  useAuth: () => ({
-    userName: "Cán bộ thôn",
-    userPhone: "0900000000",
-    userVillageId: "village-1",
-    userVillageIds: ["village-1"],
-    userRole: "can_bo_thon",
-  }),
+  useAuth: () => mocks.authScope,
 }));
 
 vi.mock("../lib/useVillages", () => ({
   useVillages: () => ({
-    villages: [{ id: "village-1", name: "Thôn An Sơn" }],
+    villages: [
+      { id: "village-1", name: "Thôn An Sơn" },
+      { id: "village-2", name: "Thôn Hòa Nhơn" },
+      { id: "village-3", name: "Thôn Hòa Ninh" },
+    ],
     isLoading: false,
     error: null,
   }),
@@ -71,6 +81,13 @@ describe("ReportForm accessibility", () => {
     mocks.getLocalDraftForScope.mockResolvedValue(null);
     mocks.queueReportForSync.mockResolvedValue(undefined);
     mocks.syncQueuedReports.mockResolvedValue({ accepted: [], rejected: [] });
+    Object.assign(mocks.authScope, {
+      userName: "Cán bộ thôn",
+      userPhone: "0900000000",
+      userVillageId: "village-1",
+      userVillageIds: ["village-1"],
+      userRole: "can_bo_thon",
+    });
   });
 
   it("exposes the task form and all fourteen indicators without blocking axe violations", async () => {
@@ -145,5 +162,31 @@ describe("ReportForm accessibility", () => {
       within(receipt!).getByText("Chờ quản trị xã rà soát"),
     ).toBeInTheDocument();
     expect(within(receipt!).getByText(/29\/7\/2026/)).toBeInTheDocument();
+  });
+
+  it("offers CNSCĐ only explicitly assigned villages and records assistance", async () => {
+    Object.assign(mocks.authScope, {
+      userName: "Thành viên Tổ CNSCĐ",
+      userVillageId: null,
+      userVillageIds: ["village-1", "village-3"],
+      userRole: "to_cnscd",
+    });
+
+    render(<ReportForm onSaved={vi.fn()} onCancel={vi.fn()} />);
+
+    const villageSelect = await screen.findByLabelText("Thôn báo cáo:");
+    expect(within(villageSelect).getByRole("option", { name: "Thôn An Sơn" })).toBeInTheDocument();
+    expect(within(villageSelect).getByRole("option", { name: "Thôn Hòa Ninh" })).toBeInTheDocument();
+    expect(
+      within(villageSelect).queryByRole("option", { name: "Thôn Hòa Nhơn" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Chỉ có thể lập báo cáo cho 2 thôn được quản trị xã phân công."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Ghi nhận hỗ trợ nhập liệu",
+      }),
+    ).toBeInTheDocument();
   });
 });

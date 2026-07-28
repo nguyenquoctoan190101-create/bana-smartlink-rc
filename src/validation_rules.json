@@ -12,7 +12,7 @@
     "min": 0,
     "warning_multiplier_min": 3.0,
     "warning_multiplier_max": 4.5,
-    "warning_message": "Cảnh báo: Tổng số nhân khẩu (CT02) bất thường so với số hộ dân (phải nằm trong khoảng 3 đến 4.5 lần Tổng số hộ dân - CT01)"
+    "warning_message": "Tổng số nhân khẩu (CT02) nằm ngoài khoảng tham chiếu từ 3 đến 4,5 lần tổng số hộ dân (CT01)."
   },
   "CT03": {
     "name": "Số hộ nghèo",
@@ -20,7 +20,7 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT01",
-    "error_message": "Lỗi: Số hộ nghèo (CT03) không được vượt quá Tổng số hộ dân (CT01)"
+    "error_message": "Số hộ nghèo (CT03) không được vượt quá tổng số hộ dân (CT01)."
   },
   "CT04": {
     "name": "Số hộ cận nghèo",
@@ -29,7 +29,7 @@
     "min": 0,
     "sum_max_ref": ["CT03", "CT04"],
     "max_limit_ref": "CT01",
-    "error_message": "Lỗi: Tổng số hộ nghèo và cận nghèo (CT03 + CT04) không được vượt quá Tổng số hộ dân (CT01)"
+    "error_message": "Tổng số hộ nghèo và cận nghèo (CT03 + CT04) không được vượt quá tổng số hộ dân (CT01)."
   },
   "CT05": {
     "name": "Số người có công với cách mạng đang được quản lý",
@@ -52,7 +52,7 @@
     "warning_ratio_min": 0.01,
     "warning_ratio_max": 0.35,
     "warning_ratio_ref": "CT02",
-    "error_message": "Lỗi: Số trẻ em dưới 16 tuổi (CT07) không được vượt quá Tổng số nhân khẩu (CT02)"
+    "error_message": "Số trẻ em dưới 16 tuổi (CT07) không được vượt quá tổng số nhân khẩu (CT02)."
   },
   "CT08": {
     "name": "Số trẻ em có hoàn cảnh đặc biệt",
@@ -60,7 +60,7 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT07",
-    "error_message": "Lỗi: Số trẻ em có hoàn cảnh đặc biệt (CT08) không được vượt quá Số trẻ em dưới 16 tuổi (CT07)"
+    "error_message": "Số trẻ em có hoàn cảnh đặc biệt (CT08) không được vượt quá số trẻ em dưới 16 tuổi (CT07)."
   },
   "CT09": {
     "name": "Số hộ đạt \"Gia đình văn hóa\"",
@@ -68,7 +68,7 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT01",
-    "error_message": "Lỗi: Số hộ đạt \"Gia đình văn hóa\" (CT09) không được vượt quá Tổng số hộ dân (CT01)"
+    "error_message": "Số hộ đạt \"Gia đình văn hóa\" (CT09) không được vượt quá tổng số hộ dân (CT01)."
   },
   "CT10": {
     "name": "Số người trong độ tuổi lao động",
@@ -76,7 +76,7 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT02",
-    "error_message": "Lỗi: Số người trong độ tuổi lao động (CT10) không được vượt quá Tổng số nhân khẩu (CT02)"
+    "error_message": "Số người trong độ tuổi lao động (CT10) không được vượt quá tổng số nhân khẩu (CT02)."
   },
   "CT11": {
     "name": "Số người tham gia BHYT",
@@ -84,7 +84,7 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT02",
-    "error_message": "Lỗi: Số người tham gia BHYT (CT11) không được vượt quá Tổng số nhân khẩu (CT02)"
+    "error_message": "Số người tham gia BHYT (CT11) không được vượt quá tổng số nhân khẩu (CT02)."
   },
   "CT12": {
     "name": "Số thành viên Tổ công nghệ số cộng đồng",
@@ -104,6 +104,6 @@
     "type": "integer",
     "min": 0,
     "max_ref": "CT01",
-    "error_message": "Lỗi: Số vụ bạo lực gia đình (CT14) không được vượt quá tổng số hộ dân (CT01)"
+    "error_message": "Số vụ bạo lực gia đình (CT14) không được vượt quá tổng số hộ dân (CT01)."
   }
 }
