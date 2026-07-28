@@ -378,6 +378,41 @@ describe("Dashboard device drafts", () => {
     expect(screen.getByText(/trẻ em hoàn cảnh đặc biệt cao nhất/i)).toBeInTheDocument();
   });
 
+  it("opens cross-village priority analysis by default and still allows it to be collapsed", () => {
+    render(
+      <Dashboard
+        reports={[
+          report(),
+          report({ id: "report-2", village_id: "village-2" }),
+        ]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="lanh_dao"
+      />,
+    );
+
+    const summary = screen
+      .getByText("Bộ biểu đồ phân tích chi tiết")
+      .closest("summary");
+    const disclosure = summary?.closest("details");
+    const analysis = screen.getByText(
+      "Năm góc nhìn để xác định ưu tiên và phân bổ nguồn lực",
+    );
+
+    expect(summary).not.toBeNull();
+    expect(disclosure).toHaveAttribute("open");
+    expect(analysis).toBeVisible();
+
+    fireEvent.click(summary!);
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(analysis).not.toBeVisible();
+
+    fireEvent.click(summary!);
+    expect(disclosure).toHaveAttribute("open");
+    expect(analysis).toBeVisible();
+  });
+
   it("gives leadership a concise decision-first dashboard heading and signal strip", () => {
     render(
       <Dashboard
@@ -452,6 +487,9 @@ describe("Dashboard device drafts", () => {
     expect(
       screen.getByText("Diễn biến của Thôn An Sơn qua các kỳ"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bộ biểu đồ phân tích chi tiết"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Xu hướng qua các kỳ")).toBeInTheDocument();
     expect(screen.queryByText(/thôn đầu chiếm khoảng/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/cao nhất/i)).not.toBeInTheDocument();
