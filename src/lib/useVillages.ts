@@ -8,7 +8,7 @@ let inFlight: Promise<Village[]> | null = null;
 export async function loadVillages(): Promise<Village[]> {
   if (cachedVillages) return cachedVillages;
   if (!inFlight) {
-    inFlight = apiJson<Village[]>("/reports/villages")
+    inFlight = apiJson<Village[]>("/reports/villages", { auth: "none" })
       .then((rows) => {
         cachedVillages = Array.isArray(rows)
           ? rows.filter((row) => row && typeof row.id === "string" && typeof row.name === "string")

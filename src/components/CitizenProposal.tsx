@@ -66,6 +66,7 @@ export default function CitizenProposal({ reports, onProposalSubmitted, onOpenFi
     setError(null); setIsSending(true);
     try {
       const response = await apiFetch("/auth/citizen/pending-updates", {
+        auth: "none",
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_period: selectedReportPeriod, village_id: selectedVillage, ct_code: selectedIndicator, proposed_value: Number(suggestedValue), proposed_by_phone: phone.trim(), submitter_name: submitterName.trim() || undefined, explanation, privacy_consent: true }),
       });

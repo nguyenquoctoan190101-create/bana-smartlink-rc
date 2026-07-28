@@ -89,6 +89,7 @@ export default function CitizenCasePanel({
     setBusy(true);
     try {
       const data = await apiJson<CaseResult>("/api/cases", {
+        auth: "none",
         method: "POST",
         body: JSON.stringify({
           village_id: villageId || null,
@@ -112,6 +113,7 @@ export default function CitizenCasePanel({
           form.append("file", attachment);
           try {
             await apiJson(`/api/cases/${data.case.id}/media`, {
+              auth: "none",
               method: "POST",
               body: form,
             });

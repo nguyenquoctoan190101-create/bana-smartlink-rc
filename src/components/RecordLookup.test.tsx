@@ -82,7 +82,7 @@ describe("RecordLookup", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Đường giao thông");
     expect(mocks.apiJson).toHaveBeenCalledWith(
       `/api/cases/track/${"A".repeat(32)}`,
-      { cache: "no-store" },
+      { auth: "none", cache: "no-store" },
     );
   });
 });
