@@ -89,17 +89,28 @@ async def test_cnscd_impact_preserves_missing_ct13_instead_of_zero() -> None:
             {"id": "r1", "village_id": "v1", "assisted_by_cnscd": True},
             {"id": "r2", "village_id": "v2", "assisted_by_cnscd": False},
         ],
-        [{"report_id": "r1", "value": 5}],
+        [
+            {"report_id": "r1", "ct_code": "CT02", "value": 1000},
+            {"report_id": "r1", "ct_code": "CT13", "value": 5},
+            {"report_id": "r2", "ct_code": "CT02", "value": 1200},
+        ],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")
     assert result.has_report_data is True
     assert result.submitted_report_count == 2
     assert result.assisted_report_count == 1
+    assert result.ct02_total == 2200
+    assert result.missing_ct02_report_count == 0
     assert result.missing_ct13_report_count == 1
     assert result.ct13_total is None
+    assert result.guided_people_per_1000 is None
+    assert result.villages[0].ct02_value == 1000
     assert result.villages[0].ct13_value == 5
+    assert result.villages[0].guided_people_per_1000 == 5
+    assert result.villages[0].data_status == "complete"
+    assert result.villages[0].next_action == "view_work_queue"
     assert result.villages[1].ct13_value is None
-    assert "thiếu dữ liệu" in result.interpretation
+    assert "thiếu CT13" in result.interpretation
     assert "timeliness_status=in.(on_time,late)" in supabase._rest_request.await_args_list[2].args[1]
 
 
@@ -110,11 +121,16 @@ async def test_cnscd_impact_complete_data_calculates_total_and_includes_unsubmit
         [{"id": "p1", "name": "Kỳ đủ"}],
         [{"village_id": "v1", "villages": {"id": "v1", "name": "Thôn A"}}, {"village_id": "v2", "villages": {"id": "v2", "name": "Thôn B"}}],
         [{"id": "r1", "village_id": "v1", "assisted_by_cnscd": True}],
-        [{"report_id": "r1", "value": "7"}],
+        [
+            {"report_id": "r1", "ct_code": "CT02", "value": "1000"},
+            {"report_id": "r1", "ct_code": "CT13", "value": "7"},
+        ],
     ])
     result = await CnscdImpactService(supabase).calculate("p1")
     assert result.has_report_data is True
     assert result.ct13_total == 7
+    assert result.ct02_total == 1000
+    assert result.guided_people_per_1000 == 7
     assert result.missing_ct13_report_count == 0
     assert result.assisted_report_count == 1
     assert "1 báo cáo" in result.interpretation
@@ -122,6 +138,8 @@ async def test_cnscd_impact_complete_data_calculates_total_and_includes_unsubmit
     assert "chênh lệch" not in result.interpretation
     assert result.villages[1].report_id is None
     assert result.villages[1].ct13_value is None
+    assert result.villages[1].data_status == "not_submitted"
+    assert result.villages[1].next_action == "create_report"
 
 
 @pytest.mark.asyncio
@@ -135,7 +153,9 @@ async def test_cnscd_impact_no_reports_skips_value_request() -> None:
     result = await CnscdImpactService(supabase).calculate("p1")
     assert result.has_report_data is False
     assert result.submitted_report_count == 0
+    assert result.ct02_total is None
     assert result.ct13_total is None
+    assert result.guided_people_per_1000 is None
     assert "chưa có báo cáo" in result.interpretation
     assert result.villages[0].ct13_value is None
     assert supabase._rest_request.await_count == 3
@@ -151,3 +171,47 @@ async def test_cnscd_impact_missing_period_and_invalid_ct13_fail_safely() -> Non
     assert _int_or_none(True) is None
     assert _int_or_none("bad") is None
     assert _int_or_none("9") == 9
+
+
+@pytest.mark.asyncio
+async def test_cnscd_impact_filters_to_explicit_assigned_villages() -> None:
+    supabase = AsyncMock()
+    supabase._rest_request = AsyncMock(
+        side_effect=[
+            [{"id": "p1", "name": "Kỳ phân công"}],
+            [
+                {
+                    "village_id": "v1",
+                    "villages": {"id": "v1", "name": "Thôn A"},
+                },
+                {
+                    "village_id": "v2",
+                    "villages": {"id": "v2", "name": "Thôn B"},
+                },
+            ],
+            [
+                {
+                    "id": "r2",
+                    "village_id": "v2",
+                    "assisted_by_cnscd": False,
+                }
+            ],
+            [
+                {"report_id": "r2", "ct_code": "CT02", "value": 800},
+                {"report_id": "r2", "ct_code": "CT13", "value": 4},
+            ],
+        ]
+    )
+
+    result = await CnscdImpactService(supabase).calculate(
+        "p1",
+        village_ids=("v2",),
+        scope="assigned_villages",
+    )
+
+    assert result.scope == "assigned_villages"
+    assert result.scope_village_count == 1
+    assert [item.village_id for item in result.villages] == ["v2"]
+    assert result.villages[0].guided_people_per_1000 == 5
+    report_query = supabase._rest_request.await_args_list[2].args[1]
+    assert "village_id=in.(v2)" in report_query

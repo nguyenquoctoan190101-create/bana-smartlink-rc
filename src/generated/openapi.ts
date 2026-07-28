@@ -2138,12 +2138,22 @@ export interface components {
         CnscdImpactResponse: {
             /** Assisted Report Count */
             assisted_report_count: number;
+            /** Ct02 Total */
+            ct02_total: number | null;
             /** Ct13 Total */
             ct13_total: number | null;
+            /** Guided People Per 1000 */
+            guided_people_per_1000: number | null;
             /** Has Report Data */
             has_report_data: boolean;
             /** Interpretation */
             interpretation: string;
+            /** Metric Interpretation Limit */
+            metric_interpretation_limit: string;
+            /** Metric Registry Version */
+            metric_registry_version: string;
+            /** Missing Ct02 Report Count */
+            missing_ct02_report_count: number;
             /** Missing Ct13 Report Count */
             missing_ct13_report_count: number;
             /**
@@ -2153,10 +2163,19 @@ export interface components {
             period_id: string;
             /** Period Name */
             period_name: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "commune" | "assigned_villages";
+            /** Scope Village Count */
+            scope_village_count: number;
             /** Submitted Report Count */
             submitted_report_count: number;
             /** Villages */
             villages: components["schemas"]["VillageCnscdImpactResponse"][];
+            /** Zero Ct02 Report Count */
+            zero_ct02_report_count: number;
         };
         /** CreateImportBatchRequest */
         CreateImportBatchRequest: {
@@ -3183,8 +3202,22 @@ export interface components {
         VillageCnscdImpactResponse: {
             /** Assisted Report Count */
             assisted_report_count: number;
+            /** Ct02 Value */
+            ct02_value: number | null;
             /** Ct13 Value */
             ct13_value: number | null;
+            /**
+             * Data Status
+             * @enum {string}
+             */
+            data_status: "not_submitted" | "incomplete" | "complete";
+            /** Guided People Per 1000 */
+            guided_people_per_1000: number | null;
+            /**
+             * Next Action
+             * @enum {string}
+             */
+            next_action: "create_report" | "complete_report" | "record_assistance" | "view_work_queue";
             /** Report Id */
             report_id: string | null;
             /**

@@ -193,6 +193,7 @@ const ROLE_TABS: Record<UserRole, Set<AppTab>> = {
   to_cnscd: new Set([
     "dashboard",
     "report-form",
+    "cnscd-impact",
     "citizen-proposal",
     "operations",
     "knowledge",
@@ -1474,6 +1475,15 @@ export default function App() {
             primary: true,
           },
           { id: "dashboard", label: "Theo dõi số liệu", icon: BarChart3 },
+          ...(userRole === "to_cnscd"
+            ? [
+                {
+                  id: "cnscd-impact" as const,
+                  label: "Kết quả hỗ trợ chuyển đổi số",
+                  icon: UserCheck,
+                },
+              ]
+            : []),
           {
             id: "citizen-proposal",
             label: "Đề nghị đối chiếu số liệu",
@@ -2065,6 +2075,8 @@ export default function App() {
                     <CnscdImpact
                       selectedPeriod={activePeriodId}
                       periods={periods}
+                      role={userRole}
+                      onNavigate={(target) => changeTab(target)}
                     />
                   ) : (
                     <p role="status">Chưa có kỳ báo cáo.</p>
