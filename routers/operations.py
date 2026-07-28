@@ -301,11 +301,17 @@ async def create_initiative(
 
 @router.get("/ai-drafts")
 async def list_ai_drafts(
-    _: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    profile: Annotated[UserProfile, Depends(require_admin_or_leader)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> list[dict[str, Any]]:
-    return await _caller_client(supabase, authorization)._rest_request("GET", "/rest/v1/ai_action_drafts?select=*&order=created_at.desc")
+    query = "/rest/v1/ai_action_drafts?select=*"
+    if profile.role == "lanh_dao":
+        # PostgreSQL enforces the same boundary. Keep this server-side filter as
+        # defense in depth and avoid asking PostgREST for unreviewed drafts.
+        query += "&status=eq.accepted"
+    query += "&order=created_at.desc"
+    return await _caller_client(supabase, authorization)._rest_request("GET", query)
 
 
 def _same_deterministic_evidence(
@@ -358,11 +364,12 @@ def _has_ai_enrichment(citations: Any) -> bool:
 @router.post("/ai-drafts", status_code=status.HTTP_201_CREATED)
 async def create_ai_draft(
     payload: AiDraftCreateRequest,
-    profile: Annotated[UserProfile, Depends(require_admin_or_leader)],
+    profile: Annotated[UserProfile, Depends(require_admin_xa)],
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
     client = _caller_client(supabase, authorization)
+    database_error: tuple[int, str] | None = None
     try:
         commune_id = await _commune_id(client, profile)
         period, snapshots = await _period_and_snapshots(client, payload.period_id)
@@ -450,7 +457,21 @@ async def create_ai_draft(
             "model_provider": ai_attempt.model_provider, "created_by": profile.id,
         }, prefer="return=representation")
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create reviewed draft") from exc
+        if exc.error_code == "23505":
+            database_error = (
+                status.HTTP_409_CONFLICT,
+                "Đã có một bản phân tích đang chờ duyệt cho kỳ này.",
+            )
+        else:
+            database_error = (
+                status.HTTP_400_BAD_REQUEST,
+                "Unable to create reviewed draft",
+            )
+    if database_error is not None:
+        raise HTTPException(
+            status_code=database_error[0],
+            detail=database_error[1],
+        )
     return rows[0]
 
 
@@ -462,12 +483,34 @@ async def review_ai_draft(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, Any]:
+    review_error: tuple[int, str] | None = None
     try:
         rows = await _caller_client(supabase, authorization)._rest_request("PATCH", f"/rest/v1/ai_action_drafts?id=eq.{quote(str(draft_id), safe='')}&status=eq.pending_review", {
-            "status": payload.decision, "reviewed_by": profile.id, "reviewed_at": datetime.now(timezone.utc).isoformat(), "review_notes": payload.notes,
+            # PostgreSQL derives reviewed_by from auth.uid() and reviewed_at
+            # from the database clock; callers may not choose either value.
+            "status": payload.decision, "review_notes": payload.notes,
         }, prefer="return=representation")
     except SupabaseAdminError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to review draft") from exc
+        if exc.error_code == "42501" or exc.status_code in {401, 403}:
+            review_error = (
+                status.HTTP_403_FORBIDDEN,
+                "Unable to review draft",
+            )
+        elif exc.error_code == "23514":
+            review_error = (
+                status.HTTP_409_CONFLICT,
+                "Draft review conflicts with its current state",
+            )
+        else:
+            review_error = (
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "Draft review service is temporarily unavailable",
+            )
+    if review_error is not None:
+        raise HTTPException(
+            status_code=review_error[0],
+            detail=review_error[1],
+        )
     if not rows:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Draft is missing or already reviewed")
     return rows[0]

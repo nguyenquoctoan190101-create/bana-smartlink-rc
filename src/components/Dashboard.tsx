@@ -427,6 +427,9 @@ export default function Dashboard({
   const isCrossPeriodSnapshot = selectedPeriod === ALL_PERIODS;
   const canAggregateCurrentSlice =
     !isCrossPeriodSnapshot && analyticsReports.length > 0;
+  useEffect(() => {
+    if (isCrossPeriodSnapshot) setShowChartModal(false);
+  }, [isCrossPeriodSnapshot]);
 
   // Calculate aggregated metrics
   const value = (input: number | null) =>
@@ -792,9 +795,14 @@ export default function Dashboard({
               className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950"
               role="status"
             >
-              Chế độ theo dõi đang hiển thị bản mới nhất của từng thôn, có thể
-              thuộc các kỳ khác nhau. Hệ thống không tính số tổng hợp trong chế độ
-              này.
+              <strong className="block font-bold">
+                Không tổng hợp: các thôn có thể thuộc kỳ khác nhau
+              </strong>
+              <p className="mt-1">
+                Bảng báo cáo nguồn bên dưới vẫn hiển thị đúng một bản mới nhất
+                của từng thôn cùng kỳ tương ứng. Hãy chọn một kỳ dữ liệu cụ thể
+                để xem KPI, biểu đồ và so sánh trên cùng một kỳ.
+              </p>
             </div>
           )}
 
@@ -816,13 +824,14 @@ export default function Dashboard({
             )}
         </WorkSection>
 
-        <WorkSection
-          index="02"
-          title="Số liệu tổng quan"
-          description="Bốn thẻ chỉ số cấp cao được gom riêng để quét nhanh quy mô, an sinh, y tế và văn hóa trong phạm vi đã chọn."
-          tone="evidence"
-          icon={<BarChart3 />}
-        >
+        {!isCrossPeriodSnapshot && (
+          <WorkSection
+            index="02"
+            title="Số liệu tổng quan"
+            description="Bốn thẻ chỉ số cấp cao được gom riêng để quét nhanh quy mô, an sinh, y tế và văn hóa trong phạm vi đã chọn."
+            tone="evidence"
+            icon={<BarChart3 />}
+          >
           {/* Grid: 4 Core KPIs Card */}
           <div className="leadership-metric-grid grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* KPI 1: Households & Pop */}
@@ -1236,23 +1245,25 @@ export default function Dashboard({
             </div>
           </div>
           </div>
-        </WorkSection>
+          </WorkSection>
+        )}
 
-        <WorkSection
-          index="03"
-          title={
-            usesSingleVillageInsights
-              ? "Theo dõi biến động của thôn"
-              : "Phân tích ưu tiên theo thôn"
-          }
-          description={
-            usesSingleVillageInsights
-              ? "Theo dõi trạng thái của kỳ đang chọn và biến động qua các kỳ trong đúng phạm vi một thôn."
-              : "Tách các biểu đồ so sánh và tín hiệu cần chú ý khỏi số liệu tổng quan; đây là vùng hỗ trợ rà soát, không phải bảng xếp hạng."
-          }
-          tone="support"
-          icon={<TrendingUp />}
-        >
+        {!isCrossPeriodSnapshot && (
+          <WorkSection
+            index="03"
+            title={
+              usesSingleVillageInsights
+                ? "Theo dõi biến động của thôn"
+                : "Phân tích ưu tiên theo thôn"
+            }
+            description={
+              usesSingleVillageInsights
+                ? "Theo dõi trạng thái của kỳ đang chọn và biến động qua các kỳ trong đúng phạm vi một thôn."
+                : "Tách các biểu đồ so sánh và tín hiệu cần chú ý khỏi số liệu tổng quan; đây là vùng hỗ trợ rà soát, không phải bảng xếp hạng."
+            }
+            tone="support"
+            icon={<TrendingUp />}
+          >
           {usesSingleVillageInsights ? (
             <DashboardInsightCharts
               reports={analyticsReports}
@@ -1285,7 +1296,8 @@ export default function Dashboard({
               </div>
             </details>
           )}
-        </WorkSection>
+          </WorkSection>
+        )}
 
         {/* Section: Interactive Submissions Log and Details Table */}
         <WorkSection
@@ -1493,7 +1505,7 @@ export default function Dashboard({
       </div>
 
       {/* Chart Modal Fullscreen */}
-      {showChartModal && (
+      {showChartModal && !isCrossPeriodSnapshot && (
         <div
           className="fixed inset-0 z-[1100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setShowChartModal(false)}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import type { ReportPeriod, UserRole } from "../types";
@@ -50,7 +50,7 @@ type DraftCitation = {
   provider?: string;
   model?: string;
   prompt_version?: string;
-  analysis?: AiDecisionAnalysis;
+  analysis?: unknown;
   village_name?: string;
   quality_status?: string;
   quality_score?: number;
@@ -61,13 +61,21 @@ type DraftCitation = {
   report_version?: number;
   rule_version?: string;
   generator_version?: string;
+  report_count?: number;
+  ready_report_count?: number;
+  average_quality_score?: number;
+  blocked_report_count?: number;
+  review_report_count?: number;
+  late_report_count?: number;
+  open_action_count?: number;
+  overdue_action_count?: number;
 };
 type DecisionDraft = {
   id: string;
   period_id?: string | null;
   status: "pending_review" | "accepted" | "rejected";
   content: string;
-  citations?: DraftCitation[];
+  citations?: unknown;
   confidence?: number | null;
   model_provider?: string;
   review_notes?: string | null;
@@ -124,6 +132,153 @@ const aiSeverityLabels: Record<AiDecisionRisk["severity"], string> = {
   thap: "Rủi ro thấp",
 };
 
+const decisionStatuses = new Set<DecisionDraft["status"]>([
+  "pending_review",
+  "accepted",
+  "rejected",
+]);
+const aiOptionIds = new Set<AiDecisionOption["id"]>(["A", "B", "C"]);
+const aiUrgencies = new Set<AiDecisionOption["urgency"]>([
+  "ngay",
+  "trong_ky",
+  "theo_doi",
+]);
+const aiSeverities = new Set<AiDecisionRisk["severity"]>([
+  "cao",
+  "trung_binh",
+  "thap",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isOptionalString(value: unknown): value is string | null | undefined {
+  return value == null || typeof value === "string";
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function asOptionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function isDecisionDraft(value: unknown): value is DecisionDraft {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.content === "string" &&
+    typeof value.status === "string" &&
+    decisionStatuses.has(value.status as DecisionDraft["status"]) &&
+    isOptionalString(value.period_id) &&
+    isOptionalString(value.model_provider) &&
+    isOptionalString(value.review_notes) &&
+    isOptionalString(value.reviewed_at) &&
+    isOptionalString(value.created_at) &&
+    (value.confidence == null ||
+      (typeof value.confidence === "number" &&
+        Number.isFinite(value.confidence)))
+  );
+}
+
+function asDraftCitations(value: unknown): DraftCitation[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((citation) => ({
+    kind: asOptionalString(citation.kind),
+    id: asOptionalString(citation.id),
+    label: asOptionalString(citation.label),
+    status: asOptionalString(citation.status),
+    provider: asOptionalString(citation.provider),
+    model: asOptionalString(citation.model),
+    prompt_version: asOptionalString(citation.prompt_version),
+    analysis: citation.analysis,
+    village_name: asOptionalString(citation.village_name),
+    quality_status: asOptionalString(citation.quality_status),
+    quality_score: asOptionalFiniteNumber(citation.quality_score),
+    unresolved_flag_count: asOptionalFiniteNumber(
+      citation.unresolved_flag_count,
+    ),
+    outlier_count: asOptionalFiniteNumber(citation.outlier_count),
+    timeliness_status: asOptionalString(citation.timeliness_status),
+    report_source: asOptionalString(citation.report_source),
+    report_version: asOptionalFiniteNumber(citation.report_version),
+    rule_version: asOptionalString(citation.rule_version),
+    generator_version: asOptionalString(citation.generator_version),
+    report_count: asOptionalFiniteNumber(citation.report_count),
+    ready_report_count: asOptionalFiniteNumber(citation.ready_report_count),
+    average_quality_score: asOptionalFiniteNumber(
+      citation.average_quality_score,
+    ),
+    blocked_report_count: asOptionalFiniteNumber(
+      citation.blocked_report_count,
+    ),
+    review_report_count: asOptionalFiniteNumber(
+      citation.review_report_count,
+    ),
+    late_report_count: asOptionalFiniteNumber(citation.late_report_count),
+    open_action_count: asOptionalFiniteNumber(citation.open_action_count),
+    overdue_action_count: asOptionalFiniteNumber(
+      citation.overdue_action_count,
+    ),
+  }));
+}
+
+function isAiDecisionOption(value: unknown): value is AiDecisionOption {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    aiOptionIds.has(value.id as AiDecisionOption["id"]) &&
+    typeof value.title === "string" &&
+    typeof value.rationale === "string" &&
+    typeof value.tradeoff === "string" &&
+    typeof value.urgency === "string" &&
+    aiUrgencies.has(value.urgency as AiDecisionOption["urgency"]) &&
+    isStringArray(value.evidence_ids)
+  );
+}
+
+function isAiDecisionRisk(value: unknown): value is AiDecisionRisk {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.severity === "string" &&
+    aiSeverities.has(value.severity as AiDecisionRisk["severity"]) &&
+    typeof value.mitigation === "string" &&
+    isStringArray(value.evidence_ids)
+  );
+}
+
+function isAiDecisionAnalysis(value: unknown): value is AiDecisionAnalysis {
+  if (
+    !isRecord(value) ||
+    typeof value.executive_assessment !== "string" ||
+    typeof value.recommended_option_id !== "string" ||
+    !aiOptionIds.has(value.recommended_option_id as AiDecisionOption["id"]) ||
+    !Array.isArray(value.options) ||
+    !value.options.every(isAiDecisionOption) ||
+    !Array.isArray(value.risks) ||
+    !value.risks.every(isAiDecisionRisk) ||
+    !isStringArray(value.reviewer_questions) ||
+    !isStringArray(value.assumptions)
+  ) {
+    return false;
+  }
+  const optionIds = value.options.map((option) => option.id);
+  return (
+    optionIds.length > 0 &&
+    new Set(optionIds).size === optionIds.length &&
+    optionIds.includes(value.recommended_option_id as AiDecisionOption["id"])
+  );
+}
+
 const DECISION_SECTION_PREFIXES: Array<
   [keyof DecisionBriefSections, string]
 > = [
@@ -136,7 +291,7 @@ const DECISION_SECTION_PREFIXES: Array<
 
 function parseDecisionBrief(content: string): DecisionBriefSections {
   const result: DecisionBriefSections = {
-    conclusion: content,
+    conclusion: "Chưa có kết luận xác định trong bản tóm tắt này.",
     priority: "Chưa phân loại",
     action: "Người có thẩm quyền đọc căn cứ và xác định bước xử lý tiếp theo.",
     basis: "Xem danh sách căn cứ đi kèm bản tóm tắt.",
@@ -144,17 +299,40 @@ function parseDecisionBrief(content: string): DecisionBriefSections {
       "Đây là nội dung hỗ trợ; không thay thế quyết định của người có thẩm quyền.",
   };
   let foundStructuredSection = false;
+  let activeKey: keyof DecisionBriefSections | null = null;
+  const parsedSections: Partial<
+    Record<keyof DecisionBriefSections, string[]>
+  > = {};
   for (const line of content.split(/\r?\n/)) {
     const normalizedLine = line.trim();
     const matched = DECISION_SECTION_PREFIXES.find(([, prefix]) =>
       normalizedLine.startsWith(prefix),
     );
-    if (!matched) continue;
-    foundStructuredSection = true;
-    const [key, prefix] = matched;
-    result[key] = normalizedLine.slice(prefix.length).trim();
+    if (matched) {
+      foundStructuredSection = true;
+      const [key, prefix] = matched;
+      activeKey = key;
+      const firstValue = normalizedLine.slice(prefix.length).trim();
+      parsedSections[key] = firstValue ? [firstValue] : [];
+      continue;
+    }
+    if (activeKey && normalizedLine) {
+      parsedSections[activeKey] = [
+        ...(parsedSections[activeKey] || []),
+        normalizedLine,
+      ];
+    }
   }
-  if (!foundStructuredSection) result.conclusion = content.trim();
+  if (!foundStructuredSection) {
+    result.conclusion = content.trim() || result.conclusion;
+    return result;
+  }
+  for (const [key, lines] of Object.entries(parsedSections) as Array<
+    [keyof DecisionBriefSections, string[]]
+  >) {
+    const value = lines.join(" ").trim();
+    if (value) result[key] = value;
+  }
   return result;
 }
 
@@ -224,6 +402,9 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const [actionOutcomes, setActionOutcomes] = useState<Record<string, string>>({});
   const [draftReviewNotes, setDraftReviewNotes] = useState<Record<string, string>>({});
   const [draftBusy, setDraftBusy] = useState<string | null>(null);
+  const [draftReviewDecision, setDraftReviewDecision] = useState<
+    "accepted" | "rejected" | null
+  >(null);
   const [available, setAvailable] = useState<Availability>({
     quality: null,
     actions: null,
@@ -234,6 +415,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   });
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshGenerationRef = useRef(0);
   const internal = role === "admin_xa" || role === "lanh_dao";
   const admin = role === "admin_xa";
   const copy = roleCopy[role] ?? roleCopy.can_bo_thon;
@@ -245,7 +427,8 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         ? "phạm vi phụ trách"
         : "phạm vi quyết định";
 
-  const refresh = async () => {
+  const refresh = async (): Promise<boolean> => {
+    const refreshGeneration = ++refreshGenerationRef.current;
     setLoading(true);
     setNotice(null);
     const load = async (key: LoadResult["key"], label: string, request: Promise<unknown>): Promise<LoadResult> => {
@@ -287,17 +470,32 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       }
     }
     const results = await Promise.all(requests);
+    if (refreshGeneration !== refreshGenerationRef.current) return false;
     setAvailable((current) => {
       const next = { ...current };
       for (const result of results) next[result.key] = !result.error;
       return next;
     });
     for (const result of results) {
-      if (result.error) continue;
+      if (result.error) {
+        if (result.key === "quality") setQuality(null);
+        if (result.key === "actions") setActions([]);
+        if (result.key === "alerts") setAlerts([]);
+        if (result.key === "drafts") setDrafts([]);
+        if (result.key === "maturity") setMaturity([]);
+        if (result.key === "initiatives") setInitiatives([]);
+        continue;
+      }
       if (result.key === "quality") setQuality(result.value as typeof quality);
       if (result.key === "actions") setActions(Array.isArray(result.value) ? (result.value as Action[]) : []);
       if (result.key === "alerts") setAlerts(Array.isArray(result.value) ? (result.value as TrendAlert[]) : []);
-      if (result.key === "drafts") setDrafts(Array.isArray(result.value) ? (result.value as DecisionDraft[]) : []);
+      if (result.key === "drafts") {
+        setDrafts(
+          Array.isArray(result.value)
+            ? result.value.filter(isDecisionDraft)
+            : [],
+        );
+      }
       if (result.key === "maturity") setMaturity(Array.isArray(result.value) ? result.value : []);
       if (result.key === "initiatives") setInitiatives(Array.isArray(result.value) ? result.value : []);
     }
@@ -306,10 +504,14 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       setNotice(`Không tải được ${failed.join(", ")}. Các phần tải thành công vẫn được hiển thị; hãy thử lại sau.`);
     }
     setLoading(false);
+    return true;
   };
 
   useEffect(() => {
     void refresh();
+    return () => {
+      refreshGenerationRef.current += 1;
+    };
   }, [periodId, role, periods]);
 
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
@@ -338,21 +540,43 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   const currentPeriodDrafts = useMemo(
     () =>
       drafts
-        .filter((item) => !item.period_id || item.period_id === periodId)
+        .filter((item) => item.period_id === periodId)
         .sort((left, right) => {
           const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
           const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
-          return rightTime - leftTime;
+          return (
+            (Number.isFinite(rightTime) ? rightTime : 0) -
+            (Number.isFinite(leftTime) ? leftTime : 0)
+          );
         }),
     [drafts, periodId],
   );
   const pendingDrafts = useMemo(() => currentPeriodDrafts.filter((item) => item.status === "pending_review"), [currentPeriodDrafts]);
-  const latestDecisionDraft = pendingDrafts[0] ?? currentPeriodDrafts[0];
+  const acceptedDrafts = useMemo(
+    () => currentPeriodDrafts.filter((item) => item.status === "accepted"),
+    [currentPeriodDrafts],
+  );
+  const rejectedDrafts = useMemo(
+    () => currentPeriodDrafts.filter((item) => item.status === "rejected"),
+    [currentPeriodDrafts],
+  );
+  const latestDecisionDraft =
+    (admin
+      ? pendingDrafts[0] ?? acceptedDrafts[0] ?? rejectedDrafts[0]
+      : undefined) ?? acceptedDrafts[0];
+  const decisionHistorySource = admin ? currentPeriodDrafts : acceptedDrafts;
   const decisionHistory = latestDecisionDraft
-    ? currentPeriodDrafts.filter((item) => item.id !== latestDecisionDraft.id)
-    : [];
+    ? decisionHistorySource.filter((item) => item.id !== latestDecisionDraft.id)
+    : decisionHistorySource;
   const executiveMessage = approvedReports.length === 0 ? "Chưa có báo cáo đã phê duyệt để tạo kết luận điều hành; các bản đang xử lý chỉ dùng để theo dõi tiến độ." : overdueActions.length ? `${overdueActions.length} việc đã quá hạn cần xác định trách nhiệm và thời điểm hoàn thành.` : flaggedApprovedReports.length ? `${flaggedApprovedReports.length} báo cáo đã phê duyệt vẫn có điểm cần đối chiếu trước khi dùng làm căn cứ quyết định.` : alerts.length ? `${alerts.length} biến động đáng chú ý cần được đối chiếu với báo cáo và tài liệu nguồn.` : openActions.length ? `${openActions.length} việc đang được theo dõi; chưa ghi nhận việc quá hạn.` : "Chưa ghi nhận việc quá hạn hoặc báo cáo cần rà soát trong phạm vi đang xem.";
   const generatedAt = quality?.generated_at ? new Date(quality.generated_at).toLocaleString("vi-VN") : "Chưa có thời điểm tổng hợp";
+  const currentPeriodName =
+    (available.quality === true && quality?.period?.id === periodId
+      ? quality.period.name
+      : undefined) ||
+    periods.find((period) => period.id === periodId)?.display_name ||
+    periods.find((period) => period.id === periodId)?.name ||
+    "Kỳ đang chọn";
   const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
   const overdueOwners = Array.from(new Set(overdueActions.map((item) => item.owner_name).filter(Boolean))).join(", ") || "Chưa phân công";
 
@@ -374,14 +598,28 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     }
   };
   const createDraft = async () => {
-    if (!periodId) return;
+    if (!admin || !periodId) return;
     setDraftBusy("create");
     try {
-      await apiJson("/api/operations/ai-drafts", {
+      const created = await apiJson("/api/operations/ai-drafts", {
         method: "POST",
         body: JSON.stringify({ period_id: periodId, kind: "period_brief" }),
       });
-      await refresh();
+      if (
+        !isDecisionDraft(created) ||
+        created.period_id !== periodId ||
+        created.status !== "pending_review"
+      ) {
+        setAvailable((current) => ({ ...current, drafts: false }));
+        setNotice(
+          "Bản có thể đã được tạo nhưng phản hồi không hợp lệ. Hãy tải lại trước khi thao tác tiếp.",
+        );
+        return;
+      }
+      setDrafts((current) => [
+        created,
+        ...current.filter((draft) => draft.id !== created.id),
+      ]);
       setNotice("Đã tạo phân tích có căn cứ. Nội dung đang chờ người có thẩm quyền xem xét.");
     } catch (error) {
       setNotice(
@@ -396,18 +634,40 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   };
   const reviewDraft = async (id: string, decision: "accepted" | "rejected") => {
     const notes = draftReviewNotes[id]?.trim() || "";
+    const currentDraft = drafts.find((draft) => draft.id === id);
     if (notes.length < 10) {
       setNotice("Không thể lưu quyết định: hãy ghi căn cứ nhận xét ít nhất 10 ký tự.");
       return;
     }
     setDraftBusy(id);
+    setDraftReviewDecision(decision);
     try {
-      await apiJson(`/api/operations/ai-drafts/${id}/review`, {
+      const reviewed = await apiJson(`/api/operations/ai-drafts/${id}/review`, {
         method: "POST",
         body: JSON.stringify({ decision, notes }),
       });
+      const validReviewedDraft =
+        isDecisionDraft(reviewed) &&
+        reviewed.id === id &&
+        reviewed.status === decision &&
+        reviewed.period_id === currentDraft?.period_id &&
+        reviewed.review_notes === notes &&
+        typeof reviewed.reviewed_at === "string" &&
+        reviewed.reviewed_at.trim().length > 0 &&
+        Number.isFinite(Date.parse(reviewed.reviewed_at));
+      if (!validReviewedDraft) {
+        const refreshed = await refresh();
+        if (refreshed) {
+          setNotice(
+            "Phản hồi duyệt không hợp lệ nên hệ thống đã tải lại dữ liệu nguồn. Hãy kiểm tra trạng thái trước khi thao tác tiếp.",
+          );
+        }
+        return;
+      }
+      setDrafts((current) =>
+        current.map((draft) => (draft.id === id ? reviewed : draft)),
+      );
       setDraftReviewNotes((current) => ({ ...current, [id]: "" }));
-      await refresh();
       setNotice(
         decision === "accepted"
           ? "Đã chấp nhận bản tóm tắt và lưu căn cứ người duyệt."
@@ -422,42 +682,137 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
       );
     } finally {
       setDraftBusy(null);
+      setDraftReviewDecision(null);
     }
   };
 
   const latestBriefSections = latestDecisionDraft
     ? parseDecisionBrief(latestDecisionDraft.content)
     : null;
-  const latestEvidenceCitations = (latestDecisionDraft?.citations || []).filter(
+  const latestCitations = asDraftCitations(latestDecisionDraft?.citations);
+  const latestEvidenceCitations = latestCitations.filter(
     (citation) => citation.kind === "quality_snapshot",
   );
-  const latestAiCitation = (latestDecisionDraft?.citations || []).find(
-    (citation) => citation.kind === "ai_enrichment" && citation.analysis,
+  const latestDecisionEvidence = latestCitations.filter(
+    (citation) =>
+      citation.kind === "quality_snapshot" ||
+      citation.kind === "decision_metrics",
   );
-  const latestAiStatus = (latestDecisionDraft?.citations || []).find(
+  const latestDecisionMetrics = latestDecisionEvidence.find(
+    (citation) => citation.kind === "decision_metrics",
+  );
+  const hasCompleteDecisionReportMetrics =
+    typeof latestDecisionMetrics?.report_count === "number" &&
+    typeof latestDecisionMetrics?.ready_report_count === "number" &&
+    typeof latestDecisionMetrics?.blocked_report_count === "number" &&
+    typeof latestDecisionMetrics?.review_report_count === "number";
+  const hasKnownSnapshotStatuses =
+    latestEvidenceCitations.length > 0 &&
+    latestEvidenceCitations.every((citation) =>
+      ["ready", "needs_review", "blocked"].includes(
+        citation.quality_status || "",
+      ),
+    );
+  const readyEvidenceCount = hasCompleteDecisionReportMetrics
+    ? latestDecisionMetrics.ready_report_count
+    : hasKnownSnapshotStatuses
+      ? latestEvidenceCitations.filter(
+          (citation) => citation.quality_status === "ready",
+        ).length
+      : null;
+  const totalEvidenceCount = hasCompleteDecisionReportMetrics
+    ? latestDecisionMetrics.report_count
+    : hasKnownSnapshotStatuses
+      ? latestEvidenceCitations.length
+      : null;
+  const reviewEvidenceCount = hasCompleteDecisionReportMetrics
+    ? latestDecisionMetrics.blocked_report_count +
+      latestDecisionMetrics.review_report_count
+    : hasKnownSnapshotStatuses
+      ? latestEvidenceCitations.filter(
+          (citation) => citation.quality_status !== "ready",
+        ).length
+      : null;
+  const latestAiCitation = latestCitations.find(
+    (citation) => citation.kind === "ai_enrichment",
+  );
+  const latestAiStatus = latestCitations.find(
     (citation) => citation.kind === "ai_generation",
   );
-  const latestAiAnalysis = latestAiCitation?.analysis;
+  const latestAiAnalysis = isAiDecisionAnalysis(latestAiCitation?.analysis)
+    ? latestAiCitation.analysis
+    : undefined;
   const recommendedAiOption = latestAiAnalysis?.options.find(
     (option) => option.id === latestAiAnalysis.recommended_option_id,
   );
   const aiEvidenceLabels = new Map(
-    (latestDecisionDraft?.citations || [])
+    latestDecisionEvidence
       .filter((citation) => citation.id)
       .map((citation) => [
         citation.id as string,
         citation.village_name || citation.label || "Căn cứ tổng hợp",
       ]),
   );
+  const evidenceAnchorById = new Map(
+    latestDecisionEvidence
+      .filter((citation) => citation.id)
+      .map((citation, index) => [
+        citation.id as string,
+        `decision-evidence-${latestDecisionDraft?.id || "draft"}-${index}`,
+      ]),
+  );
+  const decisionEvidenceDetailsId = `decision-evidence-list-${
+    latestDecisionDraft?.id || "draft"
+  }`;
   const evidenceReadiness =
     typeof latestDecisionDraft?.confidence === "number"
       ? Math.round(latestDecisionDraft.confidence * 100)
       : null;
   const canCreateDecisionBrief =
+    admin &&
     Boolean(periodId) &&
+    available.quality === true &&
+    available.drafts === true &&
+    quality?.period?.id === periodId &&
     approvedReports.length > 0 &&
     pendingDrafts.length === 0 &&
     draftBusy === null;
+  const decisionCreateUnavailableReason = !periodId
+    ? "Hãy chọn kỳ báo cáo."
+    : available.quality !== true ||
+        available.drafts !== true ||
+        quality?.period?.id !== periodId
+      ? "Cần tải đủ dữ liệu đúng kỳ trước khi tạo."
+      : !approvedReports.length
+        ? "Chưa có báo cáo đã duyệt hoặc khóa."
+        : pendingDrafts.length
+          ? "Hãy thẩm định bản đang chờ trước khi tạo bản mới."
+          : draftBusy !== null
+            ? "Hệ thống đang xử lý yêu cầu hiện tại."
+            : null;
+  const openDecisionEvidence = (evidenceId?: string) => {
+    const evidenceDetails = document.getElementById(decisionEvidenceDetailsId);
+    if (evidenceDetails instanceof HTMLDetailsElement) {
+      evidenceDetails.open = true;
+    }
+    const targetId = evidenceId
+      ? evidenceAnchorById.get(evidenceId)
+      : undefined;
+    queueMicrotask(() => {
+      const target = document.getElementById(
+        targetId || decisionEvidenceDetailsId,
+      );
+      if (!(target instanceof HTMLElement)) return;
+      target.focus({ preventScroll: true });
+      const reduceMotion =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      target.scrollIntoView?.({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "center",
+      });
+    });
+  };
 
   if (loading)
     return (
@@ -572,12 +927,49 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           <MetricCard label="Việc đang mở" value={available.actions === false ? "—" : openActions.length} context={available.actions === false ? "Không tải được danh sách việc" : overdueActions.length ? `${overdueActions.length} việc đã quá hạn` : "Không có việc quá hạn"} tone={overdueActions.length ? "danger" : "success"} icon={<ClipboardList />} />
           <MetricCard label="Điểm chất lượng" value={available.quality === false || visibleAverageQuality == null ? "—" : `${visibleAverageQuality}%`} context={available.quality === false ? "Không tải được dữ liệu chất lượng" : visibleAverageQuality == null ? "Chưa có dữ liệu" : "Theo bộ quy tắc hiện hành"} tone="info" icon={<DatabaseZap />} />
           <MetricCard label="Báo cáo cần xem" value={available.quality === false ? "—" : flaggedReports.length} context={available.quality === false ? "Không xác định" : `${visibleQualityReports.length} báo cáo trong ${qualityScopeLabel}`} tone={flaggedReports.length ? "warning" : "success"} icon={<ShieldCheck />} />
-          {internal ? <MetricCard label="Bản tóm tắt chờ duyệt" value={available.drafts === false ? "—" : pendingDrafts.length} context={available.drafts === false ? "Không tải được bản tóm tắt" : "Có căn cứ và nhận xét người duyệt"} tone="neutral" icon={<BrainCircuit />} /> : <MetricCard label="Báo cáo trong phạm vi" value={available.quality === false ? "—" : (quality?.reports?.length ?? "—")} context="Không cộng dữ liệu ngoài quyền" tone="neutral" icon={<Target />} />}
+          {admin ? (
+            <MetricCard
+              label="Bản tóm tắt chờ duyệt"
+              value={available.drafts === false ? "—" : pendingDrafts.length}
+              context={
+                available.drafts === false
+                  ? "Không tải được bản tóm tắt"
+                  : "Có căn cứ và nhận xét người duyệt"
+              }
+              tone="neutral"
+              icon={<BrainCircuit />}
+            />
+          ) : role === "lanh_dao" ? (
+            <MetricCard
+              label="Bản tóm tắt đã duyệt"
+              value={available.drafts === false ? "—" : acceptedDrafts.length}
+              context={
+                available.drafts === false
+                  ? "Không tải được bản tóm tắt"
+                  : "Chỉ tính hồ sơ đã được quản trị xã chấp nhận"
+              }
+              tone="neutral"
+              icon={<BrainCircuit />}
+            />
+          ) : (
+            <MetricCard
+              label="Báo cáo trong phạm vi"
+              value={
+                available.quality === false
+                  ? "—"
+                  : (quality?.reports?.length ?? "—")
+              }
+              context="Không cộng dữ liệu ngoài quyền"
+              tone="neutral"
+              icon={<Target />}
+            />
+          )}
         </div>
       </WorkSection>
 
       <WorkSection
         id="operations-tasks"
+        tabIndex={-1}
         index="02"
         title="Hàng việc cần xử lý"
         description="Mỗi thẻ là một việc độc lập, có người phụ trách, mức ưu tiên, thời hạn và hành động tương ứng."
@@ -642,6 +1034,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
 
       <WorkSection
         id="operations-evidence"
+        tabIndex={-1}
         index="03"
         title="Dữ liệu cần rà soát"
         description="Tách riêng bằng chứng dữ liệu khỏi hàng việc; mỗi dòng cho biết chất lượng, cảnh báo, nguồn nhập và phiên bản."
@@ -698,33 +1091,37 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           tone="support"
           icon={<BrainCircuit />}
           actions={
-            internal ? (
-              <Button
-                onClick={() => void createDraft()}
-                disabled={!canCreateDecisionBrief}
-                title={
-                  !periodId
-                    ? "Hãy chọn kỳ báo cáo"
-                    : !approvedReports.length
-                      ? "Chưa có báo cáo đã duyệt hoặc khóa"
-                      : pendingDrafts.length
-                        ? "Đang có một bản chờ duyệt"
-                        : undefined
-                }
-              >
-                {draftBusy === "create" ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Sparkles />
+            admin ? (
+              <div className="decision-create-action">
+                <Button
+                  onClick={() => void createDraft()}
+                  disabled={!canCreateDecisionBrief}
+                  title={decisionCreateUnavailableReason || undefined}
+                  aria-describedby={
+                    decisionCreateUnavailableReason
+                      ? "decision-create-status"
+                      : undefined
+                  }
+                >
+                  {draftBusy === "create" ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <Sparkles />
+                  )}
+                  {pendingDrafts.length
+                    ? "Đang chờ duyệt"
+                    : "Tạo bản phân tích có căn cứ"}
+                </Button>
+                {decisionCreateUnavailableReason && (
+                  <span id="decision-create-status" role="status">
+                    {decisionCreateUnavailableReason}
+                  </span>
                 )}
-                {pendingDrafts.length
-                  ? "Đang chờ duyệt"
-                  : "Tạo phân tích AI có căn cứ"}
-              </Button>
+              </div>
             ) : undefined
           }
         >
-          <div className="work-section__list space-y-4">
+          <div className="decision-workspace">
             <div role="note" className="decision-human-note">
               <ShieldCheck />
               <div>
@@ -741,314 +1138,611 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
               <ErrorState title="Chưa tải được bản tóm tắt" description="Phần việc và chất lượng dữ liệu không bị ảnh hưởng." onRetry={() => void refresh()} />
             ) : !latestDecisionDraft || !latestBriefSections ? (
               <EmptyState
-                title="Chưa có bản tóm tắt cho kỳ này"
+                title={
+                  !admin
+                    ? "Chưa có bản đã chấp nhận cho kỳ này"
+                    : "Chưa có bản phân tích cho kỳ này"
+                }
                 description={
-                  approvedReports.length
-                    ? "Cán bộ xã có thể tạo một bản tóm tắt có căn cứ để người có thẩm quyền xem xét."
+                  approvedReports.length && admin
+                    ? "Quản trị xã có thể tạo một bản phân tích có căn cứ để người có thẩm quyền xem xét."
+                    : approvedReports.length
+                      ? "Quản trị xã chưa tạo và chấp nhận bản phân tích cho kỳ này."
                     : "Cần ít nhất một báo cáo đã duyệt hoặc khóa; bản đang xử lý không được dùng làm căn cứ quyết định."
                 }
               />
             ) : (
               <>
-                <article className="decision-support-card rounded-2xl border bg-white p-5 shadow-sm">
-                  <header className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="decision-support-kicker text-4xs font-black uppercase tracking-wider">
-                        Bản tóm tắt đang cần xem
+                <article className="decision-support-card">
+                  <header className="decision-record-header">
+                    <div className="decision-record-header__copy">
+                      <p className="decision-support-kicker">
+                        {latestDecisionDraft.status === "pending_review"
+                          ? "Hồ sơ đang chờ bạn thẩm định"
+                          : latestDecisionDraft.status === "accepted"
+                            ? "Hồ sơ đã được chấp nhận gần nhất"
+                            : "Hồ sơ đã bị từ chối gần nhất"}
                       </p>
-                      <h3 className="mt-1 text-base font-black text-slate-950">
-                        Căn cứ ra quyết định · {quality?.period?.name || "Kỳ đang chọn"}
+                      <h3>
+                        Hồ sơ hỗ trợ quyết định ·{" "}
+                        {currentPeriodName}
                       </h3>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p>
                         {latestDecisionDraft.created_at
-                          ? `Tạo lúc ${new Date(latestDecisionDraft.created_at).toLocaleString("vi-VN")}`
+                          ? `Tạo lúc ${new Date(
+                              latestDecisionDraft.created_at,
+                            ).toLocaleString("vi-VN")}`
                           : "Chưa có thời điểm tạo"}
-                        {latestAiCitation
-                          ? ` · AI có cấu trúc ${latestAiCitation.model || ""}`
-                          : latestDecisionDraft.model_provider === "deterministic-evidence-v2"
-                            ? " · Tổng hợp bằng luật xác định phiên bản 2"
-                            : ""}
+                        {" · "}
+                        {latestAiAnalysis
+                          ? "Luật xác định + AI tham khảo"
+                          : "Luật xác định"}
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="decision-record-header__status">
                       <StatusBadge status={latestDecisionDraft.status} />
-                      <span className="decision-support-priority rounded-full border px-2.5 py-1 text-xs font-black">
-                        Ưu tiên: {latestBriefSections.priority}
-                      </span>
-                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700">
-                        Độ sẵn sàng căn cứ {evidenceReadiness == null ? "—" : `${evidenceReadiness}%`}
+                      <span className="decision-support-priority">
+                        Mức ưu tiên: {latestBriefSections.priority}
                       </span>
                     </div>
                   </header>
 
-                  <div className="decision-brief-grid">
-                    <section className="decision-brief-card decision-brief-card--conclusion">
-                      <p>
-                        Kết luận đề xuất
-                      </p>
-                      <p>
-                        {latestBriefSections.conclusion}
-                      </p>
-                    </section>
-                    <section className="decision-brief-card decision-brief-card--action">
-                      <p>
-                        Việc nên làm tiếp theo
-                      </p>
-                      <p>
-                        {latestBriefSections.action}
-                      </p>
-                    </section>
-                    <section className="decision-brief-card decision-brief-card--basis">
-                      <p>
-                        Căn cứ định lượng
-                      </p>
-                      <p>
-                        {latestBriefSections.basis}
-                      </p>
-                    </section>
-                    <section className="decision-brief-card decision-brief-card--limitation">
-                      <p>
-                        Giới hạn sử dụng
-                      </p>
-                      <p>
-                        {latestBriefSections.limitation}
-                      </p>
-                    </section>
-                  </div>
+                  <ol
+                    className="decision-review-flow"
+                    aria-label={
+                      admin
+                        ? "Ba bước thẩm định hồ sơ"
+                        : "Ba bước sử dụng hồ sơ đã chấp nhận"
+                    }
+                  >
+                    <li>
+                      <span>01</span>
+                      <div>
+                        <strong>Đọc kết luận xác định</strong>
+                        <small>Chốt từ dữ liệu đã duyệt và bộ quy tắc</small>
+                      </div>
+                    </li>
+                    <li>
+                      <span>02</span>
+                      <div>
+                        <strong>Đối chiếu căn cứ</strong>
+                        <small>Kiểm tra nguồn, phiên bản, phương án và rủi ro</small>
+                      </div>
+                    </li>
+                    <li>
+                      <span>03</span>
+                      <div>
+                        <strong>
+                          {admin
+                            ? "Ghi nhận kết quả thẩm định"
+                            : "Dùng đúng phạm vi điều hành"}
+                        </strong>
+                        <small>
+                          {admin
+                            ? "Nêu rõ lý do chấp nhận hoặc từ chối"
+                            : "Không xem nội dung AI là quyết định tự động"}
+                        </small>
+                      </div>
+                    </li>
+                  </ol>
 
-                  {latestAiAnalysis ? (
-                    <section className="decision-ai">
-                      <header className="decision-ai__header">
-                        <div className="decision-ai__meta">
-                          <span className="decision-ai__badge">
-                            <Sparkles />
-                            AI tăng cường · đã kiểm tra dẫn chứng
-                          </span>
-                          <span className="decision-ai__model">
-                            {latestAiCitation?.model || "Mô hình đã cấu hình"} ·{" "}
-                            {latestAiCitation?.prompt_version || "phiên bản kiểm soát"}
-                          </span>
-                        </div>
-                        <h4 className="decision-ai__title">
-                          Nhận định điều hành
+                  <div className="decision-focus-grid">
+                    <section
+                      className="decision-focus-card decision-focus-card--conclusion"
+                      aria-labelledby={`decision-conclusion-${latestDecisionDraft.id}`}
+                    >
+                      <Target aria-hidden="true" />
+                      <div>
+                        <h4 id={`decision-conclusion-${latestDecisionDraft.id}`}>
+                          Kết luận cần xem xét
                         </h4>
-                        <p className="decision-ai__assessment">
-                          {latestAiAnalysis.executive_assessment}
-                        </p>
-                      </header>
-
-                      <div className="decision-ai__body">
-                        <div>
-                          <div className="decision-ai__section-heading">
-                            <div>
-                              <p className="decision-ai__eyebrow">
-                                Các phương án để người duyệt cân nhắc
-                              </p>
-                              {recommendedAiOption && (
-                                <p className="decision-ai__hint">
-                                  AI nghiêng về phương án {recommendedAiOption.id}; đây không phải quyết định tự động.
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="decision-ai__options">
-                            {latestAiAnalysis.options.map((option) => {
-                              const recommended =
-                                option.id === latestAiAnalysis.recommended_option_id;
-                              return (
-                                <article
-                                  key={option.id}
-                                  className={`decision-ai__option ${
-                                    recommended ? "decision-ai__option--recommended" : ""
-                                  }`}
-                                >
-                                  <div className="decision-ai__option-header">
-                                    <span className="decision-ai__option-id">
-                                      {option.id}
-                                    </span>
-                                    <div className="decision-ai__option-tags">
-                                      {recommended && (
-                                        <span className="decision-ai__recommended">
-                                          Khuyến nghị
-                                        </span>
-                                      )}
-                                      <span className="decision-ai__urgency">
-                                        {aiUrgencyLabels[option.urgency]}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <h5 className="decision-ai__option-title">
-                                    {option.title}
-                                  </h5>
-                                  <p className="decision-ai__option-copy">
-                                    {option.rationale}
-                                  </p>
-                                  <div className="decision-ai__tradeoff">
-                                    <p className="decision-ai__tradeoff-label">
-                                      Đánh đổi cần chấp nhận
-                                    </p>
-                                    <p>
-                                      {option.tradeoff}
-                                    </p>
-                                  </div>
-                                  <div className="decision-ai__evidence">
-                                    {option.evidence_ids.map((evidenceId) => (
-                                      <span
-                                        key={evidenceId}
-                                        className="decision-ai__evidence-chip"
-                                        title={evidenceId}
-                                      >
-                                        <Link2 />
-                                        {aiEvidenceLabels.get(evidenceId) || "Căn cứ đã kiểm tra"}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </article>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="decision-ai__review-grid">
-                          <section className="decision-ai__risks">
-                            <p className="decision-ai__eyebrow">
-                              Rủi ro và cách giảm thiểu
-                            </p>
-                            <div className="decision-ai__risk-list">
-                              {latestAiAnalysis.risks.map((risk) => (
-                                <article key={`${risk.severity}-${risk.title}`}>
-                                  <div className="decision-ai__risk-heading">
-                                    <p>
-                                      {risk.title}
-                                    </p>
-                                    <span>
-                                      {aiSeverityLabels[risk.severity]}
-                                    </span>
-                                  </div>
-                                  <p className="decision-ai__risk-copy">
-                                    {risk.mitigation}
-                                  </p>
-                                </article>
-                              ))}
-                            </div>
-                          </section>
-                          <section className="decision-ai__questions">
-                            <p className="decision-ai__eyebrow">
-                              Câu hỏi phản biện trước khi duyệt
-                            </p>
-                            <ul>
-                              {latestAiAnalysis.reviewer_questions.map((question) => (
-                                <li key={question}>
-                                  <span aria-hidden="true">?</span>
-                                  <span>{question}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        </div>
-
-                        {latestAiAnalysis.assumptions.length > 0 && (
-                          <details className="decision-ai__assumptions">
-                            <summary>
-                              Giả định AI đã dùng ({latestAiAnalysis.assumptions.length})
-                            </summary>
-                            <ul>
-                              {latestAiAnalysis.assumptions.map((assumption) => (
-                                <li key={assumption}>{assumption}</li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
+                        <p>{latestBriefSections.conclusion}</p>
                       </div>
                     </section>
-                  ) : (
-                    <div className="decision-ai-fallback">
-                      <p>
-                        Bản an toàn bằng luật xác định
-                      </p>
-                      <p>
-                        {latestAiStatus?.label ||
-                          "AI chưa được bật cho bản này; kết luận và căn cứ định lượng vẫn dùng được để rà soát."}
-                      </p>
-                    </div>
-                  )}
+                    <section
+                      className="decision-focus-card decision-focus-card--action"
+                      aria-labelledby={`decision-action-${latestDecisionDraft.id}`}
+                    >
+                      <GitCompareArrows aria-hidden="true" />
+                      <div>
+                        <h4 id={`decision-action-${latestDecisionDraft.id}`}>
+                          Việc nên làm tiếp theo
+                        </h4>
+                        <p>{latestBriefSections.action}</p>
+                      </div>
+                    </section>
+                  </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="decision-context-grid">
+                    <section
+                      aria-labelledby={`decision-basis-${latestDecisionDraft.id}`}
+                    >
+                      <h4 id={`decision-basis-${latestDecisionDraft.id}`}>
+                        Căn cứ định lượng
+                      </h4>
+                      <p>{latestBriefSections.basis}</p>
+                    </section>
+                    <section
+                      aria-labelledby={`decision-limit-${latestDecisionDraft.id}`}
+                    >
+                      <h4 id={`decision-limit-${latestDecisionDraft.id}`}>
+                        Giới hạn sử dụng
+                      </h4>
+                      <p>{latestBriefSections.limitation}</p>
+                    </section>
+                  </div>
+
+                  <dl
+                    className="decision-evidence-summary"
+                    aria-label="Tóm tắt căn cứ tại thời điểm tạo hồ sơ"
+                  >
+                    <div>
+                      <dt>Báo cáo đạt điều kiện</dt>
+                      <dd>
+                        {readyEvidenceCount !== null &&
+                        totalEvidenceCount !== null
+                          ? `${readyEvidenceCount}/${totalEvidenceCount}`
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Báo cáo cần xem</dt>
+                      <dd>{reviewEvidenceCount ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Việc đang mở</dt>
+                      <dd>{latestDecisionMetrics?.open_action_count ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Việc quá hạn</dt>
+                      <dd>{latestDecisionMetrics?.overdue_action_count ?? "—"}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="decision-navigation">
                     <Button
                       variant="secondary"
-                      onClick={() =>
-                        document
-                          .getElementById("operations-evidence")
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                      }
+                      onClick={() => {
+                        const target =
+                          document.getElementById("operations-evidence");
+                        const reduceMotion =
+                          typeof window.matchMedia === "function" &&
+                          window.matchMedia(
+                            "(prefers-reduced-motion: reduce)",
+                          ).matches;
+                        target?.scrollIntoView?.({
+                          behavior: reduceMotion ? "auto" : "smooth",
+                          block: "start",
+                        });
+                        target?.focus({ preventScroll: true });
+                      }}
                     >
                       <FileCheck2 />
-                      Đối chiếu dữ liệu
+                      Đối chiếu dữ liệu gốc
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() =>
-                        document
-                          .getElementById("operations-tasks")
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                      }
+                      onClick={() => {
+                        const target =
+                          document.getElementById("operations-tasks");
+                        const reduceMotion =
+                          typeof window.matchMedia === "function" &&
+                          window.matchMedia(
+                            "(prefers-reduced-motion: reduce)",
+                          ).matches;
+                        target?.scrollIntoView?.({
+                          behavior: reduceMotion ? "auto" : "smooth",
+                          block: "start",
+                        });
+                        target?.focus({ preventScroll: true });
+                      }}
                     >
                       <ClipboardList />
-                      Mở hàng việc
+                      Mở hàng việc liên quan
                     </Button>
                   </div>
 
-                  <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
-                    <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-800">
-                      Xem {latestEvidenceCitations.length} căn cứ báo cáo
+                  <details
+                    id={decisionEvidenceDetailsId}
+                    className="decision-evidence-disclosure"
+                    tabIndex={-1}
+                  >
+                    <summary>
+                      <FileCheck2 aria-hidden="true" />
+                      <span>
+                        <strong>Căn cứ có thể truy ngược</strong>
+                        <small>
+                          {latestEvidenceCitations.length} báo cáo nguồn
+                          {latestDecisionMetrics
+                            ? " · 1 gói chỉ số tổng hợp"
+                            : ""}
+                        </small>
+                      </span>
+                      <span aria-hidden="true">Xem chi tiết</span>
                     </summary>
-                    <div className="grid gap-2 border-t border-slate-200 p-3 md:grid-cols-2">
-                      {latestEvidenceCitations.length ? (
-                        latestEvidenceCitations.map((citation, index) => (
-                          <div
-                            key={`${citation.id || "citation"}-${index}`}
-                            className="rounded-lg border border-slate-200 bg-white p-3"
-                          >
-                            <p className="text-xs font-black text-slate-900">
-                              {citation.village_name || citation.label || citation.id || "Căn cứ báo cáo"}
-                            </p>
-                            <p className="mt-1 text-5xs leading-relaxed text-slate-600">
-                              {typeof citation.quality_score === "number"
-                                ? `Điểm ${citation.quality_score}% · `
-                                : ""}
-                              {typeof citation.unresolved_flag_count === "number"
-                                ? `${citation.unresolved_flag_count} cảnh báo · `
-                                : ""}
-                              {reportSourceLabels[citation.report_source || ""] || "Nguồn đã ghi nhận"}
-                              {citation.report_version
-                                ? ` · phiên bản ${citation.report_version}`
-                                : ""}
-                            </p>
-                            {citation.rule_version && (
-                              <p className="mt-1 text-5xs font-mono text-slate-400">
-                                Bộ quy tắc {citation.rule_version}
-                              </p>
-                            )}
-                          </div>
-                        ))
+                    <div className="decision-evidence-list">
+                      {latestDecisionEvidence.length ? (
+                        latestDecisionEvidence.map((citation, index) => {
+                          const evidenceId =
+                            citation.id ||
+                            `citation-${latestDecisionDraft.id}-${index}`;
+                          const anchorId =
+                            (citation.id &&
+                              evidenceAnchorById.get(citation.id)) ||
+                            `decision-evidence-${latestDecisionDraft.id}-${index}`;
+                          return (
+                            <article
+                              key={`${evidenceId}-${index}`}
+                              id={anchorId}
+                              tabIndex={-1}
+                              className="decision-evidence-card"
+                            >
+                              <div className="decision-evidence-card__heading">
+                                <span>
+                                  {citation.kind === "decision_metrics"
+                                    ? "Chỉ số tổng hợp"
+                                    : "Báo cáo nguồn"}
+                                </span>
+                                <code>{evidenceId}</code>
+                              </div>
+                              <h5>
+                                {citation.village_name ||
+                                  citation.label ||
+                                  "Căn cứ đã ghi nhận"}
+                              </h5>
+                              {citation.kind === "decision_metrics" ? (
+                                <p>
+                                  {typeof citation.report_count === "number"
+                                    ? `${citation.report_count} báo cáo`
+                                    : "Số báo cáo chưa ghi nhận"}
+                                  {typeof citation.average_quality_score ===
+                                  "number"
+                                    ? ` · điểm chất lượng trung bình ${citation.average_quality_score}%`
+                                    : ""}
+                                  {typeof citation.late_report_count === "number"
+                                    ? ` · ${citation.late_report_count} báo cáo nộp muộn`
+                                    : ""}
+                                </p>
+                              ) : (
+                                <p>
+                                  {typeof citation.quality_score === "number"
+                                    ? `Điểm ${citation.quality_score}%`
+                                    : "Chưa có điểm chất lượng"}
+                                  {typeof citation.unresolved_flag_count ===
+                                  "number"
+                                    ? ` · ${citation.unresolved_flag_count} cảnh báo`
+                                    : ""}
+                                  {typeof citation.outlier_count === "number"
+                                    ? ` · ${citation.outlier_count} bất thường`
+                                    : ""}
+                                  {citation.report_source
+                                    ? ` · ${
+                                        reportSourceLabels[
+                                          citation.report_source
+                                        ] || "Nguồn đã ghi nhận"
+                                      }`
+                                    : ""}
+                                  {citation.report_version
+                                    ? ` · phiên bản ${citation.report_version}`
+                                    : ""}
+                                </p>
+                              )}
+                              <div className="decision-evidence-card__provenance">
+                                {citation.rule_version && (
+                                  <span>Bộ quy tắc {citation.rule_version}</span>
+                                )}
+                                {citation.generator_version && (
+                                  <span>
+                                    Bộ tạo {citation.generator_version}
+                                  </span>
+                                )}
+                              </div>
+                            </article>
+                          );
+                        })
                       ) : (
-                        <p className="p-2 text-xs text-slate-500">
-                          Bản cũ chưa có căn cứ chi tiết; hãy tạo lại sau khi dữ liệu thay đổi.
+                        <p className="decision-evidence-empty">
+                          Bản cũ chưa có căn cứ chi tiết; hãy tạo lại sau khi dữ
+                          liệu thay đổi.
                         </p>
                       )}
                     </div>
                   </details>
 
+                  {latestAiAnalysis ? (
+                    <details className="decision-ai-disclosure">
+                      <summary>
+                        <Sparkles aria-hidden="true" />
+                        <span>
+                          <strong>Phân tích AI tham khảo</strong>
+                          <small>
+                            {latestAiAnalysis.options.length} phương án ·{" "}
+                            {latestAiAnalysis.risks.length} rủi ro ·{" "}
+                            {latestAiAnalysis.reviewer_questions.length} câu hỏi
+                          </small>
+                        </span>
+                        <span aria-hidden="true">Mở để xem xét</span>
+                      </summary>
+                      <section
+                        className="decision-ai"
+                        aria-labelledby={`decision-ai-title-${latestDecisionDraft.id}`}
+                      >
+                        <header className="decision-ai__header">
+                          <div className="decision-ai__meta">
+                            <span className="decision-ai__badge">
+                              <Sparkles aria-hidden="true" />
+                              AI phân tích trên gói căn cứ đã giới hạn
+                            </span>
+                          </div>
+                          <h4
+                            id={`decision-ai-title-${latestDecisionDraft.id}`}
+                            className="decision-ai__title"
+                          >
+                            Nhận định để tham khảo
+                          </h4>
+                          <p className="decision-ai__assessment">
+                            {latestAiAnalysis.executive_assessment}
+                          </p>
+                        </header>
+
+                        <div className="decision-ai__body">
+                          <section
+                            aria-labelledby={`decision-options-${latestDecisionDraft.id}`}
+                          >
+                            <div className="decision-ai__section-heading">
+                              <div>
+                                <h5
+                                  id={`decision-options-${latestDecisionDraft.id}`}
+                                  className="decision-ai__eyebrow"
+                                >
+                                  Các phương án để người duyệt cân nhắc
+                                </h5>
+                                {recommendedAiOption && (
+                                  <p className="decision-ai__hint">
+                                    AI đánh dấu phương án{" "}
+                                    {recommendedAiOption.id} để ưu tiên xem xét;
+                                    đây không phải quyết định.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="decision-ai__options">
+                              {latestAiAnalysis.options.map((option) => {
+                                const recommended =
+                                  option.id ===
+                                  latestAiAnalysis.recommended_option_id;
+                                return (
+                                  <article
+                                    key={option.id}
+                                    className={`decision-ai__option ${
+                                      recommended
+                                        ? "decision-ai__option--recommended"
+                                        : ""
+                                    }`}
+                                  >
+                                    <div className="decision-ai__option-header">
+                                      <span className="decision-ai__option-id">
+                                        {option.id}
+                                      </span>
+                                      <div className="decision-ai__option-tags">
+                                        {recommended && (
+                                          <span className="decision-ai__recommended">
+                                            AI đề xuất
+                                          </span>
+                                        )}
+                                        <span className="decision-ai__urgency">
+                                          {aiUrgencyLabels[option.urgency]}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <h6 className="decision-ai__option-title">
+                                      {option.title}
+                                    </h6>
+                                    <p className="decision-ai__option-copy">
+                                      {option.rationale}
+                                    </p>
+                                    <div className="decision-ai__tradeoff">
+                                      <p className="decision-ai__tradeoff-label">
+                                        Đánh đổi cần chấp nhận
+                                      </p>
+                                      <p>{option.tradeoff}</p>
+                                    </div>
+                                    {option.evidence_ids.length > 0 && (
+                                      <div className="decision-ai__evidence">
+                                        {option.evidence_ids.map(
+                                          (evidenceId) => {
+                                            const evidenceLabel =
+                                              aiEvidenceLabels.get(evidenceId);
+                                            return (
+                                              <button
+                                                key={evidenceId}
+                                                type="button"
+                                                className="decision-ai__evidence-chip"
+                                                onClick={() =>
+                                                  openDecisionEvidence(evidenceId)
+                                                }
+                                                aria-label={`Mở căn cứ ${
+                                                  evidenceLabel ||
+                                                  "không còn trong hồ sơ"
+                                                } (${evidenceId})`}
+                                              >
+                                                <Link2 aria-hidden="true" />
+                                                {evidenceLabel ||
+                                                  "Mã căn cứ không còn trong hồ sơ"}
+                                              </button>
+                                            );
+                                          },
+                                        )}
+                                      </div>
+                                    )}
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          </section>
+
+                          <div className="decision-ai__review-grid">
+                            <section
+                              className="decision-ai__risks"
+                              aria-labelledby={`decision-risks-${latestDecisionDraft.id}`}
+                            >
+                              <h5
+                                id={`decision-risks-${latestDecisionDraft.id}`}
+                                className="decision-ai__eyebrow"
+                              >
+                                Rủi ro và cách giảm thiểu
+                              </h5>
+                              <div className="decision-ai__risk-list">
+                                {latestAiAnalysis.risks.map((risk) => (
+                                  <article
+                                    key={`${risk.severity}-${risk.title}`}
+                                  >
+                                    <div className="decision-ai__risk-heading">
+                                      <h6>{risk.title}</h6>
+                                      <span>
+                                        {aiSeverityLabels[risk.severity]}
+                                      </span>
+                                    </div>
+                                    <p className="decision-ai__risk-copy">
+                                      {risk.mitigation}
+                                    </p>
+                                    {risk.evidence_ids.length > 0 && (
+                                      <div className="decision-ai__evidence">
+                                        {risk.evidence_ids.map((evidenceId) => {
+                                          const evidenceLabel =
+                                            aiEvidenceLabels.get(evidenceId);
+                                          return (
+                                            <button
+                                              key={evidenceId}
+                                              type="button"
+                                              className="decision-ai__evidence-chip"
+                                              onClick={() =>
+                                                openDecisionEvidence(evidenceId)
+                                              }
+                                              aria-label={`Mở căn cứ ${
+                                                evidenceLabel ||
+                                                "không còn trong hồ sơ"
+                                              } (${evidenceId})`}
+                                            >
+                                              <Link2 aria-hidden="true" />
+                                              {evidenceLabel ||
+                                                "Mã căn cứ không còn trong hồ sơ"}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </article>
+                                ))}
+                              </div>
+                            </section>
+                            <section
+                              className="decision-ai__questions"
+                              aria-labelledby={`decision-questions-${latestDecisionDraft.id}`}
+                            >
+                              <h5
+                                id={`decision-questions-${latestDecisionDraft.id}`}
+                                className="decision-ai__eyebrow"
+                              >
+                                Câu hỏi phản biện trước khi duyệt
+                              </h5>
+                              <ul>
+                                {latestAiAnalysis.reviewer_questions.map(
+                                  (question) => (
+                                    <li key={question}>
+                                      <span aria-hidden="true">?</span>
+                                      <span>{question}</span>
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            </section>
+                          </div>
+
+                          <details className="decision-ai__assumptions">
+                            <summary>
+                              Nguồn gốc và giả định AI (
+                              {latestAiAnalysis.assumptions.length})
+                            </summary>
+                            <div className="decision-ai__provenance">
+                              <p>
+                                Mô hình:{" "}
+                                {latestAiCitation?.model ||
+                                  "Mô hình đã cấu hình"}
+                                {" · "}
+                                Phiên bản prompt:{" "}
+                                {latestAiCitation?.prompt_version ||
+                                  "phiên bản kiểm soát"}
+                              </p>
+                              {evidenceReadiness !== null && (
+                                <p>
+                                  Chỉ số kỹ thuật sẵn sàng dữ liệu{" "}
+                                  {evidenceReadiness}% = 70% điểm chất lượng +
+                                  30% tỷ lệ báo cáo đạt. Đây không phải xác suất
+                                  AI đúng.
+                                </p>
+                              )}
+                            </div>
+                            {latestAiAnalysis.assumptions.length > 0 ? (
+                              <ul>
+                                {latestAiAnalysis.assumptions.map(
+                                  (assumption) => (
+                                    <li key={assumption}>{assumption}</li>
+                                  ),
+                                )}
+                              </ul>
+                            ) : (
+                              <p>AI không ghi thêm giả định cho bản này.</p>
+                            )}
+                          </details>
+                        </div>
+                      </section>
+                    </details>
+                  ) : (
+                    <div className="decision-ai-fallback" role="note">
+                      <Sparkles aria-hidden="true" />
+                      <div>
+                        <p>Bản an toàn bằng luật xác định</p>
+                        <p>
+                          {latestAiCitation
+                            ? "Phần AI có cấu trúc không hợp lệ nên đã được ẩn. Kết luận và căn cứ xác định vẫn giữ nguyên để người có thẩm quyền rà soát."
+                            : latestAiStatus?.label ||
+                              "AI chưa được bật cho bản này; kết luận và căn cứ định lượng vẫn dùng được để rà soát."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {latestDecisionDraft.status === "pending_review" && admin && (
-                    <div className="decision-support-review mt-4 rounded-xl border p-4">
+                    <section
+                      className="decision-support-review"
+                      aria-labelledby={`draft-review-title-${latestDecisionDraft.id}`}
+                    >
+                      <header className="decision-support-review__header">
+                        <UserRoundCheck aria-hidden="true" />
+                        <div>
+                          <h4
+                            id={`draft-review-title-${latestDecisionDraft.id}`}
+                          >
+                            Ghi nhận quyết định của người duyệt
+                          </h4>
+                          <p
+                            id={`draft-review-help-${latestDecisionDraft.id}`}
+                          >
+                            Đối chiếu dữ liệu nguồn, cân nhắc phương án và rủi
+                            ro, sau đó ghi rõ lý do chấp nhận hoặc từ chối.
+                          </p>
+                        </div>
+                      </header>
                       <label
                         htmlFor={`draft-review-${latestDecisionDraft.id}`}
-                        className="decision-support-review__label block text-sm font-black"
+                        className="decision-support-review__label"
                       >
-                        Căn cứ nhận xét của người duyệt
+                        Căn cứ nhận xét
                       </label>
                       <textarea
                         id={`draft-review-${latestDecisionDraft.id}`}
+                        aria-describedby={`draft-review-help-${latestDecisionDraft.id} draft-review-count-${latestDecisionDraft.id}`}
                         value={draftReviewNotes[latestDecisionDraft.id] || ""}
                         onChange={(event) =>
                           setDraftReviewNotes((current) => ({
@@ -1059,11 +1753,30 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                         maxLength={2000}
                         rows={3}
                         placeholder="Nêu tài liệu đã kiểm tra, điểm đồng ý hoặc lý do chưa chấp nhận (ít nhất 10 ký tự)…"
-                        className="decision-support-review__input mt-2 w-full rounded-xl border bg-white p-3 text-sm text-slate-800 outline-none"
+                        className="decision-support-review__input"
                       />
-                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <div className="decision-support-review__footer">
+                        <span
+                          id={`draft-review-count-${latestDecisionDraft.id}`}
+                          className="decision-support-review__count"
+                        >
+                          {(draftReviewNotes[
+                            latestDecisionDraft.id
+                          ]?.trim().length || 0) >= 10
+                            ? "Đủ độ dài tối thiểu"
+                            : `Cần thêm ${
+                                10 -
+                                (draftReviewNotes[
+                                  latestDecisionDraft.id
+                                ]?.trim().length || 0)
+                              } ký tự nội dung`}
+                          {" · "}
+                          {(draftReviewNotes[latestDecisionDraft.id] || "").length}
+                          /2000
+                        </span>
+                        <div className="decision-support-review__actions">
                         <Button
-                          variant="secondary"
+                          variant="danger"
                           disabled={
                             (draftReviewNotes[latestDecisionDraft.id]?.trim().length || 0) < 10 ||
                             draftBusy === latestDecisionDraft.id
@@ -1072,7 +1785,11 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                             void reviewDraft(latestDecisionDraft.id, "rejected")
                           }
                         >
-                          Từ chối và lưu lý do
+                          {draftBusy === latestDecisionDraft.id &&
+                            draftReviewDecision === "rejected" && (
+                              <Loader2 className="animate-spin" />
+                            )}
+                          Từ chối bản phân tích
                         </Button>
                         <Button
                           disabled={
@@ -1083,58 +1800,60 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                             void reviewDraft(latestDecisionDraft.id, "accepted")
                           }
                         >
-                          {draftBusy === latestDecisionDraft.id && (
-                            <Loader2 className="animate-spin" />
-                          )}
-                          Chấp nhận và lưu căn cứ
+                          {draftBusy === latestDecisionDraft.id &&
+                            draftReviewDecision === "accepted" && (
+                              <Loader2 className="animate-spin" />
+                            )}
+                          Chấp nhận làm tài liệu tham khảo
                         </Button>
+                        </div>
                       </div>
-                    </div>
+                    </section>
                   )}
 
                   {latestDecisionDraft.status !== "pending_review" &&
                     latestDecisionDraft.review_notes && (
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                        <p className="font-black text-slate-900">Nhận xét đã lưu</p>
-                        <p className="mt-1 leading-relaxed">
+                      <section className="decision-recorded-review">
+                        <h4>Nhận xét đã lưu</h4>
+                        <p>
                           {latestDecisionDraft.review_notes}
                         </p>
                         {latestDecisionDraft.reviewed_at && (
-                          <p className="mt-2 text-xs text-slate-500">
+                          <p className="decision-recorded-review__time">
                             Xử lý lúc{" "}
                             {new Date(latestDecisionDraft.reviewed_at).toLocaleString("vi-VN")}
                           </p>
                         )}
-                      </div>
+                      </section>
                     )}
                 </article>
 
                 {decisionHistory.length > 0 && (
-                  <details className="rounded-xl border border-slate-200 bg-white">
-                    <summary className="cursor-pointer px-4 py-3 text-sm font-black text-slate-800">
-                      Lịch sử bản tóm tắt ({decisionHistory.length})
+                  <details className="decision-history">
+                    <summary>
+                      Lịch sử hồ sơ hỗ trợ quyết định ({decisionHistory.length})
                     </summary>
-                    <div className="space-y-2 border-t border-slate-200 p-3">
+                    <div className="decision-history__list">
                       {decisionHistory.map((draft) => {
                         const historicalBrief = parseDecisionBrief(draft.content);
                         return (
                           <article
                             key={draft.id}
-                            className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                            className="decision-history__item"
                           >
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="decision-history__meta">
                               <StatusBadge status={draft.status} />
                               {draft.created_at && (
-                                <span className="text-xs text-slate-500">
+                                <span>
                                   {new Date(draft.created_at).toLocaleString("vi-VN")}
                                 </span>
                               )}
                             </div>
-                            <p className="mt-2 text-sm leading-relaxed text-slate-700">
+                            <p className="decision-history__conclusion">
                               {historicalBrief.conclusion}
                             </p>
                             {draft.review_notes && (
-                              <p className="mt-2 text-xs text-slate-500">
+                              <p className="decision-history__notes">
                                 Nhận xét: {draft.review_notes}
                               </p>
                             )}

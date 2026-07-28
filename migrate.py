@@ -24,6 +24,7 @@ FRESH_OVERLAY_GLOBS = (
     "20260723_*.sql",
     "20260726_*.sql",
     "20260727_*.sql",
+    "20260728_*.sql",
 )
 RELEASE_OVERLAY_GLOBS = (
     "20260718_*.sql",
@@ -31,6 +32,7 @@ RELEASE_OVERLAY_GLOBS = (
     "20260723_*.sql",
     "20260726_*.sql",
     "20260727_*.sql",
+    "20260728_*.sql",
 )
 
 
