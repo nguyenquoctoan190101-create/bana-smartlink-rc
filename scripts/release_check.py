@@ -116,9 +116,11 @@ def main() -> int:
             failures.append(("CANONICAL_SCHEMA_MARKER_MISSING", "db/schema.sql"))
 
     if failures:
-        print("Release check failed:")
-        for finding_code, relative_name in sorted(set(failures)):
-            print(f"- {finding_code}: {relative_name}")
+        # Do not emit values carried through the repository-content scan.
+        # Even repository-relative paths can become associated with a secret
+        # match in static taint analysis and should stay out of shared CI logs.
+        print(f"Release check failed ({len(set(failures))} finding(s)).")
+        print("Run the scanner in a trusted local environment to investigate.")
         return 1
     print(f"Release check passed ({len(all_files)} files inspected).")
     return 0
