@@ -54,15 +54,26 @@ const looksLikeUntranslatedBackendMessage = (message: string): boolean =>
     message,
   );
 
+type UserFacingErrorOptions = {
+  notFound?: string;
+};
+
 /** Convert transport/backend failures into safe, actionable Vietnamese copy. */
-export function toUserFacingError(error: unknown, fallback: string): string {
+export function toUserFacingError(
+  error: unknown,
+  fallback: string,
+  options: UserFacingErrorOptions = {},
+): string {
   if (error instanceof ApiError) {
     if (error.status >= 500 || error.code === "INVALID_RESPONSE") {
       return "Hệ thống đang tạm thời không sẵn sàng. Vui lòng thử lại sau ít phút.";
     }
     if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
     if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
-    if (error.status === 404) return "Không tìm thấy dữ liệu yêu cầu hoặc dữ liệu đã thay đổi.";
+    if (error.status === 404) {
+      return options.notFound
+        || "Không tìm thấy dữ liệu yêu cầu hoặc dữ liệu đã thay đổi.";
+    }
     if (error.status === 429) return "Bạn thao tác quá nhanh. Vui lòng thử lại sau.";
     const translated = translateBackendMessage(error.message);
     if (translated) return translated;

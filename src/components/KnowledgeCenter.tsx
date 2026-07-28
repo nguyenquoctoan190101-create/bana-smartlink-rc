@@ -348,7 +348,13 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
       <PageHeader
         eyebrow="TRI THỨC VÀ HỖ TRỢ"
         title="Kho tri thức và mạng lưới hỗ trợ"
-        description={showScenarioSimulation ? "Bốn nhóm nội dung riêng biệt: văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán; mô phỏng chỉ xuất hiện trong khu vực quản trị thử nghiệm." : "Văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán được trình bày theo đúng phạm vi vai trò."}
+        description={
+          showScenarioSimulation
+            ? "Tài liệu nghiệp vụ, mạng lưới hỗ trợ và điểm sơ tán; mô phỏng chỉ xuất hiện trong khu vực quản trị thử nghiệm."
+            : canViewEvacuation
+              ? "Tài liệu nghiệp vụ, mạng lưới hỗ trợ và điểm sơ tán được trình bày theo đúng phạm vi vai trò."
+              : "Tài liệu nghiệp vụ và mạng lưới hỗ trợ dành cho cán bộ thôn."
+        }
         actions={
           <Button variant="secondary" onClick={() => void refresh()}>
             <RotateCw />

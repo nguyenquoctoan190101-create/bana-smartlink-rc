@@ -95,6 +95,16 @@ describe("apiClient", () => {
     );
   });
 
+  it("allows a specific not-found message for the current user task", () => {
+    expect(
+      toUserFacingError(
+        new ApiError("Not found", 404),
+        "Không thể thực hiện thao tác.",
+        { notFound: "Không tìm thấy hồ sơ tương ứng." },
+      ),
+    ).toBe("Không tìm thấy hồ sơ tương ứng.");
+  });
+
   it("translates actionable backend validation messages", () => {
     expect(toUserFacingError(new ApiError("Unsupported file type", 400), "Không tải được tệp.")).toBe(
       "Loại tệp chưa được hỗ trợ.",
