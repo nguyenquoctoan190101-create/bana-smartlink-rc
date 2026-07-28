@@ -45,9 +45,13 @@ dõi trạng thái**.
 3. Đối chiếu từng trường với vùng nguồn. Giá trị thiếu phải giữ là thiếu, không
    đổi thành `0` nếu chưa có căn cứ.
 4. Sửa trường sai, ghi lý do khi được yêu cầu và xử lý toàn bộ lỗi chặn.
-5. Xác nhận nguồn, phiên bản biểu mẫu/quy tắc và gửi báo cáo.
-6. Theo dõi trạng thái `nháp → đã gửi → cần sửa/đã duyệt → đã khóa`.
-7. Khi bị yêu cầu sửa, đọc lý do, cập nhật đúng phiên bản mới nhất rồi gửi lại.
+5. Xác nhận nguồn, phiên bản biểu mẫu/quy tắc và gửi báo cáo. Chỉ coi là đã gửi
+   khi màn hình có **biên nhận máy chủ** gồm thời điểm tiếp nhận, phiên bản và bước
+   tiếp theo “Chờ quản trị xã rà soát”.
+6. Nếu đang ngoại tuyến, trạng thái “đã lưu trên thiết bị” chưa phải biên nhận;
+   giữ mục trong hàng đợi và đồng bộ lại khi có mạng.
+7. Theo dõi trạng thái `nháp → đã gửi → cần sửa/đã duyệt → đã khóa`.
+8. Khi bị yêu cầu sửa, đọc lý do, cập nhật đúng phiên bản mới nhất rồi gửi lại.
 
 Không mở deep-link hoặc gọi API của thôn khác. Nếu hệ thống hiển thị nhầm phạm
 vi, dừng làm việc và báo quản trị.

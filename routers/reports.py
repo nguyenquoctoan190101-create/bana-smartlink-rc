@@ -237,6 +237,9 @@ class AcceptedReportItem(BaseModel):
     workflow_status: str
     timeliness_status: str
     publication_status: str
+    server_received_at: datetime
+    next_step: Literal["await_commune_review"]
+    replayed: bool = False
 
 
 class RejectedReportItem(BaseModel):
@@ -282,6 +285,8 @@ class ReportSubmitResponse(BaseModel):
     workflow_status: str
     timeliness_status: str
     version: int
+    server_received_at: datetime
+    next_step: Literal["await_commune_review"]
     replayed: bool = False
     validation_flags: list[ValidationErrorResponse] = Field(default_factory=list)
 
@@ -1022,6 +1027,9 @@ async def sync_reports(
                     workflow_status=submitted.workflow_status,
                     timeliness_status=submitted.timeliness_status,
                     publication_status="private",
+                    server_received_at=submitted.server_received_at,
+                    next_step=submitted.next_step,
+                    replayed=submitted.replayed,
                 )
             )
         except HTTPException as exc:
@@ -2166,6 +2174,11 @@ async def _submit_report_values(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Không lưu được báo cáo.",
         ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Máy chủ chưa cấp được biên nhận nộp báo cáo.",
+        ) from exc
 
     return ReportSubmitResponse(
         report_id=UUID(saved_report.id),
@@ -2175,6 +2188,8 @@ async def _submit_report_values(
         workflow_status=saved_report.workflow_status,
         timeliness_status=saved_report.timeliness_status,
         version=saved_report.version,
+        server_received_at=saved_report.server_received_at,
+        next_step="await_commune_review",
         replayed=saved_report.replayed,
         validation_flags=non_blocking_flags,
     )

@@ -114,7 +114,8 @@ def test_sync_reports_valid(client, mock_report_repo):
     mock_report_repo.save_report.return_value = SimpleNamespace(
         id=rep1_id, village_id=village_id, period_id=period_id,
         workflow_status="submitted", timeliness_status="on_time",
-        version=1, replayed=False,
+        version=1, server_received_at="2026-07-29T02:15:00+00:00",
+        replayed=False,
     )
     
     payload = {
@@ -149,7 +150,8 @@ def test_sync_reports_idempotent(client, mock_report_repo):
     mock_report_repo.save_report.return_value = SimpleNamespace(
         id=rep1_id, village_id=village_id, period_id=period_id,
         workflow_status="submitted", timeliness_status="on_time",
-        version=1, replayed=True,
+        version=1, server_received_at="2026-07-29T02:15:00+00:00",
+        replayed=True,
     )
     
     payload = {
@@ -162,6 +164,9 @@ def test_sync_reports_idempotent(client, mock_report_repo):
     assert res.status_code == 200
     data = res.json()
     assert data["accepted"][0]["client_id"] == rep1_id
+    assert data["accepted"][0]["server_received_at"] == "2026-07-29T02:15:00Z"
+    assert data["accepted"][0]["next_step"] == "await_commune_review"
+    assert data["accepted"][0]["replayed"] is True
     assert len(data["rejected"]) == 0
     assert mock_report_repo.save_report.call_count == 1
     app.dependency_overrides.pop(require_authenticated_user, None)
@@ -184,6 +189,7 @@ def test_sync_reports_accepts_new_item_without_legacy_status(client, mock_report
         workflow_status="submitted",
         timeliness_status="on_time",
         version=1,
+        server_received_at="2026-07-29T02:15:00+00:00",
         replayed=False,
     )
     item = _make_report_item(report_id, village_id)
@@ -205,6 +211,9 @@ def test_sync_reports_accepts_new_item_without_legacy_status(client, mock_report
                 "workflow_status": "submitted",
                 "timeliness_status": "on_time",
                 "publication_status": "private",
+                "server_received_at": "2026-07-29T02:15:00Z",
+                "next_step": "await_commune_review",
+                "replayed": False,
             }
         ]
     finally:
@@ -233,6 +242,7 @@ def test_sync_reports_restores_profile_identity_after_offline_privacy_sanitizati
         workflow_status="submitted",
         timeliness_status="on_time",
         version=1,
+        server_received_at="2026-07-29T02:15:00+00:00",
         replayed=False,
     )
     item = _make_report_item(report_id, village_id)
@@ -327,7 +337,8 @@ def test_sync_reports_partial_village_auth(client, mock_report_repo):
         id=rep1_id, village_id=village_id_correct,
         period_id=mock_report_repo.get_period_id_by_name.return_value,
         workflow_status="submitted", timeliness_status="on_time",
-        version=1, replayed=False,
+        version=1, server_received_at="2026-07-29T02:15:00+00:00",
+        replayed=False,
     )
     
     payload = {
@@ -404,6 +415,7 @@ def test_sync_derives_cnscd_assistant_name_from_authenticated_profile(
         workflow_status="submitted",
         timeliness_status="on_time",
         version=1,
+        server_received_at="2026-07-29T02:15:00+00:00",
         replayed=False,
     )
     item = _make_report_item(report_id, village_id)

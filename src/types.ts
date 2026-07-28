@@ -89,6 +89,8 @@ export interface ReportData extends IndicatorValues {
   idempotency_key?: string;
   updated_at: string;
   submitted_at?: string | null;
+  submission_next_step?: "await_commune_review";
+  submission_replayed?: boolean;
   approved_at?: string | null;
   published_at?: string | null;
   assisted_by_cnscd?: boolean;
@@ -183,6 +185,9 @@ export interface SyncAcceptedItem {
   workflow_status: WorkflowStatus;
   timeliness_status: TimelinessStatus;
   publication_status: PublicationStatus;
+  server_received_at: string;
+  next_step: "await_commune_review";
+  replayed: boolean;
 }
 
 export interface SyncRejectedItem {
