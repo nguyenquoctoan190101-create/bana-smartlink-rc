@@ -423,6 +423,7 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
         "migrations/20260715_*.sql migrations/20260718_*.sql "
         "migrations/20260722_*.sql migrations/20260723_*.sql"
     ) in workflow
+    assert "migrations/20260727_*.sql" in workflow
     assert "migrations/20260728_*.sql" in workflow
     assert "tests/sql/ai_draft_legacy_compat.sql" in workflow
     assert "tests/sql/supabase_existing_roles_bootstrap.sql" in workflow
