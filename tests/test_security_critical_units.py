@@ -479,6 +479,13 @@ def test_external_ocr_requires_both_feature_flag_and_provider_key() -> None:
 
 
 def test_privileged_access_settings_validate_roles_and_networks() -> None:
+    disabled = Settings(
+        _env_file=None,
+        mfa_enforcement_enabled=False,
+        mfa_required_roles="admin_xa",
+    )
+    assert disabled.required_mfa_roles == frozenset()
+
     valid = Settings(
         _env_file=None,
         mfa_required_roles="admin_xa, lanh_dao",
