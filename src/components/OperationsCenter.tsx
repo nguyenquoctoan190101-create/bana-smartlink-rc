@@ -14,11 +14,23 @@ type Props = {
 };
 type Action = {
   id: string;
+  period_id?: string | null;
+  village_id?: string | null;
+  source_type: "manual" | "trend_alert" | "ai_draft" | "maturity" | "initiative" | "proposal";
   title: string;
-  priority: string;
-  status: string;
-  due_date?: string | null;
+  description?: string | null;
+  priority: "low" | "normal" | "high" | "critical";
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  owner_id?: string | null;
   owner_name?: string | null;
+  owner_label: string;
+  due_date?: string | null;
+  due_state: "overdue" | "due_today" | "upcoming" | "unset" | "closed";
+  created_at: string;
+  age_days: number;
+  evidence_status: "linked" | "manual" | "missing";
+  can_update: boolean;
+  next_action?: "start" | "complete" | null;
 };
 type AiDecisionOption = {
   id: "A" | "B" | "C";
@@ -154,6 +166,38 @@ const aiSeverities = new Set<AiDecisionRisk["severity"]>([
   "trung_binh",
   "thap",
 ]);
+const actionSourceTypes = new Set<Action["source_type"]>([
+  "manual",
+  "trend_alert",
+  "ai_draft",
+  "maturity",
+  "initiative",
+  "proposal",
+]);
+const actionPriorities = new Set<Action["priority"]>([
+  "low",
+  "normal",
+  "high",
+  "critical",
+]);
+const actionStatuses = new Set<Action["status"]>([
+  "pending",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+const actionDueStates = new Set<Action["due_state"]>([
+  "overdue",
+  "due_today",
+  "upcoming",
+  "unset",
+  "closed",
+]);
+const actionEvidenceStatuses = new Set<Action["evidence_status"]>([
+  "linked",
+  "manual",
+  "missing",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -165,6 +209,42 @@ function isStringArray(value: unknown): value is string[] {
 
 function isOptionalString(value: unknown): value is string | null | undefined {
   return value == null || typeof value === "string";
+}
+
+function isActionQueueItem(value: unknown): value is Action {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.source_type === "string" &&
+    actionSourceTypes.has(value.source_type as Action["source_type"]) &&
+    typeof value.priority === "string" &&
+    actionPriorities.has(value.priority as Action["priority"]) &&
+    typeof value.status === "string" &&
+    actionStatuses.has(value.status as Action["status"]) &&
+    isOptionalString(value.period_id) &&
+    isOptionalString(value.village_id) &&
+    isOptionalString(value.description) &&
+    isOptionalString(value.owner_id) &&
+    isOptionalString(value.owner_name) &&
+    typeof value.owner_label === "string" &&
+    isOptionalString(value.due_date) &&
+    typeof value.due_state === "string" &&
+    actionDueStates.has(value.due_state as Action["due_state"]) &&
+    typeof value.created_at === "string" &&
+    Number.isFinite(Date.parse(value.created_at)) &&
+    typeof value.age_days === "number" &&
+    Number.isInteger(value.age_days) &&
+    value.age_days >= 0 &&
+    typeof value.evidence_status === "string" &&
+    actionEvidenceStatuses.has(
+      value.evidence_status as Action["evidence_status"],
+    ) &&
+    typeof value.can_update === "boolean" &&
+    (value.next_action == null ||
+      value.next_action === "start" ||
+      value.next_action === "complete")
+  );
 }
 
 function asOptionalString(value: unknown): string | undefined {
@@ -497,6 +577,59 @@ const priorityLabels: Record<string, string> = {
   critical: "khẩn cấp",
 };
 
+const actionSourceLabels: Record<Action["source_type"], string> = {
+  manual: "Giao việc thủ công",
+  trend_alert: "Cảnh báo xu hướng",
+  ai_draft: "Bản nháp hỗ trợ",
+  maturity: "Đánh giá trưởng thành",
+  initiative: "Sáng kiến",
+  proposal: "Đề xuất",
+};
+
+const actionDueLabels: Record<Action["due_state"], string> = {
+  overdue: "quá hạn",
+  due_today: "đến hạn hôm nay",
+  upcoming: "sắp đến hạn",
+  unset: "chưa đặt hạn",
+  closed: "đã đóng",
+};
+
+const actionEvidenceLabels: Record<Action["evidence_status"], string> = {
+  linked: "có căn cứ liên kết",
+  manual: "giao việc thủ công",
+  missing: "thiếu căn cứ liên kết",
+};
+
+const actionDueOrder: Record<Action["due_state"], number> = {
+  overdue: 0,
+  due_today: 1,
+  upcoming: 2,
+  unset: 3,
+  closed: 4,
+};
+
+const actionPriorityOrder: Record<Action["priority"], number> = {
+  critical: 0,
+  high: 1,
+  normal: 2,
+  low: 3,
+};
+
+export function compareActionQueueItems(left: Action, right: Action): number {
+  const dueDateDifference =
+    (left.due_date ? Date.parse(left.due_date) : Number.POSITIVE_INFINITY) -
+    (right.due_date ? Date.parse(right.due_date) : Number.POSITIVE_INFINITY);
+  const createdDifference =
+    Date.parse(left.created_at) - Date.parse(right.created_at);
+  return (
+    actionDueOrder[left.due_state] - actionDueOrder[right.due_state] ||
+    actionPriorityOrder[left.priority] - actionPriorityOrder[right.priority] ||
+    dueDateDifference ||
+    createdDifference ||
+    left.id.localeCompare(right.id)
+  );
+}
+
 const roleCopy: Record<string, { eyebrow: string; title: string; description: string }> = {
   admin_xa: {
     eyebrow: "Điều hành toàn xã",
@@ -621,7 +754,13 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         continue;
       }
       if (result.key === "quality") setQuality(result.value as typeof quality);
-      if (result.key === "actions") setActions(Array.isArray(result.value) ? (result.value as Action[]) : []);
+      if (result.key === "actions") {
+        setActions(
+          Array.isArray(result.value)
+            ? result.value.filter(isActionQueueItem)
+            : [],
+        );
+      }
       if (result.key === "drafts") {
         setDrafts(
           Array.isArray(result.value)
@@ -647,8 +786,12 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     };
   }, [periodId, role, periods]);
 
+  const orderedActions = useMemo(
+    () => [...actions].sort(compareActionQueueItems),
+    [actions],
+  );
   const openActions = useMemo(() => actions.filter((item) => !["completed", "cancelled"].includes(item.status)), [actions]);
-  const overdueActions = useMemo(() => openActions.filter((item) => item.due_date && new Date(item.due_date).getTime() < Date.now()), [openActions]);
+  const overdueActions = useMemo(() => openActions.filter((item) => item.due_state === "overdue"), [openActions]);
   const approvedReports = useMemo(() => (quality?.reports ?? []).filter((item) => !item.workflow_status || ["approved", "locked"].includes(item.workflow_status)), [quality]);
   const visibleQualityReports = useMemo(
     () => (role === "lanh_dao" ? approvedReports : quality?.reports ?? []),
@@ -722,7 +865,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     periods.find((period) => period.id === periodId)?.name ||
     "Kỳ đang chọn";
   const sourceSummary = Array.from(new Set(approvedReports.map((item) => reportSourceLabels[item.lineage.report_source] ?? "Nguồn khác"))).join(", ") || "Chưa có nguồn đã duyệt";
-  const overdueOwners = Array.from(new Set(overdueActions.map((item) => item.owner_name).filter(Boolean))).join(", ") || "Chưa phân công";
+  const overdueOwners = Array.from(new Set(overdueActions.map((item) => item.owner_label))).join(", ") || "Chưa phân công";
 
   const updateAction = async (id: string, status: "in_progress" | "completed") => {
     const outcome = actionOutcomes[id]?.trim();
@@ -1175,7 +1318,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         tabIndex={-1}
         index="02"
         title="Hàng việc cần xử lý"
-        description="Mỗi thẻ là một việc độc lập, có người phụ trách, mức ưu tiên, thời hạn và hành động tương ứng."
+        description="Xếp việc quá hạn lên trước; mỗi thẻ nêu người phụ trách, ưu tiên, tuổi việc, hạn xử lý, căn cứ và hành động được phép."
         tone="tasks"
         icon={<ClipboardList />}
       >
@@ -1185,26 +1328,42 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           ) : (
             <>
               {!actions.length && <EmptyState title="Chưa có việc được phân công" description="Việc mới sẽ xuất hiện tại đây cùng người phụ trách và thời hạn xử lý." />}
-              {actions.map((item) => {
-                const overdue = item.due_date && new Date(item.due_date).getTime() < Date.now() && !["completed", "cancelled"].includes(item.status);
+              {orderedActions.map((item) => {
+                const ageLabel =
+                  item.age_days === 0 ? "tạo hôm nay" : `${item.age_days} ngày`;
                 return (
                   <ActionCard
                     key={item.id}
                     title={item.title}
                     meta={
                       <span>
-                        {item.owner_name ? `Phụ trách: ${item.owner_name} · ` : ""}
-                        Ưu tiên {priorityLabels[item.priority] ?? "chưa phân loại"} · Hạn {item.due_date ? new Date(item.due_date).toLocaleDateString("vi-VN") : "chưa đặt"}
+                        Phụ trách: {item.owner_label} · Ưu tiên{" "}
+                        {priorityLabels[item.priority]} · Tuổi việc {ageLabel} ·{" "}
+                        {actionDueLabels[item.due_state]}
+                        {item.due_date
+                          ? ` ${new Date(`${item.due_date}T00:00:00`).toLocaleDateString("vi-VN")}`
+                          : ""}
+                        {" · "}
+                        Căn cứ: {actionEvidenceLabels[item.evidence_status]} · Nguồn:{" "}
+                        {actionSourceLabels[item.source_type]}
                       </span>
                     }
-                    status={<StatusBadge status={overdue ? "overdue" : item.status} />}
+                    status={
+                      <StatusBadge
+                        status={
+                          item.due_state === "overdue"
+                            ? "overdue"
+                            : item.status
+                        }
+                      />
+                    }
                   >
-                    {item.status === "pending" && role !== "lanh_dao" && (
+                    {item.next_action === "start" && (
                       <Button variant="secondary" onClick={() => void updateAction(item.id, "in_progress")}>
                         Nhận việc
                       </Button>
                     )}
-                    {item.status === "in_progress" && role !== "lanh_dao" && (
+                    {item.next_action === "complete" && (
                       <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end">
                         <label className="flex-1 text-sm font-semibold text-slate-700">
                           Kết quả hoàn thành

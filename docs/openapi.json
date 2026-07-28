@@ -152,6 +152,189 @@
         "title": "ActionCreateRequest",
         "type": "object"
       },
+      "ActionQueueItemResponse": {
+        "properties": {
+          "age_days": {
+            "minimum": 0.0,
+            "title": "Age Days",
+            "type": "integer"
+          },
+          "can_update": {
+            "title": "Can Update",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "due_state": {
+            "enum": [
+              "overdue",
+              "due_today",
+              "upcoming",
+              "unset",
+              "closed"
+            ],
+            "title": "Due State",
+            "type": "string"
+          },
+          "evidence_status": {
+            "enum": [
+              "linked",
+              "manual",
+              "missing"
+            ],
+            "title": "Evidence Status",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "next_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "start",
+                  "complete"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Action"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "owner_label": {
+            "title": "Owner Label",
+            "type": "string"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "period_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Id"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "critical"
+            ],
+            "title": "Priority",
+            "type": "string"
+          },
+          "source_type": {
+            "enum": [
+              "manual",
+              "trend_alert",
+              "ai_draft",
+              "maturity",
+              "initiative",
+              "proposal"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "village_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Id"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "title",
+          "priority",
+          "status",
+          "owner_label",
+          "due_state",
+          "created_at",
+          "age_days",
+          "evidence_status",
+          "can_update"
+        ],
+        "title": "ActionQueueItemResponse",
+        "type": "object"
+      },
       "ActionUpdateRequest": {
         "properties": {
           "outcome": {
@@ -5876,8 +6059,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/ActionQueueItemResponse"
                   },
                   "title": "Response List Actions Api Operations Actions Get",
                   "type": "array"
