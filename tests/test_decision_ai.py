@@ -9,6 +9,7 @@ import pytest
 from services.decision_ai import (
     DecisionAiError,
     DecisionAnalysis,
+    _openai_enrichment,
     _parse_analysis,
     build_evidence_bundle,
     enrich_decision_brief,
@@ -229,6 +230,71 @@ async def test_malformed_provider_response_fails_closed_without_leaking_body() -
 
     assert attempt.status == "fallback"
     assert "provider-secret" not in str(attempt)
+
+
+@pytest.mark.asyncio
+async def test_openai_transport_error_does_not_retain_authorization() -> None:
+    secret = "Bearer provider-secret-authorization"
+    request = httpx.Request(
+        "POST",
+        "https://api.openai.test/v1/responses",
+        headers={"Authorization": secret},
+    )
+    fake = _FakeAsyncClient(_openai_response())
+    fake.post = AsyncMock(side_effect=httpx.ConnectError(
+        "provider-secret-network-detail",
+        request=request,
+    ))
+    settings = Settings(
+        _env_file=None,
+        openai_api_key="provider-secret-authorization",
+        openai_api_url="https://api.openai.test/v1",
+    )
+    bundle = build_evidence_bundle(
+        period_name="ThÃ¡ng báº£y",
+        deterministic_content="Káº¿t luáº­n: Cáº§n rÃ  soÃ¡t.",
+        citations=_citations(),
+    )
+
+    with patch("services.decision_ai.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(DecisionAiError, match="request failed") as caught:
+            await _openai_enrichment(
+                settings,
+                bundle,
+                safety_subject="user",
+            )
+
+    assert caught.value.__cause__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)
+
+
+@pytest.mark.asyncio
+async def test_openai_malformed_json_does_not_retain_provider_body() -> None:
+    fake = _FakeAsyncClient(
+        httpx.Response(200, content=b"provider-secret-malformed-body")
+    )
+    settings = Settings(
+        _env_file=None,
+        openai_api_key="test-key",
+    )
+    bundle = build_evidence_bundle(
+        period_name="ThÃ¡ng báº£y",
+        deterministic_content="Káº¿t luáº­n: Cáº§n rÃ  soÃ¡t.",
+        citations=_citations(),
+    )
+
+    with patch("services.decision_ai.httpx.AsyncClient", return_value=fake):
+        with pytest.raises(DecisionAiError, match="unexpected") as caught:
+            await _openai_enrichment(
+                settings,
+                bundle,
+                safety_subject="user",
+            )
+
+    assert caught.value.__cause__ is None
+    assert "provider-secret" not in str(caught.value)
+    assert "provider-secret" not in repr(caught.value.__dict__)
 
 
 @pytest.mark.asyncio
