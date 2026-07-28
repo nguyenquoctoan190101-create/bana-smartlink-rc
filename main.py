@@ -4,7 +4,7 @@ import asyncio
 import os
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -111,7 +111,7 @@ def _validation_details(exc: RequestValidationError) -> list[dict[str, str]]:
     ]
 
 
-def create_app() -> FastAPI:
+def create_app(*, static_root: Path | None = None) -> FastAPI:
     """Create the FastAPI app with security middleware configured."""
     settings = load_settings()
 
@@ -338,21 +338,42 @@ def create_app() -> FastAPI:
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
 
-    dist_root = Path("dist").resolve()
+    dist_root = (static_root or Path("dist")).resolve()
     if dist_root.is_dir():
         assets_root = dist_root / "assets"
         if assets_root.is_dir():
             app.mount("/assets", StaticFiles(directory=assets_root), name="assets")
 
+        # Index deploy-time files once. Request data is used only as a mapping
+        # key and is never joined into a filesystem path.
+        trusted_spa_files: dict[str, Path] = {}
+        for deployed_file in dist_root.rglob("*"):
+            resolved_file = deployed_file.resolve()
+            try:
+                relative_file = resolved_file.relative_to(dist_root)
+            except ValueError:
+                continue
+            if (
+                resolved_file.is_file()
+                and relative_file.parts
+                and relative_file.parts[0] != "assets"
+            ):
+                trusted_spa_files[relative_file.as_posix()] = resolved_file
+        index_file = trusted_spa_files.get("index.html")
+
         @app.get("/{path_name:path}", include_in_schema=False)
         async def serve_spa(path_name: str):
-            candidate = (dist_root / path_name).resolve()
-            try:
-                candidate.relative_to(dist_root)
-            except ValueError as exc:
-                raise HTTPException(status_code=404, detail="Asset not found") from exc
-            if candidate.is_file():
-                return FileResponse(candidate)
+            parsed_path = PurePosixPath(path_name)
+            if (
+                parsed_path.is_absolute()
+                or ".." in parsed_path.parts
+                or "\\" in path_name
+            ):
+                raise HTTPException(status_code=404, detail="Asset not found")
+
+            trusted_file = trusted_spa_files.get(path_name)
+            if trusted_file is not None:
+                return FileResponse(trusted_file)
             
             # Do not serve index.html for API routes
             if (
@@ -367,11 +388,13 @@ def create_app() -> FastAPI:
 
             # If the path looks like a static asset, return 404 instead of index.html
             # to prevent browser MIME-type mismatch crashes (e.g., loading HTML as JS/CSS)
-            ext = candidate.suffix.lower()
+            ext = parsed_path.suffix.lower()
             if ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".json", ".map", ".webmanifest"] or path_name.startswith("assets/"):
                 raise HTTPException(status_code=404, detail="Asset not found")
 
-            return FileResponse(dist_root / "index.html")
+            if index_file is None:
+                raise HTTPException(status_code=404, detail="Application not found")
+            return FileResponse(index_file)
 
     return app
 

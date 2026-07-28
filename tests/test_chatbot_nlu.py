@@ -89,6 +89,16 @@ def test_free_text_redaction_covers_common_identifiers() -> None:
     assert "[ID_REDACTED]" in redacted
 
 
+def test_free_text_redaction_bounds_and_handles_long_whitespace_runs() -> None:
+    redacted = _redact_free_text(
+        "địa chỉ" + (" " * 420) + "12 đường Núi Thành; " + ("x" * 300)
+    )
+
+    assert len(redacted) <= 500
+    assert "12 đường Núi Thành" not in redacted
+    assert "[ADDRESS_REDACTED]" in redacted
+
+
 def test_answer_model_output_must_not_add_numbers_or_echo_prompt_instructions() -> None:
     rows = [{
         "village_name": "Thôn Phú Hòa",

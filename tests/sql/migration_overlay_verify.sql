@@ -238,13 +238,13 @@ begin
     where policy.schemaname = 'public'
       and policy.permissive = 'PERMISSIVE'
   ),
-  overlaps as (
+  policy_overlaps as (
     select 1
     from expanded
     group by tablename, role_name, action_name
     having count(*) > 1
   )
-  select count(*) into overlap_count from overlaps;
+  select count(*) into overlap_count from policy_overlaps;
 
   if overlap_count <> 0 then
     raise exception 'permissive policy overlaps remain: %', overlap_count;
