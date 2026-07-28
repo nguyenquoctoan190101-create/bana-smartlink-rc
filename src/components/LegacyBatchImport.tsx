@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Upload } from "lucide-react";
 
 import { apiJson, toUserFacingError } from "../lib/apiClient";
+import { formatViNumber } from "../lib/formatters";
 import { useReportPeriods } from "../lib/useReportPeriods";
 import { Button, DataScope, ErrorState, PageHeader, SectionCard, StatusBadge } from "./ui";
 import "./LegacyBatchImport.css";
@@ -67,7 +68,7 @@ const MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${formatViNumber(bytes / (1024 * 1024), 1)} MB`;
 }
 
 export default function LegacyBatchImport() {

@@ -15,6 +15,7 @@ import {
 import { apiJson, apiUpload, toUserFacingError } from "../lib/apiClient";
 import type { ExtractionCorrection, ExtractionMetadata, IndicatorCode } from "../types";
 import rulesData from "../validation_rules.json";
+import { formatViNumber } from "../lib/formatters";
 
 interface UploadReportProps {
   onDataExtracted: (
@@ -168,8 +169,8 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024) return `${formatViNumber(bytes / 1024, 1)} KB`;
+    return `${formatViNumber(bytes / (1024 * 1024), 1)} MB`;
   };
 
   const clearSelectedFile = (preserveError = false) => {
@@ -737,7 +738,7 @@ export default function UploadReport({ onDataExtracted, onCancel }: UploadReport
                 <span>Kết quả trích xuất — chờ cán bộ xác nhận</span>
               </h4>
               <p className="text-4xs text-slate-300">
-                Tệp tin: <b className="font-mono text-white">{file?.name}</b> ({(file ? (file.size / 1024).toFixed(1) : 0)} KB)
+                Tệp tin: <b className="font-mono text-white">{file?.name}</b> ({formatFileSize(file?.size || 0)})
               </p>
             </div>
             {unconfirmedCount > 0 ? (

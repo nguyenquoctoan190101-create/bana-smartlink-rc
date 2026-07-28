@@ -28,6 +28,7 @@ import { useAuth } from "../lib/AuthContext";
 import { preferredLeadershipPeriodId } from "../lib/reportPeriods";
 import { evaluateMetric } from "../lib/metricRegistry";
 import { reportToMetricEvaluationReport } from "../lib/reportMetrics";
+import { formatViNumber, formatViPercent } from "../lib/formatters";
 import { Button, DataScope, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
 import "./Dashboard.css";
 import DashboardInsightCharts from "./DashboardInsightCharts";
@@ -879,7 +880,7 @@ export default function Dashboard({
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-slate-800">
                 {totalHouseholds !== null
-                  ? totalHouseholds.toLocaleString()
+                  ? formatViNumber(totalHouseholds)
                   : "—"}
               </span>
               <span className="text-xs text-slate-500">hộ</span>
@@ -888,7 +889,7 @@ export default function Dashboard({
               <span>Tổng nhân khẩu:</span>
               <b className="text-slate-700 font-semibold">
                 {totalPopulation !== null
-                  ? `${totalPopulation.toLocaleString()} người`
+                  ? `${formatViNumber(totalPopulation)} người`
                   : "Chưa có dữ liệu"}
               </b>
             </p>
@@ -909,12 +910,12 @@ export default function Dashboard({
             </h3>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-rose-600">
-                {povertyRate !== null ? `${povertyRate.toFixed(2)}%` : "—"}
+                {povertyRate !== null ? formatViPercent(povertyRate, 2) : "—"}
               </span>
               <span className="text-2xs text-rose-500">
                 {povertyMetric?.numerator !== null
                   && povertyMetric?.numerator !== undefined
-                  ? `(${povertyMetric.numerator} hộ)`
+                  ? `(${formatViNumber(povertyMetric.numerator)} hộ)`
                   : "Chưa có dữ liệu"}
               </span>
             </div>
@@ -924,7 +925,7 @@ export default function Dashboard({
                 {nearPovertyRate !== null
                   && nearPovertyMetric?.numerator !== null
                   && nearPovertyMetric?.numerator !== undefined
-                  ? `${nearPovertyRate.toFixed(2)}% (${nearPovertyMetric.numerator} hộ)`
+                  ? `${formatViPercent(nearPovertyRate, 2)} (${formatViNumber(nearPovertyMetric.numerator)} hộ)`
                   : "Chưa có dữ liệu"}
               </b>
             </p>
@@ -945,7 +946,7 @@ export default function Dashboard({
             </h3>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-emerald-600">
-                {bhytRate !== null ? `${bhytRate.toFixed(1)}%` : "—"}
+                {bhytRate !== null ? formatViPercent(bhytRate, 1) : "—"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -955,8 +956,8 @@ export default function Dashboard({
                 <>
                   Đã có{" "}
                   <b className="text-slate-700 font-semibold">
-                    {bhytMetric.numerator.toLocaleString()} /{" "}
-                    {bhytMetric.denominator.toLocaleString()}
+                    {formatViNumber(bhytMetric.numerator)} /{" "}
+                    {formatViNumber(bhytMetric.denominator)}
                   </b>{" "}
                   người tham gia
                 </>
@@ -982,7 +983,7 @@ export default function Dashboard({
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-xl font-bold text-amber-600">
                 {culturalFamilyRate !== null
-                  ? `${culturalFamilyRate.toFixed(1)}%`
+                  ? formatViPercent(culturalFamilyRate, 1)
                   : "—"}
               </span>
             </div>
@@ -993,8 +994,8 @@ export default function Dashboard({
                 <>
                   Đạt chuẩn:{" "}
                   <b className="text-slate-700 font-semibold">
-                    {culturalFamilyMetric.numerator.toLocaleString()} /{" "}
-                    {culturalFamilyMetric.denominator.toLocaleString()}
+                    {formatViNumber(culturalFamilyMetric.numerator)} /{" "}
+                    {formatViNumber(culturalFamilyMetric.denominator)}
                   </b>{" "}
                   hộ dân
                 </>
@@ -1419,14 +1420,14 @@ export default function Dashboard({
                       <td className="py-3.5 px-3 font-semibold text-slate-600">
                         {report.report_period}
                       </td>
-                      <td className="py-3.5 px-3 font-mono">{report.CT01}</td>
-                      <td className="py-3.5 px-3 font-mono">{report.CT02}</td>
+                      <td className="py-3.5 px-3 font-mono">{formatViNumber(report.CT01)}</td>
+                      <td className="py-3.5 px-3 font-mono">{formatViNumber(report.CT02)}</td>
                       <td className="py-3.5 px-3 font-mono text-rose-600 font-semibold">
-                        {report.CT03}
+                        {formatViNumber(report.CT03)}
                       </td>
                       <td className="py-3.5 px-3 font-mono text-emerald-600 font-semibold">
                         {bhytRowRate !== null
-                          ? `${bhytRowRate.toFixed(0)}%`
+                          ? formatViPercent(bhytRowRate, 0)
                           : "—"}
                       </td>
                       <td className="py-3.5 px-3">

@@ -526,9 +526,9 @@ describe("Dashboard device drafts", () => {
       .closest<HTMLElement>(".leadership-metric-card");
 
     expect(bhytCard).not.toBeNull();
-    expect(within(bhytCard!).getByText("55.0%")).toBeInTheDocument();
+    expect(within(bhytCard!).getByText("55,0%")).toBeInTheDocument();
     expect(bhytCard).toHaveTextContent(/550\s*\/\s*1[.,]000/);
-    expect(within(bhytCard!).queryByText("75.0%")).not.toBeInTheDocument();
+    expect(within(bhytCard!).queryByText("75,0%")).not.toBeInTheDocument();
   });
 
   it("keeps the partial-scope value while stating exact coverage", async () => {
@@ -561,7 +561,7 @@ describe("Dashboard device drafts", () => {
         "period:period-july",
       ),
     );
-    expect(screen.getAllByText("90.0%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("90,0%").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("status").some((element) =>
         element.textContent?.includes(
