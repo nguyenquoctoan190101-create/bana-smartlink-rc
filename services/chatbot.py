@@ -42,6 +42,7 @@ from typing import Any
 import asyncpg
 
 from services.gemini import GeminiError, get_gemini_client
+from services.metric_registry import PUBLIC_RAW_METRIC_IDS
 from services.settings import load_settings
 
 # ---------------------------------------------------------------------------
@@ -54,8 +55,8 @@ VILLAGE_MAP_PATH = (
     / "DU_LIEU_CHINH_THUC"
     / "village_merge_map_CHINH_THUC.json"
 )
-PUBLIC_CT_CODES = ("CT01", "CT02", "CT09", "CT12", "CT13")
-_PUBLIC_CT_SQL = "('CT01','CT02','CT09','CT12','CT13')"
+PUBLIC_CT_CODES = PUBLIC_RAW_METRIC_IDS
+_PUBLIC_CT_SQL = "(" + ",".join(f"'{code}'" for code in PUBLIC_CT_CODES) + ")"
 _CURRENT_VILLAGE_NAMES = (
     "Thôn An Sơn",
     "Thôn Hòa Ninh",

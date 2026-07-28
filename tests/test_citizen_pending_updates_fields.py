@@ -9,7 +9,7 @@ def test_citizen_pending_updates_all_fields():
     
     payload = {
         "village_id": str(uuid4()),
-        "report_id": str(uuid4()),
+        "report_period": "Tháng 7/2026",
         "ct_code": "CT01",
         "proposed_value": 8888,
         "proposed_by_phone": "0999888777",
@@ -23,17 +23,22 @@ def test_citizen_pending_updates_all_fields():
     with patch(
         "services.supabase_admin.SupabaseAdminClient._rest_request",
         new_callable=AsyncMock,
-        return_value=[{"id": payload["report_id"], "village_id": payload["village_id"]}],
-    ), patch(
+        return_value=[{
+            "id": str(uuid4()),
+            "village_id": payload["village_id"],
+            "report_periods": {"name": payload["report_period"], "commune_id": "ba_na"},
+        }],
+    ) as mock_request, patch(
         "services.supabase_admin.SupabaseAdminClient.insert_pending_update",
         new_callable=AsyncMock,
-        return_value={"id": str(uuid4()), "report_id": payload["report_id"], "ct_code": "CT01", "proposed_value": 8888, "status": "pending"}
+        return_value={"id": str(uuid4()), "report_id": str(uuid4()), "ct_code": "CT01", "proposed_value": 8888, "status": "pending"}
     ) as mock_insert:
         response = client.post("/auth/citizen/pending-updates", json=payload)
         
     assert response.status_code == 201
+    resolved_report_id = mock_request.return_value[0]["id"]
     mock_insert.assert_called_once_with(
-        report_id=payload["report_id"],
+        report_id=resolved_report_id,
         ct_code="CT01",
         proposed_value=8888,
             submitter_name="Test Name 123",
@@ -44,3 +49,10 @@ def test_citizen_pending_updates_all_fields():
             explanation=None,
         consent_version="2026-07-13",
     )
+    assert response.json() == {
+        "ct_code": "CT01",
+        "proposed_value": 8888,
+        "status": "pending",
+        "tracking_code": None,
+    }
+    assert "report_periods.name=eq.Th%C3%A1ng%207%2F2026" in mock_request.await_args.args[1]

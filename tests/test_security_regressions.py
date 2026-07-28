@@ -235,26 +235,31 @@ class TestPendingUpdates:
         """Đề xuất hợp lệ được lưu thẳng vào database mà không cần OTP."""
         payload = {
             "village_id": str(uuid4()),
-            "report_id": str(uuid4()),
+            "report_period": "Tháng 7/2026",
             "ct_code": "CT01",
             "proposed_value": 15,
             "proposed_by_phone": "0935311350",
             "privacy_consent": True,
         }
+        resolved_report_id = str(uuid4())
         with patch(
             "services.supabase_admin.SupabaseAdminClient._rest_request",
             new_callable=AsyncMock,
-            return_value=[{"id": payload["report_id"], "village_id": payload["village_id"]}],
+            return_value=[{
+                "id": resolved_report_id,
+                "village_id": payload["village_id"],
+                "report_periods": {"name": payload["report_period"]},
+            }],
         ), patch(
             "services.supabase_admin.SupabaseAdminClient.insert_pending_update",
             new_callable=AsyncMock,
-            return_value={"id": str(uuid4()), "report_id": payload["report_id"], "ct_code": "CT01", "proposed_value": 15, "status": "pending"}
+            return_value={"id": str(uuid4()), "report_id": resolved_report_id, "ct_code": "CT01", "proposed_value": 15, "status": "pending"}
         ) as mock_insert:
             response = client.post("/auth/citizen/pending-updates", json=payload)
             
         assert response.status_code == 201
         mock_insert.assert_called_once_with(
-            report_id=payload["report_id"],
+            report_id=resolved_report_id,
             ct_code="CT01",
             proposed_value=15,
             submitter_name=None,
@@ -270,7 +275,7 @@ class TestPendingUpdates:
         """Số điện thoại không hợp lệ bị từ chối ngay lập tức."""
         payload = {
             "village_id": str(uuid4()),
-            "report_id": str(uuid4()),
+            "report_period": "Tháng 7/2026",
             "ct_code": "CT01",
             "proposed_value": 15,
             "proposed_by_phone": "123", # Invalid phone

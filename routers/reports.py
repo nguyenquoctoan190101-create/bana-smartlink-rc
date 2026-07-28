@@ -58,6 +58,7 @@ from services.form_normalizer import (
     normalize_excel,
     normalize_field_name,
 )
+from services.metric_registry import PUBLIC_RAW_METRIC_IDS
 from services.gemini import GeminiError, get_gemini_client
 from services.ocr_report import (
     OcrError,
@@ -292,6 +293,18 @@ class VillageStatusResponse(BaseModel):
 class ReportsStatusResponse(BaseModel):
     period_id: UUID
     villages: list[VillageStatusResponse]
+
+
+PublicMetricCode = Literal["CT01", "CT02", "CT09", "CT12", "CT13"]
+
+
+class PublicReportResponse(BaseModel):
+    """Minimal published evidence contract; no report/workflow/lineage IDs."""
+
+    village_id: UUID
+    report_period: str
+    published_at: str | None
+    values: dict[PublicMetricCode, int | None]
 
 
 class CreateReportPeriodRequest(BaseModel):
@@ -1778,7 +1791,7 @@ async def get_villages(
         ) from exc
 
 
-@router.get("/public")
+@router.get("/public", response_model=list[PublicReportResponse])
 async def get_public_reports(
     supabase: Annotated[SupabaseAdminClient, Depends(get_supabase_admin)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -1787,13 +1800,13 @@ async def get_public_reports(
     try:
         commune_id = settings.bana_commune_id
         encoded_commune_id = quote(commune_id, safe="")
-        public_codes = {"CT01", "CT02", "CT09", "CT12", "CT13"}
-        codes_filter = ",".join(sorted(public_codes))
+        public_codes = frozenset(PUBLIC_RAW_METRIC_IDS)
+        codes_filter = ",".join(PUBLIC_RAW_METRIC_IDS)
         reports = await supabase._rest_request(
             "GET",
             (
                 "/rest/v1/reports?publication_status=eq.published"
-                "&select=id,village_id,published_at,"
+                "&select=village_id,published_at,"
                 "report_periods!inner(name,commune_id),"
                 "villages!inner(commune_id),"
                 "report_values!inner(ct_code,value)"
@@ -1816,15 +1829,26 @@ async def get_public_reports(
                 or str(village_scope.get("commune_id", "")) != commune_id
             ):
                 continue
-            values_dict = {
-                v["ct_code"]: v["value"]
-                for v in r.get("report_values", [])
-                if v["ct_code"] in public_codes
-            }
+            values_dict: dict[str, int | None] = {}
+            raw_values = r.get("report_values")
+            for value_row in raw_values if isinstance(raw_values, list) else []:
+                if not isinstance(value_row, dict):
+                    continue
+                code = str(value_row.get("ct_code") or "")
+                value = value_row.get("value")
+                if code not in public_codes:
+                    continue
+                if value is None:
+                    values_dict[code] = None
+                elif (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                ):
+                    values_dict[code] = value
 
             result.append(
                 {
-                    "id": r["id"],
                     "village_id": r["village_id"],
                     "report_period": period_scope.get("name", "Unknown"),
                     "published_at": r.get("published_at"),

@@ -1989,11 +1989,8 @@ export interface components {
             proposed_by_phone: string;
             /** Proposed Value */
             proposed_value: number;
-            /**
-             * Report Id
-             * Format: uuid
-             */
-            report_id: string;
+            /** Report Period */
+            report_period: string;
             /** Submitter Address */
             submitter_address?: string | null;
             /** Submitter Household */
@@ -2012,18 +2009,8 @@ export interface components {
         CitizenPendingUpdateResponse: {
             /** Ct Code */
             ct_code: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
             /** Proposed Value */
             proposed_value: number;
-            /**
-             * Report Id
-             * Format: uuid
-             */
-            report_id: string;
             /** Status */
             status: string;
             /** Tracking Code */
@@ -2568,6 +2555,25 @@ export interface components {
             /** Status */
             status: string;
             /** Village Id */
+            village_id: string;
+        };
+        /**
+         * PublicReportResponse
+         * @description Minimal published evidence contract; no report/workflow/lineage IDs.
+         */
+        PublicReportResponse: {
+            /** Published At */
+            published_at: string | null;
+            /** Report Period */
+            report_period: string;
+            /** Values */
+            values: {
+                [key: string]: number | null;
+            };
+            /**
+             * Village Id
+             * Format: uuid
+             */
             village_id: string;
         };
         /** RejectedReportItem */
@@ -6232,7 +6238,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PublicReportResponse"][];
                 };
             };
         };

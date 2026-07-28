@@ -1083,9 +1083,10 @@
             "title": "Proposed Value",
             "type": "integer"
           },
-          "report_id": {
-            "format": "uuid",
-            "title": "Report Id",
+          "report_period": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Report Period",
             "type": "string"
           },
           "submitter_address": {
@@ -1144,7 +1145,7 @@
         },
         "required": [
           "village_id",
-          "report_id",
+          "report_period",
           "ct_code",
           "proposed_value",
           "proposed_by_phone",
@@ -1159,19 +1160,9 @@
             "title": "Ct Code",
             "type": "string"
           },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
           "proposed_value": {
             "title": "Proposed Value",
             "type": "integer"
-          },
-          "report_id": {
-            "format": "uuid",
-            "title": "Report Id",
-            "type": "string"
           },
           "status": {
             "title": "Status",
@@ -1190,8 +1181,6 @@
           }
         },
         "required": [
-          "id",
-          "report_id",
           "ct_code",
           "proposed_value",
           "status"
@@ -2824,6 +2813,62 @@
           "sla_status"
         ],
         "title": "ProposalResponse",
+        "type": "object"
+      },
+      "PublicReportResponse": {
+        "description": "Minimal published evidence contract; no report/workflow/lineage IDs.",
+        "properties": {
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "report_period": {
+            "title": "Report Period",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "propertyNames": {
+              "enum": [
+                "CT01",
+                "CT02",
+                "CT09",
+                "CT12",
+                "CT13"
+              ]
+            },
+            "title": "Values",
+            "type": "object"
+          },
+          "village_id": {
+            "format": "uuid",
+            "title": "Village Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_id",
+          "report_period",
+          "published_at",
+          "values"
+        ],
+        "title": "PublicReportResponse",
         "type": "object"
       },
       "RejectedReportItem": {
@@ -9637,7 +9682,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicReportResponse"
+                  },
+                  "title": "Response Get Public Reports Reports Public Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
