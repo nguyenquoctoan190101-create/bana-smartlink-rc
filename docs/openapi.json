@@ -1410,6 +1410,17 @@
             "title": "Assisted Report Count",
             "type": "integer"
           },
+          "ct02_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct02 Total"
+          },
           "ct13_total": {
             "anyOf": [
               {
@@ -1421,6 +1432,17 @@
             ],
             "title": "Ct13 Total"
           },
+          "guided_people_per_1000": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guided People Per 1000"
+          },
           "has_report_data": {
             "title": "Has Report Data",
             "type": "boolean"
@@ -1428,6 +1450,18 @@
           "interpretation": {
             "title": "Interpretation",
             "type": "string"
+          },
+          "metric_interpretation_limit": {
+            "title": "Metric Interpretation Limit",
+            "type": "string"
+          },
+          "metric_registry_version": {
+            "title": "Metric Registry Version",
+            "type": "string"
+          },
+          "missing_ct02_report_count": {
+            "title": "Missing Ct02 Report Count",
+            "type": "integer"
           },
           "missing_ct13_report_count": {
             "title": "Missing Ct13 Report Count",
@@ -1442,6 +1476,18 @@
             "title": "Period Name",
             "type": "string"
           },
+          "scope": {
+            "enum": [
+              "commune",
+              "assigned_villages"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "scope_village_count": {
+            "title": "Scope Village Count",
+            "type": "integer"
+          },
           "submitted_report_count": {
             "title": "Submitted Report Count",
             "type": "integer"
@@ -1452,16 +1498,28 @@
             },
             "title": "Villages",
             "type": "array"
+          },
+          "zero_ct02_report_count": {
+            "title": "Zero Ct02 Report Count",
+            "type": "integer"
           }
         },
         "required": [
           "period_id",
           "period_name",
+          "scope",
+          "scope_village_count",
           "has_report_data",
           "submitted_report_count",
           "assisted_report_count",
+          "ct02_total",
           "ct13_total",
+          "guided_people_per_1000",
+          "metric_registry_version",
+          "metric_interpretation_limit",
+          "missing_ct02_report_count",
           "missing_ct13_report_count",
+          "zero_ct02_report_count",
           "villages",
           "interpretation"
         ],
@@ -4448,6 +4506,17 @@
             "title": "Assisted Report Count",
             "type": "integer"
           },
+          "ct02_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ct02 Value"
+          },
           "ct13_value": {
             "anyOf": [
               {
@@ -4458,6 +4527,36 @@
               }
             ],
             "title": "Ct13 Value"
+          },
+          "data_status": {
+            "enum": [
+              "not_submitted",
+              "incomplete",
+              "complete"
+            ],
+            "title": "Data Status",
+            "type": "string"
+          },
+          "guided_people_per_1000": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guided People Per 1000"
+          },
+          "next_action": {
+            "enum": [
+              "create_report",
+              "complete_report",
+              "record_assistance",
+              "view_work_queue"
+            ],
+            "title": "Next Action",
+            "type": "string"
           },
           "report_id": {
             "anyOf": [
@@ -4486,7 +4585,11 @@
           "village_name",
           "report_id",
           "assisted_report_count",
-          "ct13_value"
+          "ct02_value",
+          "ct13_value",
+          "guided_people_per_1000",
+          "data_status",
+          "next_action"
         ],
         "title": "VillageCnscdImpactResponse",
         "type": "object"
