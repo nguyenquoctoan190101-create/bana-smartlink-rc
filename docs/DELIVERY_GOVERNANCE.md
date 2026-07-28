@@ -9,6 +9,14 @@ tại. Mọi tuyên bố nghiệm thu phải trỏ tới commit và bằng chứ
 
 - GitHub `main` là nguồn mã duy nhất. Không phát hành trực tiếp từ ZIP, thư mục
   Downloads hoặc nhánh làm việc.
+- `main` phải được bảo vệ và áp dụng cả với quản trị viên: chỉ nhận thay đổi qua
+  pull request, bắt buộc nhánh cập nhật với `main`, bốn cổng CI đa nền tảng/cơ
+  sở dữ liệu/chuỗi cung ứng phải đạt, mọi hội thoại review phải được giải quyết,
+  không force-push và không xóa nhánh.
+- GitHub Actions phải được pin bằng commit SHA bất biến. CodeQL quét Python và
+  JavaScript/TypeScript trên pull request, `main` và lịch tuần; Dependency
+  Review chặn phụ thuộc mới từ mức nghiêm trọng vừa; Dependabot theo dõi npm,
+  pip và GitHub Actions. Secret scanning và push protection phải luôn bật.
 - Một thay đổi tồn tại trong mã nguồn không đồng nghĩa đã được triển khai, bật
   trên production hoặc được đơn vị sử dụng phê duyệt.
 - Tài liệu phải phân biệt ba trạng thái: **đã kiểm chứng tự động**, **cần bằng

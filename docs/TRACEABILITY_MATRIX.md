@@ -29,6 +29,7 @@
 | OpenAPI là contract | Router mới và type TypeScript sinh tự động | CI regenerate + reject drift | Đạt |
 | Frontend import/review | `LegacyBatchImport.tsx`, cảnh báo thiếu/trùng/lỗi, reason bắt buộc, eligible/excluded | Typecheck, frontend test, build | Đạt tự động; cần browser UAT |
 | CI đa nền tảng | Ubuntu + Windows, PostgreSQL, coverage, SAST/SCA, secret scan, SBOM | GitHub Actions run `29481161327` | Đạt |
+| Quản trị GitHub và chuỗi cung ứng fail-closed | `main` bắt buộc PR + bốn status check + hội thoại đã giải quyết, cấm force-push/xóa; action pin SHA; CodeQL hai ngôn ngữ; Dependency Review; Dependabot npm/pip/actions; secret push protection | `test_github_security_contract.py`, GitHub branch protection/security settings, CodeQL alerts | Không dùng CI chạy trùng trên push nhánh tính năng; database-contract bao phủ cả migration ngày 20260727 |
 | Coverage | Tổng routers/services >=80%; nhánh security-critical 100% | `coverage.xml`, `test-results.xml`; cần lưu lại bằng CI artifact | 84,18% tổng; 100% nhánh trọng yếu trên candidate cục bộ |
 | Bản Render sau sửa | Chỉ deploy sau migration staging và merge PR | `STAGING_UPGRADE_20260716.md` | Chưa thực hiện, gate bên ngoài |
 | Dữ liệu thật/production | UAT, privacy/legal, rotate secret, backup/restore, approval | `production_gate.py`, runbook | Chưa xác nhận; không được tuyên bố production-ready |

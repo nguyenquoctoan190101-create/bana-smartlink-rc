@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,12 +19,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
           cache: pip
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
           cache: npm
@@ -56,7 +58,7 @@ jobs:
         run: npm run test:a11y
       - name: Upload browser accessibility evidence
         if: always() && runner.os == 'Linux'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: browser-accessibility-evidence-${{ matrix.os }}
           path: |
@@ -69,7 +71,7 @@ jobs:
         run: python scripts/release_check.py
       - name: Upload backend test evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: backend-test-evidence-${{ matrix.os }}
           path: |
@@ -81,13 +83,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
           cache: npm
@@ -104,12 +106,25 @@ jobs:
         run: npx --yes @cyclonedx/cyclonedx-npm --output-file node-sbom.json
       - name: Generate Python SBOM
         run: cyclonedx-py requirements requirements-prod.txt --output-file python-sbom.json
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: sbom
           path: |
             node-sbom.json
             python-sbom.json
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Reject vulnerable dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+        with:
+          fail-on-severity: moderate
 
   database-contract:
     runs-on: ubuntu-latest
@@ -130,7 +145,7 @@ jobs:
     env:
       PGPASSWORD: postgres
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Bootstrap Supabase-compatible roles
         run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_test_bootstrap.sql
       - name: Migrate a blank database
@@ -139,7 +154,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_function_grant_snapshot.sql
       - name: Apply ordered release-candidate overlay migrations
         run: |
-          for migration in migrations/20260715_*.sql migrations/20260718_*.sql migrations/20260722_*.sql migrations/20260723_*.sql migrations/20260726_*.sql migrations/20260728_*.sql; do
+          for migration in migrations/20260715_*.sql migrations/20260718_*.sql migrations/20260722_*.sql migrations/20260723_*.sql migrations/20260726_*.sql migrations/20260727_*.sql migrations/20260728_*.sql; do
             psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f "$migration"
           done
       - name: Verify migration overlay and database validation gate
