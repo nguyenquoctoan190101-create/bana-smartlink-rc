@@ -104,6 +104,14 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
       const [caseRows, ruleRows] = await Promise.all([apiJson<CaseItem[]>("/api/cases"), apiJson<RoutingRule[]>("/api/cases/routing-rules")]);
       setCases(caseRows);
       setRules(ruleRows);
+      setStatusFilter((current) => {
+        const hasOpenCases = caseRows.some(
+          (item) => !terminalStatuses.includes(item.status),
+        );
+        return current === "open" && !hasOpenCases && caseRows.length > 0
+          ? "all"
+          : current;
+      });
       setDepartments((current) => {
         const next = { ...current };
         for (const item of caseRows) {
@@ -220,7 +228,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
         <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
-            <strong>Thời hạn xử lý đang dùng cấu hình thử nghiệm.</strong>
+            <strong>Dữ liệu minh họa · Thời hạn xử lý đang dùng cấu hình thử nghiệm.</strong>
             <p className="mt-1">Danh mục đơn vị và thời hạn bên dưới chưa phải cam kết hành chính chính thức; cần UBND xã rà soát trước khi vận hành chính thức.</p>
           </div>
         </div>
@@ -244,6 +252,12 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
           <div>
             <h2 className="text-lg font-bold text-slate-900">Hàng đợi xử lý</h2>
             <p className="mt-1 text-sm text-slate-600">Lãnh đạo và cán bộ thôn chỉ xem; quản trị xã xác nhận phân công, Tổ công nghệ số cộng đồng được cập nhật tiến độ.</p>
+            {statusFilter === "all" && open.length === 0 && cases.length > 0 && (
+              <p className="mt-2 text-sm font-semibold text-emerald-800" role="status">
+                Không có phản ánh đang mở; hệ thống đang hiển thị toàn bộ hồ sơ
+                gần nhất để tránh một hàng đợi trống.
+              </p>
+            )}
           </div>
           <label className="text-sm font-semibold text-slate-700">
             Trạng thái
@@ -260,7 +274,7 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
         </div>
 
         <div className="space-y-4 p-5">
-          {!visibleCases.length && <EmptyState title="Chưa có phản ánh trong bộ lọc" description="Phản ánh mới từ cổng người dân sẽ xuất hiện tại đây, theo đúng phạm vi thôn và vai trò." />}
+          {!visibleCases.length && <EmptyState title="Chưa có phản ánh trong bộ lọc" description="Hãy chọn “Tất cả” để xem hồ sơ đã hoàn thành; phản ánh mới từ cổng người dân sẽ xuất hiện tại đây theo đúng phạm vi quyền." />}
           {visibleCases.map((item) => {
             const isTerminal = ["completed", "out_of_scope", "rejected"].includes(item.status);
             const isOverdue = Boolean(item.sla_due_at) && new Date(item.sla_due_at as string).getTime() < Date.now() && !isTerminal;
@@ -388,7 +402,14 @@ export default function CaseManagement({ role, villages }: { role: UserRole; vil
           <h2 className="text-lg font-bold text-slate-900">Danh mục và thời hạn xử lý</h2>
           <p className="mt-1 text-sm text-slate-600">Phiên bản {rules[0]?.sla_version || "chưa cấu hình"}. Thời gian là mục tiêu xử lý nội bộ của cấu hình thử nghiệm, không phải cam kết pháp lý.</p>
         </div>
-        <div className="overflow-x-auto">
+        <div
+          className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
+          tabIndex={0}
+          aria-label="Bảng danh mục và thời hạn xử lý; có thể cuộn ngang trên màn hình nhỏ"
+        >
+          <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
+            Vuốt ngang để xem thêm →
+          </span>
           <table className="min-w-[900px]">
             <thead>
               <tr>

@@ -98,12 +98,18 @@ export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }:
   }
 
   const complete = data.has_report_data && data.missing_ct13_report_count === 0;
+  const assistanceRate =
+    data.submitted_report_count > 0
+      ? Math.round(
+          (data.assisted_report_count / data.submitted_report_count) * 100,
+        )
+      : null;
   return (
     <section className="space-y-5" aria-labelledby="cnscd-title">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">THEO DÕI HỖ TRỢ</p>
-          <h1 id="cnscd-title" className="mt-1 text-2xl font-bold text-slate-950">Tình hình hỗ trợ lập báo cáo</h1>
+          <h1 id="cnscd-title" className="mt-1 text-2xl font-bold text-slate-950">Kết quả hỗ trợ chuyển đổi số</h1>
           <p className="mt-2 text-sm text-slate-600">{data.period_name} · Phạm vi toàn xã · Nguồn: báo cáo đã được quyền xem</p>
         </div>
         {periods.length > 0 ? (
@@ -137,10 +143,21 @@ export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }:
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+        <Users className="h-5 w-5 shrink-0" aria-hidden="true" />
+        <p>
+          “Báo cáo có hỗ trợ” ghi nhận việc Tổ công nghệ số tham gia lập báo
+          cáo; CT13 ghi số người dân được hướng dẫn sử dụng dịch vụ công trực
+          tuyến. Hai số đo khác phạm vi, đơn vị và không được cộng hoặc suy
+          diễn trực tiếp cho nhau.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Báo cáo đã nộp", data.submitted_report_count.toLocaleString("vi-VN"), "báo cáo"],
           ["Có Tổ công nghệ số hỗ trợ", data.has_report_data ? data.assisted_report_count.toLocaleString("vi-VN") : "—", data.has_report_data ? "báo cáo" : "Chưa có báo cáo"],
+          ["Tỷ lệ báo cáo có hỗ trợ", assistanceRate === null ? "—" : `${assistanceRate}%`, assistanceRate === null ? "Chưa có mẫu số" : `${data.assisted_report_count}/${data.submitted_report_count} báo cáo đã nộp`],
           ["Người được hướng dẫn sử dụng dịch vụ công trực tuyến", showNumber(data.ct13_total), data.ct13_total === null ? "Chưa đủ dữ liệu" : "người"],
         ].map(([label, value, context]) => (
           <article key={label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -156,7 +173,10 @@ export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }:
           <h2 className="font-semibold text-slate-950">Tổng hợp theo thôn</h2>
           <p className="mt-1 text-sm text-slate-600">Dấu “—” nghĩa là chưa có dữ liệu, không phải số 0.</p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng kết quả hỗ trợ theo thôn; có thể cuộn ngang trên màn hình nhỏ">
+          <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
+            Vuốt ngang để xem thêm →
+          </span>
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-700"><tr><th className="px-5 py-3">Thôn</th><th className="px-5 py-3">Trạng thái báo cáo</th><th className="px-5 py-3 text-right">Báo cáo có hỗ trợ</th><th className="px-5 py-3 text-right">Số người được hướng dẫn (CT13)</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
@@ -171,10 +191,6 @@ export default function CnscdImpact({ selectedPeriod, periods = EMPTY_PERIODS }:
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-        <Users className="h-5 w-5 shrink-0" aria-hidden="true" /><p>Số báo cáo có hỗ trợ và số người được hướng dẫn là hai chỉ tiêu khác đơn vị, được hiển thị riêng và không dùng để tính chênh lệch.</p>
       </div>
     </section>
   );

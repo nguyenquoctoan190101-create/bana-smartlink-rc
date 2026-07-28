@@ -3,7 +3,6 @@ import {
   Award, 
   Globe, 
   Database, 
-  ArrowLeft, 
   Calendar, 
   HelpCircle, 
   Loader2, 
@@ -12,6 +11,7 @@ import {
 import { apiFetch, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
 import { Button, WorkSection } from "./ui";
+import "./PolicyScorecard.css";
 
 interface PolicyMetric {
   numerator: number;
@@ -28,7 +28,6 @@ interface ScorecardData {
 }
 
 export default function PolicyScorecard({
-  onBackToDashboard,
   preferredPeriodId = "",
 }: {
   onBackToDashboard?: () => void;
@@ -117,10 +116,9 @@ export default function PolicyScorecard({
     : "";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-150 p-6 sm:p-8 shadow-xs max-w-4xl mx-auto space-y-8 animate-fade-in">
+    <div className="policy-scorecard-screen bg-white rounded-2xl border border-slate-150 p-5 sm:p-6 shadow-xs max-w-6xl mx-auto space-y-5 animate-fade-in">
       
-      {/* Header section with back option */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs uppercase tracking-wider">
             <Award className="w-4 h-4" />
@@ -134,15 +132,6 @@ export default function PolicyScorecard({
           </p>
         </div>
 
-        {onBackToDashboard && (
-          <button
-            onClick={onBackToDashboard}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200/60 hover:bg-slate-100 hover:text-slate-900 transition-all cursor-pointer self-start sm:self-center"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại trang chủ</span>
-          </button>
-        )}
       </div>
 
       <WorkSection
@@ -163,24 +152,23 @@ export default function PolicyScorecard({
             </div>
           </div>
 
-          <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-3xs w-full sm:w-auto overflow-x-auto">
-            {availablePeriods.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  userSelectedPeriodRef.current = true;
-                  setSelectedPeriod(p.id);
-                }}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  selectedPeriod === p.id
-                    ? "bg-emerald-800 text-white shadow-xs"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-                }`}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
+          <label className="w-full text-sm font-bold text-slate-700 sm:max-w-sm">
+            <span className="sr-only">Chọn kỳ báo cáo</span>
+            <select
+              className="w-full bg-white"
+              value={selectedPeriod}
+              onChange={(event) => {
+                userSelectedPeriodRef.current = true;
+                setSelectedPeriod(event.target.value);
+              }}
+            >
+              {availablePeriods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {period.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </WorkSection>
 

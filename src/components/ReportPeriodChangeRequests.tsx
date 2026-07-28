@@ -29,7 +29,7 @@ type ChangeDecision = {
   decider_name: string;
 };
 
-type ChangeRequest = {
+export type ChangeRequest = {
   id: string;
   period_id: string;
   period_name: string;
@@ -68,6 +68,38 @@ const toDateTimeLocal = (value: string) => {
 
 const sameIds = (left: string[], right: string[]) =>
   [...left].sort().join("|") === [...right].sort().join("|");
+
+const CLEAR_DEMO_MARKERS = [
+  /\b(?:demo|test)\b/iu,
+  /\bkiểm thử\b/iu,
+  /kiểm tra tính năng/iu,
+  /không phải kỳ thật/iu,
+  /(?:^|[^\d])(?:0|00|1[3-9])\s*\/\s*\d{4}(?:[^\d]|$)/u,
+];
+
+export const isClearlyDemoPeriodChangeRequest = (
+  request: ChangeRequest,
+): boolean => {
+  const searchableValues = [
+    request.period_name,
+    request.reason,
+    request.requester_name,
+    request.before_snapshot?.name,
+    request.proposed_snapshot?.name,
+    request.decision?.reason,
+    request.decision?.decider_name,
+  ];
+  return searchableValues.some(
+    (value) =>
+      typeof value === "string" &&
+      CLEAR_DEMO_MARKERS.some((pattern) => pattern.test(value.trim())),
+  );
+};
+
+export const filterDisplayablePeriodChangeRequests = (
+  requests: readonly ChangeRequest[],
+): ChangeRequest[] =>
+  requests.filter((request) => !isClearlyDemoPeriodChangeRequest(request));
 
 export default function ReportPeriodChangeRequests({ role, periods }: Props) {
   const { villages } = useVillages();
@@ -187,8 +219,16 @@ export default function ReportPeriodChangeRequests({ role, periods }: Props) {
     }
   };
 
-  const pending = requests.filter((request) => request.status === "pending");
-  const history = requests.filter((request) => request.status !== "pending");
+  const displayableRequests = useMemo(
+    () => filterDisplayablePeriodChangeRequests(requests),
+    [requests],
+  );
+  const pending = displayableRequests.filter(
+    (request) => request.status === "pending",
+  );
+  const history = displayableRequests.filter(
+    (request) => request.status !== "pending",
+  );
 
   const renderSnapshot = (title: string, snapshot: Snapshot) => (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -227,7 +267,7 @@ export default function ReportPeriodChangeRequests({ role, periods }: Props) {
           renderSnapshot("Thông tin đề nghị thay đổi", request.proposed_snapshot)
         ) : (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-rose-900">
-            <b>Ảnh hưởng khi phê duyệt:</b> kỳ này sẽ được ẩn khỏi các màn hình đang hoạt động. Báo cáo đã có và toàn bộ lịch sử vẫn được giữ nguyên, không xóa vật lý.
+            <b>Ảnh hưởng khi phê duyệt:</b> kỳ này sẽ được ẩn khỏi các màn hình đang hoạt động. Báo cáo đã có và lịch sử liên quan tiếp tục được lưu theo chính sách do UBND xã phê duyệt; không xóa vật lý qua giao diện.
           </div>
         )}
       </div>
@@ -257,7 +297,7 @@ export default function ReportPeriodChangeRequests({ role, periods }: Props) {
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">Kiểm soát thay đổi</p>
             <h1 id="period-change-title" className="mt-1 text-2xl font-black">{role === "admin_xa" ? "Yêu cầu điều chỉnh hoặc lưu trữ kỳ báo cáo" : "Phê duyệt thay đổi kỳ báo cáo"}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100">Mọi yêu cầu và quyết định được lưu vĩnh viễn, không cho phép sửa hoặc xóa. Việc lưu trữ kỳ không làm mất báo cáo đã nộp.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100">Yêu cầu và quyết định được lưu theo thời hạn và chính sách do UBND xã phê duyệt, cấu hình; không cho phép sửa trực tiếp hoặc xóa vật lý qua giao diện. Việc lưu trữ kỳ không làm mất báo cáo đã nộp.</p>
           </div>
         </div>
       </header>
@@ -294,7 +334,7 @@ export default function ReportPeriodChangeRequests({ role, periods }: Props) {
             </div>
           )}
 
-          {requestKind === "delete" && <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-rose-900"><b>Không xóa vật lý:</b> sau khi lãnh đạo phê duyệt, kỳ được ẩn khỏi danh sách hoạt động; báo cáo, căn cứ và lịch sử vẫn được giữ nguyên.</div>}
+          {requestKind === "delete" && <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-relaxed text-rose-900"><b>Không xóa vật lý:</b> sau khi lãnh đạo phê duyệt, kỳ được ẩn khỏi danh sách hoạt động; báo cáo, căn cứ và lịch sử liên quan tiếp tục được lưu theo chính sách đã phê duyệt.</div>}
 
           <div className="mt-5 border-t border-slate-200 pt-5">
             <label htmlFor="period-change-reason" className="block text-sm font-bold text-slate-700">Lý do đề nghị <span className="text-rose-700">*</span></label>
@@ -312,7 +352,7 @@ export default function ReportPeriodChangeRequests({ role, periods }: Props) {
       )}
 
       <section aria-labelledby="change-history-title" className="space-y-4">
-        <div className="flex items-center gap-2"><Clock3 className="h-5 w-5 text-emerald-800" /><h2 id="change-history-title" className="text-xl font-black text-slate-900">Lịch sử quyết định bất biến</h2></div>
+        <div className="flex items-center gap-2"><Clock3 className="h-5 w-5 text-emerald-800" /><h2 id="change-history-title" className="text-xl font-black text-slate-900">Lịch sử yêu cầu và quyết định</h2></div>
         {loading && role === "admin_xa" ? <p role="status" className="text-sm text-slate-600">Đang tải lịch sử…</p> : history.length ? history.map((request) => renderRequest(request)) : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">Chưa có yêu cầu nào đã được quyết định.</div>}
         {role === "admin_xa" && pending.length > 0 && <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-950"><b>Đang chờ:</b> {pending.length} yêu cầu chưa được lãnh đạo quyết định.</div>}
       </section>

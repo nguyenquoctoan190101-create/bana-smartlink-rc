@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, CheckCircle2, MapPin, RefreshCw, Send } from "lucide-react";
+import { CheckCircle2, MapPin, RefreshCw, Send } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { Button, EmptyState, SectionCard } from "./ui";
 
@@ -46,6 +46,15 @@ export default function CitizenCasePanel({
   const [result, setResult] = useState<CaseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (
+      villages.length &&
+      !villages.some((village) => village.id === villageId)
+    ) {
+      setVillageId(villages[0].id);
+    }
+  }, [villageId, villages]);
 
   const captureLocation = () => {
     setError(null);
@@ -149,7 +158,10 @@ export default function CitizenCasePanel({
             {result.tracking_code}
           </p>
         </div>
-        <Button className="mt-6" onClick={onBack}>
+        <Button
+          className="mt-6 w-full justify-center sm:w-auto"
+          onClick={onBack}
+        >
           Về cổng dữ liệu
         </Button>
       </SectionCard>
@@ -157,27 +169,17 @@ export default function CitizenCasePanel({
 
   return (
     <SectionCard className="mx-auto max-w-3xl p-5 md:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold text-emerald-800">
-            PHẢN ÁNH HIỆN TRƯỜNG
-          </p>
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">
-            Báo sự cố để xã xử lý
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Không cần tài khoản. Chỉ gửi thông tin bạn đồng ý chia sẻ; kết quả
-            công khai không hiển thị thông tin cá nhân.
-          </p>
-        </div>
-        <Button
-          className="shrink-0 whitespace-nowrap"
-          variant="secondary"
-          onClick={onBack}
-        >
-          <ArrowLeft />
-          Quay lại
-        </Button>
+      <div>
+        <p className="text-xs font-bold text-emerald-800">
+          PHẢN ÁNH HIỆN TRƯỜNG
+        </p>
+        <h2 className="mt-2 text-2xl font-bold text-slate-900">
+          Báo sự cố để xã xử lý
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Không cần tài khoản. Chỉ gửi thông tin bạn đồng ý chia sẻ; kết quả
+          công khai không hiển thị thông tin cá nhân.
+        </p>
       </div>
       {error && (
         <div
@@ -234,14 +236,19 @@ export default function CitizenCasePanel({
           />
         </label>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-bold text-slate-900">Vị trí (tùy chọn)</h3>
               <p className="mt-1 text-xs text-slate-600">
                 Chỉ lấy khi bạn bấm nút; không theo dõi nền.
               </p>
             </div>
-            <Button type="button" variant="secondary" onClick={captureLocation}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full justify-center sm:w-auto"
+              onClick={captureLocation}
+            >
               <MapPin />
               {location ? "Đã lấy vị trí" : "Lấy vị trí hiện tại"}
             </Button>
@@ -284,8 +291,8 @@ export default function CitizenCasePanel({
               setMedia(files);
             }}
           />
-          <span className="mt-1.5 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700">
-            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-semibold text-emerald-800">
+          <span className="mt-1.5 flex min-h-12 cursor-pointer flex-col items-stretch gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-700 sm:flex-row sm:items-center sm:gap-3">
+            <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-center font-semibold text-emerald-800">
               Chọn ảnh
             </span>
             <span>
@@ -333,7 +340,11 @@ export default function CitizenCasePanel({
             báo quyền riêng tư.
           </span>
         </label>
-        <Button type="submit" disabled={busy || !consent}>
+        <Button
+          type="submit"
+          className="w-full justify-center sm:w-auto"
+          disabled={busy || !consent}
+        >
           {busy ? <RefreshCw className="animate-spin" /> : <Send />}Gửi phản ánh
         </Button>
       </form>

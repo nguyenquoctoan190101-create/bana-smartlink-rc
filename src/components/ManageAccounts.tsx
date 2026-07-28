@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
+import "./ManageAccounts.css";
 import { ErrorState, WorkSection } from "./ui";
 
 interface Officer {
@@ -367,6 +368,7 @@ export default function ManageAccounts() {
             <button 
               type="button" 
               onClick={() => setShowCreateForm(false)} 
+              aria-label="Đóng biểu mẫu tạo tài khoản"
               className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -489,7 +491,11 @@ export default function ManageAccounts() {
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
             <h3 className="text-xs font-black text-slate-800 flex items-center gap-2 uppercase tracking-wide shrink-0">
               <Users className="w-5 h-5 text-emerald-950" />
-              <span>Danh sách tài khoản cán bộ ({filteredOfficers.length} thành viên)</span>
+              <span>
+                Danh sách tài khoản cán bộ (
+                {isLoading ? "đang tải" : `${filteredOfficers.length} thành viên`}
+                )
+              </span>
             </h3>
 
             {/* Quick search input */}
@@ -499,6 +505,7 @@ export default function ManageAccounts() {
               </span>
               <input
                 type="text"
+                aria-label="Tìm kiếm tài khoản cán bộ"
                 placeholder="Tìm kiếm họ tên, email, số điện thoại…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

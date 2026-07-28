@@ -33,6 +33,7 @@ import { validateReportIndicators } from "../lib/reportValidation";
 import { useAuth } from "../lib/AuthContext";
 import { useVillages } from "../lib/useVillages";
 import { useReportPeriods } from "../lib/useReportPeriods";
+import "./ReportForm.css";
 import { Button, PageHeader, SectionCard, StickyActionBar } from "./ui";
 
 interface ReportFormProps {
@@ -758,43 +759,39 @@ export default function ReportForm({
         </div>
       )}
 
-      <SectionCard className="border-emerald-100 bg-emerald-50/40 p-4">
-        <h2 className="text-sm font-bold text-emerald-950">
-          Một luồng báo cáo từ đầu đến cuối
-        </h2>
-        <p className="mt-1 text-xs text-slate-600">
-          Đi theo thứ tự; dữ liệu chỉ được ghi nhận sau khi cán bộ xác nhận và
-          máy chủ tiếp nhận.
-        </p>
-        <ol className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2 xl:grid-cols-7">
+      <details className="report-section-guide">
+        <summary>
+          <span>
+            <b>7 nhóm nội dung của báo cáo</b>
+            <small>Mục 1/7 · Chọn phạm vi và kỳ báo cáo</small>
+          </span>
+          <span className="report-section-guide__hint">
+            Mở hướng dẫn
+          </span>
+        </summary>
+        <ol aria-label="Điều hướng các nhóm nội dung của biểu mẫu">
           {[
-            ["1", "Chọn kỳ", "Đúng kỳ và đúng thôn"],
-            [
-              "2",
-              "Tải hoặc nhập",
-              "Excel, ảnh/PDF khi được bật, hoặc nhập trực tiếp",
-            ],
-            ["3", "Kiểm tra", "Đối chiếu 14 chỉ tiêu và vị trí nguồn"],
-            ["4", "Sửa", "Ghi giá trị trước, sau và lý do"],
-            ["5", "Xác nhận", "Chịu trách nhiệm về nội dung"],
-            ["6", "Gửi", "Đưa vào hàng đợi an toàn"],
-            ["7", "Theo dõi", "Máy chủ xác nhận và xã rà soát"],
-          ].map(([number, title, detail]) => (
-            <li
-              key={number}
-              className="rounded-lg border border-emerald-100 bg-white p-3"
-            >
-              <span className="mb-2 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-800 text-[10px] font-black text-white">
-                {number}
-              </span>
-              <b className="block text-emerald-900">{title}</b>
-              <span className="mt-1 block leading-relaxed text-slate-600">
-                {detail}
-              </span>
+            ["1", "Phạm vi và kỳ", "#report-section-scope"],
+            ["2", "Nguồn dữ liệu", "#report-section-source"],
+            ["3", "14 chỉ tiêu", "#report-section-indicators"],
+            ["4", "Kiểm tra quy tắc", "#report-section-validation"],
+            ["5", "Nhận xét tùy chọn", "#report-section-narrative"],
+            ["6", "Xác nhận và gửi", "#report-section-submit"],
+            ["7", "Theo dõi tiếp nhận", "#report-section-submit"],
+          ].map(([number, title, href]) => (
+            <li key={number}>
+              <a href={href}>
+                <span>{number}</span>
+                {title}
+              </a>
             </li>
           ))}
         </ol>
-      </SectionCard>
+        <p>
+          Đây là một biểu mẫu liên tục. Dữ liệu chỉ được ghi nhận sau khi cán bộ
+          xác nhận và máy chủ tiếp nhận.
+        </p>
+      </details>
 
       {recoverableDraft && (
         <SectionCard
@@ -840,7 +837,7 @@ export default function ReportForm({
         {/* Indicators Form (Left 2 Columns) */}
         <div className="xl:col-span-2 space-y-6">
           {/* Metadata Section */}
-          <SectionCard className="p-5">
+          <SectionCard id="report-section-scope" className="p-5">
             <div className="mb-4">
               <h2 className="font-bold text-slate-900">Thông tin báo cáo</h2>
               <p className="mt-1 text-sm text-slate-600">
@@ -860,7 +857,13 @@ export default function ReportForm({
                   id="report-village"
                   value={villageId}
                   onChange={(e) => setVillageId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                  className={`report-scope-select w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-emerald-600 ${
+                    (userRole === "can_bo_thon" ||
+                      userRole === "to_cnscd") &&
+                    selectableVillages.length <= 1
+                      ? "report-scope-select--locked"
+                      : "bg-white"
+                  }`}
                   disabled={
                     (userRole === "can_bo_thon" || userRole === "to_cnscd") &&
                     selectableVillages.length <= 1
@@ -1027,13 +1030,15 @@ export default function ReportForm({
           )}
 
           {/* Upload Report with Smart Assistant (Excel/Image) */}
-          <UploadReport
-            onDataExtracted={handleDataExtracted}
-            onCancel={() => {}}
-          />
+          <div id="report-section-source" className="scroll-mt-24">
+            <UploadReport
+              onDataExtracted={handleDataExtracted}
+              onCancel={() => {}}
+            />
+          </div>
 
           {/* Indicators Input Fields */}
-          <div className="space-y-5">
+          <div id="report-section-indicators" className="scroll-mt-24 space-y-5">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <CheckSquare className="w-4 h-4 text-emerald-850" />
               <span>14 chỉ tiêu báo cáo</span>
@@ -1182,7 +1187,10 @@ export default function ReportForm({
         {/* Deterministic validation and optional AI narrative */}
         <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
           {/* Local Auditing Panel */}
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-5">
+          <div
+            id="report-section-validation"
+            className="scroll-mt-24 bg-slate-50 border border-slate-100 rounded-xl p-5"
+          >
             <h3 className="font-bold text-slate-700 text-sm mb-3">
               Kiểm tra theo quy tắc nghiệp vụ
             </h3>
@@ -1222,7 +1230,10 @@ export default function ReportForm({
           </div>
 
           {/* Optional AI narrative panel */}
-          <div className="bg-gradient-to-br from-emerald-50/50 to-emerald-100/10 border border-emerald-100/70 rounded-xl p-5">
+          <div
+            id="report-section-narrative"
+            className="scroll-mt-24 bg-gradient-to-br from-emerald-50/50 to-emerald-100/10 border border-emerald-100/70 rounded-xl p-5"
+          >
             <div className="mb-3 flex flex-col items-start gap-2">
               <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
                 <Sparkles className="w-4.5 h-4.5 text-emerald-600" />
@@ -1381,27 +1392,29 @@ export default function ReportForm({
       )}
 
       {/* Actions Toolbar */}
-      <StickyActionBar>
-        <Button type="button" onClick={onCancel} variant="quiet">
-          <span className="sm:hidden">Quay lại</span>
-          <span className="hidden sm:inline">Hủy và quay lại</span>
-        </Button>
-        <Button type="button" onClick={handleSaveDraft} variant="secondary">
-          <Save className="w-4 h-4 text-slate-500" />
-          <span className="sm:hidden">Lưu nháp</span>
-          <span className="hidden sm:inline">Lưu nháp trên thiết bị</span>
-        </Button>
+      <div id="report-section-submit" className="scroll-mt-24">
+        <StickyActionBar>
+          <Button type="button" onClick={onCancel} variant="quiet">
+            <span className="sm:hidden">Quay lại</span>
+            <span className="hidden sm:inline">Hủy và quay lại</span>
+          </Button>
+          <Button type="button" onClick={handleSaveDraft} variant="secondary">
+            <Save className="w-4 h-4 text-slate-500" />
+            <span className="sm:hidden">Lưu nháp</span>
+            <span className="hidden sm:inline">Lưu nháp trên thiết bị</span>
+          </Button>
 
-        <Button
-          type="button"
-          onClick={handleInitiateSubmit}
-          disabled={localErrors.length > 0}
-        >
-          <Send className="w-4 h-4" />
-          <span className="sm:hidden">Kiểm tra</span>
-          <span className="hidden sm:inline">Kiểm tra trước khi gửi</span>
-        </Button>
-      </StickyActionBar>
+          <Button
+            type="button"
+            onClick={handleInitiateSubmit}
+            disabled={localErrors.length > 0}
+          >
+            <Send className="w-4 h-4" />
+            <span className="sm:hidden">Kiểm tra</span>
+            <span className="hidden sm:inline">Kiểm tra trước khi gửi</span>
+          </Button>
+        </StickyActionBar>
+      </div>
 
       {/* Submit Review Overlay Modal */}
       {showSubmitReview && (

@@ -212,9 +212,9 @@ export default function PrivacyPolicy({ isModalOnly = false, isModal = false, is
               xác nhận và không quyết định tính hợp lệ của báo cáo.
             </p>
             <p>
-              Thời hạn lưu báo cáo, kiến nghị, nhật ký kiểm toán và bản sao lưu phải được UBND xã phê
-              duyệt và cấu hình trước khi đưa vào sử dụng; chức năng thử nghiệm không tự động cam kết hoặc áp dụng
-              một thời hạn chưa được phê duyệt.
+              Báo cáo, kiến nghị, nhật ký kiểm toán và bản sao lưu chỉ được lưu theo thời hạn và chính
+              sách do UBND xã phê duyệt, cấu hình trước khi đưa vào sử dụng. Hệ thống không tự đặt hoặc
+              áp dụng một thời hạn lưu khi chưa có phê duyệt.
             </p>
 
             <h3>4. Ai được quyền xem dữ liệu?</h3>

@@ -1,0 +1,131 @@
+.report-section-guide {
+  overflow: hidden;
+  scroll-margin-top: 5rem;
+  border: 1px solid #b9dbcd;
+  border-radius: 0.95rem;
+  background: #f3fbf7;
+  box-shadow: 0 3px 12px rgb(6 54 41 / 0.045);
+}
+
+.report-section-guide > summary {
+  display: flex;
+  min-height: 54px;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  color: var(--bn-green-deep);
+}
+
+.report-section-guide > summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-section-guide > summary span:first-child {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.report-section-guide > summary b {
+  font-size: 0.9rem;
+}
+
+.report-section-guide > summary small,
+.report-section-guide__hint {
+  color: var(--bn-muted);
+  font-size: 0.75rem;
+}
+
+.report-section-guide__hint {
+  flex: 0 0 auto;
+  font-weight: 800;
+}
+
+.report-section-guide[open] .report-section-guide__hint {
+  font-size: 0;
+}
+
+.report-section-guide[open] .report-section-guide__hint::after {
+  content: "Thu gọn";
+  font-size: 0.75rem;
+}
+
+.report-section-guide ol {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0 1rem 0.8rem;
+  list-style: none;
+}
+
+.report-section-guide li a {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #d3e7de;
+  border-radius: 0.65rem;
+  padding: 0.45rem;
+  background: #fff;
+  color: var(--bn-ink);
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.report-section-guide li a span {
+  display: grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--bn-green);
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+.report-section-guide > p {
+  margin: 0;
+  padding: 0 1rem 0.9rem;
+  color: var(--bn-muted);
+  font-size: 0.78rem;
+}
+
+.report-scope-select--locked:disabled {
+  appearance: none;
+  cursor: default;
+  opacity: 1;
+  color: #263b33;
+  background: #eef4f1;
+  -webkit-text-fill-color: #263b33;
+}
+
+@media (max-width: 1023px) {
+  .report-section-guide ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-form-screen .sticky-action-bar {
+    position: relative;
+    bottom: auto;
+    margin-bottom: 0;
+  }
+
+  .report-form-screen {
+    padding-bottom: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .report-section-guide ol {
+    grid-template-columns: 1fr;
+  }
+
+  .report-section-guide > summary {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,14 @@
+#manage-accounts-container
+  input[aria-label="Tìm kiếm tài khoản cán bộ"] {
+  padding-left: 2.45rem !important;
+}
+
+#manage-accounts-container > div:first-child {
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  #manage-accounts-container > div:first-child {
+    padding: 1rem;
+  }
+}

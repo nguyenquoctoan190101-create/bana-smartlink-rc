@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import NotificationCenter, {
   AppNotification,
@@ -109,5 +109,38 @@ describe("NotificationCenter", () => {
     expect(
       formatNotificationTime("2026-07-27T08:18:00+07:00", now),
     ).toBe("12 phút trước");
+  });
+
+  it("closes an open panel when application navigation changes the path", async () => {
+    const onToggleOpen = vi.fn();
+    window.history.replaceState({}, "", "/app/dashboard");
+    const { rerender } = render(
+      <NotificationCenter
+        notifications={notifications}
+        isOpen
+        variant="desktop"
+        soundEnabled
+        onToggleOpen={onToggleOpen}
+        onToggleSound={vi.fn()}
+        onSelect={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />,
+    );
+
+    window.history.pushState({}, "", "/app/cases");
+    rerender(
+      <NotificationCenter
+        notifications={notifications}
+        isOpen
+        variant="desktop"
+        soundEnabled
+        onToggleOpen={onToggleOpen}
+        onToggleSound={vi.fn()}
+        onSelect={vi.fn()}
+        onMarkAllRead={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(onToggleOpen).toHaveBeenCalledTimes(1));
   });
 });

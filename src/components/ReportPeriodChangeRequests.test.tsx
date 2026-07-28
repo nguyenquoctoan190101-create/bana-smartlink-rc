@@ -1,7 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ReportPeriodChangeRequests from "./ReportPeriodChangeRequests";
+import ReportPeriodChangeRequests, {
+  filterDisplayablePeriodChangeRequests,
+  type ChangeRequest,
+} from "./ReportPeriodChangeRequests";
 
 const mocks = vi.hoisted(() => ({
   apiJson: vi.fn(),
@@ -45,6 +48,45 @@ describe("ReportPeriodChangeRequests", () => {
     vi.clearAllMocks();
   });
 
+  it("filters only records that carry explicit demo markers without mutating the API rows", () => {
+    const realRequest: ChangeRequest = {
+      id: "real-request",
+      period_id: periods[0].id,
+      period_name: "Tháng 07/2026",
+      request_kind: "update",
+      reason: "Điều chỉnh theo văn bản rà soát đã ký.",
+      before_snapshot: {
+        name: "Tháng 07/2026",
+        due_date: periods[0].due_date,
+        village_ids: periods[0].village_ids,
+      },
+      proposed_snapshot: null,
+      requested_at: "2026-07-26T03:00:00Z",
+      requester_name: "Cán bộ xã",
+      status: "approved",
+      decision: {
+        id: "real-decision",
+        decision: "approved",
+        reason: "Đủ căn cứ để áp dụng.",
+        decided_at: "2026-07-27T03:00:00Z",
+        decider_name: "Lãnh đạo xã",
+      },
+    };
+    const demoRequest: ChangeRequest = {
+      ...realRequest,
+      id: "demo-request",
+      period_name: "Kỳ cần rà soát: 0/2026",
+      reason: "Hãy xóa vì đây làm kiểm thử",
+    };
+    const sourceRows = [demoRequest, realRequest];
+
+    expect(filterDisplayablePeriodChangeRequests(sourceRows)).toEqual([
+      realRequest,
+    ]);
+    expect(sourceRows).toHaveLength(2);
+    expect(sourceRows[0]).toBe(demoRequest);
+  });
+
   it("lets an administrator request a correction but does not edit the period directly", async () => {
     mocks.apiJson.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/report-periods/change-requests") return Promise.resolve([]);
@@ -57,6 +99,10 @@ describe("ReportPeriodChangeRequests", () => {
     render(<ReportPeriodChangeRequests role="admin_xa" periods={periods} />);
 
     const nameInput = await screen.findByLabelText("Tên kỳ đề nghị");
+    expect(screen.queryByText(/vĩnh viễn/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/thời hạn và chính sách do UBND xã phê duyệt/i),
+    ).toBeInTheDocument();
     fireEvent.change(nameInput, { target: { value: "Tháng 08/2026" } });
     fireEvent.change(
       screen.getByLabelText(/Lý do đề nghị/),

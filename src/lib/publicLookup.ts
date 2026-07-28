@@ -9,10 +9,13 @@ export function getPublicLookupEndpoint(code: string): string | null {
 const PUBLIC_CASE_CATEGORY_LABELS: Record<string, string> = {
   road: "Đường giao thông",
   drainage: "Thoát nước, ngập úng",
+  power: "Điện, chiếu sáng",
   lighting: "Điện, chiếu sáng",
   waste: "Rác thải",
   water: "Nước và cấp nước",
+  public_building: "Công trình công cộng",
   public_facility: "Công trình công cộng",
+  safety: "An toàn, nguy cơ khẩn cấp",
   emergency: "An toàn, nguy cơ khẩn cấp",
   other: "Nội dung khác",
 };

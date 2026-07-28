@@ -31,7 +31,7 @@ describe("KnowledgeCenter role boundaries", () => {
     render(<KnowledgeCenter role="lanh_dao" />);
 
     await screen.findByRole("heading", {
-      name: "Tài liệu và hỗ trợ nghiệp vụ",
+      name: "Kho tri thức và mạng lưới hỗ trợ",
     });
     await waitFor(() =>
       expect(mocks.apiJson).toHaveBeenCalledWith(

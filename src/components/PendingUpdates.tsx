@@ -3,6 +3,7 @@ import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 import { WorkSection } from "./ui";
+import "./PendingUpdates.css";
 
 interface PendingUpdatesProps {
   userRole: string;
@@ -294,7 +295,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
       )}
 
       {/* Separate the decision queue from the immutable audit trail. */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(22rem,1fr)]">
         {/* Main proposals list */}
         <WorkSection
           index="01"
@@ -302,7 +303,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
           description="Lọc riêng kiến nghị đang chờ và lịch sử đã xử lý; mỗi thẻ giữ đầy đủ số liệu cũ, số liệu đề xuất, căn cứ và hành động."
           tone="tasks"
           icon={<ClipboardCheck />}
-          className="lg:col-span-2"
+          className="min-w-0"
         >
           <div className="space-y-4">
           {/* Filters Tab */}
@@ -484,9 +485,9 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                 <p>Chưa có nhật ký thay đổi nào được ghi nhận.</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              <div className="space-y-3">
                 {auditLogs.map((log) => (
-                  <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-4xs space-y-2">
+                  <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-xs space-y-2">
                     <div className="flex justify-between items-start gap-1">
                       <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
                         {AUDIT_ACTION_LABELS[log.action] || "Thay đổi dữ liệu"}

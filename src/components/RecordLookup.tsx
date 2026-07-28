@@ -44,16 +44,41 @@ export default function RecordLookup() {
         title="Tra cứu hồ sơ"
         description="Dùng chung một mã tra cứu cho kiến nghị số liệu và phản ánh hiện trường. Kết quả không hiển thị thông tin cá nhân của người gửi."
       />
-      <SectionCard className="mx-auto max-w-2xl p-6 md:p-8">
+      <SectionCard className="mx-auto max-w-3xl p-5 sm:p-6 md:p-8">
         <div className="mb-5 flex items-start gap-3">
-          <span className="rounded-xl bg-emerald-50 p-3 text-emerald-800"><FileSearch aria-hidden="true" className="h-6 w-6" /></span>
+          <span className="shrink-0 rounded-xl bg-emerald-50 p-3 text-emerald-800"><FileSearch aria-hidden="true" className="h-6 w-6" /></span>
           <div>
             <h2 className="text-lg font-bold text-slate-950">Nhập mã đã được cấp</h2>
-            <p className="mt-1 text-sm text-slate-600">Mã kiến nghị có 16 ký tự; mã phản ánh hiện trường có 32 ký tự.</p>
+            <p id="record-lookup-help" className="mt-1 text-sm text-slate-600">Mã kiến nghị có 16 ký tự; mã phản ánh hiện trường có 32 ký tự.</p>
           </div>
         </div>
+        <div
+          className="grid gap-3 sm:grid-cols-2"
+          aria-label="Ví dụ định dạng mã tra cứu"
+        >
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-600">
+              Đề nghị đối chiếu · 16 ký tự
+            </p>
+            <code className="mt-1 block break-all text-xs font-bold tracking-wide text-emerald-800">
+              A1B2C3D4E5F6G7H8
+            </code>
+          </div>
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold text-slate-600">
+              Phản ánh hiện trường · 32 ký tự
+            </p>
+            <code className="mt-1 block break-all text-xs font-bold tracking-wide text-emerald-800">
+              A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6
+            </code>
+          </div>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          Ví dụ chỉ minh họa hình thức, không phải mã hồ sơ thật. Nhập liền các
+          ký tự đúng như mã được cấp.
+        </p>
         <form onSubmit={handleLookup} className="space-y-3">
-          <label htmlFor="internal-record-code" className="block text-sm font-semibold text-slate-800">Mã tra cứu</label>
+          <label htmlFor="internal-record-code" className="mt-5 block text-sm font-semibold text-slate-800">Mã tra cứu</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="internal-record-code"
@@ -62,10 +87,11 @@ export default function RecordLookup() {
               autoComplete="off"
               spellCheck={false}
               maxLength={32}
+              aria-describedby="record-lookup-help record-lookup-state-help"
               placeholder="Nhập mã 16 hoặc 32 ký tự"
               className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white px-4 font-mono text-sm uppercase outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
             />
-            <Button type="submit" disabled={isLoading} className="min-w-32 justify-center">
+            <Button type="submit" disabled={isLoading} className="w-full justify-center sm:min-w-32 sm:w-auto">
               <Search aria-hidden="true" className="h-4 w-4" />
               {isLoading ? "Đang tra cứu…" : "Tra cứu"}
             </Button>
@@ -73,6 +99,30 @@ export default function RecordLookup() {
         </form>
         {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="alert">{error}</div>}
         {message && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900" role="status">{message}</div>}
+        <div
+          id="record-lookup-state-help"
+          className="mt-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600"
+        >
+          <h3 className="font-bold text-slate-900">Cách hiểu kết quả</h3>
+          <ul className="mt-2 space-y-1.5 pl-5">
+            <li className="list-disc">
+              <strong>Đã tiếp nhận, đang xác minh hoặc đang xử lý:</strong> hồ
+              sơ vẫn đang được đơn vị phụ trách xử lý.
+            </li>
+            <li className="list-disc">
+              <strong>Hoàn thành, đã chấp nhận hoặc đã từ chối:</strong> đây là
+              trạng thái hiện tại của hồ sơ.
+            </li>
+            <li className="list-disc">
+              <strong>Không tìm thấy:</strong> kiểm tra lại số ký tự và mã đã
+              được cấp.
+            </li>
+          </ul>
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">
+            Trang chỉ hiển thị kết quả của mã đang nhập và không tạo danh sách
+            lịch sử tra cứu.
+          </p>
+        </div>
       </SectionCard>
     </div>
   );

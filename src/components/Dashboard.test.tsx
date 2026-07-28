@@ -7,6 +7,7 @@ import Dashboard, {
   reportsForDecisionMetrics,
   splitDashboardReports,
 } from "./Dashboard";
+import { buildSingleVillageTrend } from "./DashboardInsightCharts";
 
 const authScope = vi.hoisted(() => ({
   userVillageId: null as string | null,
@@ -148,6 +149,56 @@ describe("Dashboard device drafts", () => {
     expect(
       screen.getByRole("heading", { name: "Báo cáo nguồn và hành động nghiệp vụ" }),
     ).toBeInTheDocument();
+  });
+
+  it("builds a chronological, de-duplicated trend for one village", () => {
+    const periods: ReportPeriod[] = [
+      {
+        id: "period-1",
+        name: "Tháng 6/2026",
+        due_date: "2026-06-30T17:00:00+07:00",
+      },
+      {
+        id: "period-2",
+        name: "Tháng 7/2026",
+        due_date: "2026-07-31T17:00:00+07:00",
+      },
+    ];
+    const olderVersion = report({
+      id: "period-1-old",
+      period_id: "period-1",
+      report_period: "Tháng 6/2026",
+      updated_at: "2026-06-20T00:00:00Z",
+      CT11: 900,
+    });
+    const correctedVersion = report({
+      id: "period-1-corrected",
+      period_id: "period-1",
+      report_period: "Tháng 6/2026",
+      updated_at: "2026-06-21T00:00:00Z",
+      CT11: 1_000,
+    });
+    const latest = report({
+      id: "period-2-report",
+      period_id: "period-2",
+      report_period: "Tháng 7/2026",
+      updated_at: "2026-07-20T00:00:00Z",
+      CT11: 1_100,
+    });
+
+    const trend = buildSingleVillageTrend(
+      [latest, olderVersion, correctedVersion],
+      periods,
+    );
+
+    expect(trend.map((point) => point.id)).toEqual([
+      "period-1-corrected",
+      "period-2-report",
+    ]);
+    expect(trend.map((point) => point.periodLabel)).toEqual([
+      "Tháng 6/2026",
+      "Tháng 7/2026",
+    ]);
   });
 
   it("opens leadership on a period with approved evidence instead of a newer empty period", async () => {
@@ -307,7 +358,11 @@ describe("Dashboard device drafts", () => {
   it("shows five message-led decision views instead of repeated bars", () => {
     render(
       <Dashboard
-        reports={[report()]}
+        reports={[
+          report(),
+          report({ id: "report-2", village_id: "village-2" }),
+          report({ id: "report-3", village_id: "village-3" }),
+        ]}
         onEditReport={vi.fn()}
         onDeleteReport={vi.fn()}
         onAddNewReport={vi.fn()}
@@ -326,7 +381,10 @@ describe("Dashboard device drafts", () => {
   it("gives leadership a concise decision-first dashboard heading and signal strip", () => {
     render(
       <Dashboard
-        reports={[report()]}
+        reports={[
+          report(),
+          report({ id: "report-2", village_id: "village-2" }),
+        ]}
         onEditReport={vi.fn()}
         onDeleteReport={vi.fn()}
         onAddNewReport={vi.fn()}
@@ -345,5 +403,58 @@ describe("Dashboard device drafts", () => {
     ).toHaveTextContent("Tập trung an sinh");
     expect(screen.getByLabelText("Kỳ dữ liệu")).toBeInTheDocument();
     expect(screen.getByLabelText("Phạm vi thôn")).toBeInTheDocument();
+  });
+
+  it("replaces cross-village ranking with a useful period trend for a one-village role", async () => {
+    authScope.userVillageId = "village-1";
+    render(
+      <Dashboard
+        reports={[
+          report({
+            id: "june-report",
+            period_id: "period-june",
+            report_period: "Tháng 6/2026",
+            updated_at: "2026-06-20T00:00:00Z",
+            CT11: 1_050,
+          }),
+          report({
+            id: "july-report",
+            period_id: "period-july",
+            report_period: "Tháng 7/2026",
+            updated_at: "2026-07-20T00:00:00Z",
+            CT11: 1_100,
+          }),
+        ]}
+        reportPeriods={[
+          {
+            id: "period-june",
+            name: "Tháng 6/2026",
+            due_date: "2026-06-30T17:00:00+07:00",
+          },
+          {
+            id: "period-july",
+            name: "Tháng 7/2026",
+            due_date: "2026-07-31T17:00:00+07:00",
+          },
+        ]}
+        onEditReport={vi.fn()}
+        onDeleteReport={vi.fn()}
+        onAddNewReport={vi.fn()}
+        userRole="can_bo_thon"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Theo dõi biến động của thôn",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Diễn biến của Thôn An Sơn qua các kỳ"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Xu hướng qua các kỳ")).toBeInTheDocument();
+    expect(screen.queryByText(/thôn đầu chiếm khoảng/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/cao nhất/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pareto/i)).not.toBeInTheDocument();
   });
 });

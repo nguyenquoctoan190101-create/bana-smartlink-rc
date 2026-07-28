@@ -1,0 +1,13 @@
+.create-period-hero {
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .create-period-hero {
+    padding: 1rem !important;
+  }
+
+  .create-period-hero > div {
+    gap: 0.75rem;
+  }
+}

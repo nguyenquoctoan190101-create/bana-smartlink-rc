@@ -346,9 +346,9 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
   return (
     <div className="knowledge-page knowledge-hub space-y-6">
       <PageHeader
-        eyebrow="TÀI LIỆU NGHIỆP VỤ"
-        title="Tài liệu và hỗ trợ nghiệp vụ"
-        description={showScenarioSimulation ? "Tài liệu đã duyệt, mạng lưới hỗ trợ số và mô phỏng phương án trong khu vực quản trị thử nghiệm." : "Tài liệu đã duyệt và mạng lưới hỗ trợ số theo đúng phạm vi vai trò."}
+        eyebrow="TRI THỨC VÀ HỖ TRỢ"
+        title="Kho tri thức và mạng lưới hỗ trợ"
+        description={showScenarioSimulation ? "Bốn nhóm nội dung riêng biệt: văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán; mô phỏng chỉ xuất hiện trong khu vực quản trị thử nghiệm." : "Văn bản nghiệp vụ, tài liệu hướng dẫn, mạng lưới hỗ trợ và điểm sơ tán được trình bày theo đúng phạm vi vai trò."}
         actions={
           <Button variant="secondary" onClick={() => void refresh()}>
             <RotateCw />
@@ -390,7 +390,10 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                       {CATEGORY_LABELS[article.category] || article.category} · Phiên bản {article.version}
                     </p>
                     <h3>{article.title}</h3>
-                    <p>{article.summary || "Chưa có tóm tắt nội dung."}</p>
+                    <p>
+                      {article.summary ||
+                        "Tóm tắt đang được quản trị nội dung hoàn thiện; liên hệ cán bộ xã để xem tài liệu gốc đã duyệt."}
+                    </p>
                   </div>
                   <div className="knowledge-article__actions">
                     <StatusBadge status={article.status} label={article.status === "approved" ? "Đã duyệt" : "Bản nháp"} />
@@ -435,15 +438,15 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                     <div className="knowledge-detail-grid">
                       <div>
                         <span className="knowledge-detail-grid__label">Kỹ năng</span>
-                        <span>{champion.skills?.join(", ") || "Chưa cập nhật"}</span>
+                        <span>{champion.skills?.join(", ") || (admin ? "Cần bổ sung trong mục phân công bên dưới" : "Chưa cập nhật — liên hệ quản trị xã")}</span>
                       </div>
                       <div>
                         <span className="knowledge-detail-grid__label">Lịch hỗ trợ</span>
-                        <span>{champion.support_schedule || "Chưa cập nhật"}</span>
+                        <span>{champion.support_schedule || (admin ? "Cần bổ sung trong mục phân công bên dưới" : "Chưa cập nhật — liên hệ quản trị xã")}</span>
                       </div>
                       <div>
                         <span className="knowledge-detail-grid__label">Nhóm hỗ trợ</span>
-                        <span>{champion.supported_groups || "Chưa cập nhật"}</span>
+                        <span>{champion.supported_groups || (admin ? "Cần bổ sung trong mục phân công bên dưới" : "Chưa cập nhật — liên hệ quản trị xã")}</span>
                       </div>
                     </div>
                   </li>
@@ -502,15 +505,15 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                       </div>
                       <div>
                         <span className="knowledge-detail-grid__label">Lịch trực</span>
-                        <span>{point.opening_hours || "Chưa cập nhật"}</span>
+                        <span>{point.opening_hours || (admin ? "Cần bổ sung trong biểu mẫu quản trị bên dưới" : "Chưa cập nhật — liên hệ quản trị xã")}</span>
                       </div>
                       <div>
                         <span className="knowledge-detail-grid__label">Thiết bị</span>
-                        <span>{point.equipment?.join(", ") || "Chưa cập nhật"}</span>
+                        <span>{point.equipment?.join(", ") || (admin ? "Cần bổ sung trong biểu mẫu quản trị bên dưới" : "Chưa cập nhật — liên hệ quản trị xã")}</span>
                       </div>
                       <div>
                         <span className="knowledge-detail-grid__label">Đại sứ số phụ trách</span>
-                        <span>{point.champion_id ? "Đã phân công" : "Chưa phân công"}</span>
+                        <span>{point.champion_id ? "Đã phân công" : (admin ? "Cần phân công trong biểu mẫu bên dưới" : "Chưa phân công — liên hệ quản trị xã")}</span>
                       </div>
                     </div>
                   </li>
@@ -580,7 +583,15 @@ export default function KnowledgeCenter({ role, scenarioEnabled = false }: Props
                       </span>
                       <span>
                         <b>Tọa độ</b>
-                        {point.latitude}, {point.longitude}
+                        {point.latitude}, {point.longitude} ·{" "}
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${point.latitude},${point.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-emerald-800 underline"
+                        >
+                          Mở bản đồ
+                        </a>
                       </span>
                     </div>
                     {admin && (

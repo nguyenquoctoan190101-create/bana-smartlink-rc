@@ -53,8 +53,8 @@
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; background: var(--ui-canvas); scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--ui-canvas); color: var(--ui-ink); font-size: 1rem; line-height: 1.55; letter-spacing: 0; }
+html { min-width: 0; background: var(--ui-canvas); scroll-behavior: smooth; }
+body { margin: 0; min-width: 0; min-height: 100vh; background: var(--ui-canvas); color: var(--ui-ink); font-size: 1rem; line-height: 1.55; letter-spacing: 0; }
 button, input, select, textarea { font: inherit; }
 button, a, input, select, textarea { min-height: 44px; }
 button { cursor: pointer; }
