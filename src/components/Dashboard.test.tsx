@@ -121,6 +121,84 @@ describe("Dashboard device drafts", () => {
     expect(filterDashboardReportsByPeriod([legacyReport], periods, selected!)).toEqual([]);
   });
 
+  it("keeps UUID matches and a legacy row when the selected period name is unique", () => {
+    const periods: ReportPeriod[] = [
+      { id: "period-other", name: "Tháng 6/2026", due_date: "2026-06-25T17:00:00+07:00" },
+      { id: "period-selected", name: "Tháng 7/2026", due_date: "2026-07-25T17:00:00+07:00" },
+    ];
+    const directReport = report({
+      id: "direct-report",
+      period_id: "period-selected",
+      report_period: "Tháng 7/2026",
+    });
+    const legacyReport = report({
+      id: "legacy-report",
+      period_id: undefined,
+      report_period: "Tháng 7/2026",
+    });
+    const otherReport = report({
+      id: "other-report",
+      period_id: "period-other",
+      report_period: "Tháng 6/2026",
+    });
+
+    expect(filterDashboardReportsByPeriod(
+      [otherReport, directReport, legacyReport],
+      periods,
+      {
+        value: "period:period-selected",
+        label: "Tháng 7/2026",
+        periodId: "period-selected",
+        periodName: "Tháng 7/2026",
+      },
+    )).toEqual([directReport, legacyReport]);
+  });
+
+  it("checks period-name uniqueness once instead of once per report", () => {
+    let periodNameReads = 0;
+    const periods = Array.from({ length: 40 }, (_, index) => {
+      const period = {
+        id: `period-${index}`,
+        due_date: "2026-07-25T17:00:00+07:00",
+      } as ReportPeriod;
+      Object.defineProperty(period, "name", {
+        enumerable: true,
+        get: () => {
+          periodNameReads += 1;
+          return index === 39 ? "Tháng 7/2026" : `Kỳ ${index}`;
+        },
+      });
+      return period;
+    });
+    const unrelatedReports = Array.from({ length: 200 }, (_, index) => report({
+      id: `unrelated-${index}`,
+      period_id: `unrelated-period-${index}`,
+      report_period: `Kỳ khác ${index}`,
+    }));
+    const directReport = report({
+      id: "direct-report",
+      period_id: "period-39",
+      report_period: "Tháng 7/2026",
+    });
+    const legacyReport = report({
+      id: "legacy-report",
+      period_id: undefined,
+      report_period: "Tháng 7/2026",
+    });
+
+    expect(filterDashboardReportsByPeriod(
+      [...unrelatedReports, directReport, legacyReport],
+      periods,
+      {
+        value: "period:period-39",
+        label: "Tháng 7/2026",
+        periodId: "period-39",
+        periodName: "Tháng 7/2026",
+      },
+    )).toEqual([directReport, legacyReport]);
+    expect(periodNameReads).toBe(periods.length);
+  });
+
   it("keeps a newly created period selectable before it has reports", () => {
     render(
       <Dashboard

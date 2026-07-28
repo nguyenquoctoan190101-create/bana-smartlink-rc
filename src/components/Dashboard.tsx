@@ -90,23 +90,37 @@ export function filterDashboardReportsByPeriod(
     );
   }
 
-  return reports.filter((report) => {
-    if (selectedOption.legacyName) {
-      return (
-        !report.period_id && report.report_period === selectedOption.legacyName
-      );
+  if (selectedOption.legacyName) {
+    return reports.filter(
+      (report) => (
+        !report.period_id &&
+        report.report_period === selectedOption.legacyName
+      ),
+    );
+  }
+  if (!selectedOption.periodId) return [];
+
+  let hasUniquePeriodName: boolean | undefined;
+  const selectedPeriodNameIsUnique = () => {
+    if (hasUniquePeriodName !== undefined) return hasUniquePeriodName;
+    let sameNamePeriodCount = 0;
+    for (const period of reportPeriods) {
+      if (period.name !== selectedOption.periodName) continue;
+      sameNamePeriodCount += 1;
+      if (sameNamePeriodCount > 1) break;
     }
-    if (!selectedOption.periodId) return false;
+    hasUniquePeriodName = sameNamePeriodCount === 1;
+    return hasUniquePeriodName;
+  };
+
+  return reports.filter((report) => {
     if (report.period_id === selectedOption.periodId) return true;
+    if (report.period_id) return false;
 
     // Rows created before period_id became mandatory remain readable, but a
     // name fallback is safe only when it resolves to exactly one period.
-    const sameNamePeriods = reportPeriods.filter(
-      (period) => period.name === selectedOption.periodName,
-    );
     return (
-      !report.period_id &&
-      sameNamePeriods.length === 1 &&
+      selectedPeriodNameIsUnique() &&
       report.report_period === selectedOption.periodName
     );
   });
