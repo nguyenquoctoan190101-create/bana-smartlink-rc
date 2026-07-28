@@ -191,6 +191,27 @@ def test_gemini_error_metadata_keeps_only_safe_schema_diagnostics() -> None:
     assert "private" not in repr(metadata)
 
 
+def test_gemini_error_metadata_classifies_blocked_leaked_key() -> None:
+    response = httpx.Response(400, json={
+        "error": {
+            "status": "INVALID_ARGUMENT",
+            "message": (
+                "Your API key was reported as leaked. Please use another API key. "
+                "provider-secret-detail"
+            ),
+        }
+    })
+
+    metadata = _gemini_error_metadata(response)
+
+    assert metadata == {
+        "gemini_http_status": 400,
+        "gemini_error_class": "authentication",
+        "gemini_provider_status": "INVALID_ARGUMENT",
+    }
+    assert "provider-secret" not in repr(metadata)
+
+
 @pytest.mark.parametrize("payload", [
     None,
     {},

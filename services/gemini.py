@@ -78,6 +78,10 @@ def _gemini_error_metadata(response: httpx.Response) -> dict[str, Any]:
     if (
         "api key not valid" in normalized_message
         or "api_key_invalid" in normalized_message
+        or (
+            "api key" in normalized_message
+            and "reported as leaked" in normalized_message
+        )
         or "API_KEY_INVALID" in normalized_reasons
         or status == "UNAUTHENTICATED"
     ):
