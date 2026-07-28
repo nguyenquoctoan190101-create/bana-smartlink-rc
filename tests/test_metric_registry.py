@@ -141,4 +141,3 @@ def test_strict_report_guard_rejects_invalid_inputs(
     report[field] = value
 
     assert not is_evaluation_report(report)
-
