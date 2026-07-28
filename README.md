@@ -156,7 +156,7 @@ npm run check
 python scripts/release_check.py
 ```
 
-Lần xác nhận gần nhất trên nhánh phát hành: **595 kiểm thử backend** và **144 kiểm
+Lần xác nhận gần nhất trên nhánh phát hành: **602 kiểm thử backend** và **144 kiểm
 thử frontend** đạt; TypeScript typecheck và production build đạt. Con số có thể
 tăng khi bổ sung test mới, vì vậy kết quả của pipeline hiện tại luôn là nguồn
 xác nhận cuối cùng.
