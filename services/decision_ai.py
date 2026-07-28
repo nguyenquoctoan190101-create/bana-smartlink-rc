@@ -276,8 +276,9 @@ def _parse_analysis(raw: str | dict[str, Any], bundle: dict[str, Any]) -> Decisi
             analysis = DecisionAnalysis.model_validate_json(raw)
         else:
             analysis = DecisionAnalysis.model_validate(raw)
-    except Exception as exc:
-        raise DecisionAiError("AI returned an invalid decision schema") from exc
+    except Exception:
+        # Pydantic validation errors can retain the provider's complete output.
+        raise DecisionAiError("AI returned an invalid decision schema") from None
     validate_grounding(
         analysis,
         allowed_evidence_ids=_allowed_evidence_ids(bundle),
@@ -350,14 +351,17 @@ async def _openai_enrichment(
                 },
                 json=request_payload,
             )
-    except httpx.HTTPError as exc:
-        raise DecisionAiError("OpenAI request failed") from exc
+    except httpx.HTTPError:
+        # The transport exception can retain the request, including its
+        # Authorization header. Do not carry it across the redaction boundary.
+        raise DecisionAiError("OpenAI request failed") from None
     if response.status_code >= 400:
         raise DecisionAiError("OpenAI request failed")
     try:
         payload = response.json()
-    except ValueError as exc:
-        raise DecisionAiError("OpenAI returned an unexpected response") from exc
+    except ValueError:
+        # JSON decoding errors retain the complete provider response body.
+        raise DecisionAiError("OpenAI returned an unexpected response") from None
     analysis = _parse_analysis(_extract_openai_text(payload), bundle)
     usage = payload.get("usage") if isinstance(payload, dict) else None
     return analysis, {

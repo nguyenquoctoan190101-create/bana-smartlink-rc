@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from functools import lru_cache
 from typing import Any
 
@@ -9,8 +11,112 @@ import httpx
 from services.settings import Settings, load_settings
 
 
+logger = logging.getLogger(__name__)
+_ERROR_TOKEN_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_FIELD_PATH_RE = re.compile(r"^[A-Za-z0-9_.$\[\]/-]{1,200}$")
+
+
 class GeminiError(RuntimeError):
     """Raised when Gemini validation cannot be completed."""
+
+
+def _gemini_error_metadata(response: httpx.Response) -> dict[str, Any]:
+    """Return bounded provider diagnostics without response or request content."""
+    metadata: dict[str, Any] = {
+        "gemini_http_status": response.status_code,
+        "gemini_error_class": "provider_error",
+    }
+    try:
+        payload = response.json()
+    except ValueError:
+        return metadata
+    if not isinstance(payload, dict) or not isinstance(payload.get("error"), dict):
+        return metadata
+
+    error = payload["error"]
+    status = error.get("status")
+    if isinstance(status, str) and _ERROR_TOKEN_RE.fullmatch(status):
+        metadata["gemini_provider_status"] = status
+
+    reasons: list[str] = []
+    field_paths: list[str] = []
+    details = error.get("details")
+    if isinstance(details, list):
+        for detail in details:
+            if not isinstance(detail, dict):
+                continue
+            reason = detail.get("reason")
+            if (
+                isinstance(reason, str)
+                and _ERROR_TOKEN_RE.fullmatch(reason)
+                and reason not in reasons
+            ):
+                reasons.append(reason)
+            violations = detail.get("fieldViolations")
+            if not isinstance(violations, list):
+                continue
+            for violation in violations:
+                if not isinstance(violation, dict):
+                    continue
+                field = violation.get("field")
+                if (
+                    isinstance(field, str)
+                    and _FIELD_PATH_RE.fullmatch(field)
+                    and field not in field_paths
+                ):
+                    field_paths.append(field)
+
+    if reasons:
+        metadata["gemini_error_reasons"] = reasons[:3]
+    if field_paths:
+        metadata["gemini_error_fields"] = field_paths[:3]
+
+    message = error.get("message")
+    normalized_message = message.lower() if isinstance(message, str) else ""
+    normalized_fields = " ".join(field_paths).lower()
+    normalized_reasons = set(reasons)
+    if (
+        "api key not valid" in normalized_message
+        or "api_key_invalid" in normalized_message
+        or "API_KEY_INVALID" in normalized_reasons
+        or status == "UNAUTHENTICATED"
+    ):
+        error_class = "authentication"
+    elif (
+        status == "RESOURCE_EXHAUSTED"
+        or "quota" in normalized_message
+        or "rate limit" in normalized_message
+    ):
+        error_class = "quota"
+    elif status == "PERMISSION_DENIED" or "permission denied" in normalized_message:
+        error_class = "permission"
+    elif (
+        ("model" in normalized_message and "not found" in normalized_message)
+        or "not supported for generatecontent" in normalized_message
+    ):
+        error_class = "model_unavailable"
+    elif (
+        "schema" in normalized_message
+        or "schema" in normalized_fields
+        or "responsejsonschema" in normalized_message
+    ):
+        error_class = "schema"
+    elif status == "INVALID_ARGUMENT":
+        error_class = "invalid_argument"
+    else:
+        error_class = "provider_error"
+    metadata["gemini_error_class"] = error_class
+    return metadata
+
+
+def _gemini_request_mode(payload: dict[str, Any]) -> str:
+    generation_config = payload.get("generationConfig")
+    if (
+        isinstance(generation_config, dict)
+        and "responseJsonSchema" in generation_config
+    ):
+        return "json_schema"
+    return "text"
 
 
 class GeminiClient:
@@ -97,8 +203,9 @@ class GeminiClient:
         raw = await self._generate_content(payload)
         try:
             parsed = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise GeminiError("Gemini returned invalid JSON") from exc
+        except json.JSONDecodeError:
+            # Do not retain the model output through JSONDecodeError.doc.
+            raise GeminiError("Gemini returned invalid JSON") from None
         if not isinstance(parsed, dict):
             raise GeminiError("Gemini returned invalid JSON")
         return parsed
@@ -122,13 +229,36 @@ class GeminiClient:
                     },
                     json=payload,
                 )
-        except httpx.HTTPError as exc:
-            raise GeminiError("Gemini request failed") from exc
+        except httpx.HTTPError:
+            # Transport exception strings may contain sensitive connection
+            # metadata. Keep them out of future traceback/Sentry capture.
+            raise GeminiError("Gemini request failed") from None
 
         if response.status_code >= 400:
+            logger.warning(
+                "Gemini provider request rejected",
+                extra={
+                    "gemini_model": self._settings.gemini_model,
+                    "gemini_request_mode": _gemini_request_mode(payload),
+                    **_gemini_error_metadata(response),
+                },
+            )
             raise GeminiError("Gemini request failed")
 
-        return _extract_text(response.json())
+        try:
+            response_payload = response.json()
+        except ValueError:
+            logger.warning(
+                "Gemini provider returned invalid JSON",
+                extra={
+                    "gemini_model": self._settings.gemini_model,
+                    "gemini_request_mode": _gemini_request_mode(payload),
+                    "gemini_http_status": response.status_code,
+                    "gemini_error_class": "invalid_response_json",
+                },
+            )
+            raise GeminiError("Unexpected Gemini response") from None
+        return _extract_text(response_payload)
 
 
 def _extract_text(payload: Any) -> str:

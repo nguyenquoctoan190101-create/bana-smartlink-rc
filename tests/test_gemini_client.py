@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from services.gemini import GeminiClient, GeminiError, _extract_text
+from services.gemini import (
+    GeminiClient,
+    GeminiError,
+    _extract_text,
+    _gemini_error_metadata,
+)
 from services.settings import Settings
 
 
@@ -95,24 +100,95 @@ async def test_generate_json_uses_schema_constrained_deterministic_output() -> N
 async def test_generate_json_rejects_invalid_json() -> None:
     fake = FakeAsyncClient(_response("not-json"))
     with patch("services.gemini.httpx.AsyncClient", return_value=fake):
-        with pytest.raises(GeminiError, match="invalid JSON"):
+        with pytest.raises(GeminiError, match="invalid JSON") as caught:
             await _client().generate_json("system", "question", {"type": "OBJECT"})
+    assert caught.value.__cause__ is None
 
 
 @pytest.mark.asyncio
-async def test_gemini_transport_and_http_errors_are_redacted() -> None:
+async def test_gemini_transport_and_http_errors_are_redacted(caplog) -> None:
     request = httpx.Request("POST", "https://gemini.example")
     fake = FakeAsyncClient(error=httpx.ConnectError("secret network detail", request=request))
     with patch("services.gemini.httpx.AsyncClient", return_value=fake):
         with pytest.raises(GeminiError, match="request failed") as caught:
             await _client().generate_text("system", "user")
     assert "secret network" not in str(caught.value)
+    assert caught.value.__cause__ is None
 
-    fake = FakeAsyncClient(httpx.Response(429, json={"error": {"message": "quota detail"}}))
-    with patch("services.gemini.httpx.AsyncClient", return_value=fake):
-        with pytest.raises(GeminiError, match="request failed") as caught:
-            await _client().generate_text("system", "user")
+    fake = FakeAsyncClient(httpx.Response(429, json={
+        "error": {
+            "status": "RESOURCE_EXHAUSTED",
+            "message": "quota detail containing secret-key",
+            "details": [{"reason": "RATE_LIMIT_EXCEEDED"}],
+        }
+    }))
+    with caplog.at_level("WARNING", logger="services.gemini"):
+        with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+            with pytest.raises(GeminiError, match="request failed") as caught:
+                await _client().generate_text("system", "user")
     assert "quota detail" not in str(caught.value)
+    assert "secret-key" not in caplog.text
+    assert "secret-key" not in repr(caplog.records[-1].__dict__)
+    assert caplog.records[-1].gemini_http_status == 429
+    assert caplog.records[-1].gemini_error_class == "quota"
+    assert caplog.records[-1].gemini_provider_status == "RESOURCE_EXHAUSTED"
+    assert caplog.records[-1].gemini_error_reasons == ["RATE_LIMIT_EXCEEDED"]
+    assert caplog.records[-1].gemini_request_mode == "text"
+
+
+@pytest.mark.asyncio
+async def test_malformed_success_response_is_redacted_and_fails_safely(caplog) -> None:
+    fake = FakeAsyncClient(httpx.Response(
+        200,
+        text="not-json containing secret model output",
+    ))
+
+    with caplog.at_level("WARNING", logger="services.gemini"):
+        with patch("services.gemini.httpx.AsyncClient", return_value=fake):
+            with pytest.raises(GeminiError, match="Unexpected") as caught:
+                await _client().generate_text("system", "user")
+
+    assert caught.value.__cause__ is None
+    assert "secret model output" not in str(caught.value)
+    assert "secret model output" not in caplog.text
+    assert "secret model output" not in repr(caplog.records[-1].__dict__)
+    assert caplog.records[-1].gemini_error_class == "invalid_response_json"
+    assert caplog.records[-1].gemini_http_status == 200
+
+
+def test_gemini_error_metadata_keeps_only_safe_schema_diagnostics() -> None:
+    response = httpx.Response(400, json={
+        "error": {
+            "status": "INVALID_ARGUMENT",
+            "message": "Invalid responseJsonSchema containing private detail",
+            "details": [
+                {
+                    "@type": "type.googleapis.com/google.rpc.BadRequest",
+                    "fieldViolations": [
+                        {
+                            "field": (
+                                "generationConfig.responseJsonSchema."
+                                "properties.options"
+                            ),
+                            "description": "private schema description",
+                        }
+                    ],
+                }
+            ],
+        }
+    })
+
+    metadata = _gemini_error_metadata(response)
+
+    assert metadata == {
+        "gemini_http_status": 400,
+        "gemini_error_class": "schema",
+        "gemini_provider_status": "INVALID_ARGUMENT",
+        "gemini_error_fields": [
+            "generationConfig.responseJsonSchema.properties.options"
+        ],
+    }
+    assert "private" not in repr(metadata)
 
 
 @pytest.mark.parametrize("payload", [
