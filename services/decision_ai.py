@@ -109,20 +109,19 @@ def _schema() -> dict[str, Any]:
 DECISION_ANALYSIS_SCHEMA = _schema()
 
 
-def _gemini_schema(value: Any) -> Any:
-    """Adapt the portable subset to Gemini's responseSchema vocabulary."""
+def _gemini_json_schema(value: Any) -> Any:
+    """Keep only the JSON Schema subset supported by Gemini."""
     if isinstance(value, list):
-        return [_gemini_schema(item) for item in value]
+        return [_gemini_json_schema(item) for item in value]
     if not isinstance(value, dict):
         return value
     result: dict[str, Any] = {}
     for key, item in value.items():
-        if key in {"additionalProperties", "minLength", "maxLength"}:
+        # Gemini does not support string-length keywords in responseJsonSchema.
+        # Pydantic validates the same bounds again after generation.
+        if key in {"minLength", "maxLength"}:
             continue
-        if key == "type" and isinstance(item, str):
-            result[key] = item.upper()
-        else:
-            result[key] = _gemini_schema(item)
+        result[key] = _gemini_json_schema(item)
     return result
 
 
@@ -268,7 +267,7 @@ def _schema_for_bundle(
             ]
         )
         evidence_items["enum"] = allowed
-    return _gemini_schema(schema) if gemini else schema
+    return _gemini_json_schema(schema) if gemini else schema
 
 
 def _parse_analysis(raw: str | dict[str, Any], bundle: dict[str, Any]) -> DecisionAnalysis:

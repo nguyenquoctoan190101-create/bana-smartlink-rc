@@ -52,7 +52,9 @@ async def test_generate_text_builds_bounded_request_without_pii_side_channel() -
         )
     assert result == "Cảnh báo có nguồn"
     assert fake.post.await_args.args[0].endswith("/v1beta/models/test-model:generateContent")
-    assert fake.post.await_args.kwargs["params"] == {"key": "test-key"}
+    assert fake.post.await_args.kwargs["headers"]["x-goog-api-key"] == "test-key"
+    assert "test-key" not in fake.post.await_args.args[0]
+    assert "params" not in fake.post.await_args.kwargs
     payload = fake.post.await_args.kwargs["json"]
     assert payload["generationConfig"] == {"maxOutputTokens": 128, "temperature": 0.1}
 
@@ -83,9 +85,10 @@ async def test_generate_json_uses_schema_constrained_deterministic_output() -> N
 
     assert result == {"intent": "HELP"}
     config = fake.post.await_args.kwargs["json"]["generationConfig"]
-    assert config["temperature"] == 0.0
     assert config["responseMimeType"] == "application/json"
-    assert config["responseSchema"] == schema
+    assert config["responseJsonSchema"] == schema
+    assert "responseSchema" not in config
+    assert "temperature" not in config
 
 
 @pytest.mark.asyncio

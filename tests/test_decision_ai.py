@@ -255,9 +255,11 @@ async def test_gemini_schema_preserves_titles_and_binds_request_evidence() -> No
     schema = generate_json.await_args.args[2]
     option_properties = schema["properties"]["options"]["items"]["properties"]
     risk_properties = schema["properties"]["risks"]["items"]["properties"]
-    assert schema["type"] == "OBJECT"
-    assert option_properties["title"]["type"] == "STRING"
-    assert risk_properties["title"]["type"] == "STRING"
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert option_properties["title"]["type"] == "string"
+    assert risk_properties["title"]["type"] == "string"
+    assert "minLength" not in option_properties["title"]
     assert option_properties["evidence_ids"]["items"]["enum"] == [
         "period:Tháng bảy",
         "report-1",

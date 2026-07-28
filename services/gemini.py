@@ -68,7 +68,7 @@ class GeminiClient:
         self,
         system_prompt: str,
         user_text: str,
-        response_schema: dict[str, Any],
+        response_json_schema: dict[str, Any],
         max_output_tokens: int = 256,
     ) -> dict[str, Any]:
         """Generate a schema-constrained JSON object.
@@ -87,9 +87,11 @@ class GeminiClient:
             ],
             "generationConfig": {
                 "maxOutputTokens": max_output_tokens,
-                "temperature": 0.0,
                 "responseMimeType": "application/json",
-                "responseSchema": response_schema,
+                # Gemini's current structured-output contract accepts JSON
+                # Schema here. The older responseSchema field expects a
+                # different OpenAPI-shaped dialect and is deprecated.
+                "responseJsonSchema": response_json_schema,
             },
         }
         raw = await self._generate_content(payload)
@@ -111,7 +113,13 @@ class GeminiClient:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 response = await client.post(
                     self._gemini_url(),
-                    params={"key": self._settings.gemini_api_key},
+                    # Never put credentials in the URL: HTTP access logs record
+                    # request targets. Google's documented header keeps the key
+                    # out of log lines and tracing metadata.
+                    headers={
+                        "x-goog-api-key": self._settings.gemini_api_key,
+                        "Content-Type": "application/json",
+                    },
                     json=payload,
                 )
         except httpx.HTTPError as exc:
