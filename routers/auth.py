@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 from dataclasses import replace
 from typing import Annotated, Literal
 from urllib.parse import quote
@@ -30,6 +31,16 @@ StaffRole = Literal["can_bo_thon", "to_cnscd", "admin_xa", "lanh_dao"]
 StaffScope = Literal["single_village", "assigned_villages", "commune"]
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+_DATABASE_CONNECT_TIMEOUT_SECONDS = 5
+_DATABASE_CONNECT_RETRY_DELAY_SECONDS = 0.25
+_TRANSIENT_DATABASE_CONNECT_ERRORS = (
+    asyncpg.AdminShutdownError,
+    asyncpg.CannotConnectNowError,
+    asyncpg.PostgresConnectionError,
+    OSError,
+)
 
 
 class CreateStaffAccountRequest(BaseModel):
@@ -201,8 +212,26 @@ def get_supabase_admin(
     )
 
 
+async def _connect_db(database_url: str):
+    try:
+        return await asyncpg.connect(
+            dsn=database_url,
+            timeout=_DATABASE_CONNECT_TIMEOUT_SECONDS,
+        )
+    except _TRANSIENT_DATABASE_CONNECT_ERRORS as exc:
+        logger.warning(
+            "Transient database connection failure; retrying once (%s)",
+            type(exc).__name__,
+        )
+        await asyncio.sleep(_DATABASE_CONNECT_RETRY_DELAY_SECONDS)
+        return await asyncpg.connect(
+            dsn=database_url,
+            timeout=_DATABASE_CONNECT_TIMEOUT_SECONDS,
+        )
+
+
 async def get_db(settings: Annotated[Settings, Depends(get_settings)]):
-    conn = await asyncpg.connect(dsn=settings.database_url)
+    conn = await _connect_db(settings.database_url)
     try:
         yield conn
     finally:
@@ -248,7 +277,7 @@ async def get_rls_read_db(
             detail="Invalid Supabase Auth token",
         )
 
-    conn = await asyncpg.connect(dsn=settings.database_url)
+    conn = await _connect_db(settings.database_url)
     transaction_candidate = conn.transaction(readonly=True)
     transaction = (
         await transaction_candidate
