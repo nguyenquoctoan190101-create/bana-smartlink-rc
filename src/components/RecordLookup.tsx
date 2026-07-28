@@ -37,7 +37,10 @@ export default function RecordLookup() {
     setError(null);
     setMessage(null);
     try {
-      const result = await apiJson<PublicLookupResult>(endpoint, { cache: "no-store" });
+      const result = await apiJson<PublicLookupResult>(endpoint, {
+        auth: "none",
+        cache: "no-store",
+      });
       setMessage(formatPublicLookupMessage(result));
     } catch (lookupError) {
       setError(toUserFacingError(lookupError, "Không tra cứu được hồ sơ. Vui lòng kiểm tra mã và thử lại."));

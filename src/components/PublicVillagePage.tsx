@@ -304,9 +304,9 @@ export default function PublicVillagePage({
           evacuationResult,
         ] = await Promise.all([
           loadVillages(),
-          apiJson<unknown[]>("/reports/public"),
-          apiJson<unknown>("/reports/public/metadata"),
-          apiJson<unknown[]>("/api/pilots/evacuation-points")
+          apiJson<unknown[]>("/reports/public", { auth: "none" }),
+          apiJson<unknown>("/reports/public/metadata", { auth: "none" }),
+          apiJson<unknown[]>("/api/pilots/evacuation-points", { auth: "none" })
             .then((data) => ({ data, failed: false }))
             .catch(() => ({ data: [] as unknown[], failed: true })),
         ]);
@@ -444,6 +444,7 @@ export default function PublicVillagePage({
     setIsSending(true);
     try {
       const response = await apiFetch("/auth/citizen/pending-updates", {
+        auth: "none",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -504,7 +505,7 @@ export default function PublicVillagePage({
         status: string;
         message?: string;
         case?: { category?: string };
-      }>(endpoint);
+      }>(endpoint, { auth: "none" });
       // Keep only the non-sensitive category for the public result. Never retain
       // the API's case object wholesale because it may contain internal notes or PII.
       const safeCase = result.case?.category

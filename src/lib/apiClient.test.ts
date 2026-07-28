@@ -16,6 +16,7 @@ import {
 
 describe("apiClient", () => {
   beforeEach(() => {
+    mocks.getSession.mockReset();
     mocks.getSession.mockResolvedValue({
       data: { session: { access_token: "test-access-token" } },
       error: null,
@@ -29,6 +30,23 @@ describe("apiClient", () => {
     const [, init] = vi.mocked(fetch).mock.calls[0];
     expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer test-access-token");
     expect(localStorage.getItem("supabase_access_token")).toBeNull();
+  });
+
+  it("keeps public requests available when a stale staff session is broken", async () => {
+    mocks.getSession.mockRejectedValue(new Error("stale refresh token"));
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify([{ id: "village-1" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+
+    await expect(apiJson("/reports/villages", { auth: "none" })).resolves.toEqual([
+      { id: "village-1" },
+    ]);
+
+    expect(mocks.getSession).not.toHaveBeenCalled();
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+    expect(init).not.toHaveProperty("auth");
   });
 
   it("builds direct download URLs through the configured API boundary", () => {

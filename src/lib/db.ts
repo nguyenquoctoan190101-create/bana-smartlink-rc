@@ -101,7 +101,10 @@ function stripStorageFields(value: StoredReport): ReportData {
 export async function getAllReports(publicOnly = false): Promise<ReportData[]> {
   const path = publicOnly ? "/reports/public" : "/reports";
   const [payload, periods] = await Promise.all([
-    apiJson<unknown[] | { items: unknown[] }>(path),
+    apiJson<unknown[] | { items: unknown[] }>(
+      path,
+      publicOnly ? { auth: "none" } : {},
+    ),
     publicOnly ? Promise.resolve<ReportPeriod[]>([]) : apiJson<ReportPeriod[]>("/report-periods"),
   ]);
   const rows = Array.isArray(payload) ? payload : (payload.items || []);

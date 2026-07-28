@@ -3,6 +3,10 @@ import type { ApiErrorPayload } from "../types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
+export type ApiRequestInit = RequestInit & {
+  auth?: "session" | "none";
+};
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -53,22 +57,27 @@ export function apiUrl(path: string): string {
   return toUrl(path);
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    throw new ApiError("Không thể kiểm tra phiên đăng nhập.", 401, { code: "AUTH_SESSION_ERROR" });
+export async function apiFetch(path: string, options: ApiRequestInit = {}): Promise<Response> {
+  let token: string | undefined;
+  if (options.auth !== "none") {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw new ApiError("Không thể kiểm tra phiên đăng nhập.", 401, { code: "AUTH_SESSION_ERROR" });
+    }
+    token = data.session?.access_token;
   }
 
-  const headers = new Headers(options.headers);
-  const token = data.session?.access_token;
+  const requestOptions = { ...options };
+  delete requestOptions.auth;
+  const headers = new Headers(requestOptions.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+  if (requestOptions.body && !(requestOptions.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   headers.set("Accept", "application/json");
 
   return fetch(toUrl(path), {
-    ...options,
+    ...requestOptions,
     headers,
     credentials: "same-origin",
   });
@@ -128,7 +137,7 @@ export async function apiUpload(
   });
 }
 
-export async function apiJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiJson<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
   const response = await apiFetch(path, options);
   const contentType = response.headers.get("content-type") || "";
   let payload: unknown = null;
