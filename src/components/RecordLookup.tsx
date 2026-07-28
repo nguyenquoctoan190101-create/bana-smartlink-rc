@@ -5,6 +5,7 @@ import { apiJson, toUserFacingError } from "../lib/apiClient";
 import {
   formatPublicLookupMessage,
   getPublicLookupEndpoint,
+  isExampleLookupCode,
   type PublicLookupResult,
 } from "../lib/publicLookup";
 import { Button, PageHeader, SectionCard } from "./ui";
@@ -17,6 +18,14 @@ export default function RecordLookup() {
 
   const handleLookup = async (event: FormEvent) => {
     event.preventDefault();
+    const normalizedCode = code.trim().toUpperCase();
+    if (isExampleLookupCode(normalizedCode)) {
+      setMessage(null);
+      setError(
+        "Đây là mã ví dụ để minh họa định dạng, không phải mã hồ sơ thật. Vui lòng nhập mã đã được cấp khi gửi hồ sơ.",
+      );
+      return;
+    }
     const endpoint = getPublicLookupEndpoint(code);
     if (!endpoint) {
       setMessage(null);
@@ -57,6 +66,9 @@ export default function RecordLookup() {
           aria-label="Ví dụ định dạng mã tra cứu"
         >
           <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <span className="mb-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[0.65rem] font-black uppercase tracking-wide text-amber-950">
+              Mã ví dụ — không dùng để tra cứu
+            </span>
             <p className="text-xs font-semibold text-slate-600">
               Đề nghị đối chiếu · 16 ký tự
             </p>
@@ -65,6 +77,9 @@ export default function RecordLookup() {
             </code>
           </div>
           <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <span className="mb-2 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[0.65rem] font-black uppercase tracking-wide text-amber-950">
+              Mã ví dụ — không dùng để tra cứu
+            </span>
             <p className="text-xs font-semibold text-slate-600">
               Phản ánh hiện trường · 32 ký tự
             </p>
@@ -73,12 +88,12 @@ export default function RecordLookup() {
             </code>
           </div>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-          Ví dụ chỉ minh họa hình thức, không phải mã hồ sơ thật. Nhập liền các
-          ký tự đúng như mã được cấp.
+        <p className="mt-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-950">
+          Hai mã phía trên chỉ minh họa hình thức và không có hồ sơ tương ứng.
+          Hãy nhập liền các ký tự của mã thật đã được cấp cho bạn.
         </p>
         <form onSubmit={handleLookup} className="space-y-3">
-          <label htmlFor="internal-record-code" className="mt-5 block text-sm font-semibold text-slate-800">Mã tra cứu</label>
+          <label htmlFor="internal-record-code" className="mt-5 block text-sm font-semibold text-slate-800">Mã tra cứu thật đã được cấp</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="internal-record-code"
@@ -88,7 +103,7 @@ export default function RecordLookup() {
               spellCheck={false}
               maxLength={32}
               aria-describedby="record-lookup-help record-lookup-state-help"
-              placeholder="Nhập mã 16 hoặc 32 ký tự"
+              placeholder="Nhập mã thật đã được cấp (16 hoặc 32 ký tự)"
               className="min-h-11 flex-1 rounded-xl border border-slate-300 bg-white px-4 font-mono text-sm uppercase outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
             />
             <Button type="submit" disabled={isLoading} className="w-full justify-center sm:min-w-32 sm:w-auto">

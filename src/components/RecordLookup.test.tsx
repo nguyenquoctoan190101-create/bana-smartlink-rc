@@ -28,6 +28,12 @@ describe("RecordLookup", () => {
       screen.getByText("A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6"),
     ).toBeInTheDocument();
     expect(
+      screen.getAllByText("Mã ví dụ — không dùng để tra cứu"),
+    ).toHaveLength(2);
+    expect(
+      screen.getByPlaceholderText("Nhập mã thật đã được cấp (16 hoặc 32 ký tự)"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(/không tạo danh sách lịch sử tra cứu/),
     ).toBeInTheDocument();
     expect(screen.getByText("Cách hiểu kết quả")).toBeInTheDocument();
@@ -38,10 +44,26 @@ describe("RecordLookup", () => {
     const user = userEvent.setup();
     render(<RecordLookup />);
 
-    await user.type(screen.getByLabelText("Mã tra cứu"), "SAI-MA");
+    await user.type(screen.getByLabelText("Mã tra cứu thật đã được cấp"), "SAI-MA");
     await user.click(screen.getByRole("button", { name: "Tra cứu" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("phải gồm 16 ký tự");
+    expect(mocks.apiJson).not.toHaveBeenCalled();
+  });
+
+  it("stops a displayed example code before any lookup request", async () => {
+    const user = userEvent.setup();
+    render(<RecordLookup />);
+
+    await user.type(
+      screen.getByLabelText("Mã tra cứu thật đã được cấp"),
+      "A1B2C3D4E5F6G7H8",
+    );
+    await user.click(screen.getByRole("button", { name: "Tra cứu" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Đây là mã ví dụ để minh họa định dạng",
+    );
     expect(mocks.apiJson).not.toHaveBeenCalled();
   });
 
@@ -53,7 +75,7 @@ describe("RecordLookup", () => {
     const user = userEvent.setup();
     render(<RecordLookup />);
 
-    await user.type(screen.getByLabelText("Mã tra cứu"), "A".repeat(32));
+    await user.type(screen.getByLabelText("Mã tra cứu thật đã được cấp"), "A".repeat(32));
     await user.click(screen.getByRole("button", { name: "Tra cứu" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Đã tiếp nhận");

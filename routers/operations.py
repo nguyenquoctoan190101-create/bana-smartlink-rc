@@ -76,7 +76,14 @@ class AiDraftCreateRequest(BaseModel):
 
 class AiDraftReviewRequest(BaseModel):
     decision: Literal["accepted", "rejected"]
-    notes: str | None = Field(default=None, max_length=2000)
+    notes: str = Field(min_length=10, max_length=2000)
+
+    @model_validator(mode="after")
+    def normalize_review_notes(self) -> "AiDraftReviewRequest":
+        self.notes = self.notes.strip()
+        if len(self.notes) < 10:
+            raise ValueError("Review notes must contain at least 10 characters")
+        return self
 
 
 def _caller_client(supabase: SupabaseAdminClient, authorization: str | None) -> SupabaseAdminClient:
@@ -310,14 +317,57 @@ async def create_ai_draft(
             for item in snapshots
             if item.get("workflow_status") in {"approved", "locked"}
         ]
+        if not approved_snapshots:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Chưa có báo cáo đã duyệt hoặc khóa để tạo bản tóm tắt.",
+            )
+        encoded_period_id = quote(str(payload.period_id), safe="")
+        actions = await client._rest_request(
+            "GET",
+            (
+                "/rest/v1/action_items"
+                f"?period_id=eq.{encoded_period_id}"
+                "&select=id,status,priority,due_date"
+            ),
+        )
         content, citations, confidence = build_safe_period_brief(
             str(period["name"]),
             approved_snapshots,
+            actions=actions,
         )
+        latest_drafts = await client._rest_request(
+            "GET",
+            (
+                "/rest/v1/ai_action_drafts"
+                f"?period_id=eq.{encoded_period_id}"
+                "&kind=eq.period_brief"
+                "&select=id,status,content,citations"
+                "&order=created_at.desc&limit=20"
+            ),
+        )
+        if latest_drafts:
+            if any(
+                draft.get("status") == "pending_review"
+                for draft in latest_drafts
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Đã có một bản tóm tắt đang chờ duyệt cho kỳ này.",
+                )
+            latest = latest_drafts[0]
+            if (
+                latest.get("content") == content
+                and latest.get("citations") == citations
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Căn cứ chưa thay đổi so với bản tóm tắt gần nhất.",
+                )
         rows = await client._rest_request("POST", "/rest/v1/ai_action_drafts", {
             "commune_id": commune_id, "period_id": str(payload.period_id), "kind": payload.kind,
             "content": content, "citations": citations, "confidence": confidence,
-            "model_provider": "deterministic-evidence-v1", "created_by": profile.id,
+            "model_provider": "deterministic-evidence-v2", "created_by": profile.id,
         }, prefer="return=representation")
     except SupabaseAdminError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create reviewed draft") from exc

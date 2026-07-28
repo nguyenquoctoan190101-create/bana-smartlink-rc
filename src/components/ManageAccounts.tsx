@@ -21,16 +21,41 @@ import { useVillages } from "../lib/useVillages";
 import "./ManageAccounts.css";
 import { ErrorState, WorkSection } from "./ui";
 
+type StaffRole = "can_bo_thon" | "to_cnscd" | "admin_xa" | "lanh_dao";
+type StaffScope = "single_village" | "assigned_villages" | "commune";
+
 interface Officer {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  role: StaffRole;
+  village_id: string | null;
+  village_ids: string[];
+  is_active: boolean;
+  last_login: string | null;
+}
+
+interface CreatedAccount {
   id: string;
   name: string;
   email: string;
   phone: string;
-  role: "can_bo_thon" | "to_cnscd";
-  village_id: string;
-  is_active: boolean;
-  last_login: string | null;
+  role: StaffRole;
+  scope: StaffScope;
+  village_id: string | null;
+  village_ids: string[];
+  temporary_password: string;
 }
+
+const ROLE_LABELS: Record<StaffRole, string> = {
+  can_bo_thon: "Cán bộ thôn",
+  to_cnscd: "Tổ công nghệ số cộng đồng",
+  admin_xa: "Cán bộ xã",
+  lanh_dao: "Lãnh đạo xã",
+};
+
+const COMMUNE_WIDE_ROLES = new Set<StaffRole>(["admin_xa", "lanh_dao"]);
 
 export default function ManageAccounts() {
   const { villages: new_villages } = useVillages();
@@ -46,10 +71,10 @@ export default function ManageAccounts() {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
-  const [role, setRole] = useState<"can_bo_thon" | "to_cnscd">("can_bo_thon");
-  const [villageId, setVillageId] = useState<string>(new_villages[0]?.id || "");
+  const [role, setRole] = useState<StaffRole>("can_bo_thon");
+  const [selectedVillageIds, setSelectedVillageIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [createdAccount, setCreatedAccount] = useState<any | null>(null);
+  const [createdAccount, setCreatedAccount] = useState<CreatedAccount | null>(null);
 
   // Filter and Search states
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -58,8 +83,42 @@ export default function ManageAccounts() {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (!villageId && new_villages.length > 0) setVillageId(new_villages[0].id);
-  }, [new_villages, villageId]);
+    if (
+      !COMMUNE_WIDE_ROLES.has(role) &&
+      selectedVillageIds.length === 0 &&
+      new_villages.length > 0
+    ) {
+      setSelectedVillageIds([new_villages[0].id]);
+    }
+  }, [new_villages, role, selectedVillageIds.length]);
+
+  const handleRoleChange = (nextRole: StaffRole) => {
+    setRole(nextRole);
+    if (COMMUNE_WIDE_ROLES.has(nextRole)) {
+      setSelectedVillageIds([]);
+      return;
+    }
+    setSelectedVillageIds((current) => {
+      const firstVillageId = current[0] || new_villages[0]?.id;
+      if (!firstVillageId) return [];
+      return nextRole === "can_bo_thon" ? [firstVillageId] : current.length ? current : [firstVillageId];
+    });
+  };
+
+  const getVillageNames = (villageIds: string[]) =>
+    villageIds.map(
+      (villageId) =>
+        new_villages.find((village) => village.id === villageId)?.name ||
+        villageId,
+    );
+
+  const getScopeLabel = (accountRole: StaffRole, villageIds: string[]) => {
+    if (COMMUNE_WIDE_ROLES.has(accountRole)) {
+      return `Toàn xã${new_villages.length ? ` · ${new_villages.length}/${new_villages.length} thôn` : ""}`;
+    }
+    const villageNames = getVillageNames(villageIds);
+    return villageNames.length ? villageNames.join(", ") : "Chưa xác định địa bàn";
+  };
 
   // Fetch all accounts
   const fetchOfficers = async () => {
@@ -149,18 +208,34 @@ export default function ManageAccounts() {
       setError("Vui lòng nhập số điện thoại hợp lệ (9-11 chữ số).");
       return;
     }
+    if (role === "can_bo_thon" && selectedVillageIds.length !== 1) {
+      setError("Cán bộ thôn phải được giao đúng một thôn.");
+      return;
+    }
+    if (role === "to_cnscd" && selectedVillageIds.length === 0) {
+      setError("Vui lòng chọn ít nhất một thôn được giao cho thành viên CNSCĐ.");
+      return;
+    }
 
     setIsSubmitting(true);
 
     try {
-      const resData = await apiJson<{ user_id: string; role: Officer["role"]; village_id: string; force_password_reset: boolean; temporary_password: string }>("/auth/staff-users", {
+      const resData = await apiJson<{
+        user_id: string;
+        role: StaffRole;
+        scope: StaffScope;
+        village_id: string | null;
+        village_ids: string[];
+        force_password_reset: boolean;
+        temporary_password: string;
+      }>("/auth/staff-users", {
         method: "POST",
         body: JSON.stringify({
           display_name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
           role,
-          village_id: villageId
+          village_ids: selectedVillageIds,
         })
       });
 
@@ -170,7 +245,9 @@ export default function ManageAccounts() {
         email: email.trim(),
         phone: phone.trim(),
         role: resData.role,
+        scope: resData.scope,
         village_id: resData.village_id,
+        village_ids: resData.village_ids,
         temporary_password: resData.temporary_password,
       });
       setSuccess(`Đã cấp thành công tài khoản mới cho cán bộ: ${name.trim()}`);
@@ -211,10 +288,16 @@ export default function ManageAccounts() {
   const filteredOfficers = officers.filter((o) => {
     const matchesSearch = 
       o.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.phone.includes(searchTerm);
+      (o.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.phone || "").includes(searchTerm);
     
-    const matchesVillage = selectedVillageFilter === "all" || o.village_id === selectedVillageFilter;
+    const scopedVillageIds = Array.from(
+      new Set([...(o.village_ids || []), ...(o.village_id ? [o.village_id] : [])]),
+    );
+    const matchesVillage =
+      selectedVillageFilter === "all" ||
+      COMMUNE_WIDE_ROLES.has(o.role) ||
+      scopedVillageIds.includes(selectedVillageFilter);
     const matchesRole = selectedRoleFilter === "all" || o.role === selectedRoleFilter;
     const matchesStatus = 
       selectedStatusFilter === "all" || 
@@ -240,7 +323,7 @@ export default function ManageAccounts() {
             <div>
               <h1 className="text-lg font-black tracking-tight text-white uppercase">Quản lý tài khoản cán bộ</h1>
               <p className="text-2xs font-medium text-emerald-200 mt-1">
-                Quản lý quyền truy cập của cán bộ thôn và Tổ công nghệ số cộng đồng. Khóa tài khoản nhân sự cũ nhưng vẫn giữ nguyên nhật ký kiểm toán lịch sử.
+                Cấp đúng vai trò và địa bàn cho cán bộ thôn, CNSCĐ, cán bộ xã và lãnh đạo xã. Phạm vi được máy chủ kiểm tra trước khi tạo tài khoản.
               </p>
             </div>
           </div>
@@ -334,9 +417,15 @@ export default function ManageAccounts() {
                 <p className="text-slate-800 font-mono">{createdAccount.phone}</p>
               </div>
               <div>
-                <span className="text-4xs text-slate-400 uppercase tracking-wide">Thôn quản lý:</span>
+                <span className="text-4xs text-slate-400 uppercase tracking-wide">Vai trò:</span>
                 <p className="text-slate-800 font-black">
-                  {new_villages.find((v) => v.id === createdAccount.village_id)?.name || createdAccount.village_id}
+                  {ROLE_LABELS[createdAccount.role]}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-4xs text-slate-400 uppercase tracking-wide">Phạm vi phụ trách:</span>
+                <p className="text-slate-800 font-black">
+                  {getScopeLabel(createdAccount.role, createdAccount.village_ids)}
                 </p>
               </div>
             </div>
@@ -422,31 +511,109 @@ export default function ManageAccounts() {
 
               {/* Role */}
               <div className="space-y-1">
-                <label className="block text-4xs font-extrabold text-slate-500 uppercase tracking-wider">Phân quyền chức vụ:</label>
+                <label htmlFor="new-account-role" className="block text-4xs font-extrabold text-slate-500 uppercase tracking-wider">Phân quyền chức vụ:</label>
                 <select
+                  id="new-account-role"
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
+                  onChange={(e) => handleRoleChange(e.target.value as StaffRole)}
                   disabled={isSubmitting}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
                 >
                   <option value="can_bo_thon">Cán bộ Thôn</option>
                   <option value="to_cnscd">Thành viên Tổ công nghệ số cộng đồng</option>
+                  <option value="admin_xa">Cán bộ xã</option>
+                  <option value="lanh_dao">Lãnh đạo xã</option>
                 </select>
               </div>
 
               {/* Managed Village */}
               <div className="space-y-1 sm:col-span-2">
                 <label className="block text-4xs font-extrabold text-slate-500 uppercase tracking-wider">Thôn phụ trách / Địa bàn quản lý:</label>
-                <select
-                  value={villageId}
-                  onChange={(e) => setVillageId(e.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
-                >
-                  {new_villages.map((v) => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
+                {role === "can_bo_thon" && (
+                  <>
+                    <select
+                      aria-label="Thôn duy nhất cán bộ thôn phụ trách"
+                      value={selectedVillageIds[0] || ""}
+                      onChange={(e) => setSelectedVillageIds(e.target.value ? [e.target.value] : [])}
+                      disabled={isSubmitting}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-slate-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
+                    >
+                      {new_villages.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-5xs font-semibold text-slate-500">
+                      Cán bộ thôn chỉ được phụ trách đúng 1 thôn.
+                    </p>
+                  </>
+                )}
+
+                {role === "to_cnscd" && (
+                  <fieldset className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <legend className="text-xs font-bold text-slate-700">
+                        Chọn một hoặc nhiều thôn được giao
+                      </legend>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedVillageIds(
+                            selectedVillageIds.length === new_villages.length
+                              ? []
+                              : new_villages.map((village) => village.id),
+                          )
+                        }
+                        disabled={isSubmitting || new_villages.length === 0}
+                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1 text-5xs font-black text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        {selectedVillageIds.length === new_villages.length
+                          ? "Bỏ chọn tất cả"
+                          : "Chọn tất cả"}
+                      </button>
+                    </div>
+                    <div className="grid max-h-44 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {new_villages.map((village) => (
+                        <label
+                          key={village.id}
+                          className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-emerald-300"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedVillageIds.includes(village.id)}
+                            onChange={(event) =>
+                              setSelectedVillageIds((current) =>
+                                event.target.checked
+                                  ? Array.from(new Set([...current, village.id]))
+                                  : current.filter((villageId) => villageId !== village.id),
+                              )
+                            }
+                            disabled={isSubmitting}
+                            className="h-4 w-4 accent-emerald-700"
+                          />
+                          <span>{village.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-5xs font-bold text-emerald-800">
+                      Đã chọn {selectedVillageIds.length}/{new_villages.length} thôn
+                    </p>
+                  </fieldset>
+                )}
+
+                {COMMUNE_WIDE_ROLES.has(role) && (
+                  <div
+                    role="status"
+                    className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950"
+                  >
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+                    <div>
+                      <p className="font-black">Phạm vi toàn xã được gán tự động</p>
+                      <p className="mt-0.5 font-medium text-emerald-800">
+                        {ROLE_LABELS[role]} được xem và làm việc trên toàn bộ {new_villages.length} thôn; không cần chọn từng thôn.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -540,6 +707,8 @@ export default function ManageAccounts() {
                 <option value="all">Tất cả vai trò</option>
                 <option value="can_bo_thon">Cán bộ Thôn</option>
                 <option value="to_cnscd">Thành viên Tổ công nghệ số cộng đồng</option>
+                <option value="admin_xa">Cán bộ xã</option>
+                <option value="lanh_dao">Lãnh đạo xã</option>
               </select>
             </div>
 
@@ -579,13 +748,15 @@ export default function ManageAccounts() {
         ) : (
           <div className="grid gap-4 p-4 xl:grid-cols-2">
             {filteredOfficers.map((officer) => {
-              const village = new_villages.find(
-                (item) => item.id === officer.village_id,
+              const officerVillageIds = Array.from(
+                new Set([
+                  ...(officer.village_ids || []),
+                  ...(officer.village_id ? [officer.village_id] : []),
+                ]),
               );
-              const roleLabel =
-                officer.role === "can_bo_thon"
-                  ? "Cán bộ thôn"
-                  : "Tổ công nghệ số cộng đồng";
+              const roleLabel = ROLE_LABELS[officer.role];
+              const scopeLabel = getScopeLabel(officer.role, officerVillageIds);
+              const hasVillageLevelActions = !COMMUNE_WIDE_ROLES.has(officer.role);
               return (
                 <article
                   key={officer.id}
@@ -603,7 +774,7 @@ export default function ManageAccounts() {
                       <div className="mt-2 space-y-1 text-xs text-slate-600">
                         <div className="flex min-w-0 items-center gap-2">
                           <Mail className="h-4 w-4 shrink-0 text-slate-400" />
-                          <span className="min-w-0 break-all">{officer.email}</span>
+                          <span className="min-w-0 break-all">{officer.email || "Chưa cập nhật email"}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4 shrink-0 text-slate-400" />
@@ -639,7 +810,7 @@ export default function ManageAccounts() {
                       <dt className="font-bold text-slate-500">Địa bàn</dt>
                       <dd className="mt-1 flex items-center gap-1.5 font-semibold text-slate-800">
                         <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
-                        {village?.name || "Toàn xã"}
+                        {scopeLabel}
                       </dd>
                     </div>
                     <div>
@@ -648,40 +819,46 @@ export default function ManageAccounts() {
                     </div>
                   </dl>
 
-                  <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleResetPassword(officer.id, officer.name)
-                      }
-                      className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-800 transition-colors hover:bg-sky-100"
-                    >
-                      <KeyRound className="h-4 w-4" />
-                      Cấp lại mật khẩu
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleToggleStatus(
-                          officer.id,
-                          officer.name,
-                          officer.is_active,
-                        )
-                      }
-                      className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${
-                        officer.is_active
-                          ? "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {officer.is_active ? (
-                        <Lock className="h-4 w-4" />
-                      ) : (
-                        <Unlock className="h-4 w-4" />
-                      )}
-                      {officer.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
-                    </button>
-                  </div>
+                  {hasVillageLevelActions ? (
+                    <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleResetPassword(officer.id, officer.name)
+                        }
+                        className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-800 transition-colors hover:bg-sky-100"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Cấp lại mật khẩu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleToggleStatus(
+                            officer.id,
+                            officer.name,
+                            officer.is_active,
+                          )
+                        }
+                        className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors ${
+                          officer.is_active
+                            ? "border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                        }`}
+                      >
+                        {officer.is_active ? (
+                          <Lock className="h-4 w-4" />
+                        ) : (
+                          <Unlock className="h-4 w-4" />
+                        )}
+                        {officer.is_active ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-5xs font-semibold text-amber-900">
+                      Tài khoản cấp xã có quyền rộng; việc khóa hoặc cấp lại mật khẩu được xử lý theo quy trình quản trị đặc quyền.
+                    </div>
+                  )}
                 </article>
               );
             })}

@@ -7,6 +7,7 @@ the same facts, but cannot decide validity, approval, publication, or writes.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import date
 from typing import Any
 
 ALL_CT_CODES = {f"CT{number:02d}" for number in range(1, 15)}
@@ -66,25 +67,155 @@ def validate_maturity_scores(scores: dict[str, int]) -> dict[str, int]:
     return normalized
 
 
-def build_safe_period_brief(period_name: str, snapshots: Iterable[dict[str, Any]]) -> tuple[str, list[dict[str, str]], float]:
-    """Generate a citation-backed draft that excludes CT14 and all PII by design."""
-    entries = list(snapshots)
+def build_safe_period_brief(
+    period_name: str,
+    snapshots: Iterable[dict[str, Any]],
+    *,
+    actions: Iterable[dict[str, Any]] = (),
+    as_of: date | None = None,
+) -> tuple[str, list[dict[str, Any]], float]:
+    """Generate a structured, citation-backed decision brief.
+
+    Only aggregate quality and workflow facts are used. Indicator values,
+    contact data and other PII are deliberately excluded. The result remains
+    advisory: it describes evidence and a next review step but never approves,
+    assigns or publishes anything.
+    """
+    entries = sorted(
+        snapshots,
+        key=lambda item: str(item.get("report_id", "")),
+    )
     if not entries:
         return ("Chưa đủ dữ liệu để tạo tóm tắt. Hãy chọn kỳ có báo cáo được quyền xem.", [], 0.0)
+
+    action_entries = list(actions)
+    today = as_of or date.today()
     blocked = [item for item in entries if item["quality_status"] == "blocked"]
+    needs_review = [
+        item for item in entries if item["quality_status"] == "needs_review"
+    ]
+    ready = [item for item in entries if item["quality_status"] == "ready"]
     late = [item for item in entries if item["timeliness_status"] == "late"]
+    open_actions = [
+        item
+        for item in action_entries
+        if str(item.get("status")) not in {"completed", "cancelled"}
+    ]
+    overdue_actions = []
+    for item in open_actions:
+        due_value = item.get("due_date")
+        if not due_value:
+            continue
+        try:
+            if date.fromisoformat(str(due_value)[:10]) < today:
+                overdue_actions.append(item)
+        except ValueError:
+            continue
+
     average = round(sum(float(item["quality_score"]) for item in entries) / len(entries), 1)
-    content = (
-        f"Bản nháp điều hành kỳ {period_name}: {len(entries)} báo cáo trong phạm vi được quyền xem, "
-        f"điểm chất lượng trung bình {average}%. "
-        f"Có {len(blocked)} báo cáo bị chặn bởi lỗi xác định và {len(late)} báo cáo nộp muộn. "
-        "Đề nghị người có thẩm quyền rà soát danh sách việc trước khi giao hoặc công bố."
+
+    if blocked:
+        priority = "Khẩn"
+        conclusion = (
+            f"Chưa nên dùng toàn bộ dữ liệu kỳ {period_name} làm căn cứ quyết định: "
+            f"{len(blocked)} báo cáo đã duyệt vẫn có lỗi chặn."
+        )
+        recommended_action = (
+            "Phân công đối chiếu từng báo cáo có lỗi chặn với tài liệu nguồn, "
+            "cập nhật kết quả kiểm tra rồi tạo lại bản tóm tắt."
+        )
+    elif overdue_actions:
+        priority = "Khẩn"
+        conclusion = (
+            f"Cần xử lý {len(overdue_actions)} việc quá hạn trước khi mở thêm đầu việc "
+            f"từ dữ liệu kỳ {period_name}."
+        )
+        recommended_action = (
+            "Xác nhận người chịu trách nhiệm và mốc hoàn thành cho các việc quá hạn; "
+            "ghi kết quả vào hàng việc."
+        )
+    elif needs_review or late:
+        priority = "Cao"
+        conclusion = (
+            f"Dữ liệu kỳ {period_name} cần rà soát có trọng tâm trước khi sử dụng: "
+            f"{len(needs_review)} báo cáo còn cảnh báo và {len(late)} báo cáo nộp muộn."
+        )
+        recommended_action = (
+            "Mở danh sách báo cáo cần xem, đối chiếu cảnh báo và nguồn nhập; "
+            "người có thẩm quyền quyết định chấp nhận hoặc yêu cầu bổ sung."
+        )
+    else:
+        priority = "Theo dõi"
+        conclusion = (
+            f"{len(ready)}/{len(entries)} báo cáo đã duyệt của kỳ {period_name} "
+            "đạt điều kiện chất lượng hiện hành."
+        )
+        recommended_action = (
+            "Người có thẩm quyền xác nhận phạm vi và căn cứ trước khi dùng số liệu "
+            "để giao việc hoặc công bố."
+        )
+
+    basis = (
+        f"{len(entries)} báo cáo đã duyệt/khóa; điểm chất lượng trung bình {average}%; "
+        f"{len(blocked)} lỗi chặn; {len(needs_review)} báo cáo còn cảnh báo; "
+        f"{len(late)} báo cáo nộp muộn; {len(open_actions)} việc đang mở, "
+        f"trong đó {len(overdue_actions)} việc quá hạn."
+    )
+    limitation = (
+        "Chỉ tổng hợp trạng thái chất lượng, nguồn và tiến độ trong phạm vi được quyền xem; "
+        "không đọc giá trị chỉ tiêu nhạy cảm, không tự phê duyệt, giao việc hoặc công bố."
+    )
+    content = "\n".join(
+        (
+            f"Kết luận: {conclusion}",
+            f"Mức ưu tiên: {priority}",
+            f"Hành động đề xuất: {recommended_action}",
+            f"Căn cứ: {basis}",
+            f"Giới hạn: {limitation}",
+        )
     )
     citations = [
-        {"kind": "quality_snapshot", "id": item["report_id"], "label": f"{item['village_name']} · rule {item['lineage']['rule_version']}"}
+        {
+            "kind": "quality_snapshot",
+            "id": item["report_id"],
+            "label": (
+                f"{item['village_name']} · bộ quy tắc "
+                f"{item['lineage']['rule_version']}"
+            ),
+            "village_name": item["village_name"],
+            "workflow_status": item["workflow_status"],
+            "quality_status": item["quality_status"],
+            "quality_score": item["quality_score"],
+            "unresolved_flag_count": item["unresolved_flag_count"],
+            "outlier_count": item["outlier_count"],
+            "timeliness_status": item["timeliness_status"],
+            "report_source": item["lineage"]["report_source"],
+            "report_version": item["lineage"]["report_version"],
+            "rule_version": item["lineage"]["rule_version"],
+        }
         for item in entries
     ]
-    confidence = 0.9 if all(item["quality_status"] == "ready" for item in entries) else 0.75
+    citations.append(
+        {
+            "kind": "decision_metrics",
+            "id": f"period:{period_name}",
+            "label": "Chỉ số tổng hợp dùng để tạo bản tóm tắt",
+            "report_count": len(entries),
+            "ready_report_count": len(ready),
+            "average_quality_score": average,
+            "blocked_report_count": len(blocked),
+            "review_report_count": len(needs_review),
+            "late_report_count": len(late),
+            "open_action_count": len(open_actions),
+            "overdue_action_count": len(overdue_actions),
+            "generator_version": "deterministic-evidence-v2",
+        }
+    )
+    ready_ratio = len(ready) / len(entries)
+    confidence = round(
+        min(1.0, max(0.0, (average / 100 * 0.7) + (ready_ratio * 0.3))),
+        2,
+    )
     return content, citations, confidence
 
 

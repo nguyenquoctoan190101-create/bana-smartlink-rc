@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PublicVillagePage from "./PublicVillagePage";
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +26,8 @@ vi.mock("../lib/useVillages", () => ({
 }));
 
 describe("PublicVillagePage navigation", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.loadVillages.mockResolvedValue([
@@ -69,5 +71,38 @@ describe("PublicVillagePage navigation", () => {
         }),
       ).getAllByRole("button"),
     ).toHaveLength(4);
+  });
+
+  it("clearly marks example lookup codes and blocks them locally", async () => {
+    const user = userEvent.setup();
+    render(<PublicVillagePage onGoToLogin={vi.fn()} />);
+
+    await user.click(
+      within(
+        screen.getByRole("navigation", {
+          name: "Điều hướng cổng công khai",
+        }),
+      ).getByRole("button", { name: "Tra cứu hồ sơ" }),
+    );
+
+    expect(
+      screen.getAllByText("Mã ví dụ — không dùng để tra cứu"),
+    ).toHaveLength(2);
+    const lookupInput = screen.getByRole("textbox", {
+      name: "Mã tra cứu thật đã được cấp",
+    });
+    expect(lookupInput).toHaveAttribute(
+      "placeholder",
+      "Nhập mã thật đã được cấp (16 hoặc 32 ký tự)",
+    );
+
+    const callsBeforeLookup = mocks.apiJson.mock.calls.length;
+    await user.type(lookupInput, "A1B2C3D4E5F6G7H8");
+    await user.click(screen.getByRole("button", { name: "Tra cứu" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Đây là mã ví dụ để minh họa định dạng, không phải mã hồ sơ thật.",
+    );
+    expect(mocks.apiJson).toHaveBeenCalledTimes(callsBeforeLookup);
   });
 });

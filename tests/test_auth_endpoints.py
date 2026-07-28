@@ -99,7 +99,7 @@ def test_list_officers_success(client, mock_get_user_profile, mock_db_conn):
     mock_get_user_profile.return_value = UserProfile(id=sub, role="admin_xa", village_id=None, force_password_reset=False)
     
     mock_db_conn.fetch.return_value = [
-        {"id": "off1", "name": "Nguyễn Văn A", "email": "a@x.com", "phone": "123", "role": "can_bo_thon", "village_id": "1", "is_active": True, "last_login": "2026-07-01"}
+        {"id": "off1", "name": "Nguyễn Văn A", "email": "a@x.com", "phone": "123", "role": "can_bo_thon", "village_id": "1", "village_ids": ["1"], "is_active": True, "last_login": "2026-07-01"}
     ]
     
     res = client.get("/auth/officers", headers={"Authorization": f"Bearer {token}"})
@@ -107,6 +107,8 @@ def test_list_officers_success(client, mock_get_user_profile, mock_db_conn):
     assert len(res.json()) == 1
     query, actor_id = mock_db_conn.fetch.await_args.args
     assert "p.commune_id = actor.commune_id" in query
+    assert "'admin_xa', 'lanh_dao'" in query
+    assert "user_village_assignments" in query
     assert actor_id == sub
 
 

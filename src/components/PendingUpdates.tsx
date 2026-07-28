@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye, FileText, ArrowRight, Activity, Shield, CheckCircle2, XCircle } from "lucide-react";
+import { Check, X, AlertCircle, RefreshCw, ClipboardCheck, Calendar, MapPin, Eye, FileText, ArrowRight, Activity, Shield, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useVillages } from "../lib/useVillages";
 import { WorkSection } from "./ui";
@@ -90,6 +90,8 @@ const AUDIT_TABLE_LABELS: Record<string, string> = {
 const shortReference = (value: string) =>
   value ? value.replace(/-/g, "").slice(0, 8).toUpperCase() : "—";
 
+const DEFAULT_AUDIT_LOG_LIMIT = 3;
+
 export default function PendingUpdates({ userRole, userVillageId, userName, onUpdateProcessed }: PendingUpdatesProps) {
   const { villages: new_villages } = useVillages();
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -101,6 +103,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showAllAuditLogs, setShowAllAuditLogs] = useState(false);
 
   // Tab states: 'pending' (default) or 'history'
   const [statusFilter, setStatusFilter] = useState<"Pending" | "Processed">("Pending");
@@ -159,8 +162,7 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
 
       // 3. Fetch audit logs
       const dataLogs = await apiJson<AuditLogApiRow[]>("/auth/audit-logs");
-      setAuditLogs(
-        (Array.isArray(dataLogs) ? dataLogs : []).map((item) => {
+      const normalizedAuditLogs = (Array.isArray(dataLogs) ? dataLogs : []).map((item) => {
           let payload: Record<string, unknown> = item.payload || {};
           if (!item.payload && typeof item.details === "string") {
             try {
@@ -180,7 +182,15 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
             payload,
             created_at: item.created_at,
           };
-        }),
+        });
+      normalizedAuditLogs.sort((left, right) => {
+        const leftTime = new Date(left.created_at).getTime();
+        const rightTime = new Date(right.created_at).getTime();
+        if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return 0;
+        return rightTime - leftTime;
+      });
+      setAuditLogs(
+        normalizedAuditLogs,
       );
     } catch (err) {
       setError(toUserFacingError(err, "Đã xảy ra lỗi khi tải dữ liệu."));
@@ -236,6 +246,10 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
       return p.status === "Approved" || p.status === "Rejected";
     }
   });
+
+  const visibleAuditLogs = showAllAuditLogs
+    ? auditLogs
+    : auditLogs.slice(0, DEFAULT_AUDIT_LOG_LIMIT);
 
   // Processed approvals must use the immutable audit snapshot, never the
   // report's current value (which already contains the approved change).
@@ -473,7 +487,9 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
               <Shield className="w-4.5 h-4.5 text-emerald-800" />
               <div>
                 <h3 className="font-bold text-slate-800 text-xs">Nhật ký thay đổi</h3>
-                <p className="text-4xs text-slate-400 mt-0.5">Ghi nhật ký trong cùng một giao dịch dữ liệu</p>
+                <p className="text-4xs text-slate-400 mt-0.5">
+                  Mặc định hiển thị {DEFAULT_AUDIT_LOG_LIMIT} bản ghi mới nhất
+                </p>
               </div>
             </div>
 
@@ -486,7 +502,8 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
               </div>
             ) : (
               <div className="space-y-3">
-                {auditLogs.map((log) => (
+                <div id="audit-log-list" className="space-y-3">
+                {visibleAuditLogs.map((log) => (
                   <div key={log.id} className="bg-slate-25/50 border border-slate-100 rounded-xl p-3.5 text-xs space-y-2">
                     <div className="flex justify-between items-start gap-1">
                       <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
@@ -533,6 +550,34 @@ export default function PendingUpdates({ userRole, userVillageId, userName, onUp
                     </details>
                   </div>
                 ))}
+                </div>
+                {auditLogs.length > DEFAULT_AUDIT_LOG_LIMIT && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="mb-2 text-center text-5xs font-semibold text-slate-500">
+                      Đang hiển thị {visibleAuditLogs.length}/{auditLogs.length} bản ghi
+                      {showAllAuditLogs ? "" : " mới nhất"}
+                    </p>
+                    <button
+                      type="button"
+                      aria-expanded={showAllAuditLogs}
+                      aria-controls="audit-log-list"
+                      onClick={() => setShowAllAuditLogs((current) => !current)}
+                      className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-black text-emerald-800 transition-colors hover:bg-emerald-50"
+                    >
+                      {showAllAuditLogs ? (
+                        <>
+                          <ChevronUp className="h-4 w-4" />
+                          Chỉ xem {DEFAULT_AUDIT_LOG_LIMIT} bản ghi mới nhất
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4" />
+                          Xem tất cả {auditLogs.length} bản ghi
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

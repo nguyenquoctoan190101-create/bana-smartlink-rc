@@ -120,6 +120,36 @@ async def test_create_profile_pending_update_and_force_reset_payloads() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_cnscd_assignment_ledger_uses_bulk_payload() -> None:
+    client = SupabaseAdminClient(_settings())
+    client._rest_request = AsyncMock(return_value=[])
+
+    await client.create_user_village_assignments(
+        "user-1",
+        ["village-1", "village-2"],
+        "admin-1",
+    )
+
+    client._rest_request.assert_awaited_once_with(
+        "POST",
+        "/rest/v1/user_village_assignments",
+        [
+            {
+                "user_id": "user-1",
+                "village_id": "village-1",
+                "assigned_by": "admin-1",
+            },
+            {
+                "user_id": "user-1",
+                "village_id": "village-2",
+                "assigned_by": "admin-1",
+            },
+        ],
+        prefer="return=minimal",
+    )
+
+
+@pytest.mark.asyncio
 async def test_user_password_and_storage_upload_use_caller_jwt_and_encoded_path() -> None:
     client = SupabaseAdminClient(_settings()).as_user("caller.jwt")
     client._auth_request = AsyncMock(return_value={})

@@ -251,7 +251,7 @@ class SupabaseAdminClient:
         self,
         user_id: str,
         role: str,
-        village_id: str,
+        village_id: str | None,
         display_name: str | None = None,
         phone: str | None = None,
         force_password_reset: bool = True,
@@ -285,6 +285,30 @@ class SupabaseAdminClient:
             phone=str(row["phone"]) if row.get("phone") else None,
             is_active=bool(row.get("is_active", True)),
             commune_id=str(row["commune_id"]) if row.get("commune_id") else payload["commune_id"],
+        )
+
+    async def create_user_village_assignments(
+        self,
+        user_id: str,
+        village_ids: list[str],
+        assigned_by: str,
+    ) -> None:
+        """Persist the explicit working scope for a CNSCĐ account."""
+        if not village_ids:
+            return
+        payload = [
+            {
+                "user_id": user_id,
+                "village_id": village_id,
+                "assigned_by": assigned_by,
+            }
+            for village_id in village_ids
+        ]
+        await self._rest_request(
+            "POST",
+            "/rest/v1/user_village_assignments",
+            payload,
+            prefer="return=minimal",
         )
 
     async def village_in_commune(self, village_id: str, commune_id: str) -> bool:
