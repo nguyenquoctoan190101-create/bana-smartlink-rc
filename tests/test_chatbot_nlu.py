@@ -226,6 +226,7 @@ def test_answer_prompt_explains_legacy_name_resolution() -> None:
     assert "ten_thon_chuan_hoa" in prompt
     assert "Thôn Sơn Phước" in prompt
     assert "tên thôn cũ" in prompt
+    assert '"unit": "hộ"' in prompt
 
 
 def test_cnscd_query_is_scoped_by_assignment_not_single_profile_village() -> None:

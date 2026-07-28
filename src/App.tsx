@@ -2307,7 +2307,7 @@ export default function App() {
       )}
 
       {/* Smart Chatbot Widget */}
-      <ChatWidget userPhone={userPhone} />
+      <ChatWidget userPhone={userPhone} userRole={userRole} />
 
       {/* Privacy Policy Modal overlay */}
       {showPrivacy && (

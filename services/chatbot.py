@@ -589,6 +589,11 @@ def _no_data_answer(parsed: _ParsedQuestion, caller_role: str) -> str:
     )
 
 
+def _unit_in_sentence(unit: str) -> str:
+    """Use lower-case Vietnamese counting units inside prose and model context."""
+    return unit[:1].lower() + unit[1:] if unit else ""
+
+
 def _deterministic_data_answer(rows: list[dict[str, Any]]) -> str:
     """Keep known data questions usable when the optional model is unavailable."""
     snippets: list[str] = []
@@ -598,7 +603,7 @@ def _deterministic_data_answer(rows: list[dict[str, Any]]) -> str:
         code = str(row.get("ct_code") or "chỉ tiêu")
         value = row.get("value")
         indicator = _CODE_TO_INDICATOR.get(code)
-        unit = indicator.unit if indicator else ""
+        unit = _unit_in_sentence(indicator.unit) if indicator else ""
         if value is None:
             rendered = "chưa có dữ liệu"
         else:
@@ -927,7 +932,7 @@ def _enrich_with_indicator_names(rows: list[dict[str, Any]]) -> list[dict[str, A
         if code and code in _CODE_TO_INDICATOR:
             ind = _CODE_TO_INDICATOR[code]
             r["indicator_name"] = ind.name
-            r["unit"] = ind.unit
+            r["unit"] = _unit_in_sentence(ind.unit)
         enriched.append(r)
     return enriched
 

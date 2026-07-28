@@ -92,6 +92,13 @@ export function formatNotificationTime(
   }).format(new Date(timestamp));
 }
 
+export function formatNotificationBody(value: string): string {
+  return value.replace(
+    /(\bcó hạn nộp\s+\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}\b)/giu,
+    "$1 lúc $2",
+  );
+}
+
 export default function NotificationCenter({
   notifications,
   isOpen,
@@ -321,7 +328,7 @@ export default function NotificationCenter({
                       </span>
                       <strong>{notification.title}</strong>
                       <span className="notification-center__body">
-                        {notification.body}
+                        {formatNotificationBody(notification.body)}
                       </span>
                       {notification.url && (
                         <span className="notification-center__action">

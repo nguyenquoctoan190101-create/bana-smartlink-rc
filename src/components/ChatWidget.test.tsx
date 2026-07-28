@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import ChatWidget from "./ChatWidget";
+import ChatWidget, { formatAsOf } from "./ChatWidget";
 
 const mocks = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 
@@ -45,15 +45,51 @@ describe("ChatWidget suggestions", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows internal workflow suggestions to authenticated staff", () => {
-    render(<ChatWidget userPhone="0900000101" />);
+  it("keeps village-officer suggestions inside the assigned village", () => {
+    render(
+      <ChatWidget userPhone="0900000101" userRole="can_bo_thon" />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
 
     expect(
       screen.getByRole("button", { name: "Thôn tôi có bao nhiêu hộ nghèo?" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Thôn nào chưa nộp báo cáo kỳ này?" }),
+      screen.queryByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "So sánh hộ dân giữa Thôn An Sơn và Thôn Phú Hòa?",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows source update timestamps with a four-digit year", () => {
+    expect(formatAsOf("2026-07-27T04:59:00Z")).toMatch(
+      /^27\/07\/2026 lúc \d{2}:\d{2}$/,
+    );
+  });
+
+  it("scopes support-team suggestions to assigned villages", () => {
+    render(<ChatWidget userPhone="0900000102" userRole="to_cnscd" />);
+    fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: "Thôn nào trong phạm vi hỗ trợ chưa nộp báo cáo kỳ này?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows commune-wide suggestions only to commune roles", () => {
+    render(<ChatWidget userPhone="0900000103" userRole="lanh_dao" />);
+    fireEvent.click(screen.getByRole("button", { name: "Mở tra cứu số liệu" }));
+
+    expect(
+      screen.getByRole("button", { name: "Toàn xã có bao nhiêu nhân khẩu?" }),
     ).toBeInTheDocument();
   });
 
