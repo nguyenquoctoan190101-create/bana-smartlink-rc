@@ -4238,12 +4238,36 @@
       "VillageStatusResponse": {
         "properties": {
           "dashboard_color": {
+            "enum": [
+              "blue",
+              "green",
+              "yellow",
+              "red"
+            ],
             "title": "Dashboard Color",
             "type": "string"
           },
+          "days_delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Delta"
+          },
           "days_late": {
-            "title": "Days Late",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Late"
           },
           "due_date": {
             "anyOf": [
@@ -4276,6 +4300,12 @@
             "title": "Report Id"
           },
           "status": {
+            "enum": [
+              "not_submitted",
+              "overdue",
+              "on_time",
+              "late"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -4308,6 +4338,7 @@
           "submitted_at",
           "due_date",
           "days_late",
+          "days_delta",
           "status",
           "dashboard_color"
         ],
