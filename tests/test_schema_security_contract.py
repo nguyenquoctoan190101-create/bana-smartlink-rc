@@ -103,6 +103,7 @@ def test_ordered_upgrade_chain_is_present() -> None:
         "20260727_0028_complete_demo_public_reports.sql",
         "20260727_0029_seed_reconciled_sample_reports.sql",
         "20260728_0030_ai_draft_admin_mutation.sql",
+        "20260729_0031_supabase_advisor_hardening.sql",
     ]
 
 
@@ -425,11 +426,39 @@ def test_database_ci_fails_closed_and_rls_fixture_rolls_back() -> None:
     ) in workflow
     assert "migrations/20260727_*.sql" in workflow
     assert "migrations/20260728_*.sql" in workflow
+    assert "migrations/20260729_*.sql" in workflow
     assert "tests/sql/ai_draft_legacy_compat.sql" in workflow
     assert "tests/sql/supabase_existing_roles_bootstrap.sql" in workflow
     assert "for migration in migrations/*.sql" not in workflow
     assert rls_matrix.lstrip().startswith("\\set ON_ERROR_STOP on\n\nbegin;")
     assert rls_matrix.rstrip().endswith("rollback;")
+
+
+def test_supabase_advisor_hardening_is_fail_closed_and_semantic_preserving() -> None:
+    migration = (
+        ROOT / "migrations" / "20260729_0031_supabase_advisor_hardening.sql"
+    ).read_text(encoding="utf-8")
+
+    for marker in (
+        "alter table public.schema_migrations enable row level security",
+        "revoke all on table public.schema_migrations",
+        "procedure.prosecdef",
+        "from public, anon",
+        "public.audit_operations_change()",
+        "public.citizen_case_audit_status()",
+        "replace(target_policy.qual, 'auth.uid()', '(select auth.uid())')",
+        "replace(target_policy.with_check, 'auth.uid()', '(select auth.uid())')",
+        "overlapping permissive policies remain",
+        "an auth.uid policy still lacks an initplan subquery",
+    ):
+        assert marker in migration
+
+    assert migration.count("'_insert'") == 1
+    assert migration.count("'_update'") == 1
+    assert migration.count("'_delete'") == 1
+    assert "'assignments_write_admin'" in migration
+    assert "'report_import_resolutions_mutate_admin'" in migration
+    assert "'scenarios_mutate_admin'" in migration
 
 
 def test_citizen_case_staff_scope_rejects_unassigned_village_records() -> None:

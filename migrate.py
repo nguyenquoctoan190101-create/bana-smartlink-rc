@@ -25,6 +25,7 @@ FRESH_OVERLAY_GLOBS = (
     "20260726_*.sql",
     "20260727_*.sql",
     "20260728_*.sql",
+    "20260729_*.sql",
 )
 RELEASE_OVERLAY_GLOBS = (
     "20260718_*.sql",
@@ -33,6 +34,7 @@ RELEASE_OVERLAY_GLOBS = (
     "20260726_*.sql",
     "20260727_*.sql",
     "20260728_*.sql",
+    "20260729_*.sql",
 )
 
 
@@ -47,7 +49,24 @@ async def _ensure_tracking(conn: asyncpg.Connection) -> None:
           name text primary key,
           sha256 text not null,
           applied_at timestamptz not null default now()
-        )
+        );
+        alter table public.schema_migrations enable row level security;
+        revoke all on table public.schema_migrations from public;
+        do $tracking_acl$
+        begin
+          if exists (select 1 from pg_roles where rolname = 'anon') then
+            revoke all on table public.schema_migrations from anon;
+          end if;
+          if exists (
+            select 1 from pg_roles where rolname = 'authenticated'
+          ) then
+            revoke all on table public.schema_migrations from authenticated;
+          end if;
+          if exists (select 1 from pg_roles where rolname = 'service_role') then
+            revoke all on table public.schema_migrations from service_role;
+          end if;
+        end
+        $tracking_acl$
         """
     )
 

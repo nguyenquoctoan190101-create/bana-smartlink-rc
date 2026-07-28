@@ -8,6 +8,13 @@ begin;
 
 create extension if not exists pgcrypto;
 
+create table if not exists public.schema_migrations (
+  name text primary key,
+  sha256 text not null,
+  applied_at timestamptz not null default now()
+);
+alter table public.schema_migrations enable row level security;
+
 create type public.user_role as enum (
   'admin_xa',
   'can_bo_thon',

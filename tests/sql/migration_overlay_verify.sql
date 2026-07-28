@@ -126,6 +126,132 @@ begin
 end
 $$;
 
+do $verify_supabase_advisor_hardening$
+declare
+  auth_policy_count integer;
+  overlap_count integer;
+begin
+  if not exists (
+    select 1
+    from pg_class as relation
+    join pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'schema_migrations'
+      and relation.relrowsecurity
+  ) then
+    raise exception 'schema_migrations must have RLS enabled';
+  end if;
+
+  if has_table_privilege('anon', 'public.schema_migrations', 'select')
+     or has_table_privilege(
+       'authenticated', 'public.schema_migrations', 'select'
+     )
+     or has_table_privilege(
+       'service_role', 'public.schema_migrations', 'select'
+     ) then
+    raise exception 'an API role can read schema_migrations';
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.prosecdef
+      and has_function_privilege('anon', procedure.oid, 'execute')
+  ) then
+    raise exception 'anon can execute a public SECURITY DEFINER';
+  end if;
+
+  if has_function_privilege(
+       'authenticated', 'public.audit_operations_change()', 'execute'
+     )
+     or has_function_privilege(
+       'authenticated', 'public.citizen_case_audit_status()', 'execute'
+     )
+     or has_function_privilege(
+       'service_role', 'public.audit_operations_change()', 'execute'
+     )
+     or has_function_privilege(
+       'service_role', 'public.citizen_case_audit_status()', 'execute'
+     ) then
+    raise exception 'trigger-only functions remain directly executable';
+  end if;
+
+  select count(*)
+  into auth_policy_count
+  from pg_policies as policy
+  where policy.schemaname = 'public'
+    and policy.policyname = any(array[
+      'action_items_select_scoped',
+      'action_items_update_scoped',
+      'ai_drafts_insert_admin',
+      'ai_drafts_update_admin',
+      'notifications_delete_own',
+      'notifications_select_own',
+      'notifications_update_own',
+      'push_subscriptions_own',
+      'submission_receipts_insert_own',
+      'submission_receipts_select_own',
+      'profiles_select_self_admin_leader',
+      'assignments_select_scoped'
+    ]);
+  if auth_policy_count <> 12 then
+    raise exception 'the auth.uid policy contract is incomplete';
+  end if;
+
+  if exists (
+    select 1
+    from pg_policies as policy
+    cross join lateral (
+      select
+        coalesce(policy.qual, '') || ' ' ||
+        coalesce(policy.with_check, '') as expression
+    ) as policy_expression
+    where policy.schemaname = 'public'
+      and policy_expression.expression like '%auth.uid()%'
+      and regexp_count(
+        policy_expression.expression,
+        'auth\.uid\(\)'
+      ) <> regexp_count(
+        policy_expression.expression,
+        'SELECT auth\.uid\(\)'
+      )
+  ) then
+    raise exception 'an auth.uid policy is not initplan-safe';
+  end if;
+
+  with expanded as (
+    select
+      policy.tablename,
+      role_name,
+      action_name
+    from pg_policies as policy
+    cross join lateral unnest(policy.roles) as role_name
+    cross join lateral unnest(
+      case
+        when policy.cmd = 'ALL'
+          then array['SELECT', 'INSERT', 'UPDATE', 'DELETE']::text[]
+        else array[policy.cmd]::text[]
+      end
+    ) as action_name
+    where policy.schemaname = 'public'
+      and policy.permissive = 'PERMISSIVE'
+  ),
+  overlaps as (
+    select 1
+    from expanded
+    group by tablename, role_name, action_name
+    having count(*) > 1
+  )
+  select count(*) into overlap_count from overlaps;
+
+  if overlap_count <> 0 then
+    raise exception 'permissive policy overlaps remain: %', overlap_count;
+  end if;
+end
+$verify_supabase_advisor_hardening$;
+
 do $$
 declare
   channel_constraint text;
