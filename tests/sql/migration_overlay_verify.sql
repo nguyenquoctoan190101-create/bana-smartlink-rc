@@ -428,6 +428,10 @@ begin
      or position('admin_xa' in select_qual) = 0
      or position('lanh_dao' in select_qual) = 0
      or position('accepted' in select_qual) = 0
+     or position('reviewed_by' in select_qual) = 0
+     or position('reviewed_at' in select_qual) = 0
+     or position('review_notes' in select_qual) = 0
+     or position('char_length' in select_qual) = 0
      or position('profile_commune_id' in select_qual) = 0
      or insert_check is null
      or position('admin_xa' in insert_check) = 0

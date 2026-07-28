@@ -189,6 +189,21 @@ function isDecisionDraft(value: unknown): value is DecisionDraft {
   );
 }
 
+function hasValidReviewMetadata(draft: DecisionDraft): boolean {
+  const notes = draft.review_notes?.trim() || "";
+  return (
+    notes.length >= 10 &&
+    notes.length <= 2000 &&
+    typeof draft.reviewed_at === "string" &&
+    draft.reviewed_at.trim().length > 0 &&
+    Number.isFinite(Date.parse(draft.reviewed_at))
+  );
+}
+
+function isOfficialAcceptedDraft(draft: DecisionDraft): boolean {
+  return draft.status === "accepted" && hasValidReviewMetadata(draft);
+}
+
 function asDraftCitations(value: unknown): DraftCitation[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((citation) => ({
@@ -552,8 +567,15 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
     [drafts, periodId],
   );
   const pendingDrafts = useMemo(() => currentPeriodDrafts.filter((item) => item.status === "pending_review"), [currentPeriodDrafts]);
-  const acceptedDrafts = useMemo(
-    () => currentPeriodDrafts.filter((item) => item.status === "accepted"),
+  const officialAcceptedDrafts = useMemo(
+    () => currentPeriodDrafts.filter(isOfficialAcceptedDraft),
+    [currentPeriodDrafts],
+  );
+  const invalidAcceptedDrafts = useMemo(
+    () =>
+      currentPeriodDrafts.filter(
+        (item) => item.status === "accepted" && !isOfficialAcceptedDraft(item),
+      ),
     [currentPeriodDrafts],
   );
   const rejectedDrafts = useMemo(
@@ -562,9 +584,11 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
   );
   const latestDecisionDraft =
     (admin
-      ? pendingDrafts[0] ?? acceptedDrafts[0] ?? rejectedDrafts[0]
-      : undefined) ?? acceptedDrafts[0];
-  const decisionHistorySource = admin ? currentPeriodDrafts : acceptedDrafts;
+      ? pendingDrafts[0] ?? officialAcceptedDrafts[0] ?? rejectedDrafts[0]
+      : undefined) ?? officialAcceptedDrafts[0];
+  const decisionHistorySource = admin
+    ? currentPeriodDrafts
+    : officialAcceptedDrafts;
   const decisionHistory = latestDecisionDraft
     ? decisionHistorySource.filter((item) => item.id !== latestDecisionDraft.id)
     : decisionHistorySource;
@@ -652,9 +676,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         reviewed.status === decision &&
         reviewed.period_id === currentDraft?.period_id &&
         reviewed.review_notes === notes &&
-        typeof reviewed.reviewed_at === "string" &&
-        reviewed.reviewed_at.trim().length > 0 &&
-        Number.isFinite(Date.parse(reviewed.reviewed_at));
+        hasValidReviewMetadata(reviewed);
       if (!validReviewedDraft) {
         const refreshed = await refresh();
         if (refreshed) {
@@ -942,7 +964,11 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           ) : role === "lanh_dao" ? (
             <MetricCard
               label="Bản tóm tắt đã duyệt"
-              value={available.drafts === false ? "—" : acceptedDrafts.length}
+              value={
+                available.drafts === false
+                  ? "—"
+                  : officialAcceptedDrafts.length
+              }
               context={
                 available.drafts === false
                   ? "Không tải được bản tóm tắt"
@@ -1141,10 +1167,14 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                 title={
                   !admin
                     ? "Chưa có bản đã chấp nhận cho kỳ này"
-                    : "Chưa có bản phân tích cho kỳ này"
+                    : invalidAcceptedDrafts.length
+                      ? "Chưa có hồ sơ được chấp nhận hợp lệ"
+                      : "Chưa có bản phân tích cho kỳ này"
                 }
                 description={
-                  approvedReports.length && admin
+                  admin && invalidAcceptedDrafts.length
+                    ? "Hồ sơ di sản thiếu căn cứ duyệt chỉ được giữ trong lịch sử để truy vết; không dùng làm căn cứ chính thức."
+                    : approvedReports.length && admin
                     ? "Quản trị xã có thể tạo một bản phân tích có căn cứ để người có thẩm quyền xem xét."
                     : approvedReports.length
                       ? "Quản trị xã chưa tạo và chấp nhận bản phân tích cho kỳ này."
@@ -1828,42 +1858,63 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
                     )}
                 </article>
 
-                {decisionHistory.length > 0 && (
-                  <details className="decision-history">
-                    <summary>
-                      Lịch sử hồ sơ hỗ trợ quyết định ({decisionHistory.length})
-                    </summary>
-                    <div className="decision-history__list">
-                      {decisionHistory.map((draft) => {
-                        const historicalBrief = parseDecisionBrief(draft.content);
-                        return (
-                          <article
-                            key={draft.id}
-                            className="decision-history__item"
-                          >
-                            <div className="decision-history__meta">
-                              <StatusBadge status={draft.status} />
-                              {draft.created_at && (
-                                <span>
-                                  {new Date(draft.created_at).toLocaleString("vi-VN")}
-                                </span>
-                              )}
-                            </div>
-                            <p className="decision-history__conclusion">
-                              {historicalBrief.conclusion}
-                            </p>
-                            {draft.review_notes && (
-                              <p className="decision-history__notes">
-                                Nhận xét: {draft.review_notes}
-                              </p>
-                            )}
-                          </article>
-                        );
-                      })}
-                    </div>
-                  </details>
-                )}
               </>
+            )}
+
+            {available.drafts !== false && decisionHistory.length > 0 && (
+              <details className="decision-history">
+                <summary>
+                  Lịch sử hồ sơ hỗ trợ quyết định ({decisionHistory.length})
+                </summary>
+                <div className="decision-history__list">
+                  {decisionHistory.map((draft) => {
+                    const historicalBrief = parseDecisionBrief(draft.content);
+                    const invalidLegacyAcceptance =
+                      draft.status === "accepted" &&
+                      !isOfficialAcceptedDraft(draft);
+                    return (
+                      <article
+                        key={draft.id}
+                        className="decision-history__item"
+                      >
+                        <div className="decision-history__meta">
+                          <StatusBadge
+                            status={
+                              invalidLegacyAcceptance
+                                ? "needs_revision"
+                                : draft.status
+                            }
+                            label={
+                              invalidLegacyAcceptance
+                                ? "Thiếu căn cứ duyệt"
+                                : undefined
+                            }
+                          />
+                          {draft.created_at && (
+                            <span>
+                              {new Date(draft.created_at).toLocaleString("vi-VN")}
+                            </span>
+                          )}
+                        </div>
+                        {invalidLegacyAcceptance && (
+                          <p className="decision-history__notes" role="note">
+                            Hồ sơ lịch sử thiếu căn cứ duyệt; không dùng làm căn
+                            cứ chính thức
+                          </p>
+                        )}
+                        <p className="decision-history__conclusion">
+                          {historicalBrief.conclusion}
+                        </p>
+                        {draft.review_notes && (
+                          <p className="decision-history__notes">
+                            Nhận xét: {draft.review_notes}
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </details>
             )}
           </div>
         </WorkSection>

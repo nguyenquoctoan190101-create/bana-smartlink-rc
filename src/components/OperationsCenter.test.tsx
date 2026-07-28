@@ -67,7 +67,7 @@ describe("OperationsCenter", () => {
         rule_version: "2026-07-14",
         reports: [{ report_id: "report-1", village_name: "Thôn An Sơn", quality_score: 100, quality_status: "ready", unresolved_flag_count: 0, outlier_count: 0, lineage: { report_source: "direct_api", report_version: 2 } }],
       });
-      if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", period_id: "period-1", status: "accepted", content: "Brief mẫu", confidence: 0.9 }]);
+      if (path === "/api/operations/ai-drafts") return Promise.resolve([{ id: "draft-1", period_id: "period-1", status: "accepted", content: "Brief mẫu", confidence: 0.9, review_notes: "Đã đối chiếu đầy đủ tài liệu nguồn.", reviewed_at: "2026-07-28T12:00:00+07:00" }]);
       if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
       return Promise.resolve([]);
     });
@@ -119,6 +119,16 @@ describe("OperationsCenter", () => {
             content: "Nội dung đúng kỳ",
             confidence: 0.9,
             created_at: "2026-07-26T12:00:00+07:00",
+            review_notes: "Đã đối chiếu đầy đủ căn cứ nguồn.",
+            reviewed_at: "2026-07-26T13:00:00+07:00",
+          },
+          {
+            id: "legacy-invalid-accepted",
+            period_id: "period-1",
+            status: "accepted",
+            content: "Nội dung accepted di sản thiếu căn cứ duyệt",
+            confidence: 0.99,
+            created_at: "2026-07-29T12:00:00+07:00",
           },
           {
             id: "pending-current-draft",
@@ -178,6 +188,9 @@ describe("OperationsCenter", () => {
     expect(
       screen.queryByText("Nội dung đã từ chối không dành cho lãnh đạo"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Nội dung accepted di sản thiếu căn cứ duyệt"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Nội dung kỳ khác")).not.toBeInTheDocument();
     expect(screen.queryByText("Nội dung không gắn kỳ")).not.toBeInTheDocument();
     expect(
@@ -189,6 +202,66 @@ describe("OperationsCenter", () => {
     expect(
       screen.queryByLabelText(/Căn cứ nhận xét/),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps a legacy accepted draft without review evidence out of the official brief", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({
+          period: { id: "period-1", name: "Tháng 7/2026" },
+          reports: [
+            {
+              report_id: "approved-report",
+              village_name: "Thôn An Sơn",
+              workflow_status: "approved",
+              quality_score: 94,
+              quality_status: "ready",
+              unresolved_flag_count: 0,
+              outlier_count: 0,
+              lineage: { report_source: "manual", report_version: 1 },
+            },
+          ],
+        });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "legacy-invalid-accepted",
+            period_id: "period-1",
+            status: "accepted",
+            content: "Nội dung di sản chỉ được giữ để truy vết.",
+            created_at: "2026-07-28T12:00:00+07:00",
+            review_notes: "   ",
+            reviewed_at: null,
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      if (path === "/api/operations/initiatives") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+
+    expect(
+      await screen.findByText("Chưa có hồ sơ được chấp nhận hợp lệ"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Hồ sơ đã được chấp nhận gần nhất"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Hồ sơ lịch sử thiếu căn cứ duyệt; không dùng làm căn cứ chính thức",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Thiếu căn cứ duyệt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nội dung di sản chỉ được giữ để truy vết."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Lịch sử hồ sơ hỗ trợ quyết định (1)"),
+    ).toBeInTheDocument();
   });
 
   it("turns the latest draft into an evidence-backed review brief and records reviewer notes", async () => {
@@ -590,6 +663,8 @@ describe("OperationsCenter", () => {
               "Giới hạn: Không tự động phê duyệt.",
             ].join("\n"),
             created_at: "2026-07-28T12:00:00+07:00",
+            review_notes: "Đã đối chiếu đầy đủ căn cứ nguồn.",
+            reviewed_at: "2026-07-28T13:00:00+07:00",
             citations: [
               {
                 kind: "quality_snapshot",

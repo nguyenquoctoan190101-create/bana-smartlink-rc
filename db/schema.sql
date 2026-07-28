@@ -2248,6 +2248,10 @@ create policy ai_drafts_select_internal on public.ai_action_drafts for select to
     or (
       public.profile_role() = 'lanh_dao'
       and status = 'accepted'
+      and reviewed_by is not null
+      and reviewed_at is not null
+      and review_notes is not null
+      and char_length(btrim(review_notes)) between 10 and 2000
     )
   )
   and commune_id = public.profile_commune_id()
