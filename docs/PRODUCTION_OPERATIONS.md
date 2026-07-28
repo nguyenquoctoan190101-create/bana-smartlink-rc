@@ -15,17 +15,17 @@ Mọi bản ghi mang `commune_id`; bản ghi theo thôn/kỳ có `village_id`/`p
 
 API `GET /api/operations/quality?period_id={uuid}` tính trực tiếp từ báo cáo, giá trị và validation flag mà JWT gọi được RLS cho phép. Kết quả luôn giữ `null` là thiếu dữ liệu, không ép thành `0`; bao gồm:
 
-- completeness trên CT01–CT14,
-- validity từ các lỗi chặn có trạng thái chưa resolve,
-- timeliness do server xác định,
+- completeness trên CT01–CT14, kèm số trường có dữ liệu/tổng số trường,
+- validity từ các lỗi chặn có trạng thái chưa resolve, kèm số báo cáo hợp lệ/tổng số báo cáo,
+- timeliness do server xác định, kèm số báo cáo đúng hạn/tổng số báo cáo,
 - outlier/unresolved count,
 - lineage gồm `report_source`, `report_version`, `rule_version`.
 
-Điểm tổng hợp chỉ là chỉ dấu điều hành, không thay thế validator deterministic hay quyết định nghiệp vụ.
+Giao diện và gói bằng chứng không tạo điểm chất lượng tổng hợp. Ba chiều được trình bày độc lập để người duyệt thấy đúng mẫu số và nguyên nhân cần xem lại; dữ liệu thiếu không bị quy đổi thành `0`.
 
 ## AI có kiểm soát
 
-`POST /api/operations/ai-drafts` luôn tạo brief deterministic trước từ số lượng báo cáo, điểm chất lượng và trạng thái lỗi/nộp muộn đã được quyền xem. Khi `FEATURE_DECISION_AI=true` và có nhà cung cấp hợp lệ, hệ thống gửi duy nhất gói bằng chứng tổng hợp đã lọc sang AI để bổ sung nhận định, các phương án thay thế, đánh đổi, rủi ro, biện pháp giảm thiểu và câu hỏi phản biện.
+`POST /api/operations/ai-drafts` luôn tạo brief deterministic trước từ số lượng báo cáo, ba chiều đầy đủ/hợp lệ/đúng hạn và trạng thái lỗi/nộp muộn đã được quyền xem. Khi `FEATURE_DECISION_AI=true` và có nhà cung cấp hợp lệ, hệ thống gửi duy nhất gói bằng chứng tổng hợp đã lọc sang AI để bổ sung nhận định, các phương án thay thế, đánh đổi, rủi ro, biện pháp giảm thiểu và câu hỏi phản biện.
 
 Đầu ra AI bị khóa bằng JSON schema, mọi phương án/rủi ro phải dẫn về `evidence_id` có thật, và server từ chối nội dung có mã dẫn chứng lạ, chữ số chưa được luật xác định kiểm chứng, email hoặc số điện thoại. OpenAI dùng Responses API với `store=false`, `safety_identifier` đã băm và mô hình mặc định `gpt-5.6-sol`; cấu hình `auto` ưu tiên OpenAI rồi dùng Gemini đã có. Nếu không có khóa hoặc nhà cung cấp lỗi, brief deterministic vẫn được tạo và giao diện nêu rõ trạng thái fallback.
 

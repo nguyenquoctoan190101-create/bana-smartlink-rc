@@ -75,7 +75,7 @@ class DecisionAnalysis(BaseModel):
 @dataclass(frozen=True)
 class DecisionAiAttempt:
     status: Literal["enhanced", "disabled", "unconfigured", "fallback"]
-    model_provider: str = "deterministic-evidence-v2"
+    model_provider: str = "deterministic-evidence-v3"
     citation: dict[str, Any] | None = None
 
 
@@ -146,9 +146,18 @@ def build_evidence_bundle(
                     "evidence_id": str(citation.get("id", "")),
                     "scope_label": _safe_label(citation.get("village_name")),
                     "quality_status": citation.get("quality_status"),
-                    "quality_score": citation.get("quality_score"),
+                    "completeness_percent": citation.get("completeness_percent"),
+                    "completeness_numerator": citation.get(
+                        "completeness_numerator"
+                    ),
+                    "completeness_denominator": citation.get(
+                        "completeness_denominator"
+                    ),
+                    "validity_percent": citation.get("validity_percent"),
+                    "blocking_flag_count": citation.get("blocking_flag_count"),
                     "warning_count": citation.get("unresolved_flag_count"),
                     "outlier_count": citation.get("outlier_count"),
+                    "timeliness_percent": citation.get("timeliness_percent"),
                     "timeliness_status": citation.get("timeliness_status"),
                     "source_type": citation.get("report_source"),
                     "source_version": citation.get("report_version"),
@@ -164,7 +173,12 @@ def build_evidence_bundle(
                     "id",
                     "report_count",
                     "ready_report_count",
-                    "average_quality_score",
+                    "complete_field_count",
+                    "expected_field_count",
+                    "completeness_percent",
+                    "valid_report_count",
+                    "timely_report_count",
+                    "blocking_flag_count",
                     "blocked_report_count",
                     "review_report_count",
                     "late_report_count",
@@ -225,8 +239,8 @@ def validate_grounding(
 def _instructions() -> str:
     return """
 Bạn là trợ lý phân tích quyết định cho cán bộ xã. Luật xác định trong gói dữ liệu
-là nguồn sự thật duy nhất; bạn không được sửa kết luận, mức ưu tiên, điểm chất
-lượng hay trạng thái quy trình.
+là nguồn sự thật duy nhất; bạn không được sửa kết luận, mức ưu tiên, bằng chứng
+đầy đủ/hợp lệ/đúng hạn hay trạng thái quy trình.
 
 Hãy tạo các phương án xử lý hữu ích, nêu đánh đổi, rủi ro, biện pháp giảm thiểu
 và câu hỏi mà người duyệt cần xác minh. Mỗi phương án và rủi ro phải dẫn đúng
