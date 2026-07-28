@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, FileArchive, Upload } from "lucide-react";
 import { apiJson, toUserFacingError } from "../lib/apiClient";
 import { useReportPeriods } from "../lib/useReportPeriods";
 import { Button, DataScope, ErrorState, PageHeader, SectionCard, StatusBadge } from "./ui";
+import "./LegacyBatchImport.css";
 
 type Flag = { ct_code: string; error_type: string; message: string };
 type PreviewFile = {
@@ -189,7 +190,7 @@ export default function LegacyBatchImport() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="legacy-import-screen space-y-6">
       <PageHeader
         eyebrow="Quản trị dữ liệu"
         title="Nhập báo cáo 22 thôn cũ"
@@ -210,7 +211,9 @@ export default function LegacyBatchImport() {
             <span className="block font-semibold">Bộ tệp XLSX (tối đa 25 tệp)</span>
             <input
               ref={fileInputRef}
+              id="legacy-xlsx-files"
               type="file"
+              aria-label="Chọn tối đa 25 tệp báo cáo XLSX"
               accept={MIME + ",.xlsx"}
               multiple
               disabled={Boolean(detail)}
@@ -284,7 +287,7 @@ export default function LegacyBatchImport() {
             <div><strong>Ánh xạ bị khóa</strong><p className="text-sm text-slate-600">{preview.unresolved_villages.join(", ") || "Không có"}</p></div>
             <div><strong>Tệp có lỗi chặn</strong><p className="text-sm text-slate-600">{preview.files_with_blocking_errors.length} tệp</p></div>
           </div>
-          <div className="overflow-x-auto"><table><thead><tr><th>Thôn cũ</th><th>Tệp</th><th>Ánh xạ</th><th>Kiểm tra</th></tr></thead><tbody>
+          <div className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng kết quả đối chiếu; có thể cuộn ngang trên màn hình nhỏ"><span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">Vuốt ngang để xem thêm →</span><table><thead><tr><th>Thôn cũ</th><th>Tệp</th><th>Ánh xạ</th><th>Kiểm tra</th></tr></thead><tbody>
             {preview.files.map((file) => <tr key={file.content_sha256}><td className="font-semibold">{file.source_village_name}</td><td>{file.source_filename}</td><td><StatusBadge status={file.mapping.mapping_status === "confirmed" ? "ready" : "blocked"} label={file.mapping.mapping_status === "confirmed" ? "Đã xác nhận" : "Chờ quyết định"} /></td><td><StatusBadge status={file.has_blocking_errors ? "blocked" : file.validation_flags.length ? "needs_review" : "ready"} label={`${file.validation_flags.length} cảnh báo`} /></td></tr>)}
           </tbody></table></div>
         </SectionCard>

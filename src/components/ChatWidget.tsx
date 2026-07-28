@@ -107,6 +107,8 @@ export default function ChatWidget({
   userPhone,
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isCompactLayout, setIsCompactLayout] = useState(false);
+  const [avoidanceOffset, setAvoidanceOffset] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -128,6 +130,99 @@ export default function ChatWidget({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const speechCacheRef = useRef<Map<string, CachedSpeech>>(new Map());
+
+  /*
+   * The assistant is mounted once at application level, so it cannot rely on
+   * individual screens to reserve space for it. Detect forms, mobile layouts
+   * and bottom action/navigation zones here and keep the closed launcher out
+   * of their way.
+   */
+  useEffect(() => {
+    const compactMedia = window.matchMedia?.("(max-width: 640px)");
+    let animationFrame = 0;
+
+    const updatePlacement = () => {
+      animationFrame = 0;
+      const hasFormTask = Boolean(
+        document.querySelector(
+          "main form, .gov-shell form, .report-form-screen, [data-screen='report-form']",
+        ),
+      );
+      setIsCompactLayout(Boolean(compactMedia?.matches) || hasFormTask);
+
+      const viewportHeight =
+        window.visualViewport?.height ?? window.innerHeight;
+      const lowerViewportBoundary = viewportHeight * 0.52;
+      let nearestExclusionTop = viewportHeight;
+      const exclusionZones = document.querySelectorAll<HTMLElement>(
+        [
+          "[data-chat-exclusion-zone]",
+          ".gov-mobile-nav",
+          ".sticky-action-bar",
+          "main form button[type='submit']",
+          "main form input[type='submit']",
+          ".gov-shell form button[type='submit']",
+          ".gov-shell form input[type='submit']",
+        ].join(","),
+      );
+
+      exclusionZones.forEach((zone) => {
+        const rect = zone.getBoundingClientRect();
+        if (
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          rect.bottom <= lowerViewportBoundary ||
+          rect.top >= viewportHeight
+        ) {
+          return;
+        }
+        const style = window.getComputedStyle(zone);
+        if (style.visibility === "hidden" || style.display === "none") return;
+        nearestExclusionTop = Math.min(
+          nearestExclusionTop,
+          Math.max(lowerViewportBoundary, rect.top),
+        );
+      });
+
+      const nextOffset =
+        nearestExclusionTop < viewportHeight
+          ? Math.min(280, Math.ceil(viewportHeight - nearestExclusionTop + 12))
+          : 0;
+      setAvoidanceOffset((current) =>
+        current === nextOffset ? current : nextOffset,
+      );
+    };
+
+    const schedulePlacementUpdate = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(updatePlacement);
+    };
+
+    updatePlacement();
+    compactMedia?.addEventListener?.("change", schedulePlacementUpdate);
+    window.addEventListener("resize", schedulePlacementUpdate);
+    window.addEventListener("scroll", schedulePlacementUpdate, true);
+    window.visualViewport?.addEventListener("resize", schedulePlacementUpdate);
+    const observer = new MutationObserver(schedulePlacementUpdate);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "hidden", "style"],
+    });
+
+    return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      compactMedia?.removeEventListener?.("change", schedulePlacementUpdate);
+      window.removeEventListener("resize", schedulePlacementUpdate);
+      window.removeEventListener("scroll", schedulePlacementUpdate, true);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        schedulePlacementUpdate,
+      );
+      observer.disconnect();
+    };
+  }, []);
 
   const stopSpeaking = () => {
     window.speechSynthesis?.cancel();
@@ -550,8 +645,21 @@ export default function ChatWidget({
     : PUBLIC_SUGGESTED_QUESTIONS;
 
   /* ─── Render ──────────────────────────────────────────────────────── */
+  const shouldAvoidActions = avoidanceOffset > 0 && !isOpen;
+
   return (
-    <div className="chat-widget" id="chat-widget-root">
+    <div
+      className={`chat-widget${isCompactLayout ? " chat-widget--compact" : ""}${
+        shouldAvoidActions ? " chat-widget--avoiding-actions" : ""
+      }`}
+      id="chat-widget-root"
+      data-layout={isCompactLayout ? "compact" : "default"}
+      style={
+        {
+          "--chat-widget-avoidance-offset": `${avoidanceOffset}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* ── Floating bubble button ── */}
       <button
         ref={toggleRef}

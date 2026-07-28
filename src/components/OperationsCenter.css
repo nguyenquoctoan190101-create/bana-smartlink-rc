@@ -1,0 +1,130 @@
+.executive-brief {
+  border-color: rgb(218 175 55 / 0.48) !important;
+  background:
+    linear-gradient(135deg, rgb(11 74 53 / 0.045), transparent 55%), #fff;
+  box-shadow: 0 18px 42px rgb(6 54 41 / 0.09) !important;
+}
+
+.executive-brief__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.executive-brief__heading h2 {
+  margin: 0.2rem 0 0;
+  color: var(--bn-green-deep);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.executive-brief__heading p:not(.page-heading__eyebrow) {
+  max-width: 52rem;
+  margin: 0.45rem 0 0;
+  color: var(--bn-muted);
+  line-height: 1.55;
+}
+
+.executive-brief__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+}
+
+.executive-brief__facts > div {
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--bn-line);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.82);
+}
+
+.executive-brief__facts dt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--bn-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.executive-brief__facts dt svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--bn-green);
+}
+
+.executive-brief__facts dd {
+  margin: 0.45rem 0 0;
+  color: var(--bn-ink);
+  font-size: 1rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.executive-brief__note {
+  margin: 0.9rem 0 0;
+  color: var(--bn-muted);
+  font-size: 0.75rem;
+}
+
+.executive-brief--collapsible {
+  overflow: hidden;
+  margin-top: 1rem;
+  border: 1px solid var(--bn-line);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 8px 22px rgb(6 54 41 / 0.06);
+}
+
+.executive-brief--collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 1rem 1.1rem;
+}
+
+.executive-brief--collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.executive-brief--collapsible > summary::after {
+  content: "Mở chi tiết";
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  color: var(--bn-green);
+  background: var(--bn-green-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.executive-brief--collapsible[open] > summary::after {
+  content: "Thu gọn";
+}
+
+.executive-brief__details {
+  padding: 0 1.1rem 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .executive-brief--collapsible > summary {
+    gap: 0.75rem;
+  }
+
+  .executive-brief--collapsible > summary::after {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .executive-brief__heading {
+    flex-direction: column;
+  }
+
+  .executive-brief__facts {
+    grid-template-columns: 1fr;
+  }
+}

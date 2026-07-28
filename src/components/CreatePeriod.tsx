@@ -5,6 +5,7 @@ import { useVillages } from "../lib/useVillages";
 import { invalidateReportPeriods, useReportPeriods } from "../lib/useReportPeriods";
 import { normalizeReportPeriodName, reportPeriodNameIssue } from "../lib/reportPeriods";
 import ReportPeriodChangeRequests from "./ReportPeriodChangeRequests";
+import "./CreatePeriod.css";
 
 interface CreatedPeriod {
   id: string;
@@ -24,6 +25,30 @@ interface TemplateUploadResult {
 
 const MAX_TEMPLATE_BYTES = 5 * 1024 * 1024;
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+export function parseVietnameseDeadline(value: string): Date | null {
+  const match = value
+    .trim()
+    .match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, dayText, monthText, yearText, hourText, minuteText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const result = new Date(year, month - 1, day, hour, minute, 0, 0);
+  if (
+    result.getFullYear() !== year ||
+    result.getMonth() !== month - 1 ||
+    result.getDate() !== day ||
+    result.getHours() !== hour ||
+    result.getMinutes() !== minute
+  ) {
+    return null;
+  }
+  return result;
+}
 
 export default function CreatePeriod() {
   const { villages } = useVillages();
@@ -75,8 +100,11 @@ export default function CreatePeriod() {
     const normalizedPeriodName = normalizeReportPeriodName(periodName);
     const periodNameIssue = reportPeriodNameIssue(normalizedPeriodName);
     if (periodNameIssue) return setError(periodNameIssue);
-    if (!deadline || Number.isNaN(new Date(deadline).getTime())) return setError("Vui lòng chọn hạn nộp hợp lệ.");
-    if (new Date(deadline).getTime() <= Date.now()) return setError("Hạn nộp phải ở tương lai.");
+    const parsedDeadline = parseVietnameseDeadline(deadline);
+    if (!parsedDeadline) {
+      return setError("Hạn nộp phải theo định dạng ngày/tháng/năm và giờ, ví dụ 31/08/2026 17:00.");
+    }
+    if (parsedDeadline.getTime() <= Date.now()) return setError("Hạn nộp phải ở tương lai.");
     if (selectedVillages.length === 0) return setError("Vui lòng chọn ít nhất một thôn.");
     if (templateFile) {
       const message = validateFile(templateFile);
@@ -89,7 +117,7 @@ export default function CreatePeriod() {
         method: "POST",
         body: JSON.stringify({
           name: normalizedPeriodName,
-          due_date: new Date(deadline).toISOString(),
+          due_date: parsedDeadline.toISOString(),
           village_ids: selectedVillages,
           template_name: null,
         }),
@@ -164,7 +192,7 @@ export default function CreatePeriod() {
     </nav>
     {workspace === "create" ? (
     <section aria-labelledby="create-period-title" className="mx-auto max-w-6xl space-y-6">
-      <header className="rounded-2xl bg-emerald-950 p-6 text-white shadow-md md:p-8">
+      <header className="create-period-hero rounded-2xl bg-emerald-950 p-5 text-white shadow-md md:p-6">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex items-start gap-4">
             <span className="rounded-xl bg-white/10 p-3 ring-1 ring-white/15">
@@ -204,7 +232,7 @@ export default function CreatePeriod() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="self-start rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
+        <aside className="order-2 self-start rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:sticky lg:top-24">
           <div className="flex items-center gap-2">
             <ClipboardCheck aria-hidden="true" className="h-5 w-5 text-emerald-800" />
             <h2 className="font-bold text-slate-900">4 bước thiết lập</h2>
@@ -230,7 +258,7 @@ export default function CreatePeriod() {
           </div>
         </aside>
 
-        <form onSubmit={submit} className="space-y-5">
+        <form onSubmit={submit} className="order-1 space-y-5 lg:order-2">
           <fieldset className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
             <legend className="sr-only">Thông tin kỳ báo cáo</legend>
             <div className="mb-5 flex items-start gap-3">
@@ -251,8 +279,23 @@ export default function CreatePeriod() {
               </div>
               <div>
                 <label htmlFor="period-deadline" className="block text-sm font-bold text-slate-700">Hạn nộp</label>
-                <input id="period-deadline" type="datetime-local" required value={deadline} onChange={(e) => setDeadline(e.target.value)} className="mt-2 w-full" />
-                <p className="mt-2 text-xs leading-relaxed text-slate-500">Máy chủ tính đúng hạn hoặc trễ hạn theo múi giờ Việt Nam.</p>
+                <input
+                  id="period-deadline"
+                  type="text"
+                  required
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="31/08/2026 17:00"
+                  pattern="\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  aria-describedby="period-deadline-help"
+                  className="mt-2 w-full"
+                />
+                <p id="period-deadline-help" className="mt-2 text-xs leading-relaxed text-slate-500">
+                  Nhập theo định dạng ngày/tháng/năm giờ:phút. Máy chủ tính đúng
+                  hạn hoặc trễ hạn theo múi giờ Việt Nam.
+                </p>
               </div>
             </div>
           </fieldset>
@@ -286,7 +329,6 @@ export default function CreatePeriod() {
                     />
                     <Users aria-hidden="true" className="h-4 w-4 text-emerald-700" />
                     {village.name}
-                    {checked && <Check aria-hidden="true" className="ml-auto h-4 w-4 text-emerald-700" />}
                   </label>
                 );
               })}

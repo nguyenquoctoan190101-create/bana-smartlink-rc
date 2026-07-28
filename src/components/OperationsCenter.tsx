@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson } from "../lib/apiClient";
 import type { ReportPeriod, UserRole } from "../types";
-import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, SectionCard, StatusBadge, WorkSection } from "./ui";
+import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, StatusBadge, WorkSection } from "./ui";
+import "./OperationsCenter.css";
 
 type Props = {
   periodId: string;
@@ -314,71 +315,73 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
         <DataScope period={quality?.period?.name || (periodId ? "Kỳ đang chọn" : "Chưa có kỳ")} scope={role === "can_bo_thon" ? "Thôn được phân công" : role === "to_cnscd" ? "Thôn được hỗ trợ" : "Toàn xã"} quality={quality?.rule_version ? `Bộ quy tắc ${quality.rule_version} · tổng hợp ${generatedAt}` : "Chưa có dữ liệu đánh giá"} qualityLabel="Đánh giá" />
 
         {internal && (
-          <SectionCard className="executive-brief p-5 md:p-6" aria-labelledby="executive-summary-title">
-            <div className="executive-brief__heading">
+          <details className="executive-brief executive-brief--collapsible">
+            <summary className="executive-brief__heading">
               <div>
                 <p className="page-heading__eyebrow">Kết luận cần chú ý</p>
                 <h2 id="executive-summary-title">Tóm tắt điều hành 60 giây</h2>
                 <p>{executiveMessage}</p>
               </div>
               <StatusBadge status={overdueActions.length ? "overdue" : flaggedReports.length ? "needs_review" : "ready"} label={overdueActions.length ? "Cần xử lý ngay" : flaggedReports.length ? "Cần rà soát" : "Trong kiểm soát"} />
+            </summary>
+            <div className="executive-brief__details">
+              <dl className="executive-brief__facts">
+                <div>
+                  <dt>
+                    <CalendarDays aria-hidden="true" /> Kỳ dữ liệu
+                  </dt>
+                  <dd>{quality?.period?.name || "Chưa xác định"}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt
+                  </dt>
+                  <dd>{approvedReports.length} báo cáo</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Clock3 aria-hidden="true" /> Độ mới
+                  </dt>
+                  <dd>{generatedAt}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
+                  </dt>
+                  <dd>{available.alerts === false ? "—" : alerts.length}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <AlertTriangle aria-hidden="true" /> Việc quá hạn
+                  </dt>
+                  <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <UserRoundCheck aria-hidden="true" /> Người phụ trách
+                  </dt>
+                  <dd>{overdueOwners}</dd>
+                </div>
+              </dl>
+              <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
+              {onNavigate && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => onNavigate("dashboard")}>
+                    <Link2 />
+                    Xem báo cáo và căn cứ
+                  </Button>
+                  <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}>
+                    <Link2 />
+                    Xem tiến độ các thôn
+                  </Button>
+                  <Button variant="secondary" onClick={() => onNavigate("cases")}>
+                    <Link2 />
+                    Xem công việc và cảnh báo
+                  </Button>
+                </div>
+              )}
             </div>
-            <dl className="executive-brief__facts">
-              <div>
-                <dt>
-                  <CalendarDays aria-hidden="true" /> Kỳ dữ liệu
-                </dt>
-                <dd>{quality?.period?.name || "Chưa xác định"}</dd>
-              </div>
-              <div>
-                <dt>
-                  <FileCheck2 aria-hidden="true" /> Dữ liệu đã phê duyệt
-                </dt>
-                <dd>{approvedReports.length} báo cáo</dd>
-              </div>
-              <div>
-                <dt>
-                  <Clock3 aria-hidden="true" /> Độ mới
-                </dt>
-                <dd>{generatedAt}</dd>
-              </div>
-              <div>
-                <dt>
-                  <GitCompareArrows aria-hidden="true" /> Biến động đáng chú ý
-                </dt>
-                <dd>{available.alerts === false ? "—" : alerts.length}</dd>
-              </div>
-              <div>
-                <dt>
-                  <AlertTriangle aria-hidden="true" /> Việc quá hạn
-                </dt>
-                <dd>{available.actions === false ? "—" : overdueActions.length}</dd>
-              </div>
-              <div>
-                <dt>
-                  <UserRoundCheck aria-hidden="true" /> Người phụ trách
-                </dt>
-                <dd>{overdueOwners}</dd>
-              </div>
-            </dl>
-            <p className="executive-brief__note">Nguồn dữ liệu đã phê duyệt: {sourceSummary}. Hệ thống không tự giao việc, phê duyệt hoặc công bố.</p>
-            {onNavigate && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => onNavigate("dashboard")}>
-                  <Link2 />
-                  Xem báo cáo và căn cứ
-                </Button>
-                <Button variant="secondary" onClick={() => onNavigate("progress-dashboard")}>
-                  <Link2 />
-                  Xem tiến độ các thôn
-                </Button>
-                <Button variant="secondary" onClick={() => onNavigate("cases")}>
-                  <Link2 />
-                  Xem công việc và cảnh báo
-                </Button>
-              </div>
-            )}
-          </SectionCard>
+          </details>
         )}
 
         <div className="work-section__metrics grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

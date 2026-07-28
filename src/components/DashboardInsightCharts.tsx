@@ -1,5 +1,5 @@
 import { Activity, Baby, HeartPulse, LayoutGrid, Scale } from "lucide-react";
-import type { ReportData } from "../types";
+import type { ReportData, ReportPeriod } from "../types";
 
 type DecisionVillage = {
   id: string;
@@ -22,6 +22,18 @@ type DecisionVillage = {
 };
 
 type RiskBand = "low" | "medium" | "high" | "missing";
+
+export type SingleVillageTrendPoint = {
+  id: string;
+  periodKey: string;
+  periodLabel: string;
+  sortDate: string;
+  bhytRate: number | null;
+  welfareRate: number | null;
+  cultureRate: number | null;
+  guidedPerThousand: number | null;
+  welfareHouseholds: number | null;
+};
 
 const finite = (value: number | null | undefined): value is number => typeof value === "number" && Number.isFinite(value);
 
@@ -74,6 +86,66 @@ export function buildDecisionVillages(reports: ReportData[], villageName: (id: s
   });
 }
 
+export function buildSingleVillageTrend(
+  reports: ReportData[],
+  reportPeriods: ReportPeriod[] = [],
+): SingleVillageTrendPoint[] {
+  const periodsById = new Map(reportPeriods.map((period) => [period.id, period]));
+  const latestByPeriod = new Map<string, ReportData>();
+
+  for (const report of reports) {
+    const periodKey = report.period_id
+      ? `period:${report.period_id}`
+      : `legacy:${report.report_period}`;
+    const previous = latestByPeriod.get(periodKey);
+    if (!previous || (report.updated_at || "") > (previous.updated_at || "")) {
+      latestByPeriod.set(periodKey, report);
+    }
+  }
+
+  return Array.from(latestByPeriod.entries())
+    .map(([periodKey, report]) => {
+      const period = report.period_id
+        ? periodsById.get(report.period_id)
+        : undefined;
+      const households = finite(report.CT01) ? report.CT01 : null;
+      const population = finite(report.CT02) ? report.CT02 : null;
+      const poor = finite(report.CT03) ? report.CT03 : null;
+      const nearPoor = finite(report.CT04) ? report.CT04 : null;
+      const welfareHouseholds =
+        finite(poor) && finite(nearPoor) ? poor + nearPoor : null;
+
+      return {
+        id: report.id,
+        periodKey,
+        periodLabel:
+          period?.display_name || period?.name || report.report_period,
+        sortDate: period?.due_date || report.updated_at || "",
+        bhytRate: ratio(
+          finite(report.CT11) ? report.CT11 : null,
+          population,
+        ),
+        welfareRate: ratio(welfareHouseholds, households),
+        cultureRate: ratio(
+          finite(report.CT09) ? report.CT09 : null,
+          households,
+        ),
+        guidedPerThousand: ratio(
+          finite(report.CT13) ? report.CT13 : null,
+          population,
+          1_000,
+        ),
+        welfareHouseholds,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.sortDate.localeCompare(right.sortDate) ||
+        left.periodLabel.localeCompare(right.periodLabel, "vi"),
+    )
+    .slice(-6);
+}
+
 function heatRisk(metric: "bhyt" | "welfare" | "culture" | "digital", value: number | null, digitalMax: number): RiskBand {
   if (!finite(value)) return "missing";
   if (metric === "bhyt") return value < 90 ? "high" : value < 95 ? "medium" : "low";
@@ -102,7 +174,269 @@ function ChartHeader({ icon: Icon, eyebrow, title, description }: { icon: typeof
   );
 }
 
-export default function DashboardInsightCharts({ reports, villageName }: { reports: ReportData[]; villageName: (id: string) => string }) {
+const changeLabel = (
+  current: number | null,
+  previous: number | null | undefined,
+) => {
+  if (!finite(current) || !finite(previous)) return "Chưa đủ hai kỳ";
+  const change = current - previous;
+  if (Math.abs(change) < 0.05) return "Ổn định";
+  return `${change > 0 ? "Tăng" : "Giảm"} ${Math.abs(change).toFixed(1)} điểm %`;
+};
+
+function SingleVillageInsights({
+  reports,
+  historicalReports,
+  reportPeriods,
+  selectedPeriodLabel,
+  villageName,
+}: {
+  reports: ReportData[];
+  historicalReports: ReportData[];
+  reportPeriods: ReportPeriod[];
+  selectedPeriodLabel?: string;
+  villageName: (id: string) => string;
+}) {
+  const trend = buildSingleVillageTrend(historicalReports, reportPeriods);
+  const current = buildDecisionVillages(reports, villageName)[0] || null;
+  const latest = trend.at(-1);
+  const previous = trend.at(-2);
+  const scopedReport = reports[0] || historicalReports.at(-1);
+  const scopedVillageName = scopedReport
+    ? villageName(scopedReport.village_id)
+    : "thôn đang chọn";
+  const scopedPeriod = scopedReport?.period_id
+    ? reportPeriods.find((period) => period.id === scopedReport.period_id)
+    : undefined;
+  const currentPeriodLabel =
+    selectedPeriodLabel ||
+    scopedPeriod?.display_name ||
+    scopedPeriod?.name ||
+    scopedReport?.report_period;
+
+  const currentMetrics = current
+    ? [
+        {
+          label: "Tham gia BHYT",
+          value: percent(current.bhytRate),
+          note: "Tham chiếu nghiệp vụ: 95%",
+        },
+        {
+          label: "Hộ nghèo và cận nghèo",
+          value:
+            finite(current.poor) && finite(current.nearPoor)
+              ? `${current.poor + current.nearPoor} hộ`
+              : "—",
+          note: finite(current.welfareRate)
+            ? `${percent(current.welfareRate)} tổng số hộ`
+            : "Chưa đủ mẫu số",
+        },
+        {
+          label: "Gia đình văn hóa",
+          value: percent(current.cultureRate),
+          note: "Tỷ lệ trên tổng số hộ",
+        },
+        {
+          label: "Hướng dẫn dịch vụ công",
+          value: finite(current.guidedPerThousand)
+            ? `${current.guidedPerThousand.toFixed(0)}/1.000 dân`
+            : "—",
+          note: finite(current.guided)
+            ? `${current.guided.toLocaleString("vi-VN")} lượt trong kỳ`
+            : "Chưa có dữ liệu",
+        },
+      ]
+    : [];
+
+  return (
+    <section
+      aria-labelledby="dashboard-insights-title"
+      className="decision-dashboard space-y-4"
+    >
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-800">
+            Theo dõi phạm vi một thôn
+          </p>
+          <h2
+            id="dashboard-insights-title"
+            className="mt-1 text-lg font-bold text-slate-900"
+          >
+            Diễn biến của {scopedVillageName} qua các kỳ
+          </h2>
+        </div>
+        <p className="max-w-xl text-xs leading-relaxed text-slate-500">
+          Chỉ dùng báo cáo đã duyệt hoặc đã khóa; dữ liệu thiếu được để trống.
+        </p>
+      </div>
+
+      <dl
+        className="decision-summary-ribbon"
+        aria-label="Các tín hiệu theo dõi của thôn"
+      >
+        <div>
+          <dt>Kỳ có căn cứ</dt>
+          <dd>{trend.length ? `${trend.length} kỳ` : "—"}</dd>
+          <p>Tối đa sáu kỳ gần nhất</p>
+        </div>
+        <div>
+          <dt>BHYT kỳ gần nhất</dt>
+          <dd>{percent(latest?.bhytRate ?? null)}</dd>
+          <p>{changeLabel(latest?.bhytRate ?? null, previous?.bhytRate)}</p>
+        </div>
+        <div>
+          <dt>An sinh kỳ gần nhất</dt>
+          <dd>
+            {finite(latest?.welfareHouseholds)
+              ? `${latest.welfareHouseholds} hộ`
+              : "—"}
+          </dd>
+          <p>
+            {changeLabel(latest?.welfareRate ?? null, previous?.welfareRate)}
+          </p>
+        </div>
+      </dl>
+
+      <div className="grid items-start gap-4 xl:grid-cols-12">
+        <article className="decision-chart-card min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-2xs md:p-5 xl:col-span-5">
+          <ChartHeader
+            icon={LayoutGrid}
+            eyebrow="Kỳ đang chọn"
+            title={currentPeriodLabel || "Chưa có báo cáo đã duyệt trong kỳ"}
+            description="Các tỷ lệ được tính trực tiếp từ báo cáo của thôn, không so sánh hoặc xếp hạng với đơn vị khác."
+          />
+          {currentMetrics.length ? (
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {currentMetrics.map((metric) => (
+                <div
+                  key={metric.label}
+                  className="rounded-lg border border-slate-100 bg-slate-50 p-3"
+                >
+                  <dt className="text-xs font-semibold text-slate-600">
+                    {metric.label}
+                  </dt>
+                  <dd className="mt-1 text-lg font-black text-slate-900">
+                    {metric.value}
+                  </dd>
+                  <p className="mt-1 text-xs text-slate-500">{metric.note}</p>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <EmptyChart />
+          )}
+        </article>
+
+        <article className="decision-chart-card min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-2xs md:p-5 xl:col-span-7">
+          <ChartHeader
+            icon={Activity}
+            eyebrow="Xu hướng qua các kỳ"
+            title={
+              trend.length > 1
+                ? `${trend.length} kỳ gần nhất để đối chiếu biến động`
+                : "Cần ít nhất hai kỳ để xác định biến động"
+            }
+            description="Mỗi hàng là một kỳ báo cáo; thay đổi được trình bày theo thời gian, không suy diễn thành quan hệ nhân quả."
+          />
+          {trend.length ? (
+            <div className="mt-4 overflow-x-auto">
+              <p className="mb-2 text-xs font-semibold text-slate-500 sm:hidden">
+                Vuốt ngang để xem đủ các chỉ tiêu.
+              </p>
+              <table
+                className="w-full min-w-[42rem] text-sm"
+                aria-label={`Xu hướng chỉ tiêu của ${scopedVillageName}`}
+              >
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                    <th className="pb-2 pr-3 font-semibold">Kỳ báo cáo</th>
+                    <th className="px-2 pb-2 text-right font-semibold">BHYT</th>
+                    <th className="px-2 pb-2 text-right font-semibold">
+                      Hộ nghèo + cận nghèo
+                    </th>
+                    <th className="px-2 pb-2 text-right font-semibold">
+                      Gia đình văn hóa
+                    </th>
+                    <th className="pl-2 pb-2 text-right font-semibold">
+                      Hướng dẫn/1.000 dân
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trend.map((point) => (
+                    <tr
+                      key={point.periodKey}
+                      className="border-b border-slate-100 last:border-0"
+                    >
+                      <th
+                        className="max-w-48 py-3 pr-3 text-left font-semibold text-slate-700"
+                        title={point.periodLabel}
+                      >
+                        {point.periodLabel}
+                      </th>
+                      <td className="px-2 py-3 text-right text-slate-700">
+                        {percent(point.bhytRate)}
+                      </td>
+                      <td className="px-2 py-3 text-right text-slate-700">
+                        {finite(point.welfareHouseholds)
+                          ? `${point.welfareHouseholds} hộ (${percent(point.welfareRate)})`
+                          : "—"}
+                      </td>
+                      <td className="px-2 py-3 text-right text-slate-700">
+                        {percent(point.cultureRate)}
+                      </td>
+                      <td className="pl-2 py-3 text-right text-slate-700">
+                        {finite(point.guidedPerThousand)
+                          ? point.guidedPerThousand.toFixed(0)
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyChart />
+          )}
+        </article>
+      </div>
+
+      <p className="text-xs leading-relaxed text-slate-500">
+        Nguồn: báo cáo đã duyệt hoặc đã khóa thuộc đúng phạm vi thôn đang chọn.
+        Các mức tham chiếu chỉ hỗ trợ rà soát; cán bộ cần đối chiếu báo cáo nguồn
+        trước khi quyết định.
+      </p>
+    </section>
+  );
+}
+
+export default function DashboardInsightCharts({
+  reports,
+  historicalReports = reports,
+  reportPeriods = [],
+  villageName,
+  singleVillage = false,
+  selectedPeriodLabel,
+}: {
+  reports: ReportData[];
+  historicalReports?: ReportData[];
+  reportPeriods?: ReportPeriod[];
+  villageName: (id: string) => string;
+  singleVillage?: boolean;
+  selectedPeriodLabel?: string;
+}) {
+  if (singleVillage) {
+    return (
+      <SingleVillageInsights
+        reports={reports}
+        historicalReports={historicalReports}
+        reportPeriods={reportPeriods}
+        selectedPeriodLabel={selectedPeriodLabel}
+        villageName={villageName}
+      />
+    );
+  }
+
   const villages = buildDecisionVillages(reports, villageName);
   const digitalMax = Math.max(0, ...villages.map((item) => item.guidedPerThousand ?? 0));
   const heatRows = [...villages].sort((left, right) => {
@@ -202,10 +536,10 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
               <p className="mb-2 text-2xs font-semibold text-slate-500 sm:hidden">
                 Vuốt ngang để xem đủ bốn nội dung.
               </p>
-              <table className="w-full min-w-[35rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
+              <table className="w-full min-w-[42rem] table-fixed text-xs" aria-label="Bản đồ nhiệt mức cần chú ý theo thôn">
                 <thead>
                   <tr className="text-left text-slate-500">
-                    <th className="w-28 pb-2 font-semibold">Thôn</th>
+                    <th className="w-36 pb-2 font-semibold">Thôn</th>
                     <th className="px-1 pb-2 text-center font-semibold">BHYT</th>
                     <th className="px-1 pb-2 text-center font-semibold">Hộ nghèo + cận nghèo</th>
                     <th className="px-1 pb-2 text-center font-semibold">Gia đình văn hóa</th>
@@ -242,7 +576,7 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                     ];
                     return (
                       <tr key={item.id}>
-                        <th className="truncate py-1.5 pr-2 text-left font-semibold text-slate-700" title={item.label}>
+                        <th className="break-words py-1.5 pr-3 text-left font-semibold leading-snug text-slate-700" title={item.label}>
                           {item.label}
                         </th>
                         {cells.map((cell) => {
@@ -280,7 +614,7 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                   return (
                     <g key={tick}>
                       <line x1="35" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
-                      <text x="28" y={y + 4} textAnchor="end" className="fill-slate-400 text-[9px]">
+                      <text x="28" y={y + 4} textAnchor="end" className="fill-slate-500 text-[11px]">
                         {tick}%
                       </text>
                     </g>
@@ -296,9 +630,6 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                       <rect x={x} y={190 - share * 1.5} width={barWidth} height={share * 1.5} rx="2" fill={index < paretoCutoff ? "#b45309" : "#94a3b8"}>
                         <title>{`${item.label}: ${item.affected} hộ (${share.toFixed(1)}%)`}</title>
                       </rect>
-                      <text x={x + barWidth / 2} y="205" textAnchor="end" transform={`rotate(-38 ${x + barWidth / 2} 205)`} className="fill-slate-500 text-[8px]">
-                        {item.label}
-                      </text>
                     </g>
                   );
                 })}
@@ -322,6 +653,29 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                   );
                 })}
               </svg>
+              <ul
+                className="mt-1 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3"
+                aria-label="Số hộ cần quan tâm theo từng thôn"
+              >
+                {paretoRows.map((item, index) => (
+                  <li
+                    key={item.id}
+                    className="flex min-w-0 items-center gap-2 text-xs text-slate-700"
+                  >
+                    <i
+                      aria-hidden="true"
+                      className={`h-2.5 w-2.5 shrink-0 rounded-sm ${
+                        index < paretoCutoff
+                          ? "bg-amber-700"
+                          : "bg-slate-400"
+                      }`}
+                    />
+                    <span className="min-w-0 break-words" title={item.label}>
+                      {item.label}: <b>{item.affected} hộ</b>
+                    </span>
+                  </li>
+                ))}
+              </ul>
               <div className="flex flex-wrap gap-4 text-2xs text-slate-600">
                 <span>
                   <i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-amber-700" />
@@ -382,7 +736,7 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                   return (
                     <g key={tick}>
                       <line x1="48" x2="420" y1={y} y2={y} stroke="#e2e8f0" />
-                      <text x="42" y={y + 3} textAnchor="end" className="fill-slate-400 text-[8px]">
+                      <text x="42" y={y + 3} textAnchor="end" className="fill-slate-500 text-[11px]">
                         {label.toFixed(0)}
                       </text>
                     </g>
@@ -400,23 +754,23 @@ export default function DashboardInsightCharts({ reports, villageName }: { repor
                         <title>{`${item.label}: ${item.population?.toLocaleString("vi-VN")} dân; ${item.guidedPerThousand?.toFixed(0)} lượt/1.000 dân; ${item.digitalTeam ?? "—"} thành viên`}</title>
                       </circle>
                       {item.id === scatterLeader?.id && (
-                        <text x={Math.min(390, x + 8)} y={Math.max(22, y - 8)} className="fill-amber-800 text-[9px] font-bold">
+                        <text x={Math.min(390, x + 8)} y={Math.max(22, y - 8)} className="fill-amber-800 text-[11px] font-bold">
                           {item.label}
                         </text>
                       )}
                     </g>
                   );
                 })}
-                <text x="55" y="216" textAnchor="start" className="fill-slate-400 text-[8px]">
+                <text x="55" y="216" textAnchor="start" className="fill-slate-500 text-[11px]">
                   {minPopulation.toLocaleString("vi-VN")}
                 </text>
-                <text x="405" y="216" textAnchor="end" className="fill-slate-400 text-[8px]">
+                <text x="405" y="216" textAnchor="end" className="fill-slate-500 text-[11px]">
                   {maxPopulation.toLocaleString("vi-VN")}
                 </text>
-                <text x="232" y="232" textAnchor="middle" className="fill-slate-500 text-[9px]">
+                <text x="232" y="232" textAnchor="middle" className="fill-slate-600 text-[11px]">
                   Quy mô dân số →
                 </text>
-                <text x="12" y="120" transform="rotate(-90 12 120)" textAnchor="middle" className="fill-slate-500 text-[9px]">
+                <text x="12" y="120" transform="rotate(-90 12 120)" textAnchor="middle" className="fill-slate-600 text-[11px]">
                   Lượt hướng dẫn/1.000 dân →
                 </text>
               </svg>

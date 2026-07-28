@@ -21,8 +21,16 @@ describe("RecordLookup", () => {
     render(<RecordLookup />);
 
     expect(screen.getByRole("heading", { name: "Tra cứu hồ sơ" })).toBeInTheDocument();
-    expect(screen.getByText(/16 ký tự/)).toBeInTheDocument();
-    expect(screen.getByText(/32 ký tự/)).toBeInTheDocument();
+    expect(screen.getAllByText(/16 ký tự/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/32 ký tự/).length).toBeGreaterThan(0);
+    expect(screen.getByText("A1B2C3D4E5F6G7H8")).toBeInTheDocument();
+    expect(
+      screen.getByText("A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/không tạo danh sách lịch sử tra cứu/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cách hiểu kết quả")).toBeInTheDocument();
     expect(screen.getByText(/không hiển thị thông tin cá nhân/)).toBeInTheDocument();
   });
 

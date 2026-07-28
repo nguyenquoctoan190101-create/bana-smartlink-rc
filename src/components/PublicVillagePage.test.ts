@@ -7,6 +7,7 @@ import {
   formatPublicIndicatorValue,
   getDefaultPublicVillageId,
   getEvacuationAvailability,
+  PUBLIC_NAVIGATION_LABELS,
   getPublicLookupFailure,
   getPublicReportTimestamp,
 } from "./PublicVillagePage";
@@ -66,6 +67,18 @@ describe("public period options", () => {
   it("falls back to updated_at for older compatible responses", () => {
     expect(getPublicReportTimestamp({ updated_at: "2026-07-14T10:04:38Z" }))
       .toBe("2026-07-14T10:04:38Z");
+  });
+});
+
+describe("public portal navigation", () => {
+  it("keeps exactly the four citizen tasks in the public hero", () => {
+    expect(PUBLIC_NAVIGATION_LABELS).toEqual([
+      "Số liệu công khai",
+      "Đề nghị đối chiếu số liệu",
+      "Phản ánh hiện trường",
+      "Tra cứu hồ sơ",
+    ]);
+    expect(PUBLIC_NAVIGATION_LABELS).not.toContain("Đăng nhập cán bộ");
   });
 });
 

@@ -360,6 +360,21 @@ export default function Dashboard({
       effectiveVillageFilter === "all" ||
       report.village_id === effectiveVillageFilter,
   );
+  const analyticsVillageIds = Array.from(
+    new Set(analyticsReports.map((report) => report.village_id)),
+  );
+  const insightVillageId =
+    effectiveVillageFilter && effectiveVillageFilter !== "all"
+      ? effectiveVillageFilter
+      : analyticsVillageIds.length === 1
+        ? analyticsVillageIds[0]
+        : "";
+  const usesSingleVillageInsights = Boolean(insightVillageId);
+  const insightHistoryReports = insightVillageId
+    ? reportsForDecisionMetrics(serverReports).filter(
+        (report) => report.village_id === insightVillageId,
+      )
+    : [];
   const detailReports =
     userRole === "lanh_dao" ? analyticsReports : filteredReports;
   const chartScale = useMemo(
@@ -1211,15 +1226,51 @@ export default function Dashboard({
 
         <WorkSection
           index="03"
-          title="Phân tích ưu tiên theo thôn"
-          description="Tách các biểu đồ so sánh và tín hiệu cần chú ý khỏi số liệu tổng quan; đây là vùng hỗ trợ rà soát, không phải bảng xếp hạng."
+          title={
+            usesSingleVillageInsights
+              ? "Theo dõi biến động của thôn"
+              : "Phân tích ưu tiên theo thôn"
+          }
+          description={
+            usesSingleVillageInsights
+              ? "Theo dõi trạng thái của kỳ đang chọn và biến động qua các kỳ trong đúng phạm vi một thôn."
+              : "Tách các biểu đồ so sánh và tín hiệu cần chú ý khỏi số liệu tổng quan; đây là vùng hỗ trợ rà soát, không phải bảng xếp hạng."
+          }
           tone="support"
           icon={<TrendingUp />}
         >
-          <DashboardInsightCharts
-            reports={analyticsReports}
-            villageName={getVillageName}
-          />
+          {usesSingleVillageInsights ? (
+            <DashboardInsightCharts
+              reports={analyticsReports}
+              historicalReports={insightHistoryReports}
+              reportPeriods={reportPeriods}
+              villageName={getVillageName}
+              singleVillage
+              selectedPeriodLabel={selectedPeriodLabel}
+            />
+          ) : (
+            <details className="dashboard-insight-disclosure">
+              <summary>
+                <span>
+                  <strong>Mở bộ biểu đồ phân tích chi tiết</strong>
+                  <small>
+                    So sánh độ phủ, cơ cấu và tín hiệu ưu tiên giữa các thôn
+                    trong đúng kỳ đang chọn.
+                  </small>
+                </span>
+              </summary>
+              <div className="dashboard-insight-disclosure__body">
+                <DashboardInsightCharts
+                  reports={analyticsReports}
+                  historicalReports={insightHistoryReports}
+                  reportPeriods={reportPeriods}
+                  villageName={getVillageName}
+                  singleVillage={false}
+                  selectedPeriodLabel={selectedPeriodLabel}
+                />
+              </div>
+            </details>
+          )}
         </WorkSection>
 
         {/* Section: Interactive Submissions Log and Details Table */}
@@ -1263,7 +1314,15 @@ export default function Dashboard({
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className="table-scroll-region overflow-x-auto focus-visible:ring-2 focus-visible:ring-emerald-700"
+              tabIndex={0}
+              role="region"
+              aria-label="Danh sách báo cáo của các thôn"
+            >
+              <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
+                Vuốt ngang để xem thêm →
+              </span>
               <table className="w-full text-left text-xs text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 uppercase font-bold tracking-wider text-4xs border-b border-slate-100">
                   <tr>

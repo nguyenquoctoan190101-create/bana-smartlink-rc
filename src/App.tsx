@@ -1549,12 +1549,15 @@ export default function App() {
           id: "policy-scorecard" as const,
           label: "Theo dõi thực hiện kế hoạch",
         },
-        { id: "cnscd-impact" as const, label: "Hỗ trợ lập báo cáo" },
+        {
+          id: "cnscd-impact" as const,
+          label: "Kết quả hỗ trợ chuyển đổi số",
+        },
         {
           id: "period-change-requests" as const,
           label: "Phê duyệt thay đổi kỳ",
         },
-        { id: "knowledge" as const, label: "Căn cứ và hướng dẫn" },
+        { id: "knowledge" as const, label: "Tri thức và hỗ trợ" },
       ],
     },
   ];
@@ -1697,7 +1700,9 @@ export default function App() {
                       }`}
                     >
                       <IconComp className="w-5 h-5 shrink-0" />
-                      <span className="sidebar-nav-label">{item.label}</span>
+                      <span className="sidebar-nav-label min-w-0 whitespace-normal leading-tight">
+                        {item.label}
+                      </span>
                     </button>
                   </React.Fragment>
                 );
@@ -1927,29 +1932,54 @@ export default function App() {
             </div>
           )}
 
-          {userRole === "lanh_dao" && activeLeaderSpace && (
-            <nav
-              aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}
-              className="leader-space-nav flex flex-nowrap gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xs"
-              data-space={activeLeaderSpace.id}
-            >
-              {activeLeaderSpace.items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => changeTab(item.id)}
-                  aria-current={activeTab === item.id ? "page" : undefined}
-                  className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-4 text-sm font-semibold transition-colors ${
-                    activeTab === item.id
-                      ? "bg-emerald-800 text-white"
-                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950"
-                  }`}
+          {userRole === "lanh_dao" &&
+            activeLeaderSpace &&
+            activeLeaderSpace.items.length > 1 && (
+              <>
+                <div className="leader-space-picker rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs lg:hidden">
+                  <label
+                    htmlFor="leader-space-select"
+                    className="grid gap-1.5 text-xs font-extrabold text-slate-600"
+                  >
+                    Nội dung trong {activeNavItem?.label ?? "không gian làm việc"}
+                  </label>
+                  <select
+                    id="leader-space-select"
+                    value={activeTab}
+                    onChange={(event) =>
+                      changeTab(event.target.value as AppTab)
+                    }
+                  >
+                    {activeLeaderSpace.items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <nav
+                  aria-label={`Chức năng trong không gian ${activeNavItem?.label ?? ""}`}
+                  className="leader-space-nav hidden gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-xs lg:flex"
+                  data-space={activeLeaderSpace.id}
                 >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          )}
+                  {activeLeaderSpace.items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => changeTab(item.id)}
+                      aria-current={activeTab === item.id ? "page" : undefined}
+                      className={`min-h-11 min-w-0 flex-1 rounded-lg px-3 text-center text-sm font-semibold leading-tight transition-colors ${
+                        activeTab === item.id
+                          ? "bg-emerald-800 text-white"
+                          : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-950"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </nav>
+              </>
+            )}
 
           {isLoading || isAuthLoading ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-500">
@@ -2129,7 +2159,7 @@ export default function App() {
               <span className="text-slate-300 font-normal">•</span>
               <span>Ba Na SmartLink</span>
             </div>
-            <p className="text-slate-400 font-medium text-[10px]">
+            <p className="text-slate-500 font-medium text-xs">
               © 2026 Ủy ban nhân dân xã Bà Nà, thành phố Đà Nẵng. Mọi quyền được
               bảo lưu.
             </p>
@@ -2142,7 +2172,12 @@ export default function App() {
           ------------------------------------------------------------- */}
       <nav
         aria-label="Điều hướng chính trên thiết bị di động"
-        className="gov-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-45 min-h-16 grid grid-cols-4 items-stretch bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg"
+        className="gov-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-45 min-h-16 grid items-stretch bg-white border-t border-slate-200 px-1 py-1.5 shadow-lg"
+        style={{
+          gridTemplateColumns: `repeat(${
+            mobilePrimaryItems.length + (mobileMoreItems.length > 0 ? 1 : 0)
+          }, minmax(0, 1fr))`,
+        }}
       >
         {mobilePrimaryItems.map((item) => {
           const IconComp = item.icon;
@@ -2223,22 +2258,34 @@ export default function App() {
               </button>
             </div>
             <div className="gov-mobile-more__list">
-              {mobileMoreItems.map((item) => {
+              {mobileMoreItems.map((item, index) => {
                 const IconComp = item.icon;
+                const groupLabel = item.group || "Chức năng bổ sung";
+                const previousGroup =
+                  index > 0
+                    ? mobileMoreItems[index - 1].group ||
+                      "Chức năng bổ sung"
+                    : null;
                 return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    aria-current={activeTab === item.id ? "page" : undefined}
-                    onClick={() => {
-                      setShowMobileMore(false);
-                      setEditingReport(null);
-                      changeTab(item.id);
-                    }}
-                  >
-                    <IconComp aria-hidden="true" />
-                    <span>{item.label}</span>
-                  </button>
+                  <React.Fragment key={item.id}>
+                    {groupLabel !== previousGroup && (
+                      <p className="gov-mobile-more__group col-span-full mt-2 -mb-0.5 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                        {groupLabel}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      aria-current={activeTab === item.id ? "page" : undefined}
+                      onClick={() => {
+                        setShowMobileMore(false);
+                        setEditingReport(null);
+                        changeTab(item.id);
+                      }}
+                    >
+                      <IconComp aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </div>

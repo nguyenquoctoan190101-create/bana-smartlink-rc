@@ -84,6 +84,42 @@ describe("ChatWidget suggestions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("uses a compact launcher on forms and moves above visible action controls", async () => {
+    const task = document.createElement("main");
+    const form = document.createElement("form");
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Gửi báo cáo";
+    submit.getBoundingClientRect = () =>
+      ({
+        bottom: 756,
+        height: 56,
+        left: 16,
+        right: 374,
+        top: 700,
+        width: 358,
+        x: 16,
+        y: 700,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    form.append(submit);
+    task.append(form);
+    document.body.append(task);
+
+    const { container } = render(<ChatWidget userPhone={null} />);
+    const widget = container.querySelector("#chat-widget-root");
+
+    await waitFor(() => {
+      expect(widget).toHaveAttribute("data-layout", "compact");
+      expect(widget).toHaveClass("chat-widget--avoiding-actions");
+      expect(widget).toHaveStyle({
+        "--chat-widget-avoidance-offset": "80px",
+      });
+    });
+
+    task.remove();
+  });
+
   it("shows voice input only after the backend feature flag is enabled", async () => {
     mocks.apiFetch.mockResolvedValue(jsonResponse({ voice_enabled: true }));
     render(<ChatWidget userPhone={null} />);

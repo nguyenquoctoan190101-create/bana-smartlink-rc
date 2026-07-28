@@ -108,7 +108,7 @@
 
 .decision-summary-ribbon dt {
   color: #bfe0d2;
-  font-size: 0.69rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -124,7 +124,7 @@
 .decision-summary-ribbon p {
   margin-top: 0.18rem;
   color: #dceae4;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   line-height: 1.35;
 }
 
@@ -162,7 +162,7 @@
   .dashboard-export-button {
     gap: 0.3rem;
     padding-inline: 0.45rem;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .decision-summary-ribbon {
@@ -177,4 +177,67 @@
   .decision-summary-ribbon > div:last-child {
     border-bottom: 0;
   }
+}
+
+.dashboard-insight-disclosure {
+  overflow: hidden;
+  border: 1px solid #cddfd7;
+  border-radius: 0.85rem;
+  background: #f8fbf9;
+}
+
+.dashboard-insight-disclosure > summary {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  color: #164b3d;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dashboard-insight-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-insight-disclosure > summary > span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.dashboard-insight-disclosure > summary strong {
+  font-size: 0.9rem;
+}
+
+.dashboard-insight-disclosure > summary small {
+  color: #566762;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.dashboard-insight-disclosure > summary::after {
+  content: "Mở";
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  color: #155c49;
+  background: #e1f0e9;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.dashboard-insight-disclosure[open] > summary {
+  border-bottom: 1px solid #dbe8e2;
+  background: #f0f7f3;
+}
+
+.dashboard-insight-disclosure[open] > summary::after {
+  content: "Thu gọn";
+}
+
+.dashboard-insight-disclosure__body {
+  padding: 1rem;
+  background: #fff;
 }

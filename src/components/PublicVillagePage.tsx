@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ArrowLeft,
@@ -11,7 +11,6 @@ import {
   FileSearch,
   FileText,
   Home,
-  Lock,
   MapPin,
   MessageSquare,
   Navigation,
@@ -82,6 +81,31 @@ const PUBLIC_INDICATORS = [
 
 type PublicMode = "data" | "lookup" | "proposal" | "case";
 type ProposalStep = 1 | 2 | 3 | 4;
+
+const PUBLIC_NAVIGATION = [
+  { mode: "data", label: "Số liệu công khai", icon: FileText },
+  {
+    mode: "proposal",
+    label: "Đề nghị đối chiếu số liệu",
+    icon: MessageSquare,
+  },
+  { mode: "case", label: "Phản ánh hiện trường", icon: MapPin },
+  { mode: "lookup", label: "Tra cứu hồ sơ", icon: FileSearch },
+] satisfies ReadonlyArray<{
+  mode: PublicMode;
+  label: string;
+  icon: typeof FileText;
+}>;
+
+export const PUBLIC_NAVIGATION_LABELS = PUBLIC_NAVIGATION.map(
+  (item) => item.label,
+);
+
+const PUBLIC_MODE_TITLES: Record<Exclude<PublicMode, "data">, string> = {
+  proposal: "Đề nghị đối chiếu số liệu",
+  case: "Phản ánh hiện trường",
+  lookup: "Tra cứu hồ sơ",
+};
 
 type EvacuationPoint = {
   id: string;
@@ -188,7 +212,7 @@ interface PublicVillagePageProps {
 }
 
 export default function PublicVillagePage({
-  onGoToLogin,
+  onGoToLogin: _onGoToLogin,
 }: PublicVillagePageProps) {
   const [villages, setVillages] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
@@ -223,6 +247,8 @@ export default function PublicVillagePage({
     message?: string;
     case?: { category?: string };
   } | null>(null);
+  const modeHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousModeRef = useRef<PublicMode>(mode);
 
   useEffect(() => {
     let active = true;
@@ -281,6 +307,13 @@ export default function PublicVillagePage({
       active = false;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    if (previousModeRef.current !== mode) {
+      modeHeadingRef.current?.focus();
+      previousModeRef.current = mode;
+    }
+  }, [mode]);
 
   const relevantReports = useMemo(() => {
     const scoped = reports.filter(
@@ -450,110 +483,99 @@ export default function PublicVillagePage({
     evacuationPoints.length,
   );
 
+  const selectPublicMode = (nextMode: PublicMode) => {
+    setMode(nextMode);
+    setFormError(null);
+    if (nextMode === "proposal") setProposalStep(1);
+  };
+
+  const renderNavigation = (placement: "hero" | "subpage") => (
+    <nav
+      className={
+        placement === "hero"
+          ? "public-hero-nav relative z-10 mt-7"
+          : "public-subpage-nav"
+      }
+      aria-label="Điều hướng cổng công khai"
+    >
+      {PUBLIC_NAVIGATION.map((item) => {
+        const Icon = item.icon;
+        const isCurrent = mode === item.mode;
+        return (
+          <Button
+            key={item.mode}
+            type="button"
+            aria-current={isCurrent ? "page" : undefined}
+            variant={isCurrent ? "secondary" : "quiet"}
+            className={
+              placement === "hero" && !isCurrent
+                ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                : ""
+            }
+            onClick={() => selectPublicMode(item.mode)}
+          >
+            <Icon aria-hidden="true" />
+            <span>{item.label}</span>
+          </Button>
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div
       className="mx-auto max-w-[1440px] space-y-6"
       id="public-village-portal"
     >
-      <section
-        className={`public-hero relative overflow-hidden rounded-xl bg-[#0f5a48] px-5 py-8 text-white md:px-10 md:py-12 ${mode === "data" ? "" : "public-hero--compact"}`}
-      >
-        <picture className="public-hero-photo" aria-hidden="true">
-          <source
-            type="image/webp"
-            srcSet="/images/ba-na/ba-na-hero-golden-bridge-960.webp 960w, /images/ba-na/ba-na-hero-golden-bridge-1920.webp 1920w"
-            sizes="(max-width: 767px) 100vw, (max-width: 1536px) 94vw, 1480px"
-          />
-          <img
-            src="/images/ba-na/ba-na-hero-golden-bridge.jpg"
-            width="1920"
-            height="1078"
-            alt=""
-            decoding="async"
-            fetchPriority="high"
-          />
-        </picture>
-        <div className="public-hero-copy relative z-10 max-w-3xl">
-          <p className="public-hero-kicker">CỔNG THÔNG TIN CÔNG KHAI</p>
-          <h1 className="mt-3 text-3xl font-bold leading-tight tracking-[-0.035em] md:text-5xl">
-            Thông tin công khai xã Bà Nà
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-emerald-50 md:text-base">
-            Tra cứu số liệu đã công bố theo thôn và kỳ báo cáo. Gửi yêu cầu đối
-            chiếu khi phát hiện thông tin chưa chính xác.
-          </p>
-        </div>
-        <div
-          className="public-hero-nav relative z-10 mt-7 flex flex-wrap gap-3"
-          aria-label="Điều hướng cổng công khai"
-        >
-          <Button
-            aria-pressed={mode === "data"}
-            variant={mode === "data" ? "secondary" : "quiet"}
-            className={
-              mode !== "data"
-                ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                : ""
-            }
-            onClick={() => setMode("data")}
-          >
-            <FileText />
-            Số liệu công khai
-          </Button>
-          <Button
-            aria-pressed={mode === "proposal"}
-            variant={mode === "proposal" ? "secondary" : "quiet"}
-            className={
-              mode !== "proposal"
-                ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                : ""
-            }
-            onClick={() => {
-              setMode("proposal");
-              setProposalStep(1);
-            }}
-          >
-            <MessageSquare />
-            Đề nghị đối chiếu số liệu
-          </Button>
-          <Button
-            aria-pressed={mode === "case"}
-            variant={mode === "case" ? "secondary" : "quiet"}
-            className={
-              mode !== "case"
-                ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                : ""
-            }
-            onClick={() => setMode("case")}
-          >
-            <MapPin />
-            Phản ánh hiện trường
-          </Button>
-          <Button
-            aria-pressed={mode === "lookup"}
-            variant={mode === "lookup" ? "secondary" : "quiet"}
-            className={
-              mode !== "lookup"
-                ? "border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                : ""
-            }
-            onClick={() => setMode("lookup")}
-          >
-            <FileSearch />
-            Tra cứu hồ sơ
-          </Button>
-          {onGoToLogin && (
-            <Button
-              variant="quiet"
-              className="border border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-              onClick={onGoToLogin}
+      {mode === "data" ? (
+        <section className="public-hero relative overflow-hidden rounded-xl bg-[#0f5a48] px-5 py-8 text-white md:px-10 md:py-12">
+          <picture className="public-hero-photo" aria-hidden="true">
+            <source
+              type="image/webp"
+              srcSet="/images/ba-na/ba-na-hero-golden-bridge-960.webp 960w, /images/ba-na/ba-na-hero-golden-bridge-1920.webp 1920w"
+              sizes="(max-width: 767px) 100vw, (max-width: 1536px) 94vw, 1480px"
+            />
+            <img
+              src="/images/ba-na/ba-na-hero-golden-bridge.jpg"
+              width="1920"
+              height="1078"
+              alt=""
+              decoding="async"
+              fetchPriority="high"
+            />
+          </picture>
+          <div className="public-hero-copy relative z-10 max-w-3xl">
+            <p className="public-hero-kicker">CỔNG THÔNG TIN CÔNG KHAI</p>
+            <h1
+              ref={modeHeadingRef}
+              tabIndex={-1}
+              className="mt-3 text-3xl font-bold leading-tight tracking-[-0.035em] md:text-5xl"
             >
-              <Lock />
-              Đăng nhập cán bộ
-            </Button>
-          )}
-        </div>
-      </section>
+              Thông tin công khai xã Bà Nà
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-emerald-50 md:text-base">
+              Tra cứu số liệu đã công bố theo thôn và kỳ báo cáo. Gửi yêu cầu
+              đối chiếu khi phát hiện thông tin chưa chính xác.
+            </p>
+          </div>
+          {renderNavigation("hero")}
+        </section>
+      ) : (
+        <header className="public-subpage-shell">
+          <div className="public-subpage-heading">
+            <span className="public-subpage-heading__icon" aria-hidden="true">
+              <Home />
+            </span>
+            <div>
+              <p>CỔNG THÔNG TIN CÔNG KHAI</p>
+              <h1 ref={modeHeadingRef} tabIndex={-1}>
+                {PUBLIC_MODE_TITLES[mode]}
+              </h1>
+            </div>
+          </div>
+          {renderNavigation("subpage")}
+        </header>
+      )}
 
       {mode === "data" && dataError && (
         <ErrorState
@@ -683,28 +705,19 @@ export default function PublicVillagePage({
             index="03"
             eyebrow="Nội dung công khai 03"
             title="Điểm sơ tán công khai"
-            description="Thông tin chuẩn bị ứng phó đã được cơ quan có thẩm quyền duyệt; đây không phải kênh phát cảnh báo khẩn cấp."
+            description="Danh mục chuẩn bị ứng phó do cơ quan có thẩm quyền phê duyệt và công bố. Đây không phải kênh cảnh báo khẩn cấp; khi có sự cố, hãy làm theo hướng dẫn chính thức."
             tone="tasks"
             icon={<Navigation />}
             className="public-section"
           >
-            <SectionCard className="p-5">
-              <div className="flex items-start gap-3">
-                <Navigation className="mt-0.5 h-6 w-6 shrink-0 text-emerald-800" />
-                <div>
-                <h2 className="font-bold text-slate-900">
-                  Điểm sơ tán đã công bố
-                </h2>
-                <p className="mt-1 text-sm leading-relaxed text-slate-600">
-                  Danh mục chuẩn bị ứng phó do cơ quan có thẩm quyền phê duyệt
-                  và công bố. Đây không phải kênh phát cảnh báo khẩn cấp; khi có
-                  sự cố, hãy theo hướng dẫn chính thức.
-                </p>
-                </div>
-              </div>
             {evacuationAvailability === "unavailable" ? (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="alert">
-                <p className="font-bold">Thông tin điểm sơ tán tạm thời chưa sẵn sàng</p>
+              <div
+                className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+                role="alert"
+              >
+                <p className="font-bold">
+                  Thông tin điểm sơ tán tạm thời chưa sẵn sàng
+                </p>
                 <p className="mt-1">{evacuationError}</p>
                 <Button
                   type="button"
@@ -717,14 +730,14 @@ export default function PublicVillagePage({
                 </Button>
               </div>
             ) : evacuationAvailability === "empty" ? (
-              <div className="mt-4">
+              <div>
                 <EmptyState
                   title="Chưa có điểm sơ tán công khai"
                   description="Danh mục sẽ hiển thị sau khi được cơ quan có thẩm quyền duyệt và công bố."
                 />
               </div>
             ) : (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {evacuationPoints.map((point) => {
                   const pointVillage =
                     villages.find((village) => village.id === point.village_id)
@@ -762,8 +775,7 @@ export default function PublicVillagePage({
                   );
                 })}
               </div>
-              )}
-            </SectionCard>
+            )}
           </WorkSection>
 
           <WorkSection
@@ -872,11 +884,30 @@ export default function PublicVillagePage({
       )}
 
       {mode === "lookup" && (
-        <SectionCard className="mx-auto max-w-2xl p-5 md:p-8">
-          <h2 className="text-xl font-bold text-slate-900">Tra cứu hồ sơ</h2>
-          <p className="mt-2 text-sm text-slate-600">
+        <SectionCard className="mx-auto max-w-3xl p-5 md:p-8">
+          <h2 className="text-xl font-bold text-slate-900">
+            Nhập mã đã được cấp
+          </h2>
+          <p id="public-lookup-help" className="mt-2 text-sm text-slate-600">
             Dùng chung một ô tra cứu cho kiến nghị (16 ký tự) và phản ánh hiện
             trường (32 ký tự). Kết quả không hiển thị thông tin cá nhân.
+          </p>
+          <div
+            className="public-lookup-examples"
+            aria-label="Ví dụ định dạng mã tra cứu"
+          >
+            <div>
+              <span>Đề nghị đối chiếu · 16 ký tự</span>
+              <code>A1B2C3D4E5F6G7H8</code>
+            </div>
+            <div>
+              <span>Phản ánh hiện trường · 32 ký tự</span>
+              <code>A1B2C3D4E5F6G7H8J9K0L1M2N3P4Q5R6</code>
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            Các mã trên chỉ minh họa định dạng, không phải mã hồ sơ thật. Hãy
+            nhập liền các ký tự đúng như mã bạn nhận được.
           </p>
           <form
             onSubmit={lookupSubmission}
@@ -892,11 +923,17 @@ export default function PublicVillagePage({
                 maxLength={32}
                 minLength={16}
                 required
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby="public-lookup-help public-lookup-state-help"
                 className="mt-1.5 font-mono tracking-wider"
-                placeholder="MÃ TRA CỨU"
+                placeholder="Nhập mã 16 hoặc 32 ký tự"
               />
             </label>
-            <Button type="submit" className="sm:self-end">
+            <Button
+              type="submit"
+              className="w-full justify-center sm:w-auto sm:self-end"
+            >
               <FileSearch />
               Tra cứu
             </Button>
@@ -923,6 +960,32 @@ export default function PublicVillagePage({
               ) : null}
             </div>
           )}
+          <div
+            id="public-lookup-state-help"
+            className="mt-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600"
+          >
+            <h2 className="font-bold text-slate-900">
+              Cách hiểu trạng thái
+            </h2>
+            <ul className="mt-2 space-y-1.5 pl-5">
+              <li className="list-disc">
+                <strong>Đã tiếp nhận, đang xác minh hoặc đang xử lý:</strong>{" "}
+                hồ sơ chưa kết thúc và đang được đơn vị phụ trách xử lý.
+              </li>
+              <li className="list-disc">
+                <strong>Hoàn thành, đã chấp nhận hoặc đã từ chối:</strong> đây
+                là trạng thái hiện tại của hồ sơ.
+              </li>
+              <li className="list-disc">
+                <strong>Không tìm thấy:</strong> kiểm tra lại số ký tự và nhập
+                đúng mã đã được cấp.
+              </li>
+            </ul>
+            <p className="mt-3 text-xs leading-relaxed text-slate-500">
+              Trang chỉ hiển thị kết quả của mã đang nhập và không tạo danh sách
+              lịch sử tra cứu.
+            </p>
+          </div>
         </SectionCard>
       )}
 
@@ -937,7 +1000,7 @@ export default function PublicVillagePage({
               ĐỐI CHIẾU DỮ LIỆU CÔNG KHAI
             </p>
             <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-              Gửi đề nghị đối chiếu số liệu
+              Thông tin cần đối chiếu
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
               Biểu mẫu này chỉ dùng để đề nghị kiểm tra 5 chỉ tiêu công khai:
@@ -954,7 +1017,7 @@ export default function PublicVillagePage({
                   <li
                     key={label}
                     aria-current={proposalStep === number ? "step" : undefined}
-                    className={`flex items-center gap-2 border-t-2 pt-3 text-xs font-semibold ${active ? "border-emerald-700 text-emerald-900" : "border-slate-200 text-slate-400"}`}
+                    className={`flex min-w-0 flex-col items-start gap-2 border-t-2 pt-3 text-xs font-semibold sm:flex-row sm:items-center ${active ? "border-emerald-700 text-emerald-900" : "border-slate-200 text-slate-400"}`}
                   >
                     <span
                       className={`grid h-6 w-6 place-items-center rounded-full ${active ? "bg-emerald-800 text-white" : "bg-slate-100"}`}
@@ -1095,7 +1158,11 @@ export default function PublicVillagePage({
                   />
                 </label>
                 <div className="flex justify-end">
-                  <Button type="button" onClick={() => goToProposalStep(2)}>
+                  <Button
+                    type="button"
+                    className="w-full justify-center sm:w-auto"
+                    onClick={() => goToProposalStep(2)}
+                  >
                     Tiếp tục
                     <ArrowRight />
                   </Button>
@@ -1169,16 +1236,21 @@ export default function PublicVillagePage({
                   </div>
                 </section>
 
-                <div className="flex justify-between gap-3">
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                   <Button
                     type="button"
                     variant="secondary"
+                    className="w-full justify-center sm:w-auto"
                     onClick={() => goToProposalStep(1)}
                   >
                     <ArrowLeft />
                     Quay lại
                   </Button>
-                  <Button type="button" onClick={() => goToProposalStep(3)}>
+                  <Button
+                    type="button"
+                    className="w-full justify-center sm:w-auto"
+                    onClick={() => goToProposalStep(3)}
+                  >
                     Tiếp tục
                     <ArrowRight />
                   </Button>
@@ -1244,16 +1316,21 @@ export default function PublicVillagePage({
                     riêng tư.
                   </span>
                 </label>
-                <div className="flex justify-between gap-3">
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                   <Button
                     type="button"
                     variant="secondary"
+                    className="w-full justify-center sm:w-auto"
                     onClick={() => goToProposalStep(2)}
                   >
                     <ArrowLeft />
                     Quay lại
                   </Button>
-                  <Button type="submit" disabled={isSending || !privacyConsent}>
+                  <Button
+                    type="submit"
+                    className="w-full justify-center sm:w-auto"
+                    disabled={isSending || !privacyConsent}
+                  >
                     {isSending ? (
                       <RefreshCw className="animate-spin" />
                     ) : (
@@ -1282,7 +1359,7 @@ export default function PublicVillagePage({
                     <p className="text-xs font-semibold text-emerald-800">
                       MÃ TRA CỨU
                     </p>
-                    <p className="mt-1 select-all font-mono text-xl font-bold tracking-wider text-emerald-950">
+                    <p className="mt-1 break-all select-all font-mono text-xl font-bold tracking-wider text-emerald-950">
                       {trackingCode}
                     </p>
                     <Button

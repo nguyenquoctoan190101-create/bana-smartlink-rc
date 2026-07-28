@@ -43,6 +43,8 @@ type NotificationCenterProps = {
   onMarkAllRead: () => void;
 };
 
+let routeCloseScheduled = false;
+
 function notificationMeta(notification: AppNotification): NotificationMeta {
   const content = `${notification.title} ${notification.body} ${notification.url ?? ""}`.toLocaleLowerCase("vi-VN");
   if (
@@ -106,6 +108,8 @@ export default function NotificationCenter({
     (notification) => !notification.is_read,
   ).length;
   const [filter, setFilter] = useState<"unread" | "all">("unread");
+  const locationKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const previousLocationRef = useRef(locationKey);
   const visibleNotifications =
     filter === "unread"
       ? notifications.filter((notification) => !notification.is_read)
@@ -140,6 +144,20 @@ export default function NotificationCenter({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [isOpen, onToggleOpen]);
+
+  useEffect(() => {
+    if (previousLocationRef.current === locationKey) return;
+    previousLocationRef.current = locationKey;
+    if (!isOpen || routeCloseScheduled) return;
+
+    // The desktop and mobile variants are mounted together and share state.
+    // A microtask guard ensures a route change toggles that shared state once.
+    routeCloseScheduled = true;
+    onToggleOpen();
+    window.queueMicrotask(() => {
+      routeCloseScheduled = false;
+    });
+  }, [isOpen, locationKey, onToggleOpen]);
 
   return (
     <div className="notification-center" ref={centerRef}>

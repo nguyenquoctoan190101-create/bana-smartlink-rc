@@ -266,7 +266,10 @@ export default function ProgressDashboard({
         tone="tasks"
         icon={<TableProperties />}
       >
-        <div className="progress-dashboard__table-wrap">
+        <div className="progress-dashboard__table-wrap table-scroll-region focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng tiến độ theo thôn; có thể cuộn ngang trên màn hình nhỏ">
+          <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
+            Vuốt ngang để xem thêm →
+          </span>
           <table className="progress-dashboard__table">
           <thead>
             <tr>
@@ -330,7 +333,10 @@ export default function ProgressDashboard({
         >
           <div className="progress-dashboard__alerts-section">
             <h3>Biến động đáng chú ý kỳ này (&gt; 20%)</h3>
-            <div className="progress-dashboard__table-wrap">
+            <div className="progress-dashboard__table-wrap table-scroll-region focus-visible:ring-2 focus-visible:ring-emerald-700" tabIndex={0} aria-label="Bảng biến động cần rà soát; có thể cuộn ngang trên màn hình nhỏ">
+              <span className="sticky left-3 z-10 my-2 ml-3 inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900 lg:hidden">
+                Vuốt ngang để xem thêm →
+              </span>
               <table className="progress-dashboard__table progress-dashboard__table--alerts">
               <thead>
                 <tr>
@@ -367,6 +373,11 @@ export default function ProgressDashboard({
             </div>
           </div>
         </WorkSection>
+      ) : !isLoadingAlerts ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600" role="status">
+          Không có biến động vượt ngưỡng 20% trong phạm vi so sánh, hoặc kỳ đang
+          chọn chưa có kỳ trước đủ dữ liệu để đối chiếu.
+        </div>
       ) : null}
 
     </section>

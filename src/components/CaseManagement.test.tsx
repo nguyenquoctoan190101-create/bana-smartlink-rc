@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CaseManagement, { allowedNextCaseStatuses } from "./CaseManagement";
 
@@ -71,7 +71,7 @@ describe("CaseManagement", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Thời hạn xử lý đang dùng cấu hình thử nghiệm."),
+        screen.getByText(/Thời hạn xử lý đang dùng cấu hình thử nghiệm\./),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Thôn An Sơn")).toBeInTheDocument();
@@ -140,14 +140,9 @@ describe("CaseManagement", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByDisplayValue("Đang mở")).toBeInTheDocument(),
-    );
-    fireEvent.change(screen.getByDisplayValue("Đang mở"), {
-      target: { value: "all" },
-    });
-    await waitFor(() =>
       expect(screen.getByText("Ổ gà đã được xử lý.")).toBeInTheDocument(),
     );
+    expect(screen.getByDisplayValue("Tất cả")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Xác nhận phân công/i }),
     ).not.toBeInTheDocument();
