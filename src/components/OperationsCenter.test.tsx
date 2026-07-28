@@ -135,6 +135,9 @@ describe("OperationsCenter", () => {
     expect(
       screen.getAllByText("1 báo cáo trong phạm vi quyết định").length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Tạo phân tích AI có căn cứ" }),
+    ).toBeEnabled();
   });
 
   it("turns the latest draft into an evidence-backed review brief and records reviewer notes", async () => {

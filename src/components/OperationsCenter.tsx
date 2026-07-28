@@ -698,7 +698,7 @@ export default function OperationsCenter({ periodId, role, periods = EMPTY_PERIO
           tone="support"
           icon={<BrainCircuit />}
           actions={
-            admin ? (
+            internal ? (
               <Button
                 onClick={() => void createDraft()}
                 disabled={!canCreateDecisionBrief}
