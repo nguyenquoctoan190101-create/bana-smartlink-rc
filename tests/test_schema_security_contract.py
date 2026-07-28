@@ -35,6 +35,22 @@ def test_atomic_rpcs_and_leader_read_only_policy_exist() -> None:
     assert "public.profile_role() = 'admin_xa'" in SCHEMA
 
 
+def test_submission_receipt_is_durable_and_replayed_for_the_same_actor() -> None:
+    receipt_table = SCHEMA.split(
+        "create table public.report_submission_receipts", 1
+    )[1].split("create index", 1)[0]
+    submission_rpc = SCHEMA.split(
+        "create function public.save_report_submission", 1
+    )[1].split("revoke all on function public.save_report_submission", 1)[0]
+
+    assert "idempotency_key uuid primary key" in receipt_table
+    assert "submitted_at timestamptz" in receipt_table
+    assert "receipt.user_id = actor" in submission_rpc
+    assert "receipt.submitted_at" in submission_rpc
+    assert "insert into public.report_submission_receipts" in submission_rpc
+    assert "target_report.submitted_at" in submission_rpc
+
+
 def test_citizens_are_not_an_authenticated_role() -> None:
     role_definition = SCHEMA.split("create type public.user_role", 1)[1].split(");", 1)[0]
     assert "'dan'" not in role_definition

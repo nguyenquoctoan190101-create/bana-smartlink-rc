@@ -62,6 +62,9 @@ describe("syncQueuedReports", () => {
         workflow_status: "submitted",
         timeliness_status: "on_time",
         publication_status: "private",
+        server_received_at: "2026-07-29T02:15:00Z",
+        next_step: "await_commune_review",
+        replayed: false,
       }],
       rejected: [],
     };
@@ -74,6 +77,8 @@ describe("syncQueuedReports", () => {
       id: "server-1",
       workflow_status: "submitted",
       pending_sync: false,
+      submitted_at: "2026-07-29T02:15:00Z",
+      submission_next_step: "await_commune_review",
     }));
     expect(mocks.saveReport.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.removeFromSyncQueue.mock.invocationCallOrder[0],
@@ -105,6 +110,27 @@ describe("syncQueuedReports", () => {
     mocks.apiJson.mockRejectedValue(new TypeError("Failed to fetch"));
 
     await expect(syncQueuedReports()).rejects.toThrow("Failed to fetch");
+    expect(mocks.saveReport).not.toHaveBeenCalled();
+    expect(mocks.removeFromSyncQueue).not.toHaveBeenCalled();
+    expect(mocks.deleteReport).not.toHaveBeenCalled();
+  });
+
+  it("keeps the queue when an accepted item has no durable server receipt", async () => {
+    mocks.apiJson.mockResolvedValue({
+      accepted: [{
+        client_id: "client-1",
+        report_id: "server-1",
+        version: 1,
+        workflow_status: "submitted",
+        timeliness_status: "on_time",
+        publication_status: "private",
+      }],
+      rejected: [],
+    });
+
+    await expect(syncQueuedReports()).rejects.toThrow(
+      "biên nhận đồng bộ không hợp lệ",
+    );
     expect(mocks.saveReport).not.toHaveBeenCalled();
     expect(mocks.removeFromSyncQueue).not.toHaveBeenCalled();
     expect(mocks.deleteReport).not.toHaveBeenCalled();

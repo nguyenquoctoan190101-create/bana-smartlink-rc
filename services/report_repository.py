@@ -25,6 +25,7 @@ class SavedReport:
     workflow_status: str
     timeliness_status: str
     version: int
+    server_received_at: str
     replayed: bool = False
 
     @property
@@ -193,6 +194,23 @@ class ReportRepository:
         if not report_rows:
             raise RuntimeError("Report submission RPC returned no result")
         report = report_rows[0]
+        server_received_at = report.get("submitted_at")
+        if not isinstance(server_received_at, str) or not server_received_at.strip():
+            raise RuntimeError(
+                "Report submission RPC returned no durable server receipt"
+            )
+        try:
+            received_at = datetime.fromisoformat(
+                server_received_at.strip().replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise RuntimeError(
+                "Report submission RPC returned an invalid server receipt timestamp"
+            ) from exc
+        if received_at.tzinfo is None:
+            raise RuntimeError(
+                "Report submission RPC returned a timezone-free server receipt"
+            )
         return SavedReport(
             id=str(report["report_id"]),
             village_id=village_id,
@@ -200,6 +218,7 @@ class ReportRepository:
             workflow_status=str(report["workflow_status"]),
             timeliness_status=str(report["timeliness_status"]),
             version=int(report["version"]),
+            server_received_at=server_received_at.strip(),
             replayed=bool(report.get("replayed", False)),
         )
 

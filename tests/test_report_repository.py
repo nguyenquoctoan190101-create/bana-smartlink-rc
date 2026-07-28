@@ -81,7 +81,8 @@ async def test_save_report_uses_atomic_rpc_and_preserves_idempotency_contract() 
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(return_value=[{
         "report_id": "r1", "workflow_status": "submitted",
-        "timeliness_status": "on_time", "version": 3, "replayed": True,
+        "timeliness_status": "on_time", "version": 3,
+        "submitted_at": "2026-07-29T02:15:00+00:00", "replayed": True,
     }])
     repository = ReportRepository(supabase)
     result = await repository.save_report(
@@ -92,6 +93,7 @@ async def test_save_report_uses_atomic_rpc_and_preserves_idempotency_contract() 
         report_id="r1", expected_version=2, idempotency_key="idem-1",
     )
     assert result.id == "r1" and result.version == 3 and result.replayed is True
+    assert result.server_received_at == "2026-07-29T02:15:00+00:00"
     assert result.status == "submitted"
     method, path, payload = supabase._rest_request.await_args.args
     assert method == "POST" and path == "/rest/v1/rpc/save_manual_report_submission"
@@ -113,6 +115,30 @@ async def test_save_report_empty_rpc_result_is_not_acknowledged() -> None:
 
 
 @pytest.mark.asyncio
+async def test_save_report_without_server_timestamp_is_not_acknowledged() -> None:
+    supabase = AsyncMock()
+    supabase._rest_request = AsyncMock(return_value=[{
+        "report_id": "r1",
+        "workflow_status": "submitted",
+        "timeliness_status": "on_time",
+        "version": 1,
+        "replayed": False,
+    }])
+
+    with pytest.raises(RuntimeError, match="durable server receipt"):
+        await ReportRepository(supabase).save_report(
+            "v1",
+            "p1",
+            "A",
+            "0900000001",
+            {"CT01": 1},
+            [],
+            "manual",
+            idempotency_key="idem-1",
+        )
+
+
+@pytest.mark.asyncio
 async def test_save_report_records_import_review_with_idempotent_rpc() -> None:
     supabase = AsyncMock()
     supabase._rest_request = AsyncMock(
@@ -121,6 +147,7 @@ async def test_save_report_records_import_review_with_idempotent_rpc() -> None:
             "workflow_status": "submitted",
             "timeliness_status": "on_time",
             "version": 1,
+            "submitted_at": "2026-07-29T02:15:00+00:00",
             "replayed": False,
         }]
     )

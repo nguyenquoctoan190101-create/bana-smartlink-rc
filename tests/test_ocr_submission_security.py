@@ -84,6 +84,7 @@ def test_ocr_submission_with_confirmation_accepted():
         workflow_status="submitted",
         timeliness_status="on_time",
         version=1,
+        server_received_at="2026-07-29T02:15:00+00:00",
     )
     app.dependency_overrides[get_report_repository] = lambda: mock_repo
     app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(
@@ -93,6 +94,8 @@ def test_ocr_submission_with_confirmation_accepted():
         response = client.post("/reports", json=payload)
         assert response.status_code == 201, response.text
         assert response.json()["workflow_status"] == "submitted"
+        assert response.json()["server_received_at"] == "2026-07-29T02:15:00Z"
+        assert response.json()["next_step"] == "await_commune_review"
     finally:
         app.dependency_overrides.pop(get_report_repository, None)
         app.dependency_overrides.pop(require_authenticated_user, None)
@@ -124,6 +127,7 @@ def test_ocr_submission_records_review_metadata_and_corrections():
         workflow_status="submitted",
         timeliness_status="on_time",
         version=1,
+        server_received_at="2026-07-29T02:15:00+00:00",
     )
     app.dependency_overrides[get_report_repository] = lambda: mock_repo
     app.dependency_overrides[require_authenticated_user] = lambda: UserProfile(

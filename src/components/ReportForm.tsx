@@ -21,6 +21,7 @@ import {
   ReportPeriod,
   ExtractionCorrection,
   ExtractionMetadata,
+  SyncAcceptedItem,
 } from "../types";
 import {
   getLocalDraftForScope,
@@ -197,6 +198,7 @@ export default function ReportForm({
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
+    receipt?: SyncAcceptedItem;
   } | null>(null);
   const [reportMetadata, setReportMetadata] =
     useState<ReportImportMetadata | null>(null);
@@ -456,6 +458,52 @@ export default function ReportForm({
   const pendingRequiredFields = localErrors.filter(
     (error) => !isFieldTouched(error.field),
   ).length;
+  const completedIndicatorCount = Object.values(indicators).filter(
+    (value) => value !== null,
+  ).length;
+  const selectedPeriod = periods.find((period) => period.id === periodId);
+  const selectedDueDate = selectedPeriod?.due_date
+    ? new Date(selectedPeriod.due_date)
+    : null;
+  const selectedDueDateLabel =
+    selectedDueDate && !Number.isNaN(selectedDueDate.getTime())
+      ? selectedDueDate.toLocaleString("vi-VN", {
+          timeZone: "Asia/Ho_Chi_Minh",
+        })
+      : "Chưa cấu hình";
+  const currentReceipt = submitMessage?.receipt;
+  const workflowLabels: Record<string, string> = {
+    draft: "Bản nháp máy chủ",
+    submitted: "Đã nộp · chờ rà soát",
+    needs_revision: "Cần chỉnh sửa",
+    approved: "Đã duyệt",
+    locked: "Đã khóa",
+  };
+  const serverStateLabel = currentReceipt
+    ? "Máy chủ đã tiếp nhận"
+    : initialReport?.pending_sync
+      ? "Đang chờ máy chủ xác nhận"
+      : initialReport && !initialReport.local_only
+        ? workflowLabels[initialReport.workflow_status] ||
+          "Đã có bản ghi máy chủ"
+        : draftId
+          ? "Bản nháp trên thiết bị · chưa gửi"
+          : navigator.onLine
+            ? "Chưa lưu · chưa gửi"
+            : "Ngoại tuyến · chưa có biên nhận";
+  const firstBlockingField = localErrors[0]?.field;
+  const nextTaskHref =
+    !villageId || !periodId
+      ? "#report-section-scope"
+      : firstBlockingField
+        ? `#input-${firstBlockingField}`
+        : "#report-section-submit";
+  const nextTaskLabel =
+    !villageId || !periodId
+      ? "Chọn phạm vi và kỳ báo cáo"
+      : firstBlockingField
+        ? `Hoàn thiện ${firstBlockingField}`
+        : "Kiểm tra và nộp báo cáo";
 
   // Local Validation Logic mapped strictly to validation_rules.json
   const validateIndicatorsLocally = () => {
@@ -686,7 +734,7 @@ export default function ReportForm({
     if (!online) {
       setSubmitMessage({
         type: "success",
-        text: "Đã lưu an toàn trên thiết bị — báo cáo đang chờ gửi khi có kết nối.",
+        text: "Đã lưu an toàn trên thiết bị — báo cáo đang chờ gửi khi có kết nối. Chưa có biên nhận máy chủ.",
       });
       shouldReturn = shouldReturnAfterSubmission(false, false);
     } else {
@@ -701,7 +749,8 @@ export default function ReportForm({
         if (accepted) {
           setSubmitMessage({
             type: "success",
-            text: "Nộp báo cáo thành công — máy chủ đã xác nhận tiếp nhận.",
+            text: "Máy chủ đã tiếp nhận báo cáo và cấp biên nhận.",
+            receipt: accepted,
           });
           shouldReturn = shouldReturnAfterSubmission(true, true);
         } else if (rejected) {
@@ -758,6 +807,72 @@ export default function ReportForm({
           </span>
         </div>
       )}
+
+      <SectionCard
+        className="border-emerald-200 bg-emerald-50/45 p-5"
+        aria-labelledby="report-task-summary-title"
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+              Việc cần làm ngay
+            </p>
+            <h2
+              id="report-task-summary-title"
+              className="mt-1 text-lg font-bold text-slate-950"
+            >
+              Tóm tắt tác vụ báo cáo
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {getVillageName(villageId) || "Chưa chọn thôn"} ·{" "}
+              {reportPeriod || "Chưa chọn kỳ"}
+            </p>
+          </div>
+          <a
+            href={nextTaskHref}
+            onClick={() => {
+              if (firstBlockingField) setIsSubmitAttempted(true);
+            }}
+            className="inline-flex min-h-11 items-center justify-center rounded-lg bg-emerald-800 px-4 py-2.5 text-sm font-bold text-white shadow-xs transition-colors hover:bg-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2"
+          >
+            {nextTaskLabel}
+          </a>
+        </div>
+        <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-emerald-100 bg-white p-3">
+            <dt className="text-xs font-semibold text-slate-500">Hạn nộp</dt>
+            <dd className="mt-1 text-sm font-bold text-slate-900">
+              {selectedDueDateLabel}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-white p-3">
+            <dt className="text-xs font-semibold text-slate-500">
+              Mức hoàn thành
+            </dt>
+            <dd className="mt-1 text-sm font-bold text-slate-900">
+              {completedIndicatorCount}/14 chỉ tiêu
+            </dd>
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-white p-3">
+            <dt className="text-xs font-semibold text-slate-500">Lỗi chặn</dt>
+            <dd
+              className={`mt-1 text-sm font-bold ${
+                localErrors.length > 0 ? "text-rose-700" : "text-emerald-800"
+              }`}
+            >
+              {localErrors.length}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-white p-3">
+            <dt className="text-xs font-semibold text-slate-500">
+              Bản nháp / máy chủ
+            </dt>
+            <dd className="mt-1 text-sm font-bold text-slate-900">
+              {serverStateLabel}
+            </dd>
+          </div>
+        </dl>
+      </SectionCard>
 
       <details className="report-section-guide">
         <summary>
@@ -1370,24 +1485,69 @@ export default function ReportForm({
             submitMessage.type === "success"
               ? "bg-emerald-50 text-emerald-800 border-emerald-100"
               : "bg-rose-50 text-rose-800 border-rose-100"
-          } flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in`}
+          } animate-fade-in`}
         >
-          <div className="flex items-center gap-2">
-            <AlertCircle
-              className={`w-4 h-4 ${submitMessage.type === "success" ? "text-emerald-600" : "text-rose-600"}`}
-            />
-            <span>{submitMessage.text}</span>
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-2">
+              <AlertCircle
+                className={`w-4 h-4 ${submitMessage.type === "success" ? "text-emerald-600" : "text-rose-600"}`}
+              />
+              <span>{submitMessage.text}</span>
+            </div>
+            {submitMessage.type === "success" &&
+              (submitMessage.text.includes("trên thiết bị") ||
+                !navigator.onLine) && (
+                <span
+                  id="offline-submit-badge"
+                  className="inline-flex items-center bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider border border-amber-200 shrink-0"
+                >
+                  Đã lưu trên thiết bị · chờ đồng bộ
+                </span>
+              )}
           </div>
-          {submitMessage.type === "success" &&
-            (submitMessage.text.includes("trên thiết bị") ||
-              !navigator.onLine) && (
-              <span
-                id="offline-submit-badge"
-                className="inline-flex items-center bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider border border-amber-200 shrink-0"
-              >
-                Đã lưu trên thiết bị · chờ đồng bộ
-              </span>
-            )}
+          {submitMessage.receipt && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 text-slate-800">
+              <h3 className="text-sm font-bold text-emerald-950">
+                Biên nhận máy chủ
+              </h3>
+              <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <dt className="text-xs font-semibold text-slate-500">
+                    Tiếp nhận lúc
+                  </dt>
+                  <dd className="mt-1 font-bold">
+                    {new Date(
+                      submitMessage.receipt.server_received_at,
+                    ).toLocaleString("vi-VN", {
+                      timeZone: "Asia/Ho_Chi_Minh",
+                    })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-slate-500">
+                    Phiên bản
+                  </dt>
+                  <dd className="mt-1 font-bold">
+                    {submitMessage.receipt.version}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-slate-500">
+                    Bước tiếp theo
+                  </dt>
+                  <dd className="mt-1 font-bold">
+                    Chờ quản trị xã rà soát
+                  </dd>
+                </div>
+              </dl>
+              {submitMessage.receipt.replayed && (
+                <p className="mt-3 text-xs text-slate-600">
+                  Đây là biên nhận đã được máy chủ khôi phục cho lần gửi lại cùng
+                  mã chống trùng.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

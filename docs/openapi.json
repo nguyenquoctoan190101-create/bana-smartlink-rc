@@ -8,13 +8,28 @@
             "title": "Client Id",
             "type": "string"
           },
+          "next_step": {
+            "const": "await_commune_review",
+            "title": "Next Step",
+            "type": "string"
+          },
           "publication_status": {
             "title": "Publication Status",
             "type": "string"
           },
+          "replayed": {
+            "default": false,
+            "title": "Replayed",
+            "type": "boolean"
+          },
           "report_id": {
             "format": "uuid",
             "title": "Report Id",
+            "type": "string"
+          },
+          "server_received_at": {
+            "format": "date-time",
+            "title": "Server Received At",
             "type": "string"
           },
           "timeliness_status": {
@@ -36,7 +51,9 @@
           "version",
           "workflow_status",
           "timeliness_status",
-          "publication_status"
+          "publication_status",
+          "server_received_at",
+          "next_step"
         ],
         "title": "AcceptedReportItem",
         "type": "object"
@@ -3734,6 +3751,11 @@
       },
       "ReportSubmitResponse": {
         "properties": {
+          "next_step": {
+            "const": "await_commune_review",
+            "title": "Next Step",
+            "type": "string"
+          },
           "period_id": {
             "format": "uuid",
             "title": "Period Id",
@@ -3747,6 +3769,11 @@
           "report_id": {
             "format": "uuid",
             "title": "Report Id",
+            "type": "string"
+          },
+          "server_received_at": {
+            "format": "date-time",
+            "title": "Server Received At",
             "type": "string"
           },
           "status": {
@@ -3785,7 +3812,9 @@
           "status",
           "workflow_status",
           "timeliness_status",
-          "version"
+          "version",
+          "server_received_at",
+          "next_step"
         ],
         "title": "ReportSubmitResponse",
         "type": "object"
@@ -3794,6 +3823,11 @@
         "properties": {
           "filename": {
             "title": "Filename",
+            "type": "string"
+          },
+          "next_step": {
+            "const": "await_commune_review",
+            "title": "Next Step",
             "type": "string"
           },
           "period_id": {
@@ -3809,6 +3843,11 @@
           "report_id": {
             "format": "uuid",
             "title": "Report Id",
+            "type": "string"
+          },
+          "server_received_at": {
+            "format": "date-time",
+            "title": "Server Received At",
             "type": "string"
           },
           "size_bytes": {
@@ -3852,6 +3891,8 @@
           "workflow_status",
           "timeliness_status",
           "version",
+          "server_received_at",
+          "next_step",
           "filename",
           "size_bytes"
         ],

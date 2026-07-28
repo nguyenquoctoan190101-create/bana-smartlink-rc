@@ -1664,13 +1664,28 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+            /**
+             * Next Step
+             * @constant
+             */
+            next_step: "await_commune_review";
             /** Publication Status */
             publication_status: string;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
             /**
              * Report Id
              * Format: uuid
              */
             report_id: string;
+            /**
+             * Server Received At
+             * Format: date-time
+             */
+            server_received_at: string;
             /** Timeliness Status */
             timeliness_status: string;
             /** Version */
@@ -2928,6 +2943,11 @@ export interface components {
         /** ReportSubmitResponse */
         ReportSubmitResponse: {
             /**
+             * Next Step
+             * @constant
+             */
+            next_step: "await_commune_review";
+            /**
              * Period Id
              * Format: uuid
              */
@@ -2942,6 +2962,11 @@ export interface components {
              * Format: uuid
              */
             report_id: string;
+            /**
+             * Server Received At
+             * Format: date-time
+             */
+            server_received_at: string;
             /** Status */
             status: string;
             /** Timeliness Status */
@@ -2963,6 +2988,11 @@ export interface components {
             /** Filename */
             filename: string;
             /**
+             * Next Step
+             * @constant
+             */
+            next_step: "await_commune_review";
+            /**
              * Period Id
              * Format: uuid
              */
@@ -2977,6 +3007,11 @@ export interface components {
              * Format: uuid
              */
             report_id: string;
+            /**
+             * Server Received At
+             * Format: date-time
+             */
+            server_received_at: string;
             /** Size Bytes */
             size_bytes: number;
             /** Status */
