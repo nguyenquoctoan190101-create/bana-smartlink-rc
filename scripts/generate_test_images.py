@@ -23,12 +23,12 @@ def create_base_report_image(values: dict, text_color=(0, 0, 0), bg_color=(255, 
         font_text = None
         
     # 1. Draw top 30% header (metadata to be cropped)
-    draw.text((100, 50), "ỦY BAN NHÂN DÂN XÃ BÀ NÀ", fill=text_color, font=font_title)
-    draw.text((100, 80), "PHIẾU BÁO CÁO CHỈ TIÊU VĂN HÓA - XÃ HỘI", fill=text_color, font=font_title)
-    draw.text((100, 140), "Người lập biểu: Nguyễn Văn Hoàng (Cán bộ xã)", fill=text_color, font=font_text)
-    draw.text((100, 170), "Số điện thoại: 0987654321 (TUYỆT ĐỐI KHÔNG CHIA SẺ)", fill=text_color, font=font_text)
-    draw.text((100, 200), "Kỳ báo cáo: Quý II / 2026", fill=text_color, font=font_text)
-    draw.text((100, 230), "Thôn sáp nhập: Tà Lang", fill=text_color, font=font_text)
+    draw.text((100, 50), "DU LIEU KIEM THU TONG HOP", fill=text_color, font=font_title)
+    draw.text((100, 80), "PHIEU BAO CAO CHI TIEU VAN HOA - XA HOI", fill=text_color, font=font_title)
+    draw.text((100, 140), "Khong co du lieu ca nhan hoac ho so nghiep vu", fill=text_color, font=font_text)
+    draw.text((100, 170), "Chi dung de kiem thu OCR tu dong", fill=text_color, font=font_text)
+    draw.text((100, 200), "Ky kiem thu: 2026-07", fill=text_color, font=font_text)
+    draw.text((100, 230), "Pham vi: Thon tong hop gia lap", fill=text_color, font=font_text)
     
     # Separation line at 300px (30% of 1200 is 360, so this is well within the top 30%)
     draw.line((50, 310, 750, 310), fill=(180, 180, 180), width=2)
@@ -83,22 +83,22 @@ def create_base_report_image(values: dict, text_color=(0, 0, 0), bg_color=(255, 
 def main():
     os.makedirs("tests/ocr_test_images", exist_ok=True)
     
-    # Real baseline indicator numbers to draw
+    # Synthetic baseline values shared with tests/test_ocr_accuracy.py.
     base_values = {
-        "CT01": "165",
-        "CT02": "680",
-        "CT03": "4",
-        "CT04": "8",
-        "CT05": "12",
-        "CT06": "35",
-        "CT07": "112",
+        "CT01": "145",
+        "CT02": "512",
+        "CT03": "18",
+        "CT04": "22",
+        "CT05": "7",
+        "CT06": "14",
+        "CT07": "89",
         "CT08": "3",
-        "CT09": "150",
-        "CT10": "410",
-        "CT11": "650",
-        "CT12": "6",
-        "CT13": "85",
-        "CT14": "0"
+        "CT09": "110",
+        "CT10": "285",
+        "CT11": "498",
+        "CT12": "5",
+        "CT13": "42",
+        "CT14": "1"
     }
     
     # 1. Normal/Clean Image
@@ -131,9 +131,6 @@ def main():
     print("Generating ocr_test_bluepen.jpg...")
     # Use dark blue for ink text
     blue_values = dict(base_values)
-    # Give slightly different handwritten values
-    blue_values["CT03"] = "6"
-    blue_values["CT14"] = "1"
     blue_pen_img = create_base_report_image(blue_values, text_color=(20, 50, 180), bg_color=(255, 255, 255))
     blue_pen_img.save("tests/ocr_test_images/ocr_test_bluepen.jpg", quality=92)
     

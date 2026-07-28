@@ -31,7 +31,24 @@ _TABLE_MIN_HORIZONTAL_LINES = 4
 _TABLE_MIN_VERTICAL_COVERAGE = 0.42
 _TABLE_ANALYSIS_MAX_WIDTH = 1200
 _TABLE_ANALYSIS_MAX_HEIGHT = 1800
-_TABLE_DESKEW_ANGLES = (-2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0)
+# Phone photos are commonly a few degrees off-axis. Keep the search bounded
+# and deterministic while covering the synthetic 4° regression case and
+# ordinary handheld capture without relaxing the table-boundary checks.
+_TABLE_DESKEW_ANGLES = (
+    -6.0,
+    -5.0,
+    -4.0,
+    -3.0,
+    -2.0,
+    -1.0,
+    0.0,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+)
 
 _OCR_SYSTEM_PROMPT = (
     "Ban la he thong OCR cho phieu bao cao hanh chinh Viet Nam, bao gom ca chu va so viet tay. "
@@ -80,7 +97,7 @@ _MIME_BY_MAGIC: dict[bytes, str] = {
 _PDF_MAGIC = b"%PDF-"
 _OCR_EXTRACTOR = "gemini_multimodal"
 _OCR_METHOD = "table_only_raster_ocr"
-_OCR_VERSION = "2.0"
+_OCR_VERSION = "2.1"
 _LOW_CONFIDENCE_THRESHOLD = 0.8
 _MAX_PDF_IMAGES = 20
 _MAX_PDF_IMAGE_PIXELS_TOTAL = 50_000_000
