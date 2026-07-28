@@ -166,6 +166,15 @@ async def test_openai_enrichment_uses_responses_structured_output_without_storag
     assert request["reasoning"] == {"effort": "medium", "context": "current_turn"}
     assert request["text"]["format"]["type"] == "json_schema"
     assert request["text"]["format"]["strict"] is True
+    schema = request["text"]["format"]["schema"]
+    assert "title" in schema["properties"]["options"]["items"]["properties"]
+    assert "title" in schema["properties"]["risks"]["items"]["properties"]
+    assert schema["properties"]["options"]["items"]["properties"][
+        "evidence_ids"
+    ]["items"]["enum"] == [
+        "period:Tháng bảy",
+        "report-1",
+    ]
     assert request["safety_identifier"] != "internal-user-id"
     assert "0901234567" not in request["input"]
     assert "secret-test-key" not in json.dumps(request)
@@ -219,6 +228,40 @@ async def test_malformed_provider_response_fails_closed_without_leaking_body() -
 
     assert attempt.status == "fallback"
     assert "provider-secret" not in str(attempt)
+
+
+@pytest.mark.asyncio
+async def test_gemini_schema_preserves_titles_and_binds_request_evidence() -> None:
+    settings = Settings(
+        _env_file=None,
+        feature_decision_ai=True,
+        decision_ai_provider="gemini",
+        gemini_api_key="gemini-test-key",
+    )
+    generate_json = AsyncMock(return_value=_analysis_payload())
+    with patch(
+        "services.decision_ai.GeminiClient.generate_json",
+        new=generate_json,
+    ):
+        attempt = await enrich_decision_brief(
+            settings=settings,
+            period_name="Tháng bảy",
+            deterministic_content="Kết luận: Cần rà soát.",
+            citations=_citations(),
+            safety_subject="user",
+        )
+
+    assert attempt.status == "enhanced"
+    schema = generate_json.await_args.args[2]
+    option_properties = schema["properties"]["options"]["items"]["properties"]
+    risk_properties = schema["properties"]["risks"]["items"]["properties"]
+    assert schema["type"] == "OBJECT"
+    assert option_properties["title"]["type"] == "STRING"
+    assert risk_properties["title"]["type"] == "STRING"
+    assert option_properties["evidence_ids"]["items"]["enum"] == [
+        "period:Tháng bảy",
+        "report-1",
+    ]
 
 
 def test_grounding_rejects_unknown_references_even_with_valid_schema() -> None:
