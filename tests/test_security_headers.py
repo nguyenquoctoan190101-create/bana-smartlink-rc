@@ -31,3 +31,29 @@ def test_static_health_response_is_not_forced_to_no_store(monkeypatch) -> None:
     response = TestClient(create_app()).get("/health/live")
 
     assert "cache-control" not in response.headers
+
+
+def test_hashed_assets_are_immutable_but_spa_shell_revalidates(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "index-contenthash.js").write_text("export {};", encoding="utf-8")
+    (tmp_path / "index.html").write_text("<!doctype html><title>App</title>", encoding="utf-8")
+    (tmp_path / "service-worker.js").write_text("self.skipWaiting();", encoding="utf-8")
+    client = TestClient(create_app(static_root=tmp_path))
+
+    asset = client.get("/assets/index-contenthash.js")
+    missing_asset = client.get("/assets/missing-contenthash.js")
+    root = client.get("/")
+    spa_route = client.get("/app/operations")
+    worker = client.get("/service-worker.js")
+
+    assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert missing_asset.status_code == 404
+    assert "cache-control" not in missing_asset.headers
+    assert root.headers["cache-control"] == "no-cache"
+    assert spa_route.headers["cache-control"] == "no-cache"
+    assert worker.headers["cache-control"] == "no-cache"

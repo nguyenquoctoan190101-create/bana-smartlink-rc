@@ -21,12 +21,13 @@ def test_fresh_database_overlays_exclude_legacy_schema_rewrites() -> None:
                 "20260726_",
                 "20260727_",
                 "20260728_",
+                "20260729_",
             )
         )
         for name in names
     )
     assert "20260713_0001_security_domain_upgrade.sql" not in names
-    assert names[-1] == "20260728_0030_ai_draft_admin_mutation.sql"
+    assert names[-1] == "20260729_0031_supabase_advisor_hardening.sql"
 
 
 def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
@@ -56,7 +57,26 @@ def test_runtime_release_overlays_are_narrow_and_ordered() -> None:
         "20260727_0028_complete_demo_public_reports.sql",
         "20260727_0029_seed_reconciled_sample_reports.sql",
         "20260728_0030_ai_draft_admin_mutation.sql",
+        "20260729_0031_supabase_advisor_hardening.sql",
     ]
+
+
+def test_tracking_table_is_hardened_before_status_or_migration_work() -> None:
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.sql = ""
+
+        async def execute(self, query: str, *args: object) -> None:
+            self.sql = query
+
+    connection = FakeConnection()
+    asyncio.run(migrate._ensure_tracking(connection))  # type: ignore[arg-type]
+
+    normalized = " ".join(connection.sql.lower().split())
+    assert "alter table public.schema_migrations enable row level security" in normalized
+    assert "revoke all on table public.schema_migrations from public" in normalized
+    for role in ("anon", "authenticated", "service_role"):
+        assert f"from {role}" in normalized
 
 
 def test_failed_migration_rolls_back_before_unlock_without_masking_root_cause(

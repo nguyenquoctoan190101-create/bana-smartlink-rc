@@ -47,7 +47,9 @@ def request_once(base_url: str, path: str, timeout_seconds: float) -> tuple[bool
             f"{base_url}{path}",
             headers={"User-Agent": "BaNaSmartLink-PerformanceSmoke/1.0"},
         )
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        # safe_base_url restricts the caller-supplied origin to credential-free
+        # HTTP(S), while main accepts only relative read-only paths.
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
             elapsed_ms = (time.perf_counter() - started) * 1000
             return response.getcode() == 200, elapsed_ms, str(response.getcode())
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:

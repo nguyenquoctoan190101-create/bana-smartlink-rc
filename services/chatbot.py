@@ -194,14 +194,17 @@ _OBVIOUS_OUT_OF_SCOPE_RE = re.compile(
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 _PHONE_RE = re.compile(r"(?<!\d)(?:\+84|0)\d{8,10}(?!\d)")
 _IDENTITY_NUMBER_RE = re.compile(r"(?<!\d)(?:\d{9}|\d{12})(?!\d)")
+_LABELED_VALUE_SEPARATOR = r"(?:[ \t]*(?::|-)[ \t]*|[ \t]+)"
 _ADDRESS_RE = re.compile(
     r"\b(?:địa\s*chỉ|dia\s*chi|thường\s*trú|thuong\s*tru|ở\s*tại|o\s*tai)"
-    r"\s*[:\-]?\s*[^,.;\n]{3,120}",
+    + _LABELED_VALUE_SEPARATOR
+    + r"[^\s,.;\n][^,.;\n]{2,119}",
     re.IGNORECASE,
 )
 _NAMED_PERSON_RE = re.compile(
     r"\b(?:họ\s*tên|ho\s*ten|tên\s*tôi\s*là|ten\s*toi\s*la|tôi\s*là|toi\s*la)"
-    r"\s*[:\-]?\s*[^,.;\n]{2,80}",
+    + _LABELED_VALUE_SEPARATOR
+    + r"[^\s,.;\n][^,.;\n]{1,79}",
     re.IGNORECASE,
 )
 _CAPITALIZED_PERSON_RE = re.compile(
@@ -420,7 +423,9 @@ def _classify_question(question: str) -> _ParsedQuestion:
 def _redact_free_text(text: str) -> str:
     """Remove common citizen identifiers before any model request."""
     protected: dict[str, str] = {}
-    redacted = text
+    # The public API contract caps chat fields at 500 characters. Enforce the
+    # same bound here so internal callers cannot create unbounded regex work.
+    redacted = text[:500]
     for index, phrase in enumerate((*_CURRENT_VILLAGE_NAMES, "Ba Na SmartLink")):
         token = f"__SAFE_LOCATION_{index}__"
         if phrase in redacted:

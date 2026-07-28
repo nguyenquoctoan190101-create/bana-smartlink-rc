@@ -95,8 +95,8 @@ jobs:
           cache: npm
       - run: python -m pip install pip-audit bandit cyclonedx-bom
       - run: python -m pip_audit --requirement requirements-prod.txt
-      - name: Python SAST (high severity)
-        run: bandit -r main.py routers services scripts -lll -q
+      - name: Python SAST (medium severity and confidence)
+        run: bandit -r main.py routers services scripts -ll -ii -q
       - run: npm ci --ignore-scripts
       - name: Audit all Node dependencies
         run: npm audit --audit-level=low
@@ -154,7 +154,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f tests/sql/supabase_function_grant_snapshot.sql
       - name: Apply ordered release-candidate overlay migrations
         run: |
-          for migration in migrations/20260715_*.sql migrations/20260718_*.sql migrations/20260722_*.sql migrations/20260723_*.sql migrations/20260726_*.sql migrations/20260727_*.sql migrations/20260728_*.sql; do
+          for migration in migrations/20260715_*.sql migrations/20260718_*.sql migrations/20260722_*.sql migrations/20260723_*.sql migrations/20260726_*.sql migrations/20260727_*.sql migrations/20260728_*.sql migrations/20260729_*.sql; do
             psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d bana_test -f "$migration"
           done
       - name: Verify migration overlay and database validation gate

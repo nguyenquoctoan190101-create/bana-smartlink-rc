@@ -43,7 +43,9 @@ def fetch_health(base_url: str, timeout_seconds: float) -> Any:
         f"{base_url}/health/live",
         headers={"User-Agent": "BaNaSmartLink-ReleaseSmoke/1.0"},
     )
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+    # safe_base_url restricts the caller-supplied origin to credential-free
+    # HTTP(S), and the health path is a fixed constant.
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
         if response.getcode() != 200:
             raise RuntimeError(f"health endpoint returned HTTP {response.getcode()}")
         return json.loads(response.read())

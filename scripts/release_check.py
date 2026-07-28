@@ -19,14 +19,14 @@ TEXT_SUFFIXES = {
 }
 TEXT_NAMES = {".dockerignore", "Dockerfile"}
 SECRET_PATTERNS = {
-    "credentialed database URL": re.compile(
+    "CREDENTIALED_DATABASE_URL": re.compile(
         r"postgres(?:ql)?://[^\s:/]+:[^\s@/]+@", re.IGNORECASE
     ),
-    "private key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
-    "JWT-like credential": re.compile(
+    "PRIVATE_KEY_MATERIAL": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    "JWT_CREDENTIAL": re.compile(
         r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"
     ),
-    "provider API key": re.compile(r"AIza[A-Za-z0-9_-]{30,}"),
+    "PROVIDER_API_KEY": re.compile(r"AIza[A-Za-z0-9_-]{30,}"),
 }
 ABSOLUTE_PATH = re.compile(r"(?:[A-Za-z]:[\\/](?:Users|Documents|Downloads)|/Users/|/home/)")
 FORBIDDEN_RUNTIME = re.compile(
@@ -43,50 +43,53 @@ def files() -> list[Path]:
 
 
 def main() -> int:
-    failures: list[str] = []
+    # Findings contain only a fixed reason code and a repository-relative path.
+    # Matched file contents and secret-like values are never written to logs.
+    failures: list[tuple[str, str]] = []
     all_files = files()
     for path in all_files:
         relative = path.relative_to(ROOT)
+        relative_name = relative.as_posix()
         lower_name = path.name.lower()
         if lower_name == ".env" or (lower_name.startswith(".env.") and lower_name != ".env.example"):
-            failures.append(f"local environment file: {relative}")
+            failures.append(("LOCAL_ENV_FILE", relative_name))
         if path.suffix.lower() in {".zip", ".tar", ".gz", ".db", ".sqlite", ".sqlite3", ".pyc"}:
-            failures.append(f"generated/binary artifact: {relative}")
+            failures.append(("GENERATED_BINARY_ARTIFACT", relative_name))
         if path.stat().st_size == 0 and path.suffix.lower() in {".xlsx", ".pdf", ".docx"}:
-            failures.append(f"empty document fixture: {relative}")
+            failures.append(("EMPTY_DOCUMENT_FIXTURE", relative_name))
         if (
             path.suffix.lower() not in TEXT_SUFFIXES
             and path.name not in TEXT_NAMES
         ) or path.stat().st_size > 5_000_000:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        for label, pattern in SECRET_PATTERNS.items():
+        for finding_code, pattern in SECRET_PATTERNS.items():
             if pattern.search(text):
-                failures.append(f"{label}: {relative}")
+                failures.append((finding_code, relative_name))
         if relative.as_posix() not in {"AGENTS.md", "scripts/release_check.py"} and ABSOLUTE_PATH.search(text):
-            failures.append(f"personal absolute path: {relative}")
+            failures.append(("PERSONAL_ABSOLUTE_PATH", relative_name))
         if (
             relative.parts[0] in {"routers", "services", "scripts", ".github"}
             and relative.as_posix() != "scripts/release_check.py"
             and FORBIDDEN_RUNTIME.search(text)
         ):
-            failures.append(f"forbidden runtime integration: {relative}")
+            failures.append(("FORBIDDEN_RUNTIME_INTEGRATION", relative_name))
 
     lock = ROOT / "package-lock.json"
     if not lock.exists() or lock.stat().st_size == 0:
-        failures.append("package-lock.json is missing or empty")
+        failures.append(("MISSING_OR_EMPTY_FILE", "package-lock.json"))
 
     dockerfile = ROOT / "Dockerfile"
     blueprint = ROOT / "render.yaml"
     if not dockerfile.exists():
-        failures.append("Dockerfile is missing")
+        failures.append(("MISSING_FILE", "Dockerfile"))
     else:
         docker_text = dockerfile.read_text(encoding="utf-8")
         for forbidden_arg in ("ARG DATABASE_URL", "ARG SUPABASE_SECRET_KEY"):
             if forbidden_arg in docker_text:
-                failures.append(f"secret exposed as Docker build arg: {forbidden_arg}")
+                failures.append(("SECRET_DOCKER_BUILD_ARGUMENT", "Dockerfile"))
     if not blueprint.exists():
-        failures.append("render.yaml is missing")
+        failures.append(("MISSING_FILE", "render.yaml"))
     for json_path in [
         ROOT / "package.json",
         ROOT / "config" / "validation_rules.json",
@@ -97,7 +100,7 @@ def main() -> int:
         try:
             json.loads(json_path.read_text(encoding="utf-8"))
         except Exception:
-            failures.append(f"invalid JSON: {json_path.relative_to(ROOT)}")
+            failures.append(("INVALID_JSON", json_path.relative_to(ROOT).as_posix()))
 
     schema = (ROOT / "db" / "schema.sql").read_text(encoding="utf-8")
     required_schema_markers = [
@@ -110,12 +113,14 @@ def main() -> int:
     ]
     for marker in required_schema_markers:
         if marker not in schema:
-            failures.append(f"canonical schema marker missing: {marker}")
+            failures.append(("CANONICAL_SCHEMA_MARKER_MISSING", "db/schema.sql"))
 
     if failures:
-        print("Release check failed:")
-        for failure in sorted(set(failures)):
-            print(f"- {failure}")
+        # Do not emit values carried through the repository-content scan.
+        # Even repository-relative paths can become associated with a secret
+        # match in static taint analysis and should stay out of shared CI logs.
+        print(f"Release check failed ({len(set(failures))} finding(s)).")
+        print("Run the scanner in a trusted local environment to investigate.")
         return 1
     print(f"Release check passed ({len(all_files)} files inspected).")
     return 0
