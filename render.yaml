@@ -25,10 +25,11 @@ services:
         value: "true"
       - key: FEATURE_VOICE
         value: "true"
-      # OCR remains non-persistent and sends only the locally detected table
-      # crop. It becomes available only when GEMINI_API_KEY is also present.
+      # External OCR is release-locked on staging/production until the
+      # de-identification benchmark and privacy/legal review are approved.
+      # Keep this false even when GEMINI_API_KEY exists.
       - key: FEATURE_EXTERNAL_OCR
-        value: "true"
+        value: "false"
       # Keep OCR independent from future chatbot model changes.
       - key: GEMINI_OCR_MODEL
         value: gemini-3.5-flash-lite

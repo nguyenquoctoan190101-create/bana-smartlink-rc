@@ -89,7 +89,7 @@ thể thay đổi, gây tự khóa người dùng hợp lệ.
 | Sao lưu/khôi phục | Đã có smoke lịch sử, chưa có drill cho bản phát hành cuối | Backup có hash, restore vào môi trường biệt lập, kiểm số đếm và RPO/RTO |
 | Hiệu năng | Đạt tải đọc giới hạn 100 yêu cầu/concurrency 10; chưa có tải ghi/xác thực theo nghiệp vụ | Định nghĩa số người dùng đồng thời và SLO, chạy kịch bản kỳ cao điểm trên staging, đo p50/p95/error rate và dung lượng DB |
 | Giám sát/sự cố | Mã hỗ trợ Sentry/log, cấu hình owner chưa được xác nhận | Dashboard, cảnh báo, trực ca, runbook, diễn tập và kênh báo sự cố |
-| OCR ảnh/PDF | Mã, giao diện và cơ chế bảo vệ đã triển khai; chỉ hoạt động khi Render có `GEMINI_API_KEY` | Thêm khóa qua kênh bí mật, kiểm thử ảnh/PDF thật; lập bộ benchmark đã khử định danh trước khi công bố độ chính xác hoặc mở rộng sử dụng |
+| OCR ảnh/PDF | Khóa bắt buộc trên staging/production; giao diện chỉ cho nhập Excel khi cờ release tắt | Chỉ xem xét mở lại sau benchmark đã khử định danh, privacy/legal review và phê duyệt cấu hình bằng văn bản; không chỉ dựa vào việc có `GEMINI_API_KEY` |
 | Độ chính xác/hiệu quả | Chưa có đo thực địa | Không công bố tỷ lệ chính xác hoặc giảm thời gian cho đến khi có dữ liệu đo và chữ ký |
 
 ## Lộ trình đưa vào sử dụng
