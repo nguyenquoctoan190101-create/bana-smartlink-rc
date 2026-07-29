@@ -30,3 +30,9 @@ def test_proxy_trust_is_closed_by_default() -> None:
 
     assert "FORWARDED_ALLOW_IPS:-127.0.0.1" in dockerfile
     assert "key: FORWARDED_ALLOW_IPS" in render
+
+
+def test_render_keeps_external_ocr_release_locked() -> None:
+    render = (ROOT / "render.yaml").read_text(encoding="utf-8")
+
+    assert "key: FEATURE_EXTERNAL_OCR\n        value: \"false\"" in render

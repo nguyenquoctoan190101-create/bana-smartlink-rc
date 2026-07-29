@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BrainCircuit, CalendarDays, CheckCircle2, ClipboardList, Clock3, DatabaseZap, FileCheck2, GitCompareArrows, Link2, Loader2, ShieldCheck, Sparkles, Target, UserRoundCheck } from "lucide-react";
 import { apiFetch, apiJson, toUserFacingError } from "../lib/apiClient";
 import { auditActionLabel, auditObjectLabel } from "../lib/auditPresentation";
+import {
+  formatViFlexiblePercent,
+  localizePercentagesInText,
+} from "../lib/formatters";
 import type { ReportPeriod, UserRole } from "../types";
 import { ActionCard, Button, DataScope, EmptyState, ErrorState, MetricCard, PageHeader, StatusBadge, WorkSection } from "./ui";
 import "./OperationsCenter.css";
@@ -375,7 +379,7 @@ function summarizeQualityDimensions(reports: Quality[]): QualityDimensions {
 
 function formatDimensionPercent(value: number | null | undefined): string {
   return typeof value === "number" && Number.isFinite(value)
-    ? `${value}%`
+    ? formatViFlexiblePercent(value)
     : "—";
 }
 
@@ -592,14 +596,15 @@ function parseDecisionBrief(content: string): DecisionBriefSections {
     }
   }
   if (!foundStructuredSection) {
-    result.conclusion = content.trim() || result.conclusion;
+    result.conclusion =
+      localizePercentagesInText(content.trim()) || result.conclusion;
     return result;
   }
   for (const [key, lines] of Object.entries(parsedSections) as Array<
     [keyof DecisionBriefSections, string[]]
   >) {
     const value = lines.join(" ").trim();
-    if (value) result[key] = value;
+    if (value) result[key] = localizePercentagesInText(value);
   }
   return result;
 }

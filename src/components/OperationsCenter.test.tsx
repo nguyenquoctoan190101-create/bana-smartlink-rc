@@ -51,7 +51,7 @@ describe("OperationsCenter", () => {
   it("keeps successful operational data visible when an optional section fails", async () => {
     const { container } = render(<OperationsCenter periodId="period-1" role="admin_xa" />);
 
-    await waitFor(() => expect(screen.getAllByText(/92\.9%/)).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText(/92,9%/)).toHaveLength(2));
     expect(screen.getByText("13/14 trường · 1 báo cáo chưa đủ")).toBeInTheDocument();
     expect(screen.getByText("1/1 báo cáo · 0 có lỗi chặn")).toBeInTheDocument();
     expect(screen.getByText("1/1 báo cáo · 0 báo cáo chưa đúng hạn")).toBeInTheDocument();
@@ -292,6 +292,47 @@ describe("OperationsCenter", () => {
     expect(
       screen.queryByLabelText(/Căn cứ nhận xét/),
     ).not.toBeInTheDocument();
+  });
+
+  it("localizes decimal percentages stored in current and historical briefs", async () => {
+    mocks.apiJson.mockImplementation((path: string) => {
+      if (path.startsWith("/api/operations/quality")) {
+        return Promise.resolve({ reports: [] });
+      }
+      if (path === "/api/operations/ai-drafts") {
+        return Promise.resolve([
+          {
+            id: "draft-current",
+            period_id: "period-1",
+            status: "accepted",
+            content: [
+              "Kết luận: Điểm chất lượng trung bình 100.0%.",
+              "Mức ưu tiên: Theo dõi",
+              "Hành động đề xuất: Rà soát độ phủ 92.9%.",
+              "Căn cứ: Phiên bản 1.2; tỷ lệ 100.0%.",
+              "Giới hạn: Không tự phê duyệt.",
+            ].join("\n"),
+            review_notes: "Đã kiểm tra đầy đủ tài liệu nguồn.",
+            reviewed_at: "2026-07-28T13:00:00+07:00",
+            created_at: "2026-07-28T12:00:00+07:00",
+          },
+        ]);
+      }
+      if (path === "/api/operations/actions") return Promise.resolve([]);
+      if (path.startsWith("/reports/trend-alerts")) return Promise.resolve([]);
+      if (path === "/api/operations/initiatives") return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+
+    render(<OperationsCenter periodId="period-1" role="admin_xa" />);
+
+    expect(
+      await screen.findByText("Điểm chất lượng trung bình 100,0%."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Rà soát độ phủ 92,9%.")).toBeInTheDocument();
+    expect(screen.getByText("Phiên bản 1.2; tỷ lệ 100,0%.")).toBeInTheDocument();
+    expect(screen.queryByText(/100\.0%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/92\.9%/)).not.toBeInTheDocument();
   });
 
   it("keeps leadership action cards read-only even if a stale response contains a next action", async () => {
